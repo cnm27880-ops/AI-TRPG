@@ -1,0 +1,23 @@
+{
+  "id": "contract.placeholder",
+  "type": "契約",
+  "version": "0.1.0-draft",
+  "sourceRef": "[設計] 規則書搜尋不到「奴隸契約/員工契約」對應章節，這裡先搭骨架，數值全部留白待補",
+  "note": "這是結構示範用的草稿包，price 都是 null，不代表最終數值，實際契約清單與價格要等使用者確定要做這塊時再補",
+  "entries": [
+    {
+      "name": "見習員工契約(草案)",
+      "contractType": "員工契約",
+      "requiredAffectionTier": 2,
+      "price": null,
+      "effectDescription": "待設計——預期效果：允許把好感度達「親切」以上的NPC以雇傭關係帶出世界之外"
+    },
+    {
+      "name": "束縛奴隸契約(草案)",
+      "contractType": "奴隸契約",
+      "requiredAffectionTier": 3,
+      "price": null,
+      "effectDescription": "待設計——預期效果：允許把好感度達「崇敬」的NPC以更強的從屬關係帶出世界之外，可能伴隨額外的道德/劇情後果，需要之後設計"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+# Cloudflare Pages 設定檔 —— [設計] 部署骨架，這個repo目前沒有Cloudflare帳號可以實際測試，
+# 你要自己跑過一次 `wrangler pages deploy` 才能確認這份設定完全正確。
+#
+# 這份設定是依照2026年查證當下的官方文件寫的(developers.cloudflare.com/pages/functions/wrangler-configuration/)，
+# 但Cloudflare的設定格式偶爾會變，尤其wrangler.toml跟新的wrangler.jsonc/wrangler.json兩種格式並存，
+# 如果你要正式部署前，建議先確認：
+#   1) `pages_build_output_dir` 是Pages專用欄位(跟Workers的`main`欄位不同)，需要對應到你的靜態資源目錄，
+#      這個repo目前只有 `public/` 底下一個佔位首頁(還沒有真正的前端UI，前端UI是之後的工作)。
+#   2) `compatibility_flags` 的 "nodejs_compat" 是必要的，因為 core/dice.js 用了
+#      node:crypto 的 randomInt() 來擲骰——沒開這個flag，戰鬥/檢定相關的API會直接壞掉，
+#      不是算錯，是整個函式丟例外。
+#   3) compatibility_date 下面填的是一個「已知合法」的舊日期，不是隨便寫的——Cloudflare的
+#      相容性日期機制是「早於這個日期的行為維持舊版相容」，你可以之後改成更新的日期，
+#      但改之前建議先讀 https://developers.cloudflare.com/workers/configuration/compatibility-dates/
+#      確認新日期不會改變你依賴的行為。
+
+name = "wxh-engine"
+pages_build_output_dir = "./public"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]

@@ -1,0 +1,37 @@
+{
+  "id": "scenario.judge1",
+  "type": "副本",
+  "version": "1.0.0",
+  "sourceRef": "[設計] 依照使用者截圖裡出現的『審判者1』場景做的最小範例副本包，非規則書內容",
+  "entries": [
+    {
+      "name": "第一章：廢棄工廠倉庫",
+      "nodes": [
+        {
+          "id": "j1-ch1-n1",
+          "title": "身份鑑定與新手保護機制",
+          "canonSummary": "輪迴者於工廠倉庫甦醒，系統啟用新手保護機制，未與威脅接觸",
+          "prerequisites": [],
+          "baseRewardPoints": 200,
+          "baseDC": 1
+        },
+        {
+          "id": "j1-ch1-n2",
+          "title": "電話裡的母親",
+          "canonSummary": "識破電話擬聲，未洩漏藏身地址",
+          "prerequisites": ["j1-ch1-n1"],
+          "baseRewardPoints": 1000,
+          "baseDC": 3
+        },
+        {
+          "id": "j1-ch1-n3",
+          "title": "武器補給線",
+          "canonSummary": "前往工業區化工倉庫取得硝酸甘油原料，途中與T-800交戰但未正面決戰",
+          "prerequisites": ["j1-ch1-n2"],
+          "baseRewardPoints": 1500,
+          "baseDC": 5
+        }
+      ]
+    }
+  ]
+}
