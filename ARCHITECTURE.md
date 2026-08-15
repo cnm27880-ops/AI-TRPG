@@ -76,6 +76,8 @@ wrangler.toml          Cloudflare Pages設定骨架(nodejs_compat flag是必要�
 test/                  對應每個模組的測試，方法論見 TEST_PLAN.md
 TEST_PLAN.md           規則條文 -> 程式碼 -> 驗證方式 -> 狀態 的對照表，隨專案一起長大
 ARCHITECTURE.md        本檔案
+RULES_DIGEST.md        規則精要單頁參考(數值/公式速查+模組反查索引)，不用翻 rules-2.35.txt 全文；
+                        跟本檔案是互補關係——本檔案是「模組怎麼組出來的」，那份是「數值本身是多少」
 README.md              給新手的快速導覽(怎麼跑測試、目錄結構)
 DEPLOYMENT.md           Cloudflare Pages部署步驟(給使用者，非接手AI專用)
 GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非接手AI專用)
