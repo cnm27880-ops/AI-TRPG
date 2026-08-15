@@ -26,39 +26,26 @@
         }
     </script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #09090b;
-            color: #f4f4f5;
-        }
-        .bg-tech-grid {
-            background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-            background-size: 20px 20px;
-        }
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
+        .bg-tech-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px); background-size: 20px 20px; }
         .hairline-border { border: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-b { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-t { border-top: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-r { border-right: 1px solid rgba(255, 255, 255, 0.08); }
-
         .hud-box {
-            position: relative;
-            background: rgba(24, 24, 27, 0.65);
-            backdrop-filter: blur(8px);
+            position: relative; background: rgba(24, 24, 27, 0.65); backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .hud-box::before {
-            content: ''; position: absolute; top: -1px; left: -1px; width: 6px; height: 6px;
-            border-top: 2px solid #10b981; border-left: 2px solid #10b981; pointer-events: none;
-        }
-        .hud-box::after {
-            content: ''; position: absolute; bottom: -1px; right: -1px; width: 6px; height: 6px;
-            border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; pointer-events: none;
-        }
-
+        .hud-box::before { content: ''; position: absolute; top: -1px; left: -1px; width: 6px; height: 6px; border-top: 2px solid #10b981; border-left: 2px solid #10b981; pointer-events: none; }
+        .hud-box::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 6px; height: 6px; border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; pointer-events: none; }
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
         .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
+        .archetype-card.active {
+            border-color: #10b981 !important;
+            background-color: rgba(16, 185, 129, 0.1) !important;
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -70,7 +57,7 @@
                 <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                 <span class="font-bold text-zinc-100">LORD TERMINAL</span>
                 <span class="text-zinc-600">/</span>
-                <span class="text-zinc-400 text-[11px]">v2.35</span>
+                <span class="text-zinc-400 text-[11px]">v2.35 Lite</span>
             </div>
             <div id="backend-status" class="px-2 py-0.5 rounded bg-zinc-900 border hairline-border text-[10px] font-mono text-zinc-400 hidden sm:block">
                 SYSTEM READY
@@ -80,9 +67,8 @@
         <div class="flex items-center gap-2">
             <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
-                <span id="nav-save-label">存檔</span>
+                <span>存檔</span>
             </button>
-
             <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
                 <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
                 <span>設定</span>
@@ -90,7 +76,7 @@
         </div>
     </header>
 
-    <!-- ==================== 1. 遊戲登入首頁 (Portal Screen) ==================== -->
+    <!-- 1. 登入/啟動首頁 (Portal Screen) -->
     <div id="portal-screen" class="flex-1 overflow-y-auto flex items-center justify-center p-4">
         <div class="w-full max-w-lg hud-box p-6 sm:p-8 rounded-lg space-y-6 text-center">
             <div class="space-y-2">
@@ -104,7 +90,7 @@
                 </p>
             </div>
 
-            <!-- 本地存檔快捷卡片 -->
+            <!-- 檢測到存檔 -->
             <div id="portal-resume-box" style="display:none" class="p-3 bg-zinc-900/80 border border-emerald-500/40 rounded-lg text-left font-mono text-xs space-y-2">
                 <div class="flex justify-between items-center text-zinc-400 text-[11px]">
                     <span>檢測到上次存檔</span>
@@ -115,29 +101,24 @@
                 </button>
             </div>
 
-            <!-- 操作按鈕群 -->
             <div class="space-y-2 font-mono text-xs">
                 <button onclick="startNewChargen()" class="w-full py-3 bg-zinc-100 text-zinc-900 hover:bg-white rounded font-bold transition flex items-center justify-center gap-2">
                     <i class="fas fa-dna text-emerald-600"></i> 建立新輪迴者檔案
                 </button>
-
                 <div class="flex gap-2">
                     <button onclick="openModal('sessionModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
-                        <i class="fas fa-key text-[11px] text-zinc-400"></i> 輸入 Session ID 讀檔
+                        <i class="fas fa-key text-[11px] text-zinc-400"></i> 輸入 ID 讀檔
                     </button>
                     <button onclick="openModal('settingsModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
                         <i class="fas fa-cog text-[11px] text-zinc-400"></i> 系統與文筆設定
                     </button>
                 </div>
             </div>
-
-            <div class="text-[10px] font-mono text-zinc-600">
-                HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI
-            </div>
+            <div class="text-[10px] font-mono text-zinc-600">HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI</div>
         </div>
     </div>
 
-    <!-- ==================== 2. 建立角色畫面 (Chargen Screen) ==================== -->
+    <!-- 2. 建卡畫面 (Chargen Screen) -->
     <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 sm:p-6">
         <div class="hud-box p-6 rounded-lg space-y-6">
             <div class="flex items-center justify-between border-b hairline-border pb-3">
@@ -150,62 +131,60 @@
                 </button>
             </div>
 
-            <!-- 基本概念 -->
+            <!-- 1. 基本檔案 -->
             <section class="space-y-2">
                 <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">1. 基本檔案</div>
-                <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
-                    <input id="cg-gender" type="text" placeholder="性別" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
-                    <input id="cg-age" type="number" placeholder="年齡" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
-                    <input id="cg-background" type="text" placeholder="生前背景" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input id="cg-name" type="text" placeholder="輪迴者姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                    <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                        <option value="男">男</option>
+                        <option value="女">女</option>
+                        <option value="未知">未知</option>
+                    </select>
                 </div>
             </section>
 
-            <!-- 屬性配點 -->
+            <!-- 2. 快速套用身分模板 -->
+            <section class="space-y-2">
+                <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">2. 選擇身分模板（點擊直接套用，亦可在下方微調）</div>
+                <div id="archetype-container" class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs font-mono">
+                    <!-- 由 app.js 動態渲染 4 大身分卡 -->
+                </div>
+            </section>
+
+            <!-- 3. 六維屬性配點 -->
             <section class="space-y-2">
                 <div class="flex justify-between items-center">
-                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">2. 九維屬性配點</div>
+                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">3. 六維屬性配點</div>
                     <span id="cg-attr-budget" class="text-xs font-mono text-emerald-400"></span>
                 </div>
-                <div id="cg-attr-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
-                <div id="cg-attr-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
+                <div id="cg-attr-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
             </section>
 
-            <!-- 技能配點 -->
+            <!-- 4. 十大技能配點 -->
             <section class="space-y-2">
                 <div class="flex justify-between items-center">
-                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">3. 技能配點</div>
+                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">4. 十大技能配點</div>
                     <span id="cg-skill-budget" class="text-xs font-mono text-emerald-400"></span>
                 </div>
-                <div id="cg-skill-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
-                <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
+                <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </section>
 
-            <!-- 專業技能 -->
-            <section class="space-y-2">
-                <div class="flex justify-between items-center">
-                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">4. 免費專業（限等級 ≥ 1 技能）</div>
-                    <span id="cg-spec-budget" class="text-xs font-mono text-zinc-400"></span>
-                </div>
-                <div id="cg-spec-list" class="space-y-2"></div>
-            </section>
-
-            <!-- 驗證訊息 -->
+            <!-- 錯誤提示 -->
             <div id="cg-errors" class="space-y-1"></div>
 
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t hairline-border">
                 <span id="cg-derived" class="text-xs font-mono text-zinc-400"></span>
-                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-300 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded font-bold disabled:opacity-40">
+                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-300 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded font-bold">
                     完成建卡並進入輪迴世界
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ==================== 3. 遊戲主畫面 (In-Game Screen) ==================== -->
+    <!-- 3. 遊戲主視窗 (In-Game Screen) -->
     <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
-
-        <!-- 左側 HUD (桌機顯示，手機折疊) -->
+        <!-- 左側 HUD -->
         <aside class="w-72 md:w-80 hairline-r bg-zinc-950/60 backdrop-blur-md flex flex-col shrink-0 overflow-hidden hidden md:flex">
             <div class="p-4 hairline-b space-y-2">
                 <div class="flex items-center justify-between">
@@ -217,7 +196,7 @@
                 </div>
                 <div id="char-class" class="text-xs font-mono text-zinc-400">—</div>
 
-                <!-- 四段傷勢軌 (完好 / 沖擊B / 嚴重L / 惡性A) -->
+                <!-- 四段傷勢軌 -->
                 <div class="space-y-1 pt-2">
                     <div class="flex justify-between text-xs font-mono">
                         <span class="text-zinc-400">生命傷勢軌</span>
@@ -231,7 +210,7 @@
             <!-- 分頁 Tab -->
             <div class="flex hairline-b bg-zinc-900/50 text-[11px] font-mono">
                 <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="flex-1 py-2 text-center text-emerald-400 border-b-2 border-emerald-500 font-bold">屬性</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">資源</button>
+                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">技能</button>
                 <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">日誌</button>
             </div>
 
@@ -239,8 +218,8 @@
                 <div id="sidebar-tab-attr" class="space-y-2">
                     <div id="attr-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                 </div>
-                <div id="sidebar-tab-traits" class="hidden space-y-2">
-                    <div id="cardStack" class="space-y-2"></div>
+                <div id="sidebar-tab-skills" class="hidden space-y-2">
+                    <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                 </div>
                 <div id="sidebar-tab-journal" class="hidden space-y-2">
                     <div id="journal-feed" class="space-y-1.5 font-mono text-[10px] text-zinc-400"></div>
@@ -248,12 +227,12 @@
             </div>
         </aside>
 
-        <!-- 中央主敘事與行動區 -->
+        <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
             <div class="hairline-b bg-zinc-950/80 px-4 py-2 flex items-center justify-between text-xs font-mono shrink-0">
                 <div class="flex items-center gap-2 text-zinc-400">
                     <i class="fas fa-map-marker-alt text-emerald-400"></i>
-                    <span id="current-scene-text" class="text-zinc-200">廢棄工廠倉庫</span>
+                    <span id="current-scene-text" class="text-zinc-200">主神空間 · 任務進行中</span>
                 </div>
                 <div class="flex items-center gap-3 text-[11px] text-zinc-500">
                     <span>回合: <span id="turn-counter" class="text-zinc-300 font-bold">1</span></span>
@@ -261,20 +240,17 @@
                 </div>
             </div>
 
-            <!-- 敘事流 -->
             <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 font-serif text-sm leading-relaxed text-zinc-200"></div>
 
-            <!-- 行動控制台 -->
             <div class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
                 <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
-
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
                         <input type="text" data-action-input placeholder="[自訂行動] 輸入你想採取的動作 (例：舉槍瞄準並向後方翻滾)..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 transition text-zinc-100 placeholder-zinc-500 rounded">
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-600 text-xs pointer-events-none"></i>
                     </div>
                     <button data-send-custom class="bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 px-5 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded shrink-0 font-bold flex items-center gap-1.5">
-                        <span>執行行動</span>
+                        <span>執行</span>
                         <i class="fas fa-arrow-right text-[10px]"></i>
                     </button>
                 </div>
@@ -282,8 +258,7 @@
         </main>
     </div>
 
-    <!-- ==================== 模態彈窗 (Modals) ==================== -->
-    <!-- 存檔管理 Modal -->
+    <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
         <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
             <div class="flex justify-between items-center border-b hairline-border pb-3">
@@ -293,16 +268,14 @@
                 </div>
                 <button onclick="closeModal('sessionModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
             </div>
-
             <div class="space-y-3 font-mono text-xs">
                 <div>
-                    <label class="text-zinc-400 block mb-1">當前 Session ID (可複製給他人或備份)</label>
+                    <label class="text-zinc-400 block mb-1">當前 Session ID</label>
                     <div class="flex gap-2">
                         <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-300 select-all font-mono" placeholder="尚未建立存檔">
                         <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200 transition">複製</button>
                     </div>
                 </div>
-
                 <div class="pt-2 border-t hairline-border">
                     <label class="text-zinc-400 block mb-1">輸入 Session ID 讀取存檔</label>
                     <div class="flex gap-2">
@@ -314,33 +287,30 @@
         </div>
     </div>
 
-    <!-- 設定 Modal -->
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
         <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
             <div class="flex justify-between items-center border-b hairline-border pb-3">
                 <div class="flex items-center gap-2">
                     <i class="fas fa-sliders-h text-emerald-400 text-sm"></i>
-                    <h3 class="font-bold text-sm text-zinc-100 font-mono">主神系統與文筆設定</h3>
+                    <h3 class="font-bold text-sm text-zinc-100 font-mono">系統與文筆設定</h3>
                 </div>
                 <button onclick="closeModal('settingsModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
             </div>
-
             <div class="space-y-3 font-mono text-xs">
                 <div>
-                    <label class="text-zinc-400 block mb-1">說書人文筆風格 (Narrative Style)</label>
+                    <label class="text-zinc-400 block mb-1">說書人文筆風格</label>
                     <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
-                        <option value="白描">白描（沉浸冷峻、動詞優先、無冗言贅字）</option>
+                        <option value="白描">白描（沉浸冷峻、動詞優先）</option>
                         <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
                         <option value="熱血漫">熱血漫（力量碰撞、節奏緊湊）</option>
                         <option value="賽博朋克">賽博朋克（高科技、低生活）</option>
                     </select>
                 </div>
                 <div>
-                    <label class="text-zinc-400 block mb-1">自訂 API Key 覆寫 (選填，留空走 Cloudflare 預設)</label>
-                    <input id="setting-api-key" type="password" placeholder="留空使用後端預設金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
+                    <label class="text-zinc-400 block mb-1">自訂 API Key 覆寫 (選填)</label>
+                    <input id="setting-api-key" type="password" placeholder="留空使用 Cloudflare 預設..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
                 </div>
             </div>
-
             <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
                 <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
                     儲存設定
@@ -355,7 +325,6 @@
             document.getElementById('chargen-screen').style.display = (screen === 'chargen') ? 'block' : 'none';
             document.getElementById('app-viewport').style.display = (screen === 'game') ? 'flex' : 'none';
         }
-
         function openModal(id) {
             const el = document.getElementById(id);
             el?.classList.remove('opacity-0', 'pointer-events-none');
@@ -363,13 +332,11 @@
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
         }
-
         function closeModal(id) {
             document.getElementById(id)?.classList.add('opacity-0', 'pointer-events-none');
         }
-
         function switchSidebarTab(tabKey) {
-            ['attr', 'traits', 'journal'].forEach(k => {
+            ['attr', 'skills', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
                 const b = document.getElementById(`tab-btn-${k}`);
                 if (k === tabKey) {
@@ -383,15 +350,10 @@
                 }
             });
         }
-
         function copySessionId() {
             const val = document.getElementById('modal-session-id').value;
-            if (val) {
-                navigator.clipboard.writeText(val);
-                alert('Session ID 已複製！');
-            }
+            if (val) { navigator.clipboard.writeText(val); alert('Session ID 已複製！'); }
         }
-
         function saveSettings() {
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
             const key = document.getElementById('setting-api-key').value;
