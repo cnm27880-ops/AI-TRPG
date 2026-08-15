@@ -2,707 +2,404 @@
 <html lang="zh-Hant" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI-TRPG // Modern Tactical Minimal Interface</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ECHOES // 無限恐怖 TRPG 終端</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        zinc: {
-                            50: '#fafafa',
-                            100: '#f4f4f5',
-                            500: '#71717a',
-                            800: '#27272a',
-                            850: '#121215',
-                            900: '#18181b',
-                            950: '#070709',
-                        }
+                        zinc: { 850: '#131316', 900: '#18181b', 950: '#09090b' },
+                        emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' }
                     },
                     fontFamily: {
                         sans: ['Inter', '-apple-system', 'sans-serif'],
-                        mono: ['JetBrains Mono', 'monospace'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                        serif: ['"Noto Serif TC"', 'serif'],
                     }
                 }
             }
         }
     </script>
-    <style type="text/tailwindcss">
+    <style>
         body {
             font-family: 'Inter', sans-serif;
-            transition: background-color 0.3s ease, color 0.3s ease;
+            background-color: #09090b;
+            color: #f4f4f5;
         }
-
-        /* Subtle Architectural Grid Background */
-        .dark .bg-tech-grid {
-            background-image:
-                radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
-                linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-            background-size: 24px 24px, 48px 48px, 48px 48px;
-            background-position: -1px -1px;
-        }
-
         .bg-tech-grid {
-            background-image:
-                radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
-                linear-gradient(to right, rgba(0, 0, 0, 0.02) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
-            background-size: 24px 24px, 48px 48px, 48px 48px;
-            background-position: -1px -1px;
-            background-color: #fafafa;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+            background-size: 20px 20px;
         }
+        .hairline-border { border: 1px solid rgba(255, 255, 255, 0.08); }
+        .hairline-b { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+        .hairline-t { border-top: 1px solid rgba(255, 255, 255, 0.08); }
+        .hairline-r { border-right: 1px solid rgba(255, 255, 255, 0.08); }
 
-        /* Minimal Scrollbar */
-        ::-webkit-scrollbar {
-            width: 3px;
-            height: 3px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #52525b;
-            border-radius: 2px;
-        }
-
-        /* Custom Hairline Borders & Gradient Lines */
-        .hairline-border {
-            border-width: 1px;
-        }
-        .dark .hairline-border {
-            border-color: rgba(255, 255, 255, 0.08);
-        }
-        html:not(.dark) .hairline-border {
-            border-color: rgba(0, 0, 0, 0.08);
-        }
-
-        .gradient-top-border {
+        .hud-box {
             position: relative;
+            background: rgba(24, 24, 27, 0.65);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .gradient-top-border::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(161, 161, 170, 0.3), transparent);
+        .hud-box::before {
+            content: ''; position: absolute; top: -1px; left: -1px; width: 6px; height: 6px;
+            border-top: 2px solid #10b981; border-left: 2px solid #10b981; pointer-events: none;
         }
-
-        /* HUD Corner Brackets */
-        .hud-corner-box {
-            position: relative;
-        }
-        .hud-corner-box::before, .hud-corner-box::after {
-            content: '';
-            position: absolute;
-            width: 5px;
-            height: 5px;
-            pointer-events: none;
-            transition: border-color 0.2s ease;
-        }
-        .dark .hud-corner-box::before {
-            top: -1px;
-            left: -1px;
-            border-top: 1.5px solid rgba(255, 255, 255, 0.3);
-            border-left: 1.5px solid rgba(255, 255, 255, 0.3);
-        }
-        .dark .hud-corner-box::after {
-            bottom: -1px;
-            right: -1px;
-            border-bottom: 1.5px solid rgba(255, 255, 255, 0.3);
-            border-right: 1.5px solid rgba(255, 255, 255, 0.3);
+        .hud-box::after {
+            content: ''; position: absolute; bottom: -1px; right: -1px; width: 6px; height: 6px;
+            border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; pointer-events: none;
         }
 
-        html:not(.dark) .hud-corner-box::before {
-            top: -1px;
-            left: -1px;
-            border-top: 1.5px solid rgba(0, 0, 0, 0.3);
-            border-left: 1.5px solid rgba(0, 0, 0, 0.3);
-        }
-        html:not(.dark) .hud-corner-box::after {
-            bottom: -1px;
-            right: -1px;
-            border-bottom: 1.5px solid rgba(0, 0, 0, 0.3);
-            border-right: 1.5px solid rgba(0, 0, 0, 0.3);
-        }
-
-        /* Asymmetric Card Cutout Clip Path */
-        .asymmetric-card {
-            clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 0 100%);
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        /* Card Stack Perspective Effects */
-        .card-stack-container {
-            position: relative;
-            min-height: 140px;
-            perspective: 800px;
-        }
-
-        .stack-card {
-            position: absolute;
-            width: 100%;
-            top: 0;
-            left: 0;
-            transform-origin: center bottom;
-            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .stack-card.active {
-            z-index: 30;
-            transform: translateY(0) scale(1);
-            opacity: 1;
-            filter: blur(0px);
-        }
-
-        .stack-card.behind-1 {
-            z-index: 20;
-            transform: translateY(-10px) scale(0.94);
-            opacity: 0.75;
-            filter: blur(0.5px);
-        }
-
-        .stack-card.behind-2 {
-            z-index: 10;
-            transform: translateY(-20px) scale(0.88);
-            opacity: 0.45;
-            filter: blur(1px);
-        }
-
-        /* Animations */
-        @keyframes fadeInSlideUp {
-            from {
-                opacity: 0;
-                transform: translateY(12px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        .animate-fade-in {
-            animation: fadeInSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-
-        /* Mobile Frame Mode */
-        .mobile-frame-mode {
-            max-width: 412px !important;
-            height: 820px !important;
-            border-radius: 40px;
-            border: 10px solid #27272a;
-            margin: 20px auto;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1);
-            overflow: hidden;
-            position: relative;
-        }
-        html:not(.dark) .mobile-frame-mode {
-            border: 10px solid #e4e4e7;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05);
-        }
-
-        .bottom-sheet {
-            transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
-            will-change: transform;
-        }
-        .bottom-sheet.closed {
-            transform: translateY(calc(100% - 56px));
-        }
-        .bottom-sheet.open {
-            transform: translateY(0%);
-        }
-
-        /* Dice Animation */
-        @keyframes tumble {
-            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-            100% { transform: rotateX(1080deg) rotateY(720deg) rotateZ(360deg); }
-        }
-        .animate-tumble {
-            animation: tumble 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-        }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+        .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
     </style>
 </head>
-<body class="h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 antialiased selection:bg-zinc-800 bg-tech-grid transition-colors duration-200">
+<body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
-    <!-- Top Navigation Bar -->
-    <header class="h-12 border-b hairline-border bg-white/90 dark:bg-zinc-950/90 text-zinc-900 dark:text-zinc-100 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-50 transition-colors">
+    <!-- 頂部導航列 -->
+    <header class="h-12 hairline-b bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
         <div class="flex items-center gap-3">
-            <div class="flex items-center gap-1.5 font-mono text-xs uppercase tracking-widest">
-                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
-                <span class="font-bold">ECHOES</span>
-                <span class="text-zinc-500">/</span>
-                <span class="text-zinc-400 font-mono text-[11px]">SYS.v1.05</span>
+            <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer" onclick="showScreen('portal')">
+                <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                <span class="font-bold text-zinc-100">LORD TERMINAL</span>
+                <span class="text-zinc-600">/</span>
+                <span class="text-zinc-400 text-[11px]">v2.35</span>
+            </div>
+            <div id="backend-status" class="px-2 py-0.5 rounded bg-zinc-900 border hairline-border text-[10px] font-mono text-zinc-400 hidden sm:block">
+                SYSTEM READY
             </div>
         </div>
 
-        <!-- Mode & Theme Controls -->
         <div class="flex items-center gap-2">
-            <!-- Light/Dark Toggle -->
-            <button onclick="toggleTheme()" class="px-2.5 py-1 rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white text-xs font-mono border hairline-border transition-all flex items-center gap-1.5">
-                <i id="theme-icon" class="fas fa-moon text-[10px]"></i>
-                <span id="theme-text">暗黑風格</span>
+            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
+                <i class="fas fa-database text-emerald-400 text-[11px]"></i>
+                <span id="nav-save-label">存檔</span>
             </button>
 
-            <!-- Viewport Switcher -->
-            <div class="flex items-center gap-1 bg-zinc-200/80 dark:bg-zinc-900/80 p-1 rounded-lg border hairline-border text-xs transition-colors">
-                <button id="btn-desktop-view" onclick="setDeviceView('desktop')" class="px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium transition-all flex items-center gap-1.5 border hairline-border shadow-sm">
-                    <i class="fas fa-desktop text-[10px]"></i> 電腦多欄視角
-                </button>
-                <button id="btn-mobile-view" onclick="setDeviceView('mobile')" class="px-2.5 py-1 rounded text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 font-medium transition-all flex items-center gap-1.5">
-                    <i class="fas fa-mobile-alt text-[10px]"></i> 手機抽屜視角
-                </button>
-            </div>
-        </div>
-
-        <div class="hidden md:flex items-center gap-4 text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <!-- 規則引擎(/api/*)的連線狀態，由 app.js 依實際API回應更新 -->
-            <span id="backend-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">ENGINE ?</span>
-            <!-- 存檔狀態：顯示是否真的有持久化（記憶體模式會變成警告色） -->
-            <span id="save-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">尚未建卡</span>
-            <button id="btn-new-game" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-[10px] font-mono transition">新遊戲</button>
+            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
+                <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
+                <span>設定</span>
+            </button>
         </div>
     </header>
 
-    <!-- 建卡畫面 —— 沒有存檔時顯示這個，建完卡才進入遊戲。
-         所有預算數字都由 GET /api/character 提供，這裡不寫死任何規則常數，
-         避免規則改了但前端沒跟著改，玩家看到的預算跟後端驗的不一樣。 -->
-    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-4 md:p-8">
-        <div class="space-y-6">
-            <div class="border-b hairline-border pb-3">
-                <h2 class="text-lg font-bold tracking-tight">建立輪迴者</h2>
-                <p id="chargen-intro" class="text-xs font-mono text-zinc-500 mt-1">載入建卡規則中…</p>
+    <!-- ==================== 1. 遊戲登入首頁 (Portal Screen) ==================== -->
+    <div id="portal-screen" class="flex-1 overflow-y-auto flex items-center justify-center p-4">
+        <div class="w-full max-w-lg hud-box p-6 sm:p-8 rounded-lg space-y-6 text-center">
+            <div class="space-y-2">
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span>主神核心連線中 · 無限恐怖 2.35</span>
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight font-mono text-zinc-100">想明白生命的意義嗎？</h1>
+                <p class="text-xs text-zinc-400 font-serif leading-relaxed max-w-sm mx-auto">
+                    進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
+                </p>
             </div>
 
-            <!-- 概念 -->
-            <section class="space-y-2">
-                <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">概念</h3>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
-                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
-                    <input id="cg-gender" type="text" placeholder="性別" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
-                    <input id="cg-age" type="number" placeholder="年齡" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
-                    <input id="cg-background" type="text" placeholder="背景" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+            <!-- 本地存檔快捷卡片 -->
+            <div id="portal-resume-box" style="display:none" class="p-3 bg-zinc-900/80 border border-emerald-500/40 rounded-lg text-left font-mono text-xs space-y-2">
+                <div class="flex justify-between items-center text-zinc-400 text-[11px]">
+                    <span>檢測到上次存檔</span>
+                    <span class="text-emerald-400 font-bold" id="resume-char-name">輪迴者</span>
                 </div>
-            </section>
-
-            <!-- 屬性 -->
-            <section class="space-y-2">
-                <div class="flex items-baseline justify-between">
-                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">屬性</h3>
-                    <span id="cg-attr-budget" class="text-xs font-mono"></span>
-                </div>
-                <div id="cg-attr-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
-                <div id="cg-attr-grid" class="grid grid-cols-1 md:grid-cols-3 gap-2"></div>
-            </section>
-
-            <!-- 技能 -->
-            <section class="space-y-2">
-                <div class="flex items-baseline justify-between">
-                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">技能</h3>
-                    <span id="cg-skill-budget" class="text-xs font-mono"></span>
-                </div>
-                <div id="cg-skill-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
-                <div id="cg-skill-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-            </section>
-
-            <!-- 專業 -->
-            <section class="space-y-2">
-                <div class="flex items-baseline justify-between">
-                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">專業</h3>
-                    <span id="cg-spec-budget" class="text-xs font-mono"></span>
-                </div>
-                <p class="text-[10px] font-mono text-zinc-500">只能掛在等級≥1的技能上。專業名稱自己填，例如「步槍」「痕跡辨識」。</p>
-                <div id="cg-spec-list" class="space-y-1.5"></div>
-            </section>
-
-            <!-- 錯誤與送出 -->
-            <div id="cg-errors" class="space-y-1"></div>
-            <div class="flex items-center gap-3 pt-2 border-t hairline-border">
-                <button id="cg-submit" class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-5 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box disabled:opacity-40 disabled:pointer-events-none">
-                    完成建卡並開始遊戲
+                <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-bold transition flex items-center justify-center gap-2">
+                    <i class="fas fa-play text-xs"></i> 接續輪迴任務
                 </button>
-                <span id="cg-derived" class="text-xs font-mono text-zinc-500"></span>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Application Viewport -->
-    <div id="app-viewport" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto transition-all duration-300 relative">
-
-        <!-- LEFT PANEL: Character HUD Panel -->
-        <aside id="sidebar-left" class="w-80 border-r hairline-border bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl flex flex-col shrink-0 transition-colors duration-300 z-10 hidden md:flex">
-
-            <!-- Character Title Header -->
-            <div class="p-4 border-b hairline-border space-y-2.5 relative gradient-top-border">
-                <div class="flex items-start justify-between">
-                    <div>
-                        <div class="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
-                            <span>OPERATIVE</span>
-                            <span>•</span>
-                            <span class="text-emerald-500 font-bold">ONLINE</span>
-                        </div>
-                        <h2 id="char-name" class="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5">—</h2>
-                        <p id="char-class" class="text-xs font-mono text-zinc-500 dark:text-zinc-400">—</p>
-                    </div>
-                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border hairline-border hud-corner-box transition-colors">D-TIER</span>
-                </div>
-
-                <!-- 傷勢軌 (完好 / 沖擊B / 嚴重L / 惡性A) —— 見 core/health.js。
-                     這套規則沒有「剩餘HP」的概念：生命點數總量不變，只是在四個狀態之間轉換。 -->
-                <div class="space-y-1 pt-1">
-                    <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                            <i class="fas fa-heartbeat text-emerald-500 text-[11px]"></i> 完好生命
-                        </span>
-                        <span id="hp-text" class="text-zinc-800 dark:text-zinc-200 font-medium font-mono">—</span>
-                    </div>
-                    <!-- Segmented Visual Bar (由 app.js 依傷勢軌逐點產生) -->
-                    <div id="hp-bar-container" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-200 dark:bg-zinc-900 rounded border hairline-border transition-colors"></div>
-                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 dark:text-zinc-500 pt-0.5">—</div>
-                </div>
             </div>
 
-            <!-- Attributes Section (No '//' & Slimmer boxes) -->
-            <div class="p-4 border-b hairline-border space-y-2">
-                <div class="flex justify-between items-center">
-                    <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block font-semibold">九維屬性</span>
-                    <i class="fas fa-sliders-h text-[10px] text-zinc-500"></i>
-                </div>
-                <!-- 九維屬性由 app.js 依 core/schema.js 的 ATTRIBUTES 順序產生。
-                     「+n★」是傳奇屬性附加成功(見 core/dice.js)，不是D&D的attribute modifier。 -->
-                <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
-            </div>
+            <!-- 操作按鈕群 -->
+            <div class="space-y-2 font-mono text-xs">
+                <button onclick="startNewChargen()" class="w-full py-3 bg-zinc-100 text-zinc-900 hover:bg-white rounded font-bold transition flex items-center justify-center gap-2">
+                    <i class="fas fa-dna text-emerald-600"></i> 建立新輪迴者檔案
+                </button>
 
-            <!-- Dynamic Asymmetric Stacked Trait Drawer -->
-            <div class="p-4 flex-1 flex flex-col overflow-hidden space-y-3">
-                <div class="flex items-center justify-between">
-                    <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">特質與資源卡</span>
-                    <span class="text-[9px] font-mono text-zinc-500">點擊切換 ↻</span>
-                </div>
-
-                <!-- Resource Categories Tabs -->
-                <div class="flex gap-1 overflow-x-auto pb-1 text-[10px] font-mono">
-                    <button class="px-2 py-0.5 rounded bg-zinc-800 text-white dark:bg-zinc-200 dark:text-zinc-900 font-bold shrink-0 transition-colors">全部 (3)</button>
-                    <button class="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shrink-0 border hairline-border transition-colors">義體</button>
-                    <button class="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shrink-0 border hairline-border transition-colors">稱號</button>
-                    <button class="px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 shrink-0 border hairline-border transition-colors">血脈</button>
-                </div>
-
-                <!-- Asymmetric Stacked Cards Container -->
-                <!-- 資源卡由 app.js 的 renderCards() 產生，不放靜態範例卡，
-                     避免「畫面上的卡」跟「角色卡資料裡的卡」出現兩份不同步的內容。 -->
-                <div class="flex-1 pt-3 card-stack-container cursor-pointer select-none" id="cardStack" onclick="cycleCards()"></div>
-            </div>
-        </aside>
-
-        <!-- CENTER PANEL: Clean Story Feed & Action Controls -->
-        <main class="flex-1 flex flex-col h-full overflow-hidden bg-transparent z-0 relative">
-
-            <!-- Narration Feed -->
-            <div id="story-feed" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
-
-                <!-- 敘事區的內容全部由 app.js 動態產生：頁面載入時會先跑一次「開場回合」，
-                     由 AI 描述場景並提出四個選項。這裡不放靜態範例文字，避免玩家分不出
-                     哪些是真的由引擎+AI 產生的、哪些是寫死的樣板。 -->
-
-            </div>
-
-            <!-- Bottom Action Console (Desktop) -->
-            <div id="desktopActionConsole" class="hidden md:flex flex-col border-t hairline-border bg-white/90 dark:bg-zinc-950/90 p-4 gap-3 shrink-0 backdrop-blur transition-colors">
-                <!-- 四個選項由 AI 產生、引擎查驗過後，交給 app.js 的 renderOptions() 填入。
-                     每個選項會顯示它對應的「屬性+技能・難度」，讓玩家看得到自己在賭什麼。 -->
-                <div id="option-grid" class="grid grid-cols-2 gap-2"></div>
-
-                <!-- 第五種：自訂行動。永遠存在，就算 AI 一個選項都沒給也能繼續玩。 -->
-                <div class="flex gap-2 items-center">
-                    <div class="relative flex-1">
-                        <input type="text" data-action-input placeholder="[5] 自訂行動：描述你想做的事，按 Enter 送出..." class="w-full bg-zinc-100 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-2 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
-                        <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-2.5 text-zinc-400 dark:text-zinc-600 text-xs pointer-events-none"></i>
-                    </div>
-                    <button data-send-custom class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box whitespace-nowrap">
-                        送出行動
+                <div class="flex gap-2">
+                    <button onclick="openModal('sessionModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
+                        <i class="fas fa-key text-[11px] text-zinc-400"></i> 輸入 Session ID 讀檔
+                    </button>
+                    <button onclick="openModal('settingsModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
+                        <i class="fas fa-cog text-[11px] text-zinc-400"></i> 系統與文筆設定
                     </button>
                 </div>
             </div>
 
+            <div class="text-[10px] font-mono text-zinc-600">
+                HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 2. 建立角色畫面 (Chargen Screen) ==================== -->
+    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 sm:p-6">
+        <div class="hud-box p-6 rounded-lg space-y-6">
+            <div class="flex items-center justify-between border-b hairline-border pb-3">
+                <div>
+                    <div class="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">Character Creation</div>
+                    <h2 class="text-lg font-bold text-zinc-100 mt-0.5">輪迴者基因建卡</h2>
+                </div>
+                <button onclick="showScreen('portal')" class="text-xs font-mono text-zinc-400 hover:text-zinc-200">
+                    <i class="fas fa-arrow-left"></i> 回主頁
+                </button>
+            </div>
+
+            <!-- 基本概念 -->
+            <section class="space-y-2">
+                <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">1. 基本檔案</div>
+                <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                    <input id="cg-gender" type="text" placeholder="性別" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                    <input id="cg-age" type="number" placeholder="年齡" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                    <input id="cg-background" type="text" placeholder="生前背景" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                </div>
+            </section>
+
+            <!-- 屬性配點 -->
+            <section class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">2. 九維屬性配點</div>
+                    <span id="cg-attr-budget" class="text-xs font-mono text-emerald-400"></span>
+                </div>
+                <div id="cg-attr-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-attr-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
+            </section>
+
+            <!-- 技能配點 -->
+            <section class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">3. 技能配點</div>
+                    <span id="cg-skill-budget" class="text-xs font-mono text-emerald-400"></span>
+                </div>
+                <div id="cg-skill-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
+            </section>
+
+            <!-- 專業技能 -->
+            <section class="space-y-2">
+                <div class="flex justify-between items-center">
+                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">4. 免費專業（限等級 ≥ 1 技能）</div>
+                    <span id="cg-spec-budget" class="text-xs font-mono text-zinc-400"></span>
+                </div>
+                <div id="cg-spec-list" class="space-y-2"></div>
+            </section>
+
+            <!-- 驗證訊息 -->
+            <div id="cg-errors" class="space-y-1"></div>
+
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t hairline-border">
+                <span id="cg-derived" class="text-xs font-mono text-zinc-400"></span>
+                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-300 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded font-bold disabled:opacity-40">
+                    完成建卡並進入輪迴世界
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 3. 遊戲主畫面 (In-Game Screen) ==================== -->
+    <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
+
+        <!-- 左側 HUD (桌機顯示，手機折疊) -->
+        <aside class="w-72 md:w-80 hairline-r bg-zinc-950/60 backdrop-blur-md flex flex-col shrink-0 overflow-hidden hidden md:flex">
+            <div class="p-4 hairline-b space-y-2">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">OPERATIVE STATUS</div>
+                        <h2 id="char-name" class="text-base font-bold text-zinc-100 tracking-tight mt-0.5">—</h2>
+                    </div>
+                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-400">輪迴者</span>
+                </div>
+                <div id="char-class" class="text-xs font-mono text-zinc-400">—</div>
+
+                <!-- 四段傷勢軌 (完好 / 沖擊B / 嚴重L / 惡性A) -->
+                <div class="space-y-1 pt-2">
+                    <div class="flex justify-between text-xs font-mono">
+                        <span class="text-zinc-400">生命傷勢軌</span>
+                        <span id="hp-text" class="text-zinc-200 font-bold">—</span>
+                    </div>
+                    <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 pt-0.5">—</div>
+                </div>
+            </div>
+
+            <!-- 分頁 Tab -->
+            <div class="flex hairline-b bg-zinc-900/50 text-[11px] font-mono">
+                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="flex-1 py-2 text-center text-emerald-400 border-b-2 border-emerald-500 font-bold">屬性</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">資源</button>
+                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">日誌</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 space-y-3">
+                <div id="sidebar-tab-attr" class="space-y-2">
+                    <div id="attr-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
+                </div>
+                <div id="sidebar-tab-traits" class="hidden space-y-2">
+                    <div id="cardStack" class="space-y-2"></div>
+                </div>
+                <div id="sidebar-tab-journal" class="hidden space-y-2">
+                    <div id="journal-feed" class="space-y-1.5 font-mono text-[10px] text-zinc-400"></div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- 中央主敘事與行動區 -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+            <div class="hairline-b bg-zinc-950/80 px-4 py-2 flex items-center justify-between text-xs font-mono shrink-0">
+                <div class="flex items-center gap-2 text-zinc-400">
+                    <i class="fas fa-map-marker-alt text-emerald-400"></i>
+                    <span id="current-scene-text" class="text-zinc-200">廢棄工廠倉庫</span>
+                </div>
+                <div class="flex items-center gap-3 text-[11px] text-zinc-500">
+                    <span>回合: <span id="turn-counter" class="text-zinc-300 font-bold">1</span></span>
+                    <span id="save-status" class="px-2 py-0.5 rounded bg-zinc-900 border hairline-border text-zinc-400">已存檔</span>
+                </div>
+            </div>
+
+            <!-- 敘事流 -->
+            <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 font-serif text-sm leading-relaxed text-zinc-200"></div>
+
+            <!-- 行動控制台 -->
+            <div class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
+                <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+
+                <div class="flex gap-2 items-center">
+                    <div class="relative flex-1">
+                        <input type="text" data-action-input placeholder="[自訂行動] 輸入你想採取的動作 (例：舉槍瞄準並向後方翻滾)..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 transition text-zinc-100 placeholder-zinc-500 rounded">
+                        <i class="fas fa-terminal absolute right-3 top-3 text-zinc-600 text-xs pointer-events-none"></i>
+                    </div>
+                    <button data-send-custom class="bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 px-5 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded shrink-0 font-bold flex items-center gap-1.5">
+                        <span>執行行動</span>
+                        <i class="fas fa-arrow-right text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
         </main>
     </div>
 
-    <!-- Mobile Bottom Sheet Drawer -->
-    <div id="mobileDrawer" class="md:hidden absolute bottom-0 left-0 right-0 z-20 bg-zinc-50/95 dark:bg-zinc-950/95 border-t hairline-border backdrop-blur bottom-sheet closed h-[60vh] flex flex-col transition-colors">
-        <!-- Drag Handle Area -->
-        <div id="drawerHandle" class="h-8 flex items-center justify-center cursor-pointer w-full shrink-0 relative bg-zinc-200/80 dark:bg-zinc-900/50 transition-colors touch-none">
-            <div class="w-12 h-1 bg-zinc-400 dark:bg-zinc-600 rounded-full transition-colors"></div>
-        </div>
-
-        <!-- Drawer Content -->
-        <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-            <div class="flex flex-col gap-1 font-mono text-xs border-b hairline-border pb-2">
-                <span id="mobile-hp-text" class="text-emerald-600 dark:text-emerald-500 transition-colors">—</span>
-                <span id="mobile-attr-text" class="text-zinc-600 dark:text-zinc-400 transition-colors">—</span>
-            </div>
-            <!-- 手機版的四個選項，由 renderOptions() 同步填入 -->
-            <div id="option-grid-mobile" class="flex flex-col gap-2"></div>
-
-            <div class="relative mt-2">
-                <input type="text" data-action-input placeholder="[5] 自訂行動..." class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-3 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
-                <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-3.5 text-zinc-400 dark:text-zinc-600 text-sm pointer-events-none"></i>
+    <!-- ==================== 模態彈窗 (Modals) ==================== -->
+    <!-- 存檔管理 Modal -->
+    <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
+            <div class="flex justify-between items-center border-b hairline-border pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-database text-emerald-400 text-sm"></i>
+                    <h3 class="font-bold text-sm text-zinc-100 font-mono">輪迴存檔管理</h3>
+                </div>
+                <button onclick="closeModal('sessionModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
             </div>
 
-            <button data-send-custom class="mt-auto w-full bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-3 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box">
-                送出行動
-            </button>
+            <div class="space-y-3 font-mono text-xs">
+                <div>
+                    <label class="text-zinc-400 block mb-1">當前 Session ID (可複製給他人或備份)</label>
+                    <div class="flex gap-2">
+                        <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-300 select-all font-mono" placeholder="尚未建立存檔">
+                        <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200 transition">複製</button>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t hairline-border">
+                    <label class="text-zinc-400 block mb-1">輸入 Session ID 讀取存檔</label>
+                    <div class="flex gap-2">
+                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500 font-mono">
+                        <button onclick="handleResumeFromModal()" class="px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30 rounded font-bold transition">讀取</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Dice Roll Modal Overlay (D10 logic) -->
-    <div id="diceModal" class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-100/80 dark:bg-black/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-300">
-        <div class="flex flex-col items-center gap-6">
-
-            <!-- 3D SVG dice pool representation container (d10 decahedron) -->
-            <div class="w-32 h-32 relative transition-transform duration-500 flex flex-wrap gap-2 justify-center content-center" style="perspective: 500px;" id="diceContainer">
-                <svg id="diceSvg" viewBox="0 0 100 100" class="w-20 h-20 text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)] origin-center" style="transform-style: preserve-3d;">
-                    <!-- Decahedron (d10) representation for 2D/3D illusion -->
-                    <polygon points="50,5 90,40 50,95 10,40" fill="none" stroke="currentColor" stroke-width="2" />
-                    <polygon points="50,5 50,95 10,40" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2" />
-                    <polygon points="50,5 90,40 50,95" fill="none" stroke="currentColor" stroke-width="1" />
-                    <polygon points="10,40 90,40" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4" />
-                    <text id="diceResultText" x="50" y="55" font-family="monospace" font-size="28" font-weight="bold" fill="currentColor" text-anchor="middle" dominant-baseline="middle" opacity="0">7</text>
-                </svg>
+    <!-- 設定 Modal -->
+    <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
+            <div class="flex justify-between items-center border-b hairline-border pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-sliders-h text-emerald-400 text-sm"></i>
+                    <h3 class="font-bold text-sm text-zinc-100 font-mono">主神系統與文筆設定</h3>
+                </div>
+                <button onclick="closeModal('settingsModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
             </div>
 
-            <!-- Status Readout -->
-            <div class="flex flex-col items-center font-mono text-sm text-zinc-900 dark:text-zinc-300 bg-zinc-200/80 dark:bg-zinc-900/80 px-6 py-4 border hairline-border hud-corner-box min-w-[280px]">
-                <div id="diceStatus" class="text-emerald-600 dark:text-emerald-400 mb-2 font-bold animate-pulse">AWAITING INPUT...</div>
-                <div id="diceFormula" class="text-xs text-zinc-600 dark:text-zinc-500 h-4 opacity-0 transition-opacity">骰池判定 (14) 成功數 = 7</div>
+            <div class="space-y-3 font-mono text-xs">
+                <div>
+                    <label class="text-zinc-400 block mb-1">說書人文筆風格 (Narrative Style)</label>
+                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
+                        <option value="白描">白描（沉浸冷峻、動詞優先、無冗言贅字）</option>
+                        <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
+                        <option value="熱血漫">熱血漫（力量碰撞、節奏緊湊）</option>
+                        <option value="賽博朋克">賽博朋克（高科技、低生活）</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-zinc-400 block mb-1">自訂 API Key 覆寫 (選填，留空走 Cloudflare 預設)</label>
+                    <input id="setting-api-key" type="password" placeholder="留空使用後端預設金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
+                <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
+                    儲存設定
+                </button>
             </div>
         </div>
     </div>
 
     <script>
-        // Theme Toggling
-        const htmlEl = document.documentElement;
-        const themeIcon = document.getElementById('theme-icon');
-        const themeText = document.getElementById('theme-text');
+        function showScreen(screen) {
+            document.getElementById('portal-screen').style.display = (screen === 'portal') ? 'flex' : 'none';
+            document.getElementById('chargen-screen').style.display = (screen === 'chargen') ? 'block' : 'none';
+            document.getElementById('app-viewport').style.display = (screen === 'game') ? 'flex' : 'none';
+        }
 
-        function toggleTheme() {
-            const isDark = htmlEl.classList.contains('dark');
-            if (isDark) {
-                htmlEl.classList.remove('dark');
-                themeIcon.classList.replace('fa-moon', 'fa-sun');
-                themeText.textContent = '明亮風格';
-            } else {
-                htmlEl.classList.add('dark');
-                themeIcon.classList.replace('fa-sun', 'fa-moon');
-                themeText.textContent = '暗黑風格';
+        function openModal(id) {
+            const el = document.getElementById(id);
+            el?.classList.remove('opacity-0', 'pointer-events-none');
+            if (id === 'sessionModal') {
+                document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
         }
 
-        // View Toggling (Desktop / Mobile Simulator)
-        const appViewport = document.getElementById('app-viewport');
-        const desktopSidebar = document.getElementById('sidebar-left');
-        const desktopActionConsole = document.getElementById('desktopActionConsole');
-        const mobileDrawer = document.getElementById('mobileDrawer');
-        const btnDesktopView = document.getElementById('btn-desktop-view');
-        const btnMobileView = document.getElementById('btn-mobile-view');
-
-        let isMobileSim = false;
-
-        function setDeviceView(view) {
-            isMobileSim = (view === 'mobile');
-            if (isMobileSim) {
-                // Set to Mobile Simulator Mode
-                appViewport.classList.add('mobile-frame-mode');
-
-                // Hide Desktop elements
-                desktopSidebar.classList.remove('md:flex');
-                desktopSidebar.classList.add('!hidden');
-
-                desktopActionConsole.classList.remove('md:flex');
-                desktopActionConsole.classList.add('!hidden');
-
-                // Show mobile drawer inside frame
-                mobileDrawer.classList.remove('md:hidden');
-
-                // Update Button Styles
-                btnDesktopView.className = 'px-2.5 py-1 rounded text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 font-medium transition-all flex items-center gap-1.5';
-                btnMobileView.className = 'px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium transition-all flex items-center gap-1.5 border hairline-border shadow-sm';
-            } else {
-                // Set to Desktop Mode
-                appViewport.classList.remove('mobile-frame-mode');
-
-                // Restore Desktop elements
-                desktopSidebar.classList.add('md:flex');
-                desktopSidebar.classList.remove('!hidden');
-
-                desktopActionConsole.classList.add('md:flex');
-                desktopActionConsole.classList.remove('!hidden');
-
-                // Hide mobile drawer
-                mobileDrawer.classList.add('md:hidden');
-
-                // Update Button Styles
-                btnMobileView.className = 'px-2.5 py-1 rounded text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-200 font-medium transition-all flex items-center gap-1.5';
-                btnDesktopView.className = 'px-2.5 py-1 rounded bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium transition-all flex items-center gap-1.5 border hairline-border shadow-sm';
-            }
+        function closeModal(id) {
+            document.getElementById(id)?.classList.add('opacity-0', 'pointer-events-none');
         }
 
-        // Mobile Drawer Logic
-        const drawerHandle = document.getElementById('drawerHandle');
-        let drawerOpen = false;
-
-        function toggleDrawer() {
-            drawerOpen = !drawerOpen;
-            if (drawerOpen) {
-                mobileDrawer.classList.remove('closed');
-                mobileDrawer.classList.add('open');
-            } else {
-                mobileDrawer.classList.add('closed');
-                mobileDrawer.classList.remove('open');
-            }
-        }
-
-        drawerHandle.addEventListener('click', toggleDrawer);
-
-        // Touch gesture logic for dragging drawer
-        let startY = 0;
-        let currentY = 0;
-
-        drawerHandle.addEventListener('touchstart', (e) => {
-            startY = e.touches[0].clientY;
-            mobileDrawer.style.transition = 'none'; // remove transition for smooth drag
-        }, {passive: true});
-
-        drawerHandle.addEventListener('touchmove', (e) => {
-            currentY = e.touches[0].clientY;
-            const diffY = currentY - startY;
-
-            if (drawerOpen && diffY > 0) {
-                // Dragging down to close
-                mobileDrawer.style.transform = `translateY(${diffY}px)`;
-            } else if (!drawerOpen && diffY < 0) {
-                // Dragging up to open
-                mobileDrawer.style.transform = `translateY(calc(100% - 56px + ${diffY}px))`;
-            }
-        }, {passive: true});
-
-        drawerHandle.addEventListener('touchend', (e) => {
-            mobileDrawer.style.transition = ''; // restore CSS transition
-            mobileDrawer.style.transform = ''; // clear inline transform
-
-            const diffY = currentY - startY;
-
-            if (Math.abs(diffY) > 50) {
-                // threshold met
-                if (drawerOpen && diffY > 0) {
-                    toggleDrawer(); // close
-                } else if (!drawerOpen && diffY < 0) {
-                    toggleDrawer(); // open
+        function switchSidebarTab(tabKey) {
+            ['attr', 'traits', 'journal'].forEach(k => {
+                const p = document.getElementById(`sidebar-tab-${k}`);
+                const b = document.getElementById(`tab-btn-${k}`);
+                if (k === tabKey) {
+                    p?.classList.remove('hidden');
+                    b?.classList.add('text-emerald-400', 'border-b-2', 'border-emerald-500', 'font-bold');
+                    b?.classList.remove('text-zinc-400');
+                } else {
+                    p?.classList.add('hidden');
+                    b?.classList.remove('text-emerald-400', 'border-b-2', 'border-emerald-500', 'font-bold');
+                    b?.classList.add('text-zinc-400');
                 }
-            }
-        });
-
-        // 3D Trait Card Cycle Logic
-        // 卡片數量由 app.js 的 renderCards() 決定，所以順序陣列要能被重設，
-        // 不能像舊版那樣寫死 [1,2,3]——卡片數量一變就會抓到不存在的 id 而丟錯。
-        const cardClasses = ['active', 'behind-1', 'behind-2'];
-        let currentOrder = [];
-
-        function resetCardCycle(count) {
-            currentOrder = Array.from({ length: count }, (_, i) => i + 1);
-        }
-
-        function cycleCards() {
-            if (currentOrder.length < 2) return;
-
-            currentOrder.unshift(currentOrder.pop());
-
-            currentOrder.forEach((id, index) => {
-                const card = document.getElementById(`card-${id}`);
-                if (!card) return;
-                card.classList.remove('active', 'behind-1', 'behind-2');
-                card.classList.add(cardClasses[index] ?? 'behind-2');
             });
         }
 
-        // Dice Roll Modal —— 純視覺層。
-        // [重要] 這裡不再自己產生任何點數或成功數。骰子動畫只是「等待後端回應」的視覺表現，
-        // 顯示出來的數字一律由 app.js 拿到 /api/check 的回傳值之後呼叫 showDiceResult() 填入。
-        // 舊版在這裡寫死了一個 "7"，等於畫面上出現了一個沒有經過規則引擎的數字，
-        // 那正是整個專案架構明文禁止的事(規則運算只能來自 core/)。
-        const diceModal = document.getElementById('diceModal');
-        const diceSvg = document.getElementById('diceSvg');
-        const diceContainer = document.getElementById('diceContainer');
-        const diceStatus = document.getElementById('diceStatus');
-        const diceFormula = document.getElementById('diceFormula');
-        const diceResultText = document.getElementById('diceResultText');
-
-        function openDiceModal() {
-            diceModal.classList.remove('opacity-0', 'pointer-events-none');
-            diceSvg.classList.remove('animate-tumble');
-            diceContainer.classList.remove('scale-150');
-            diceResultText.style.opacity = '0';
-            diceResultText.textContent = '';
-            diceFormula.style.opacity = '0';
-            diceFormula.textContent = '';
-            diceStatus.textContent = 'ROLLING DICE POOL...';
-            diceStatus.classList.add('animate-pulse');
-
-            void diceSvg.offsetWidth; // 觸發reflow讓動畫可以重新播放
-            diceSvg.classList.add('animate-tumble');
+        function copySessionId() {
+            const val = document.getElementById('modal-session-id').value;
+            if (val) {
+                navigator.clipboard.writeText(val);
+                alert('Session ID 已複製！');
+            }
         }
 
-        function showDiceResult(successText, formulaText) {
-            diceStatus.textContent = 'CHECK RESOLVED';
-            diceStatus.classList.remove('animate-pulse');
-            diceContainer.classList.add('scale-150');
-            diceResultText.textContent = successText;
-            diceResultText.style.opacity = '1';
-            diceFormula.textContent = formulaText ?? '';
-            diceFormula.style.opacity = '1';
-            armDiceModalClose();
+        function saveSettings() {
+            localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
+            const key = document.getElementById('setting-api-key').value;
+            if (key) localStorage.setItem('user_api_key', key);
+            closeModal('settingsModal');
+            alert('設定已儲存！');
         }
-
-        function showDiceError() {
-            diceStatus.textContent = 'ENGINE UNREACHABLE';
-            diceStatus.classList.remove('animate-pulse');
-            diceSvg.classList.remove('animate-tumble');
-            diceFormula.textContent = '沒有取得判定結果，詳見敘事區的錯誤訊息';
-            diceFormula.style.opacity = '1';
-            armDiceModalClose();
-        }
-
-        function armDiceModalClose() {
-            const closeHandler = () => {
-                diceModal.classList.add('opacity-0', 'pointer-events-none');
-                diceContainer.classList.remove('scale-150');
-                diceModal.removeEventListener('click', closeHandler);
-            };
-            diceModal.addEventListener('click', closeHandler);
-        }
-
-        function closeDrawerIfOpen() {
-            if (drawerOpen) toggleDrawer();
-        }
-
-        // 給 app.js 使用的介面(inline onclick 也靠這些全域名稱)
-        window.cycleCards = cycleCards;
-        window.resetCardCycle = resetCardCycle;
-        window.toggleTheme = toggleTheme;
-        window.setDeviceView = setDeviceView;
-        window.openDiceModal = openDiceModal;
-        window.showDiceResult = showDiceResult;
-        window.showDiceError = showDiceError;
-        window.closeDrawerIfOpen = closeDrawerIfOpen;
-
     </script>
-
-    <!-- 應用邏輯(角色卡渲染 + /api/* 呼叫)。必須放在上面的 inline script 之後，
-         因為它會用到 window.openDiceModal / resetCardCycle 等視覺層介面。 -->
     <script src="./app.js"></script>
 </body>
 </html>
