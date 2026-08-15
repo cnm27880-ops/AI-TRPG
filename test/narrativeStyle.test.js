@@ -80,6 +80,40 @@ test("通用敘事守則含有「不可替玩家決定行動/情緒」這條(單
   assert.match(UNIVERSAL_STYLE_RULES, /不要替玩家決定/);
 });
 
+test("通用敘事守則把內心獨白限定在NPC身上(玩家角色的想法是玩家的權利)", () => {
+  assert.match(UNIVERSAL_STYLE_RULES, /內心獨白只寫NPC/);
+});
+
+test("通用敘事守則不再指定「生理反應」當替代寫法(會跟白描檔的過度生理化黑名單打架)", () => {
+  // 白描檔明文禁止「胸腔起伏」「生理性的…」這類寫法，
+  // 所以通用守則不可以反過來要求AI去寫生理反應，否則兩層規範互相矛盾。
+  assert.ok(!/心跳加速|手在抖/.test(UNIVERSAL_STYLE_RULES));
+});
+
+test("白描檔：使用者提供的黑名單詞彙都有進到指令裡", () => {
+  const instruction = STYLE_PROFILES["白描"].instruction;
+  // 抽樣檢查各個黑名單類別，避免之後有人改動時整段被吃掉而沒人發現
+  for (const word of ["救命稻草", "手術刀", "困獸", "難以言喻", "不容置疑", "骨節分明", "獵手"]) {
+    assert.ok(instruction.includes(word), `黑名單詞彙「${word}」不在白描檔指令裡`);
+  }
+  for (const rule of ["長短句結合", "動詞優先", "狀態內嵌", "主詞動態切換", "禁止定義眼神情緒"]) {
+    assert.ok(instruction.includes(rule), `規則「${rule}」不在白描檔指令裡`);
+  }
+});
+
+test("白描檔宣告的『凌駕』只限文筆層，不會延伸到規則契約", () => {
+  // 使用者原文寫的是「凌駕於所有其他寫作規範之上」。照字面收進來沒問題，
+  // 但必須確保它在最終組出來的系統提示裡，仍然排在規則契約之前、
+  // 且最後一句仍是「以規則契約為準」——否則模型可能誤以為文筆可以蓋掉判定結果。
+  const composed = composeSystemInstruction({
+    rulesContract: SYSTEM_INSTRUCTION,
+    styleId: "白描",
+  });
+  assert.match(STYLE_PROFILES["白描"].instruction, /凌駕於其他文筆規範/);
+  assert.ok(composed.indexOf(STYLE_PROFILES["白描"].instruction) < composed.indexOf(SYSTEM_INSTRUCTION));
+  assert.match(composed.trim().split("\n\n").at(-1), /以規則契約為準/);
+});
+
 test("未知的文筆設定檔要丟錯並列出可用選項", () => {
   assert.throws(
     () => composeSystemInstruction({ rulesContract: SYSTEM_INSTRUCTION, styleId: "不存在" }),
