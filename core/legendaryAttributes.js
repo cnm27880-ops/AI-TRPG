@@ -26,8 +26,9 @@ export const LEGENDARY_ATTRIBUTE_EFFECTS = {
     carryCapacityBonusKg: (n) => 500 * 2 ** (n - 1), // 500/1000/2000/4000/8000
     throwDistanceMultiplier: (n) => n + 1, // 2/3/4/5/6倍
     checkDPBonus: (n) => n,
-    // 已接上 core/combat/attackTypes.js 的傷害上限公式：呼叫端要自己把這個加上去，
-    // 因為 attackTypes.js 的 damageCap() 只算書中「基礎傷害上限公式」，不含傳奇力量加值。
+    // [決策記錄 2026-08-15] 這條原本要疊加在 core/combat/attackTypes.js 的傷害上限公式上，
+    // 但新的單一DC戰鬥數學(見 core/combat/defense.js)已經不再對傷害設上限，這個數值目前
+    // 沒有地方可以套用了，保留純粹是規則書原文記錄，之後若恢復傷害上限機制可以復用。
     damageCapBonus: (n) => triangular(n), // 1/3/6/10/15
   },
   敏捷: {

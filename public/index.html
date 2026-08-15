@@ -331,12 +331,58 @@
                     <span id="current-scene-text" class="text-zinc-200">主神空間 · 任務進行中</span>
                 </div>
                 <div class="flex items-center gap-3 text-[11px] text-zinc-500">
+                    <button id="combat-start-btn" onclick="startCombat()" class="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 transition font-mono">
+                        <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
+                    </button>
                     <span>回合: <span id="turn-counter" class="text-zinc-300 font-bold">1</span></span>
                     <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-400">已存檔</span>
                 </div>
             </div>
 
             <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 font-serif text-sm text-zinc-200"></div>
+
+            <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
+            <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
+                <div class="hud-box hud-corners p-4 rounded-lg space-y-3 shrink-0">
+                    <div class="flex items-center justify-between font-mono text-xs">
+                        <span class="text-red-400 font-bold" id="combat-enemy-name">—</span>
+                        <span class="text-zinc-500">第 <span id="combat-round">1</span> 輪</span>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
+                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-200">—</span>
+                        </div>
+                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
+                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-200">—</span>
+                        </div>
+                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    </div>
+                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-400">—</div>
+                </div>
+
+                <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
+
+                <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
+                    <div id="combat-over-text" class="text-lg font-bold"></div>
+                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
+                        返回劇情
+                    </button>
+                </div>
+
+                <div id="combat-actions" class="grid grid-cols-2 gap-2 shrink-0">
+                    <button data-combat-attack="unarmed" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
+                        <span>徒手攻擊</span>
+                        <span class="text-[10px] text-zinc-500">力量 + 格鬥</span>
+                    </button>
+                    <button data-combat-attack="pistol" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
+                        <span>手槍射擊</span>
+                        <span class="text-[10px] text-zinc-500">敏捷 + 射擊</span>
+                    </button>
+                </div>
+            </div>
 
             <!-- d20 擲骰結算覆蓋層 -->
             <div id="dice-roll-overlay" class="absolute inset-0 hidden items-center justify-center z-30 pointer-events-none">
@@ -357,7 +403,7 @@
                 </div>
             </div>
 
-            <div class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
+            <div id="story-action-panel" class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
                 <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">

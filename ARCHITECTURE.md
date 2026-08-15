@@ -45,19 +45,26 @@ core/                  純運算引擎，不含任何 AI 呼叫，Node/瀏覽器
   legendaryAttributes.js [規則書] 九個屬性的傳奇效果總表(檢定附加成功/防御/傷害上限/先攻/XP紅利等)
   combat/
     turnOrder.js         [規則書] 先攻排序(1d10+先攻值)，同分時沉著->敏捷->玩家/隨機決定
-    defense.js            [規則書] 四層防御值組裝(基礎/閃避/洞察/格擋)+防御附加成功
-    attackTypes.js         [規則書] 七種攻擊方式(肉搏/白刃/投擲x2/弓箭/槍械/炮)的DP/傷害上限公式表
-    attack.js               [規則書] resolveAttack命中判定核心(防御扣DP -> 原始成功數vs防御附加成功
-                             決定命中 -> 總成功數封頂當傷害)
+    defense.js            [設計，2026-08-15取代規則書版] 單一防御DC=min(敏捷,感知)+技能補正
+                           (格鬥/體魄取較高者)+裝備/天生防御，見「戰鬥數學簡化」決策記錄
+    attackTypes.js         [規則書] 七種攻擊方式(肉搏/白刃/投擲x2/弓箭/槍械/炮)的DP公式表
+                            (damageCap()公式已停用，保留當規則書參考記錄)
+    attack.js               [設計，2026-08-15取代規則書版] resolveAttack命中判定核心
+                             (原始成功數>防御DC才算命中 -> 總成功數-DC當基礎傷害，無上限)
     actionEconomy.js         [規則書] 自由/迅捷/移動/標準/整輪/全回合/反射/專注的額度追蹤與轉化鏈
-    damageTypes.js            [規則書] 物理/能量/精神/力場/毒素/墜落六大類傷害的8步驟減免流程
-                              (免疫->忽略->硬度->吸收->轉化->抗力/減免->抵消)
-    resolveCombatAction.js    [設計]  把attack.js+damageTypes.js+health.js接成一次完整攻擊行動
-  character.js           [設計]  戰鬥用角色檔案資料形狀(emptyCombatProfile)，橋接character屬性/
-                          技能跟combat/模組要吃的參數，Phase 3裝備/血統資料進來前先給零值骨架
+    armor.js                  [設計，2026-08-15取代規則書版] 單一護甲值(Armor)傷害吸收，
+                              取代原本物理/能量/精神/力場/毒素/墜落六大類的8步驟減免流程
+    resolveCombatAction.js    [設計]  把attack.js+armor.js+health.js接成一次完整攻擊行動
+  character.js           [設計]  戰鬥用角色檔案資料形狀(emptyCombatProfile：skillCorrection/
+                          equipmentDefense/armor三個欄位)，橋接character屬性/技能跟combat/
+                          模組要吃的參數，Phase 3裝備/血統資料進來前先給零值骨架
   characterCreation.js   [規則書] 建卡點數預算驗證(屬性/技能/專業/專長四段)，用書中「羅蘭」
                           完整範例反向驗證過
 content/               即插即用內容包
+  combat/                 [設計] 單敵人戰鬥遭遇的臨時佔位資料與狀態機
+    placeholderEncounters.js  臨時武器(徒手/手槍)與測試敵人(掠奪者)資料，等型錄轉換工具
+                               做出真實裝備/怪物資料後會被取代，見「戰鬥數學簡化」決策記錄
+    encounterState.js          單敵人回合制狀態機：先攻排序、玩家/敵人交替攻擊、勝負判定
   packs/                各個 resource pack / scenario pack / contract pack 的 JSON 檔案
                         (含 d-tier-samples-*.json：7個資源分類各3個D級真實條目，見下方決策記錄)
   loader.js             pack 的清單驗證與載入邏輯(KNOWN_TYPES 目前含血統/改造/瞳術/稱號/流派/
@@ -227,6 +234,39 @@ GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非
   的封頂、遠程距離減值反映在effectiveDP上、全力防御提高防御方有效DP扣減量、真骰子端到端smoke test。
   傳奇屬性帶來的加值(攻擊附加成功/傷害上限加成)**不會自動套用**，呼叫端要自己用
   `core/legendaryAttributes.js` 算好再傳進 `attackBonusSuccesses`/`extraDamageCap` 參數。
+
+## 戰鬥數學簡化(2026-08-15)的決策記錄
+
+- **使用者明確決定廢除書中「基礎/閃避/洞察/格擋」四層防御拆分與「免疫->忽略->硬度->吸收->
+  轉化->抗力/減免->抵消」八步驟傷害減免，改為單一DC+單一Armor值**：這是本專案第一次主動
+  偏離「規則書內容 vs 自製設計必須清楚標記出處」原則裡「規則書=聖經」的預設立場——不是
+  誤用或簡化失真，是使用者親自拍板的房規調整，且明講「之後我們會逐步將規則書轉化為適合我們
+  網站的內容」，也就是說接下來的規則調整不再要求逐字對應 `rules-2.35.txt`，改成「書為靈感，
+  網站體驗優先」。舊版四層防御(`defense.js`)與八步驟減免(`damageTypes.js`)的完整規則書出處
+  (rules-2.35.txt 第13205~13618行等)保留在 git 歷史紀錄裡，不是被遺忘，未來若要找回可以直接
+  revert 相關commit。
+- **新公式**：`防御DC = min(敏捷,感知) + 技能補正(格鬥/體魄取較高者) + 裝備/天生防御`；
+  攻擊方原始成功數要嚴格大於DC才算命中；`基礎傷害 = 總成功數(原始+附加成功) - 防御DC`，
+  不再有武器別傷害上限；`實質傷害 = max(0, 基礎傷害 - 護甲值)`，不分傷害類型。
+  完整版見 `RULES_DIGEST.md` 第9節。
+- **改動的檔案**：`core/combat/defense.js`(改寫)、`core/combat/damageTypes.js`(刪除，
+  邏輯搬到新增的 `core/combat/armor.js`)、`core/combat/attack.js`(命中判定改成DC比較，
+  移除防御扣DP機制)、`core/combat/resolveCombatAction.js`(接線跟著簡化)、
+  `core/character.js` 的 `emptyCombatProfile()`(從十幾個欄位簡化成三個：
+  `skillCorrection`/`equipmentDefense`/`armor`)。`core/combat/attackTypes.js` 的
+  `dp()` 公式（決定攻擊骰池大小）沒有變，只有 `damageCap()` 停用（保留函式本體當規則書
+  參考記錄，沒有呼叫端在用）；`core/legendaryAttributes.js` 的 `力量.damageCapBonus`
+  同理變成沒有掛勾點的紀錄資料，等以後若恢復傷害上限機制可以復用。
+- **測試**：`test/defense.test.js`/`test/attack.test.js`/`test/resolveCombatAction.test.js`
+  全部改寫成新公式；`test/damageTypes.test.js` 刪除，改成 `test/armor.test.js`。
+- **順帶完成的單敵人戰鬥MVP**：`content/combat/placeholderEncounters.js`(臨時佔位武器/
+  敵人資料，型錄裡的血統/瞳術等資源目前是自由文字描述如「骨爪：3L天生武器」，還沒有結構化
+  成 `attackTypes.js` 可以直接吃的欄位，所以先用兩把陽春武器接通引擎到UI這條路)、
+  `content/combat/encounterState.js`(單敵人回合制狀態機：先攻排序、玩家/敵人交替攻擊、
+  勝負判定，敵人固定用配備的唯一武器攻擊，不呼叫AI)、`functions/api/combat/start.js`+
+  `act.js`(session整合，血量同步回`character.derived.hp`)、`public/index.html`+`app.js`
+  的戰鬥面板(重用既有的d20擲骰動畫與HUD視覺語言，遵守既有的`style.display`切換慣例而非
+  Tailwind `.hidden`)。只支援一對一，多敵人/隊友留到有實際需求再做。
 
 ## 建卡點數預算驗證的決策記錄
 

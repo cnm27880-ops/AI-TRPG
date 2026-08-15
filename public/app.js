@@ -466,6 +466,164 @@ async function resumeSession(id) {
   }
 }
 
+// --- 戰鬥（單敵人 MVP，見 content/combat/encounterState.js） ---
+let currentCombat = null;
+let combatInFlight = false;
+
+const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
+
+async function startCombat() {
+  if (!currentSessionId || combatInFlight) return;
+  combatInFlight = true;
+  try {
+    const res = await (await fetch("/api/combat/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+
+    if (!res.ok) {
+      alert(`無法開始戰鬥：${res.error}`);
+      return;
+    }
+
+    currentCombat = res.combat;
+    document.getElementById("combat-log").innerHTML = "";
+    document.getElementById("combat-over-banner").style.display = "none";
+    document.getElementById("story-feed").style.display = "none";
+    document.getElementById("story-action-panel").style.display = "none";
+    document.getElementById("combat-panel").style.display = "flex";
+
+    // 敵人若贏得先攻，開戰當下就已經打了第一擊（見 functions/api/combat/start.js）
+    (res.openingEnemyAttacks || []).forEach((atk) => {
+      appendCombatLog({ actor: "enemy", weaponKey: currentCombat.enemy.weaponKey, hit: atk.hit, damage: atk.finalDamage ?? 0 });
+    });
+    if (res.character) adoptCharacter(res.character);
+  } finally {
+    combatInFlight = false;
+    renderCombat();
+  }
+}
+
+function renderCombat() {
+  if (!currentCombat) return;
+  const c = currentCombat;
+
+  document.getElementById("combat-enemy-name").textContent = c.enemy.name;
+  document.getElementById("combat-round").textContent = c.round;
+
+  renderCombatHpBar("combat-enemy-hp-bar", "combat-enemy-hp-text", c.enemy.hpState);
+  renderCombatHpBar("combat-player-hp-bar", "combat-player-hp-text", c.player.hpState);
+
+  const turnLabel = c.order[c.turnIndex] === "player" ? "輪到你行動" : `輪到${c.enemy.name}行動`;
+  document.getElementById("combat-turn-indicator").textContent = c.active ? turnLabel : "戰鬥結束";
+
+  const actionsEnabled = c.active && c.order[c.turnIndex] === "player" && !combatInFlight;
+  document.querySelectorAll("[data-combat-attack]").forEach((btn) => {
+    btn.disabled = !actionsEnabled;
+    btn.classList.toggle("opacity-40", !actionsEnabled);
+  });
+
+  if (!c.active) {
+    const banner = document.getElementById("combat-over-banner");
+    const text = document.getElementById("combat-over-text");
+    if (c.winner === "player") {
+      text.textContent = `擊敗了${c.enemy.name}`;
+      text.className = "text-lg font-bold text-emerald-400";
+    } else {
+      text.textContent = "戰鬥失利";
+      text.className = "text-lg font-bold text-red-400";
+    }
+    banner.style.display = "block";
+  }
+}
+
+function renderCombatHpBar(barId, textId, hpState) {
+  document.getElementById(textId).textContent = `${hpState.intact} / ${hpState.max}`;
+  const bar = document.getElementById(barId);
+  bar.innerHTML = "";
+  bar.style.gridTemplateColumns = `repeat(${hpState.max}, minmax(0, 1fr))`;
+  const segments = [
+    ...Array(hpState.intact).fill("hp-seg hp-seg-intact"),
+    ...Array(hpState.B).fill("hp-seg hp-seg-b"),
+    ...Array(hpState.L).fill("hp-seg hp-seg-l"),
+    ...Array(hpState.A).fill("hp-seg hp-seg-a"),
+  ];
+  segments.forEach((cls) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    bar.appendChild(d);
+  });
+}
+
+function appendCombatLog(entry) {
+  const log = document.getElementById("combat-log");
+  const actorLabel = entry.actor === "player" ? "你" : currentCombat.enemy.name;
+  const weaponLabel = COMBAT_WEAPON_LABELS[entry.weaponKey] ?? entry.weaponKey;
+  const outcome = entry.hit ? `命中，造成 ${entry.damage} 點傷害` : "未命中";
+  const color = entry.actor === "player" ? "text-emerald-400" : "text-red-400";
+  const block = document.createElement("div");
+  block.className = "p-2 rounded bg-panel/70 border hairline-border text-[11px]";
+  block.innerHTML = `<span class="${color} font-bold">${escapeHtml(actorLabel)}</span> 使用${escapeHtml(weaponLabel)} → ${escapeHtml(outcome)}`;
+  log.appendChild(block);
+  log.scrollTop = log.scrollHeight;
+}
+
+async function combatAttack(weaponKey) {
+  if (!currentCombat?.active || combatInFlight) return;
+  if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
+
+  combatInFlight = true;
+  renderCombat();
+  try {
+    const checkResult = { totalSuccesses: 0 };
+    const res = await (await fetch("/api/combat/act", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, weaponKey }),
+    })).json();
+
+    if (!res.ok) {
+      alert(`行動失敗：${res.error}`);
+      return;
+    }
+
+    if (res.playerAttack) {
+      checkResult.totalSuccesses = res.playerAttack.rawSuccesses ?? 0;
+      await playDiceRollAnimation(checkResult);
+      appendCombatLog({ actor: "player", weaponKey, hit: res.playerAttack.hit, damage: res.playerAttack.finalDamage ?? 0 });
+    }
+    if (res.enemyAttack) {
+      appendCombatLog({
+        actor: "enemy",
+        weaponKey: currentCombat.enemy.weaponKey,
+        hit: res.enemyAttack.hit,
+        damage: res.enemyAttack.finalDamage ?? 0,
+      });
+    }
+
+    currentCombat = res.combat;
+    if (res.character) adoptCharacter(res.character);
+    renderCombat();
+  } finally {
+    combatInFlight = false;
+    renderCombat();
+  }
+}
+
+function endCombat() {
+  const won = currentCombat?.winner === "player";
+  const enemyName = currentCombat?.enemy?.name ?? "敵人";
+  currentCombat = null;
+
+  document.getElementById("combat-panel").style.display = "none";
+  document.getElementById("story-feed").style.display = "flex";
+  document.getElementById("story-action-panel").style.display = "block";
+
+  const summary = won ? `擊敗了${enemyName}，戰鬥結束。` : `在與${enemyName}的戰鬥中落敗，勉強脫身。`;
+  runTurn({ playerAction: summary });
+}
+
 async function handleResumeFromModal() {
   const id = document.getElementById("input-resume-session").value.trim();
   if (!id) return;
@@ -513,6 +671,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     renderTraitStage();
   });
 
+  // 戰鬥行動按鈕
+  document.getElementById("combat-actions")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-combat-attack]");
+    if (!btn || btn.disabled) return;
+    combatAttack(btn.dataset.combatAttack);
+  });
+
   // 自訂行動 Enter 發送
   document.querySelector("[data-action-input]")?.addEventListener("keydown", e => {
     if (e.key === "Enter") {
@@ -540,3 +705,5 @@ window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
 window.applyArchetype = applyArchetype;
+window.startCombat = startCombat;
+window.endCombat = endCombat;
