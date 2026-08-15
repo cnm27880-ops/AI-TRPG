@@ -3,9 +3,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { computeDefenseProfile } from "../core/combat/defense.js";
 
-test("computeDefenseProfile：基礎防御取敏捷與感知較高者", () => {
+test("computeDefenseProfile：基礎防御取敏捷與感知較低者(📖衍生屬性段第1784行「敏捷和感知中較低者」)", () => {
   const result = computeDefenseProfile({ agility: 4, perception: 7 });
-  assert.equal(result.base, 7);
+  assert.equal(result.base, 4);
 });
 
 test("computeDefenseProfile：閃避防御=傳奇敏捷、洞察防御=傳奇感知(n=floor((v-1)/5))", () => {
@@ -56,7 +56,7 @@ test("computeDefenseProfile：手算範例——完整組合的total正確加總
     armorDefense: 3,
     naturalDefense: 2,
   });
-  // base=max(11,6)=11, dodge=2, insight=1, block=4+0+1=5, armor=3, natural=2, fullDefenseBonus=0
-  // total = 11+2+1+5+3+2+0 = 24
-  assert.equal(result.total, 24);
+  // base=min(11,6)=6, dodge=2, insight=1, block=4+0+1=5, armor=3, natural=2, fullDefenseBonus=0
+  // total = 6+2+1+5+3+2+0 = 19
+  assert.equal(result.total, 19);
 });

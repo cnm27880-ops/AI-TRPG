@@ -1,0 +1,17 @@
+# API金鑰的本機檔案 —— 絕對不能commit。
+# GEMINI_INTEGRATION.md 叫你建這個檔案來做本機測試，但這個repo原本沒有.gitignore，
+# 照著做會直接把金鑰commit進git歷史(而且之後就算刪檔案，金鑰仍然留在歷史紀錄裡)。
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+
+# 依賴與建置產物
+node_modules/
+dist/
+.wrangler/
+
+# 作業系統雜項
+.DS_Store
+Thumbs.db

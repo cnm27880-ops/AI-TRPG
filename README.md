@@ -27,6 +27,8 @@ core/               核心規則引擎(跟哪個資源包/副本包無關，永�
   legendaryAttributes.js 九個屬性的傳奇效果總表(檢定附加成功/防御/傷害上限/先攻/XP紅利/重骰等)
   character.js      戰鬥用角色檔案資料形狀(emptyCombatProfile)，橋接屬性/技能與combat/模組
   characterCreation.js 建卡點數預算驗證(屬性/技能/專業/專長)，用書中「羅蘭」範例反向驗證過
+  derivedStats.js   衍生屬性：生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、
+                     先攻=敏捷+沉著、基礎防御=min(敏捷,感知)、敏感範圍=感知×10米
 
 content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約都走同一套機制
   templates.js      [規則書]「資源模板」的DCBA分級定價表(血統/改造/瞳術/稱號流派/技藝/法術)
@@ -39,6 +41,20 @@ content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約
     d-tier-samples-*.json              7個資源分類(血統/改造/瞳術/稱號/流派/技藝/法術)各3個D級
                                         真實條目，直接從rules2.35.txt摘錄轉換(不是自編內容)，
                                         供建卡流程測試時選用，含3組真實發現的定價落差，見ARCHITECTURE.md
+  checkIntent.js  [設計] 玩家自然語言行動 -> 檢定參數(屬性/技能/專業)的對照層。放在引擎層而不是
+                   前端的理由見檔頭註解：「這個行動該擲什麼」是規則決定，必須有測試蓋住
+  narrativeStyle.js [設計] 文筆風格層。跟「規則契約層」刻意分開的第二層系統提示，
+                   換文筆永遠碰不到規則，見 LLM_PROVIDERS.md 與檔頭註解
+  characterBuilder.js [設計] 建卡組裝層：把四個預算驗證器 + 衍生屬性串成「驗證並組出一張合法角色卡」
+  storage/
+    sessionStore.js [設計] 存檔層(Cloudflare KV，無binding時退到記憶體版並標記persistent:false)。
+                     存檔含 角色卡/事件日誌/最近幾輪敘事/場景，AI的記憶就是從這裡讀的
+  turnOptions.js  [規則書授權+設計] 回合選項系統。AI為每個選項挑「屬性+技能」組合
+                   (規則書第3819~3849行明文把這件事指派給ST)，難度只能從五級量表挑，
+                   引擎逐項查驗後才採用——技能名不在規則書技能表裡就不算數
+  llm/
+    providers.js  [設計] LLM供應商註冊表(Gemini/DeepSeek/OpenRouter/Workers AI/任意OpenAI相容中轉)
+    client.js     [設計] 統一呼叫層，市面上的API其實只有兩種線路格式，這裡各實作一份
   scenario/
     schema.js       副本包的章節/節點結構驗證(含選填的timeLimitRounds時間預算欄位)
     divergence.js   劇情扭轉度系統——0~4級分級表、獎勵倍率、難度加值、進度條彙總計算
@@ -58,10 +74,19 @@ core/combat/        戰鬥引擎(Phase 2)，只做「引擎本身」，不含任
   resolveCombatAction.js 把攻擊判定+傷害減免+生命值扣減接成一次完整攻擊行動
 
 functions/api/       Cloudflare Pages Functions範例端點，直接呼叫上面的引擎(見DEPLOYMENT.md)
-  check.js            POST /api/check —— 跑一次判定
+  turn.js             POST /api/turn —— **遊戲主迴圈**：讀存檔->查驗選項->擲骰->帶記憶敘事->
+                       產生下一輪4個選項->寫回存檔
+  session.js          /api/session —— 存檔的建立/讀取/刪除/列表
+  character.js        /api/character —— GET拿建卡規則常數、POST驗證建卡草稿並組出角色卡
+  check.js            POST /api/check —— 只跑一次判定(給params，或只給playerAction讓引擎推導)
   combat/resolve.js   POST /api/combat/resolve —— 跑一次完整攻擊行動
-  narrate.js          POST /api/narrate —— 判定+敘事分級+Gemini生成敘事文字(見GEMINI_INTEGRATION.md)
+  narrate.js          POST /api/narrate —— 只要判定+敘事、不要選項時用這個
 wrangler.toml         Cloudflare Pages設定骨架
+
+public/              前端UI(Cloudflare Pages的靜態資源根目錄，`pages_build_output_dir`指向這裡)
+  index.html          單頁UI：建卡畫面/角色HUD/敘事流/行動主控台/骰子動畫/手機抽屜
+  app.js              應用層：渲染角色卡、呼叫/api/*、把引擎算出的結果畫成敘事區塊
+                       **不做任何規則運算**，數字一律來自後端
 
 test/                198個測試，node內建測試跑者，`node --test` 全跑
   engine.test.js, health.test.js, statistics.test.js, invariants.test.js, integration.test.js
@@ -75,6 +100,8 @@ TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的�
 ARCHITECTURE.md       給接手者看的架構總覽與決策紀錄(見上)
 DEPLOYMENT.md         Cloudflare Pages部署步驟(給你自己看的操作手冊，不是給接手AI看的架構文件)
 GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
+LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰的Workers AI/第三方中轉)
+                       與文筆設定檔的用法，含各家端點的查證日期與出處
 ```
 
 ## 已對照規則書驗證的部分
@@ -113,7 +140,7 @@ GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
 node --test
 ```
 
-目前 212 個測試，全部通過。
+目前 312 個測試，全部通過。
 
 ## `[規則書]` 與 `[設計]` 標記
 
@@ -134,7 +161,11 @@ node --test
 - Cloudflare Pages 部署骨架、Gemini 敘事整合骨架都做了(`wrangler.toml`/`functions/api/`/
   `content/gemini/`)，**但沒有實際部署過、沒有實際打過Gemini的API**(這個開發環境沒有帳號/金鑰/
   網路)，你拿到後要自己走一次 `DEPLOYMENT.md`/`GEMINI_INTEGRATION.md` 才能確認真的接得上。
-- 任何前端 UI。
+- 前端UI已經接上引擎(`public/`)：建卡→存檔→回合迴圈(AI給4個選項+第5種自訂行動)→重整後接續
+  都可以跑了，AI也有記憶(最近8輪敘事+完整事件日誌摘要)。仍缺：
+  劇本節點推進、戰鬥介面(`/api/combat/resolve` 還沒有任何UI在呼叫)、XP升級介面、
+  資源包套用到角色身上、NPC好感度。
+  另外UI目前依賴Tailwind Play CDN，官方明講那不是給正式環境用的，見下方說明。
 
 這些都记录在 `ARCHITECTURE.md` 的 Phase 進度表裡，不是遺漏，是刻意分期。
 

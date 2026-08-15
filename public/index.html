@@ -260,10 +260,75 @@
         </div>
 
         <div class="hidden md:flex items-center gap-4 text-xs font-mono text-zinc-500 dark:text-zinc-400">
-            <span class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-[10px] transition-colors"><i class="fas fa-microchip text-zinc-400 dark:text-zinc-500 mr-1"></i>GEMINI-3.1</span>
-            <span>劇本: <strong class="text-zinc-800 dark:text-zinc-200">JUDGE-01</strong></span>
+            <!-- 規則引擎(/api/*)的連線狀態，由 app.js 依實際API回應更新 -->
+            <span id="backend-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">ENGINE ?</span>
+            <!-- 存檔狀態：顯示是否真的有持久化（記憶體模式會變成警告色） -->
+            <span id="save-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">尚未建卡</span>
+            <button id="btn-new-game" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-[10px] font-mono transition">新遊戲</button>
         </div>
     </header>
+
+    <!-- 建卡畫面 —— 沒有存檔時顯示這個，建完卡才進入遊戲。
+         所有預算數字都由 GET /api/character 提供，這裡不寫死任何規則常數，
+         避免規則改了但前端沒跟著改，玩家看到的預算跟後端驗的不一樣。 -->
+    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-4 md:p-8">
+        <div class="space-y-6">
+            <div class="border-b hairline-border pb-3">
+                <h2 class="text-lg font-bold tracking-tight">建立輪迴者</h2>
+                <p id="chargen-intro" class="text-xs font-mono text-zinc-500 mt-1">載入建卡規則中…</p>
+            </div>
+
+            <!-- 概念 -->
+            <section class="space-y-2">
+                <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">概念</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-gender" type="text" placeholder="性別" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-age" type="number" placeholder="年齡" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-background" type="text" placeholder="背景" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                </div>
+            </section>
+
+            <!-- 屬性 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">屬性</h3>
+                    <span id="cg-attr-budget" class="text-xs font-mono"></span>
+                </div>
+                <div id="cg-attr-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-attr-grid" class="grid grid-cols-1 md:grid-cols-3 gap-2"></div>
+            </section>
+
+            <!-- 技能 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">技能</h3>
+                    <span id="cg-skill-budget" class="text-xs font-mono"></span>
+                </div>
+                <div id="cg-skill-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-skill-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- 專業 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">專業</h3>
+                    <span id="cg-spec-budget" class="text-xs font-mono"></span>
+                </div>
+                <p class="text-[10px] font-mono text-zinc-500">只能掛在等級≥1的技能上。專業名稱自己填，例如「步槍」「痕跡辨識」。</p>
+                <div id="cg-spec-list" class="space-y-1.5"></div>
+            </section>
+
+            <!-- 錯誤與送出 -->
+            <div id="cg-errors" class="space-y-1"></div>
+            <div class="flex items-center gap-3 pt-2 border-t hairline-border">
+                <button id="cg-submit" class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-5 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box disabled:opacity-40 disabled:pointer-events-none">
+                    完成建卡並開始遊戲
+                </button>
+                <span id="cg-derived" class="text-xs font-mono text-zinc-500"></span>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Application Viewport -->
     <div id="app-viewport" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto transition-all duration-300 relative">
@@ -280,63 +345,36 @@
                             <span>•</span>
                             <span class="text-emerald-500 font-bold">ONLINE</span>
                         </div>
-                        <h2 class="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5">亞倫 · 懷特 (Aaron)</h2>
-                        <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400">級別 2 / 戰術專員</p>
+                        <h2 id="char-name" class="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5">—</h2>
+                        <p id="char-class" class="text-xs font-mono text-zinc-500 dark:text-zinc-400">—</p>
                     </div>
                     <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border hairline-border hud-corner-box transition-colors">D-TIER</span>
                 </div>
 
-                <!-- HP Meter -->
+                <!-- 傷勢軌 (完好 / 沖擊B / 嚴重L / 惡性A) —— 見 core/health.js。
+                     這套規則沒有「剩餘HP」的概念：生命點數總量不變，只是在四個狀態之間轉換。 -->
                 <div class="space-y-1 pt-1">
                     <div class="flex justify-between text-xs font-mono">
                         <span class="text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                            <i class="fas fa-heartbeat text-emerald-500 text-[11px]"></i> 生命值 (HP)
+                            <i class="fas fa-heartbeat text-emerald-500 text-[11px]"></i> 完好生命
                         </span>
-                        <span class="text-zinc-800 dark:text-zinc-200 font-medium font-mono">18 <span class="text-zinc-500">/</span> 24</span>
+                        <span id="hp-text" class="text-zinc-800 dark:text-zinc-200 font-medium font-mono">—</span>
                     </div>
-                    <!-- Segmented Visual Bar -->
-                    <div class="grid grid-cols-12 gap-1 h-1.5 p-0.5 bg-zinc-200 dark:bg-zinc-900 rounded border hairline-border transition-colors">
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-emerald-500 rounded-sm"></div>
-                        <div class="bg-zinc-400 dark:bg-zinc-800 rounded-sm"></div>
-                        <div class="bg-zinc-400 dark:bg-zinc-800 rounded-sm"></div>
-                        <div class="bg-zinc-400 dark:bg-zinc-800 rounded-sm"></div>
-                    </div>
+                    <!-- Segmented Visual Bar (由 app.js 依傷勢軌逐點產生) -->
+                    <div id="hp-bar-container" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-200 dark:bg-zinc-900 rounded border hairline-border transition-colors"></div>
+                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 dark:text-zinc-500 pt-0.5">—</div>
                 </div>
             </div>
 
             <!-- Attributes Section (No '//' & Slimmer boxes) -->
             <div class="p-4 border-b hairline-border space-y-2">
                 <div class="flex justify-between items-center">
-                    <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block font-semibold">核心屬性</span>
+                    <span class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest block font-semibold">九維屬性</span>
                     <i class="fas fa-sliders-h text-[10px] text-zinc-500"></i>
                 </div>
-                <!-- Narrower Compact Grid -->
-                <div class="grid grid-cols-2 gap-1.5 text-xs font-mono">
-                    <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
-                        <span class="text-zinc-500 dark:text-zinc-400">STR 力量</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100">14 <span class="text-emerald-500 text-[10px]">+2</span></span>
-                    </div>
-                    <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
-                        <span class="text-zinc-500 dark:text-zinc-400">DEX 敏捷</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100">16 <span class="text-emerald-500 text-[10px]">+3</span></span>
-                    </div>
-                    <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
-                        <span class="text-zinc-500 dark:text-zinc-400">INT 智力</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100">11 <span class="text-zinc-500 text-[10px]">+0</span></span>
-                    </div>
-                    <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
-                        <span class="text-zinc-500 dark:text-zinc-400">WIL 意志</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100">13 <span class="text-emerald-500 text-[10px]">+1</span></span>
-                    </div>
-                </div>
+                <!-- 九維屬性由 app.js 依 core/schema.js 的 ATTRIBUTES 順序產生。
+                     「+n★」是傳奇屬性附加成功(見 core/dice.js)，不是D&D的attribute modifier。 -->
+                <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
             </div>
 
             <!-- Dynamic Asymmetric Stacked Trait Drawer -->
@@ -355,51 +393,9 @@
                 </div>
 
                 <!-- Asymmetric Stacked Cards Container -->
-                <div class="flex-1 pt-3 card-stack-container cursor-pointer select-none" id="cardStack" onclick="cycleCards()">
-
-                    <!-- Card 1: Cybernetics -->
-                    <div id="card-1" class="stack-card active asymmetric-card p-3.5 bg-zinc-100 dark:bg-zinc-900 border hairline-border space-y-1.5 shadow-xl transition-colors">
-                        <div class="flex items-center justify-between">
-                            <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-cyan-100 dark:bg-cyan-950 text-cyan-700 dark:text-cyan-400 border border-cyan-300 dark:border-cyan-800/50 rounded-sm">義體 CYBERNETIC</span>
-                            <i class="fas fa-eye text-xs text-cyan-600 dark:text-cyan-400"></i>
-                        </div>
-                        <h4 class="text-xs font-bold text-zinc-800 dark:text-zinc-100">光學視覺補正器</h4>
-                        <p class="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug font-sans">進行觀察與遠程射擊檢定時獲得 +1 修正。</p>
-                        <div class="pt-1 flex justify-between items-center text-[9px] font-mono text-zinc-500">
-                            <span>耐久: 100%</span>
-                            <span>消耗: 1 EP</span>
-                        </div>
-                    </div>
-
-                    <!-- Card 2: Title -->
-                    <div id="card-2" class="stack-card behind-1 asymmetric-card p-3.5 bg-zinc-100 dark:bg-zinc-900 border hairline-border space-y-1.5 shadow-xl transition-colors">
-                        <div class="flex items-center justify-between">
-                            <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 border border-purple-300 dark:border-purple-800/50 rounded-sm">稱號 TITLE</span>
-                            <i class="fas fa-ghost text-xs text-purple-600 dark:text-purple-400"></i>
-                        </div>
-                        <h4 class="text-xs font-bold text-zinc-800 dark:text-zinc-100">邊緣獵手</h4>
-                        <p class="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug font-sans">在低光或廢墟環境中，潛行檢定自動獲得優勢 (Advantage)。</p>
-                        <div class="pt-1 flex justify-between items-center text-[9px] font-mono text-zinc-500">
-                            <span>被動生效</span>
-                            <span>RANK D</span>
-                        </div>
-                    </div>
-
-                    <!-- Card 3: Bloodline -->
-                    <div id="card-3" class="stack-card behind-2 asymmetric-card p-3.5 bg-zinc-100 dark:bg-zinc-900 border hairline-border space-y-1.5 shadow-xl transition-colors">
-                        <div class="flex items-center justify-between">
-                            <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800/50 rounded-sm">血脈 BLOODLINE</span>
-                            <i class="fas fa-dna text-xs text-amber-600 dark:text-amber-400"></i>
-                        </div>
-                        <h4 class="text-xs font-bold text-zinc-800 dark:text-zinc-100">自癒基因微粒</h4>
-                        <p class="text-[11px] text-zinc-600 dark:text-zinc-400 leading-snug font-sans">戰鬥結束後，若 HP 低於 30%，自動恢復 2d4 點生命值。</p>
-                        <div class="pt-1 flex justify-between items-center text-[9px] font-mono text-zinc-500">
-                            <span>冷卻: 1 場戰鬥</span>
-                            <span>等級 1</span>
-                        </div>
-                    </div>
-
-                </div>
+                <!-- 資源卡由 app.js 的 renderCards() 產生，不放靜態範例卡，
+                     避免「畫面上的卡」跟「角色卡資料裡的卡」出現兩份不同步的內容。 -->
+                <div class="flex-1 pt-3 card-stack-container cursor-pointer select-none" id="cardStack" onclick="cycleCards()"></div>
             </div>
         </aside>
 
@@ -407,65 +403,28 @@
         <main class="flex-1 flex flex-col h-full overflow-hidden bg-transparent z-0 relative">
 
             <!-- Narration Feed -->
-            <div class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
+            <div id="story-feed" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
 
-                <!-- DM Text (Flows naturally with hairline indicator) -->
-                <div class="border-l hairline-border pl-4">
-                    <p class="text-zinc-800 dark:text-zinc-300 leading-relaxed transition-colors">
-                        你輕輕推開沉重的金屬氣閘門，陳舊的鉸鏈發出刺耳的摩擦聲。通道內閃爍著微弱的紅色應急燈光，空氣中瀰漫著機油與某種焦糊氣味。在通道盡頭的陰影中，似乎有某種東西正在緩慢蠕動。
-                    </p>
-                </div>
+                <!-- 敘事區的內容全部由 app.js 動態產生：頁面載入時會先跑一次「開場回合」，
+                     由 AI 描述場景並提出四個選項。這裡不放靜態範例文字，避免玩家分不出
+                     哪些是真的由引擎+AI 產生的、哪些是寫死的樣板。 -->
 
-                <!-- Player Action (Distinct quoted dark block) -->
-                <div class="bg-zinc-200/50 dark:bg-zinc-900/80 border hairline-border p-4 rounded-sm text-zinc-900 dark:text-zinc-200 transition-colors">
-                    <p class="italic text-sm text-zinc-600 dark:text-zinc-400 mb-1 transition-colors font-mono">▶ Player Intent</p>
-                    <p>"我立刻舉起高斯步槍，開啟紅外線掃描，緩慢向前推進，準備隨時開火。"</p>
-                </div>
-
-                <!-- DM Text -->
-                <div class="border-l hairline-border pl-4">
-                    <p class="text-zinc-800 dark:text-zinc-300 leading-relaxed transition-colors">
-                        紅外線掃描器發出短促的蜂鳴聲，螢幕上亮起一個巨大的熱能輪廓。那隻生物察覺到了你的掃描波，發出一聲尖銳的嘶吼，猛然向你撲來！
-                    </p>
-                </div>
-
-                <!-- Dice Check HUD (Compact success/failure readout) -->
-                <div class="bg-zinc-200/50 dark:bg-zinc-950/80 border hairline-border p-3 font-mono text-xs hud-corner-box transition-colors mx-4">
-                    <div class="text-zinc-600 dark:text-zinc-500 mb-1 transition-colors">SYSTEM.CHECK_RESOLUTION</div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-zinc-900 dark:text-zinc-300 transition-colors">閃避檢定 (DEX + 運動)</span>
-                        <span class="text-emerald-600 dark:text-emerald-500 transition-colors">SUCCESS</span>
-                    </div>
-                    <div class="text-zinc-600 dark:text-zinc-500 mt-1 transition-colors">
-                        骰池 (14) = 成功數 <span class="text-zinc-900 dark:text-zinc-200 transition-colors">7</span> vs 對抗 (4)
-                    </div>
-                </div>
-
-                <!-- Final DM Prompt (Bolded white/dark text with green border) -->
-                <div class="border-l-2 border-emerald-500 pl-4 mt-4">
-                    <p class="font-bold text-zinc-900 dark:text-zinc-100 transition-colors">
-                        你千鈞一髮地側身翻滾，利爪擦過你的裝甲板爆出一陣火花。你現在位於有利的射擊位置，你要如何反擊？
-                    </p>
-                </div>
             </div>
 
             <!-- Bottom Action Console (Desktop) -->
             <div id="desktopActionConsole" class="hidden md:flex flex-col border-t hairline-border bg-white/90 dark:bg-zinc-950/90 p-4 gap-3 shrink-0 backdrop-blur transition-colors">
-                <div class="flex gap-2">
-                    <button class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border p-2 text-sm text-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition asymmetric-card">
-                        <span class="font-mono text-xs text-zinc-500 mr-2 transition-colors">[A]</span>精準射擊頭部
-                    </button>
-                    <button class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border p-2 text-sm text-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition asymmetric-card">
-                        <span class="font-mono text-xs text-zinc-500 mr-2 transition-colors">[B]</span>投擲破片手榴彈
-                    </button>
-                </div>
+                <!-- 四個選項由 AI 產生、引擎查驗過後，交給 app.js 的 renderOptions() 填入。
+                     每個選項會顯示它對應的「屬性+技能・難度」，讓玩家看得到自己在賭什麼。 -->
+                <div id="option-grid" class="grid grid-cols-2 gap-2"></div>
+
+                <!-- 第五種：自訂行動。永遠存在，就算 AI 一個選項都沒給也能繼續玩。 -->
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
-                        <input type="text" placeholder="自定義行動指令..." class="w-full bg-zinc-100 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-2 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
+                        <input type="text" data-action-input placeholder="[5] 自訂行動：描述你想做的事，按 Enter 送出..." class="w-full bg-zinc-100 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-2 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
                         <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-2.5 text-zinc-400 dark:text-zinc-600 text-xs pointer-events-none"></i>
                     </div>
-                    <button onclick="triggerDiceRoll()" class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box whitespace-nowrap">
-                        PERFORM CHECK
+                    <button data-send-custom class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box whitespace-nowrap">
+                        送出行動
                     </button>
                 </div>
             </div>
@@ -482,25 +441,20 @@
 
         <!-- Drawer Content -->
         <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-            <div class="flex justify-between items-center font-mono text-sm border-b hairline-border pb-2">
-                <span class="text-emerald-600 dark:text-emerald-500 transition-colors">HP 18/24</span>
-                <span class="text-zinc-600 dark:text-zinc-400 transition-colors">STR 14 | DEX 16 | INT 11</span>
+            <div class="flex flex-col gap-1 font-mono text-xs border-b hairline-border pb-2">
+                <span id="mobile-hp-text" class="text-emerald-600 dark:text-emerald-500 transition-colors">—</span>
+                <span id="mobile-attr-text" class="text-zinc-600 dark:text-zinc-400 transition-colors">—</span>
             </div>
-            <div class="flex flex-col gap-2">
-                <button class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border p-3 text-sm text-left text-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition asymmetric-card">
-                    <span class="font-mono text-xs text-zinc-500 mr-2">[A]</span>精準射擊頭部
-                </button>
-                <button class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border p-3 text-sm text-left text-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition asymmetric-card">
-                    <span class="font-mono text-xs text-zinc-500 mr-2">[B]</span>投擲破片手榴彈
-                </button>
-            </div>
+            <!-- 手機版的四個選項，由 renderOptions() 同步填入 -->
+            <div id="option-grid-mobile" class="flex flex-col gap-2"></div>
+
             <div class="relative mt-2">
-                <input type="text" placeholder="自定義指令..." class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-3 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
+                <input type="text" data-action-input placeholder="[5] 自訂行動..." class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-3 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
                 <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-3.5 text-zinc-400 dark:text-zinc-600 text-sm pointer-events-none"></i>
             </div>
 
-            <button onclick="triggerDiceRoll()" class="mt-auto w-full bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-3 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box">
-                PERFORM CHECK
+            <button data-send-custom class="mt-auto w-full bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-3 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box">
+                送出行動
             </button>
         </div>
     </div>
@@ -510,8 +464,8 @@
         <div class="flex flex-col items-center gap-6">
 
             <!-- 3D SVG dice pool representation container (d10 decahedron) -->
-            <div class="w-32 h-32 relative transition-transform duration-500 flex flex-wrap gap-2 justify-center content-center" style="perspective: 500px;" id="d20container">
-                <svg id="d20svg" viewBox="0 0 100 100" class="w-20 h-20 text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)] origin-center" style="transform-style: preserve-3d;">
+            <div class="w-32 h-32 relative transition-transform duration-500 flex flex-wrap gap-2 justify-center content-center" style="perspective: 500px;" id="diceContainer">
+                <svg id="diceSvg" viewBox="0 0 100 100" class="w-20 h-20 text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.5)] origin-center" style="transform-style: preserve-3d;">
                     <!-- Decahedron (d10) representation for 2D/3D illusion -->
                     <polygon points="50,5 90,40 50,95 10,40" fill="none" stroke="currentColor" stroke-width="2" />
                     <polygon points="50,5 50,95 10,40" fill="none" stroke="currentColor" stroke-width="1" stroke-dasharray="2 2" />
@@ -653,82 +607,102 @@
         });
 
         // 3D Trait Card Cycle Logic
-        let cardClasses = ['active', 'behind-1', 'behind-2'];
-        let currentOrder = [1, 2, 3];
+        // 卡片數量由 app.js 的 renderCards() 決定，所以順序陣列要能被重設，
+        // 不能像舊版那樣寫死 [1,2,3]——卡片數量一變就會抓到不存在的 id 而丟錯。
+        const cardClasses = ['active', 'behind-1', 'behind-2'];
+        let currentOrder = [];
+
+        function resetCardCycle(count) {
+            currentOrder = Array.from({ length: count }, (_, i) => i + 1);
+        }
 
         function cycleCards() {
-            // Shift the order array
+            if (currentOrder.length < 2) return;
+
             currentOrder.unshift(currentOrder.pop());
 
-            // Apply new classes
             currentOrder.forEach((id, index) => {
                 const card = document.getElementById(`card-${id}`);
-                // Remove all state classes
+                if (!card) return;
                 card.classList.remove('active', 'behind-1', 'behind-2');
-                // Add the new class
-                card.classList.add(cardClasses[index]);
+                card.classList.add(cardClasses[index] ?? 'behind-2');
             });
         }
 
-        // Dice Roll Modal & Animation Logic
+        // Dice Roll Modal —— 純視覺層。
+        // [重要] 這裡不再自己產生任何點數或成功數。骰子動畫只是「等待後端回應」的視覺表現，
+        // 顯示出來的數字一律由 app.js 拿到 /api/check 的回傳值之後呼叫 showDiceResult() 填入。
+        // 舊版在這裡寫死了一個 "7"，等於畫面上出現了一個沒有經過規則引擎的數字，
+        // 那正是整個專案架構明文禁止的事(規則運算只能來自 core/)。
         const diceModal = document.getElementById('diceModal');
-        const d20svg = document.getElementById('d20svg');
-        const d20container = document.getElementById('d20container');
+        const diceSvg = document.getElementById('diceSvg');
+        const diceContainer = document.getElementById('diceContainer');
         const diceStatus = document.getElementById('diceStatus');
         const diceFormula = document.getElementById('diceFormula');
         const diceResultText = document.getElementById('diceResultText');
 
-        function triggerDiceRoll() {
-            // Close drawer if open
-            if (drawerOpen) {
-                toggleDrawer();
-            }
-
-            // Reset state
+        function openDiceModal() {
             diceModal.classList.remove('opacity-0', 'pointer-events-none');
-            d20svg.classList.remove('animate-tumble');
-            d20container.classList.remove('scale-150');
+            diceSvg.classList.remove('animate-tumble');
+            diceContainer.classList.remove('scale-150');
             diceResultText.style.opacity = '0';
+            diceResultText.textContent = '';
             diceFormula.style.opacity = '0';
-            diceStatus.textContent = 'SCANNING ATTRIBUTES...';
+            diceFormula.textContent = '';
+            diceStatus.textContent = 'ROLLING DICE POOL...';
             diceStatus.classList.add('animate-pulse');
 
-            // Start animation
-            // trigger reflow to restart animation
-            void d20svg.offsetWidth;
-            d20svg.classList.add('animate-tumble');
-
-            // Sequence
-            setTimeout(() => {
-                diceStatus.textContent = 'CALCULATING MODIFIERS...';
-            }, 500);
-
-            setTimeout(() => {
-                diceStatus.textContent = 'CHECK RESOLVED!';
-                diceStatus.classList.remove('animate-pulse');
-                d20container.classList.add('scale-150');
-                diceResultText.style.opacity = '1';
-                diceFormula.style.opacity = '1';
-                diceResultText.textContent = '7'; // D10 success count
-            }, 1500);
-
-            // Close modal on click anywhere after resolved
-            setTimeout(() => {
-                const closeHandler = () => {
-                    diceModal.classList.add('opacity-0', 'pointer-events-none');
-                    d20container.classList.remove('scale-150');
-                    diceModal.removeEventListener('click', closeHandler);
-                };
-                diceModal.addEventListener('click', closeHandler);
-            }, 1600);
+            void diceSvg.offsetWidth; // 觸發reflow讓動畫可以重新播放
+            diceSvg.classList.add('animate-tumble');
         }
 
-        // Initial global expose for inline onclick
-        window.triggerDiceRoll = triggerDiceRoll;
+        function showDiceResult(successText, formulaText) {
+            diceStatus.textContent = 'CHECK RESOLVED';
+            diceStatus.classList.remove('animate-pulse');
+            diceContainer.classList.add('scale-150');
+            diceResultText.textContent = successText;
+            diceResultText.style.opacity = '1';
+            diceFormula.textContent = formulaText ?? '';
+            diceFormula.style.opacity = '1';
+            armDiceModalClose();
+        }
+
+        function showDiceError() {
+            diceStatus.textContent = 'ENGINE UNREACHABLE';
+            diceStatus.classList.remove('animate-pulse');
+            diceSvg.classList.remove('animate-tumble');
+            diceFormula.textContent = '沒有取得判定結果，詳見敘事區的錯誤訊息';
+            diceFormula.style.opacity = '1';
+            armDiceModalClose();
+        }
+
+        function armDiceModalClose() {
+            const closeHandler = () => {
+                diceModal.classList.add('opacity-0', 'pointer-events-none');
+                diceContainer.classList.remove('scale-150');
+                diceModal.removeEventListener('click', closeHandler);
+            };
+            diceModal.addEventListener('click', closeHandler);
+        }
+
+        function closeDrawerIfOpen() {
+            if (drawerOpen) toggleDrawer();
+        }
+
+        // 給 app.js 使用的介面(inline onclick 也靠這些全域名稱)
         window.cycleCards = cycleCards;
+        window.resetCardCycle = resetCardCycle;
         window.toggleTheme = toggleTheme;
         window.setDeviceView = setDeviceView;
+        window.openDiceModal = openDiceModal;
+        window.showDiceResult = showDiceResult;
+        window.showDiceError = showDiceError;
+        window.closeDrawerIfOpen = closeDrawerIfOpen;
 
     </script>
+
+    <!-- 應用邏輯(角色卡渲染 + /api/* 呼叫)。必須放在上面的 inline script 之後，
+         因為它會用到 window.openDiceModal / resetCardCycle 等視覺層介面。 -->
+    <script src="./app.js"></script>
 </body>
 </html>

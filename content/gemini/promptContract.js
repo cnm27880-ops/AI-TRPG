@@ -38,10 +38,13 @@ export const SYSTEM_INSTRUCTION = `你是「無限恐怖」跑團引擎的說書
  * @param {{tier: string, directive: string}} params.outcome core/narration.js的classifyOutcome()回傳值
  * @param {string} [params.sceneContext] 目前場景/劇情節點的簡短背景描述(呼叫端自己準備)
  * @param {Array<{summary: string}>} [params.recentEvents] core/eventLog.js的summarizeForJournal()
- *   回傳值(或其中一段)，當作短期記憶用，預設不附加
+ *   回傳值(或其中一段)，當作**事實**短期記憶用，預設不附加
+ * @param {string} [params.recentNarration] 最近幾輪的敘事原文(見 content/storage/sessionStore.js
+ *   的 historyToPromptText)。跟 recentEvents 的差別：事件摘要只有事實(「判定：躲藏，成功」)，
+ *   沒有語氣、場景細節與NPC說過的話，光靠它AI寫不出連貫的劇情。兩個都要給。
  * @returns {string} 可以直接當作Gemini API的 contents[0].parts[0].text 使用
  */
-export function buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents = [] }) {
+export function buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents = [], recentNarration }) {
   if (!playerAction) throw new Error("buildTurnPrompt需要playerAction(玩家這次的行動描述)");
   if (!outcome) throw new Error("buildTurnPrompt需要outcome(core/narration.js的classifyOutcome()結果)");
 
@@ -49,8 +52,13 @@ export function buildTurnPrompt({ playerAction, outcome, sceneContext, recentEve
   if (sceneContext) {
     lines.push(`【場景背景】${sceneContext}`);
   }
+  if (recentNarration) {
+    lines.push("【前情提要】以下是這場遊戲到目前為止的經過，請保持劇情、場景與NPC的一致性，");
+    lines.push("不要重複描寫已經寫過的東西，也不要跟先前的描述矛盾：");
+    lines.push(recentNarration);
+  }
   if (recentEvents.length > 0) {
-    lines.push("【最近發生的事】");
+    lines.push("【已經發生過的判定結果(事實，不可改寫)】");
     for (const e of recentEvents) lines.push(`- ${e.summary}`);
   }
   lines.push(`【玩家行動】${playerAction}`);
