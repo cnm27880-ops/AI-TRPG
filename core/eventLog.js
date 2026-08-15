@@ -14,6 +14,7 @@ export const EVENT_TYPES = Object.freeze({
   REVIVAL: "revival",
   AFFECTION_CHANGE: "affection_change",
   TIME_SPENT: "time_spent",
+  COMBAT_ACTION: "combat_action",
 });
 
 const VALID_TYPES = new Set(Object.values(EVENT_TYPES));
@@ -84,6 +85,8 @@ function journalSummary(event) {
       return `對「${p.npc ?? "未知NPC"}」好感度${(p.delta ?? 0) >= 0 ? "上升" : "下降"}，目前為「${p.newTier ?? "?"}」`;
     case EVENT_TYPES.TIME_SPENT:
       return `花費 ${p.amount ?? "?"} 點時間預算於「${p.activity ?? "未知活動"}」`;
+    case EVENT_TYPES.COMBAT_ACTION:
+      return `${p.actor === "player" ? "玩家" : p.actor ?? "未知"}攻擊${p.hit ? `命中，造成${p.damage ?? 0}點傷害` : "未命中"}`;
     default:
       return "未知事件";
   }

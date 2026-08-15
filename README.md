@@ -98,6 +98,8 @@ test/                198個測試，node內建測試跑者，`node --test` 全�
 
 TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的對照表，每加新模組就加新的一列
 ARCHITECTURE.md       給接手者看的架構總覽與決策紀錄(見上)
+RULES_DIGEST.md       規則精要單頁參考：實際數值/公式速查表，不用翻 rules-2.35.txt 全文；
+                       文末附「想找模組去哪查」快速索引
 DEPLOYMENT.md         Cloudflare Pages部署步驟(給你自己看的操作手冊，不是給接手AI看的架構文件)
 GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
 LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰的Workers AI/第三方中轉)

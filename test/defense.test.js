@@ -1,62 +1,18 @@
-// [規則書] 防御值組裝測試——公式本身直接來自建卡頁欄位定義，用手算範例逐項比對。
+// [設計] 單一綜合防御DC公式的測試——見 core/combat/defense.js 檔頭的2026-08-15決策記錄。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { computeDefenseProfile } from "../core/combat/defense.js";
+import { computeDefenseDC } from "../core/combat/defense.js";
 
-test("computeDefenseProfile：基礎防御取敏捷與感知較低者(📖衍生屬性段第1784行「敏捷和感知中較低者」)", () => {
-  const result = computeDefenseProfile({ agility: 4, perception: 7 });
-  assert.equal(result.base, 4);
+test("computeDefenseDC：基礎防御是敏捷與感知較低者", () => {
+  assert.equal(computeDefenseDC({ agility: 3, perception: 5 }), 3);
+  assert.equal(computeDefenseDC({ agility: 5, perception: 3 }), 3);
 });
 
-test("computeDefenseProfile：閃避防御=傳奇敏捷、洞察防御=傳奇感知(n=floor((v-1)/5))", () => {
-  const result = computeDefenseProfile({ agility: 16, perception: 11 });
-  // 16 -> floor(15/5)=3；11 -> floor(10/5)=2 (跟屬性概述.htm的11->2、16->3範例一致)
-  assert.equal(result.dodge, 3);
-  assert.equal(result.insight, 2);
+test("computeDefenseDC：技能補正與裝備防御會疊加到基礎防御上", () => {
+  const dc = computeDefenseDC({ agility: 2, perception: 4, skillCorrection: 3, equipmentDefense: 2 });
+  assert.equal(dc, 2 + 3 + 2);
 });
 
-test("computeDefenseProfile：格擋防御=白刃+肉搏技能等級+盾牌防御相加", () => {
-  const result = computeDefenseProfile({
-    agility: 1,
-    perception: 1,
-    meleeWeaponSkill: 5,
-    unarmedSkill: 3,
-    shieldDefense: 2,
-  });
-  assert.equal(result.block, 10);
-});
-
-test("computeDefenseProfile：全力防御會再疊加一次基礎防御", () => {
-  const withoutFullDefense = computeDefenseProfile({ agility: 5, perception: 3, fullDefense: false });
-  const withFullDefense = computeDefenseProfile({ agility: 5, perception: 3, fullDefense: true });
-  assert.equal(withFullDefense.total, withoutFullDefense.total + withoutFullDefense.base);
-});
-
-test("computeDefenseProfile：防御附加成功=傳奇敏捷n+傳奇感知n+其他來源(📖使用者提供的傳奇感知原文確認：兩個屬性都貢獻防御附加成功，不是只有敏捷)", () => {
-  const result = computeDefenseProfile({ agility: 16, perception: 11, extraBonusSuccesses: 2 });
-  assert.equal(result.dodge, 3);
-  assert.equal(result.insight, 2);
-  assert.equal(result.bonusSuccesses, 7); // 3(傳奇敏捷) + 2(傳奇感知) + 2(其他來源)
-});
-
-test("computeDefenseProfile：防御附加成功跟閃避/洞察防御是分開累加的三個數字(同一個n餵進三個欄位)", () => {
-  const result = computeDefenseProfile({ agility: 6, perception: 1 });
-  assert.equal(result.dodge, 1);
-  assert.equal(result.insight, 0);
-  assert.equal(result.bonusSuccesses, 1); // 只有敏捷貢獻，感知的n=0
-});
-
-test("computeDefenseProfile：手算範例——完整組合的total正確加總", () => {
-  const result = computeDefenseProfile({
-    agility: 11, // 傳奇敏捷2
-    perception: 6, // 傳奇感知1
-    meleeWeaponSkill: 4,
-    unarmedSkill: 0,
-    shieldDefense: 1,
-    armorDefense: 3,
-    naturalDefense: 2,
-  });
-  // base=min(11,6)=6, dodge=2, insight=1, block=4+0+1=5, armor=3, natural=2, fullDefenseBonus=0
-  // total = 6+2+1+5+3+2+0 = 19
-  assert.equal(result.total, 19);
+test("computeDefenseDC：技能補正/裝備防御預設為0", () => {
+  assert.equal(computeDefenseDC({ agility: 1, perception: 1 }), 1);
 });

@@ -14,6 +14,7 @@
                 extend: {
                     colors: {
                         zinc: { 850: '#131316', 900: '#18181b', 950: '#09090b' },
+                        panel: '#121215',
                         emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' }
                     },
                     fontFamily: {
@@ -26,18 +27,57 @@
         }
     </script>
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #09090b; color: #f4f4f5; }
-        .bg-tech-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px); background-size: 20px 20px; }
+        :root {
+            --bg-void: #09090b;
+            --bg-panel: #121215;
+            --bg-card: #18181b;
+            --ink-100: #f4f4f5;
+            --ink-400: #a1a1aa;
+            --ink-500: #71717a;
+            --accent: #10b981;
+            --accent-alt: #22c55e;
+            --danger: #ef4444;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-void); color: var(--ink-100); }
+        .bg-tech-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px); background-size: 22px 22px; }
         .hairline-border { border: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-b { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-t { border-top: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-r { border-right: 1px solid rgba(255, 255, 255, 0.08); }
+
+        /* 面板頂部微光漸層邊 */
+        .panel-glow-top { position: relative; }
+        .panel-glow-top::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(16,185,129,0.35), transparent);
+            pointer-events: none;
+        }
+
+        /* 雙角戰術切角（主容器用，偏強調） */
         .hud-box {
             position: relative; background: rgba(24, 24, 27, 0.65); backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .hud-box::before { content: ''; position: absolute; top: -1px; left: -1px; width: 6px; height: 6px; border-top: 2px solid #10b981; border-left: 2px solid #10b981; pointer-events: none; }
-        .hud-box::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 6px; height: 6px; border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; pointer-events: none; }
+        .hud-box::before { content: ''; position: absolute; top: -1px; left: -1px; width: 7px; height: 7px; border-top: 2px solid #10b981; border-left: 2px solid #10b981; pointer-events: none; }
+        .hud-box::after { content: ''; position: absolute; bottom: -1px; right: -1px; width: 7px; height: 7px; border-bottom: 2px solid #10b981; border-right: 2px solid #10b981; pointer-events: none; }
+
+        /* 四角幾何 HUD 定位標記（一般面板用，低調灰） */
+        .hud-corners {
+            position: relative;
+            background-image:
+                linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to left, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to top, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to left, rgba(255,255,255,.22) 1px, transparent 1px),
+                linear-gradient(to top, rgba(255,255,255,.22) 1px, transparent 1px);
+            background-repeat: no-repeat;
+            background-size: 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px, 7px 1px, 1px 7px;
+            background-position: top left, top left, top right, top right, bottom left, bottom left, bottom right, bottom right;
+        }
+
         ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
@@ -46,31 +86,78 @@
             border-color: #10b981 !important;
             background-color: rgba(16, 185, 129, 0.1) !important;
         }
+
+        /* 生命傷勢軌分段 */
+        .hp-seg { border-radius: 1px; transition: background-color .3s ease; }
+        .hp-seg-intact { background: var(--accent); }
+        .hp-seg-b { background: #52525b; }
+        .hp-seg-l { background: rgba(239, 68, 68, 0.55); }
+        .hp-seg-a { background: var(--danger); }
+
+        /* 故事流：段落引導線與最終提問 */
+        #story-feed { border-left: 1px solid rgba(255,255,255,0.06); margin-left: 4px; padding-left: 1.25rem !important; }
+        .feed-block-dm { line-height: 1.75; }
+        .feed-final-question {
+            border-left: 2px solid var(--accent);
+            padding: 0.15rem 0 0.15rem 0.75rem;
+            margin-top: 0.5rem;
+        }
+        .feed-final-question strong { color: var(--ink-100); font-weight: 600; }
+
+        /* 3D 特質資源卡堆疊 */
+        .trait-stage { perspective: 900px; }
+        .trait-card {
+            position: absolute; inset: 0; margin: auto; width: 88%; max-width: 15rem; height: 6.5rem;
+            transition: transform .35s cubic-bezier(.2,.8,.2,1), opacity .35s ease;
+            clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+        }
+        .trait-card-active { transform: translateY(0) scale(1); opacity: 1; z-index: 30; }
+        .trait-card-prev { transform: translateY(-18px) scale(.88); opacity: .5; z-index: 20; }
+        .trait-card-next { transform: translateY(18px) scale(.88); opacity: .5; z-index: 20; }
+        .trait-card-hidden { transform: translateY(0) scale(.8); opacity: 0; z-index: 10; pointer-events: none; }
+
+        /* d20 擲骰動畫 */
+        #dice-roll-overlay { background: rgba(9,9,11,0.72); backdrop-filter: blur(4px); }
+        .d20-spin { animation: d20spin 0.85s cubic-bezier(.3,.1,.3,1) forwards; transform-origin: 50% 52%; }
+        @keyframes d20spin {
+            0% { transform: rotate(0deg) scale(0.6); opacity: 0; }
+            15% { opacity: 1; }
+            70% { transform: rotate(620deg) scale(1.08); }
+            100% { transform: rotate(720deg) scale(1); }
+        }
+        .d20-settle { animation: d20settle .4s cubic-bezier(.34,1.56,.64,1) forwards; }
+        @keyframes d20settle {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.25); }
+            100% { transform: scale(1); }
+        }
+        .d20-star { animation: starspin 1.4s linear infinite; transform-origin: 50% 52%; }
+        @keyframes starspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <!-- 頂部導航列 -->
-    <header class="h-12 hairline-b bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
+    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer" onclick="showScreen('portal')">
                 <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                <span class="font-bold text-zinc-100">LORD TERMINAL</span>
-                <span class="text-zinc-600">/</span>
-                <span class="text-zinc-400 text-[11px]">v2.35 Lite</span>
+                <span class="font-bold text-zinc-100 tracking-widest">LORD TERMINAL</span>
+                <span class="text-zinc-700">/</span>
+                <span class="text-zinc-500 text-[11px]">v2.35 Lite</span>
             </div>
-            <div id="backend-status" class="px-2 py-0.5 rounded bg-zinc-900 border hairline-border text-[10px] font-mono text-zinc-400 hidden sm:block">
+            <div id="backend-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-[10px] font-mono text-zinc-500 hidden sm:block">
                 SYSTEM READY
             </div>
         </div>
 
         <div class="flex items-center gap-2">
-            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
+            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition hover:border-emerald-500/30">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
-                <span>存檔</span>
+                <span>存檔管理</span>
             </button>
-            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-zinc-900 hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition">
-                <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
+            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition hover:border-emerald-500/30">
+                <i class="fas fa-sliders-h text-zinc-500 text-[11px]"></i>
                 <span>設定</span>
             </button>
         </div>
@@ -78,7 +165,7 @@
 
     <!-- 1. 登入/啟動首頁 (Portal Screen) -->
     <div id="portal-screen" class="flex-1 overflow-y-auto flex items-center justify-center p-4">
-        <div class="w-full max-w-lg hud-box p-6 sm:p-8 rounded-lg space-y-6 text-center">
+        <div class="w-full max-w-lg hud-box hud-corners p-6 sm:p-8 rounded-lg space-y-6 text-center">
             <div class="space-y-2">
                 <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
@@ -120,7 +207,7 @@
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
     <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 sm:p-6">
-        <div class="hud-box p-6 rounded-lg space-y-6">
+        <div class="hud-box hud-corners p-6 rounded-lg space-y-6">
             <div class="flex items-center justify-between border-b hairline-border pb-3">
                 <div>
                     <div class="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">Character Creation</div>
@@ -185,12 +272,12 @@
     <!-- 3. 遊戲主視窗 (In-Game Screen) -->
     <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
         <!-- 左側 HUD -->
-        <aside class="w-72 md:w-80 hairline-r bg-zinc-950/60 backdrop-blur-md flex flex-col shrink-0 overflow-hidden hidden md:flex">
-            <div class="p-4 hairline-b space-y-2">
+        <aside class="w-72 md:w-80 hairline-r bg-panel/60 backdrop-blur-md flex flex-col shrink-0 overflow-hidden hidden md:flex">
+            <div class="p-4 hairline-b space-y-2.5">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">OPERATIVE STATUS</div>
-                        <h2 id="char-name" class="text-base font-bold text-zinc-100 tracking-tight mt-0.5">—</h2>
+                        <h2 id="char-name" class="text-lg font-bold text-zinc-100 tracking-tight mt-0.5">—</h2>
                     </div>
                     <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-400">輪迴者</span>
                 </div>
@@ -199,27 +286,36 @@
                 <!-- 四段傷勢軌 -->
                 <div class="space-y-1 pt-2">
                     <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-400">生命傷勢軌</span>
-                        <span id="hp-text" class="text-zinc-200 font-bold">—</span>
+                        <span class="text-zinc-500">生命傷勢軌</span>
+                        <span id="hp-text" class="text-zinc-100 font-bold">—</span>
                     </div>
-                    <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 pt-0.5">—</div>
+                    <div id="hp-bar-container" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-600 pt-0.5">—</div>
                 </div>
             </div>
 
             <!-- 分頁 Tab -->
-            <div class="flex hairline-b bg-zinc-900/50 text-[11px] font-mono">
+            <div class="flex hairline-b bg-zinc-900/40 text-[11px] font-mono">
                 <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="flex-1 py-2 text-center text-emerald-400 border-b-2 border-emerald-500 font-bold">屬性</button>
                 <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">技能</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">特質</button>
                 <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">日誌</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
                 <div id="sidebar-tab-attr" class="space-y-2">
-                    <div id="attr-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
+                    <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
                 </div>
                 <div id="sidebar-tab-skills" class="hidden space-y-2">
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
+                </div>
+                <div id="sidebar-tab-traits" class="hidden space-y-2">
+                    <div class="flex items-center justify-between text-[10px] font-mono text-zinc-500 uppercase tracking-wider px-0.5">
+                        <span>特質 / 資源</span>
+                        <span>滾輪 / 點擊切換 ↻</span>
+                    </div>
+                    <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
+                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-600 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
                 </div>
                 <div id="sidebar-tab-journal" class="hidden space-y-2">
                     <div id="journal-feed" class="space-y-1.5 font-mono text-[10px] text-zinc-400"></div>
@@ -235,14 +331,79 @@
                     <span id="current-scene-text" class="text-zinc-200">主神空間 · 任務進行中</span>
                 </div>
                 <div class="flex items-center gap-3 text-[11px] text-zinc-500">
+                    <button id="combat-start-btn" onclick="startCombat()" class="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 transition font-mono">
+                        <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
+                    </button>
                     <span>回合: <span id="turn-counter" class="text-zinc-300 font-bold">1</span></span>
-                    <span id="save-status" class="px-2 py-0.5 rounded bg-zinc-900 border hairline-border text-zinc-400">已存檔</span>
+                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-400">已存檔</span>
                 </div>
             </div>
 
-            <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-4 font-serif text-sm leading-relaxed text-zinc-200"></div>
+            <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 font-serif text-sm text-zinc-200"></div>
 
-            <div class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
+            <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
+            <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
+                <div class="hud-box hud-corners p-4 rounded-lg space-y-3 shrink-0">
+                    <div class="flex items-center justify-between font-mono text-xs">
+                        <span class="text-red-400 font-bold" id="combat-enemy-name">—</span>
+                        <span class="text-zinc-500">第 <span id="combat-round">1</span> 輪</span>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
+                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-200">—</span>
+                        </div>
+                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    </div>
+                    <div class="space-y-1">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
+                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-200">—</span>
+                        </div>
+                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                    </div>
+                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-400">—</div>
+                </div>
+
+                <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
+
+                <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
+                    <div id="combat-over-text" class="text-lg font-bold"></div>
+                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
+                        返回劇情
+                    </button>
+                </div>
+
+                <div id="combat-actions" class="grid grid-cols-2 gap-2 shrink-0">
+                    <button data-combat-attack="unarmed" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
+                        <span>徒手攻擊</span>
+                        <span class="text-[10px] text-zinc-500">力量 + 格鬥</span>
+                    </button>
+                    <button data-combat-attack="pistol" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
+                        <span>手槍射擊</span>
+                        <span class="text-[10px] text-zinc-500">敏捷 + 射擊</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- d20 擲骰結算覆蓋層 -->
+            <div id="dice-roll-overlay" class="absolute inset-0 hidden items-center justify-center z-30 pointer-events-none">
+                <div class="relative w-32 h-32 flex items-center justify-center">
+                    <svg id="dice-star" class="d20-star absolute w-32 h-32 text-emerald-500/25" viewBox="0 0 100 100" fill="none">
+                        <path d="M50 2 L58 40 L98 50 L58 60 L50 98 L42 60 L2 50 L42 40 Z" fill="currentColor"/>
+                    </svg>
+                    <svg id="dice-d20" class="w-20 h-20 text-zinc-100 drop-shadow-[0_0_12px_rgba(16,185,129,0.5)]" viewBox="0 0 100 100" fill="none">
+                        <polygon points="50,4 90,27 90,73 50,96 10,73 10,27" stroke="#10b981" stroke-width="2" fill="#121215"/>
+                        <polygon points="50,4 90,27 50,50" fill="#18181b" stroke="#27272a" stroke-width="1"/>
+                        <polygon points="50,4 10,27 50,50" fill="#121215" stroke="#27272a" stroke-width="1"/>
+                        <polygon points="10,27 10,73 50,50" fill="#18181b" stroke="#27272a" stroke-width="1"/>
+                        <polygon points="90,27 90,73 50,50" fill="#121215" stroke="#27272a" stroke-width="1"/>
+                        <polygon points="10,73 50,96 50,50" fill="#18181b" stroke="#27272a" stroke-width="1"/>
+                        <polygon points="90,73 50,96 50,50" fill="#121215" stroke="#27272a" stroke-width="1"/>
+                        <text id="dice-d20-number" x="50" y="58" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="26" font-weight="700" fill="#f4f4f5"></text>
+                    </svg>
+                </div>
+            </div>
+
+            <div id="story-action-panel" class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
                 <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
@@ -260,7 +421,7 @@
 
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
+        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box hud-corners">
             <div class="flex justify-between items-center border-b hairline-border pb-3">
                 <div class="flex items-center gap-2">
                     <i class="fas fa-database text-emerald-400 text-sm"></i>
@@ -288,7 +449,7 @@
     </div>
 
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box">
+        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box hud-corners">
             <div class="flex justify-between items-center border-b hairline-border pb-3">
                 <div class="flex items-center gap-2">
                     <i class="fas fa-sliders-h text-emerald-400 text-sm"></i>
@@ -336,7 +497,7 @@
             document.getElementById(id)?.classList.add('opacity-0', 'pointer-events-none');
         }
         function switchSidebarTab(tabKey) {
-            ['attr', 'skills', 'journal'].forEach(k => {
+            ['attr', 'skills', 'traits', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
                 const b = document.getElementById(`tab-btn-${k}`);
                 if (k === tabKey) {
