@@ -238,9 +238,10 @@
             font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: #6ee7b7;
         }
 
-        /* 互動元件通用：按下回饋 */
+        /* 互動元件通用：按下回饋，並移除瀏覽器預設的偏移對焦框(改用hover/active的視覺回饋取代) */
         button { -webkit-tap-highlight-color: transparent; }
         button:active { transform: translateY(0.5px); }
+        button, input, select, textarea, a { outline: none; }
 
         /* 可讀性強化：正文提高對比與行距 */
         .text-legible { color: #d4d4d8; line-height: 1.65; }
@@ -311,23 +312,8 @@
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
-    <!-- 頂部導航列 -->
-    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
-        <div class="flex items-center gap-3">
-            <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer group" onclick="showScreen('portal')">
-                <span class="relative flex w-2 h-2">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                </span>
-                <span class="font-bold text-zinc-100 tracking-widest group-hover:text-emerald-300 transition-colors">LORD TERMINAL</span>
-                <span class="text-zinc-700">/</span>
-                <span class="text-zinc-400 text-[11px]">v2.35 Lite</span>
-            </div>
-            <div id="backend-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-[11px] font-mono text-zinc-300 hidden sm:block">
-                SYSTEM READY
-            </div>
-        </div>
-
+    <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
+    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
         <div class="flex items-center gap-2">
             <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
@@ -670,9 +656,22 @@
                         <option value="賽博朋克">賽博朋克（高科技、低生活）</option>
                     </select>
                 </div>
-                <div>
-                    <label class="text-zinc-300 block mb-1">自訂 API Key 覆寫 (選填)</label>
-                    <input id="setting-api-key" type="password" placeholder="留空使用 Cloudflare 預設..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                <div class="pt-2 border-t hairline-border space-y-3">
+                    <div>
+                        <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
+                        <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                            <option value="">（使用伺服器預設）</option>
+                            <option value="gemini">Google Gemini（官方）</option>
+                            <option value="deepseek">DeepSeek（官方）</option>
+                            <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
+                            <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
+                        </select>
+                    </div>
+                    <div id="setting-api-key-row">
+                        <label class="text-zinc-300 block mb-1">此供應商的 API Key</label>
+                        <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <p class="text-[10px] text-zinc-500 mt-1">選了供應商才需要填，Cloudflare Workers AI 不需要金鑰。金鑰只存在你瀏覽器的localStorage，只在你送出這把金鑰時才會經由本次請求送到伺服器。</p>
+                    </div>
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
@@ -706,6 +705,18 @@
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
+            if (id === 'settingsModal') {
+                document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
+                document.getElementById('setting-provider').value = localStorage.getItem('user_llm_provider') || '';
+                document.getElementById('setting-api-key').value = localStorage.getItem('user_api_key') || '';
+                onSettingProviderChange();
+            }
+        }
+        /** 沒選供應商(用伺服器預設)或選了不需要金鑰的Workers AI時，隱藏金鑰欄位，避免玩家以為填了才算數。 */
+        function onSettingProviderChange() {
+            const provider = document.getElementById('setting-provider').value;
+            const row = document.getElementById('setting-api-key-row');
+            if (row) row.style.display = (provider && provider !== 'workers-ai') ? 'block' : 'none';
         }
         function closeModal(id) {
             const el = document.getElementById(id);
@@ -732,8 +743,18 @@
         }
         function saveSettings() {
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
-            const key = document.getElementById('setting-api-key').value;
-            if (key) localStorage.setItem('user_api_key', key);
+
+            const provider = document.getElementById('setting-provider').value;
+            localStorage.setItem('user_llm_provider', provider);
+
+            // provider留空或選了不用金鑰的Workers AI時，金鑰欄位不算數，清掉避免殘留舊值誤送出。
+            const key = document.getElementById('setting-api-key').value.trim();
+            if (provider && provider !== 'workers-ai' && key) {
+                localStorage.setItem('user_api_key', key);
+            } else {
+                localStorage.removeItem('user_api_key');
+            }
+
             closeModal('settingsModal');
             alert('設定已儲存！');
         }

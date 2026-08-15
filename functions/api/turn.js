@@ -62,8 +62,15 @@ export async function onRequestPost(context) {
     return jsonError("請求body必須是合法JSON", 400);
   }
 
-  const { sessionId, chosenOption, playerAction, sceneContext, style } = body ?? {};
+  const { sessionId, chosenOption, playerAction, sceneContext, style, provider: bodyProvider, apiKey: bodyApiKey } = body ?? {};
   const warnings = [];
+
+  if (bodyProvider && !PROVIDER_IDS.includes(bodyProvider)) {
+    return jsonError(
+      `未知的LLM供應商「${bodyProvider}」，可用的有：${PROVIDER_IDS.join(" / ")}`,
+      400
+    );
+  }
 
   // ---------------------------------------------------------------------
   // 載入存檔。角色卡以存檔為準，不信任前端送來的角色卡。
@@ -128,7 +135,9 @@ export async function onRequestPost(context) {
   // ---------------------------------------------------------------------
   // 第二段：敘事層。從這裡開始才需要AI。
   // ---------------------------------------------------------------------
-  const provider = env.LLM_PROVIDER ?? pickProvider(env);
+  // 玩家在前端設定裡明確選了供應商時優先於伺服器端的猜測/預設(見 content/llm/providers.js
+  // resolveProvider() 的覆寫優先序)；沒選就照舊完全交給伺服器判斷，行為不變。
+  const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
   if (!provider) {
     return jsonPartial(
       {
@@ -183,7 +192,7 @@ export async function onRequestPost(context) {
   let text;
   let model;
   try {
-    const res = await callLlm({ provider, env, systemInstruction, prompt });
+    const res = await callLlm({ provider, env, systemInstruction, prompt, apiKey: bodyApiKey || undefined });
     text = res.text;
     model = res.model;
   } catch (err) {
@@ -207,12 +216,14 @@ export async function onRequestPost(context) {
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));
   } else {
-    // 降級處理：選項留空，敘事文字則先試著用正則挖出 narration 欄位的純文字
+    // 降級處理：敘事文字先試著用正則挖出 narration 欄位的純文字
     // （常見成因是輸出被截斷、JSON缺了結尾括號），挖不到才退回顯示整段原始文字。
-    // 玩家還是能用第五個「自訂行動」繼續玩，不會卡死——這比整個回合失敗好。
+    // 選項則整批退回 validateOptions()（見該函式），一樣用通用選項墊滿四個，
+    // 玩家不會看到「本回合沒有選項」的空版面——這是使用者明確要求的一致性保底。
     const fallbackNarration = extractNarrationFallback(text);
     if (fallbackNarration) narration = fallbackNarration;
-    warnings.push(`${parsed.error}（已降級為純敘事，本回合沒有選項）`);
+    warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
+    options = validateOptions(null, character).options;
   }
 
   // ---------------------------------------------------------------------
