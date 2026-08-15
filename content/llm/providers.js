@@ -81,7 +81,13 @@ export const PROVIDERS = {
     label: "Cloudflare Workers AI（免金鑰）",
     protocol: PROTOCOLS.WORKERS_AI,
     baseUrl: null, // 不走HTTP，走 env.AI binding
-    defaultModel: "@cf/meta/llama-3.1-8b-instruct",
+    // [決策記錄 2026-08-15] 原本這裡是 "@cf/meta/llama-3.1-8b-instruct"，實際部署到Cloudflare
+    // Pages後直接打/api/turn發現它已經被Cloudflare下架("was deprecated on 2026-05-30")，
+    // 代表模型型錄變動比想像中快，不能只信任文件查證日期。這裡換成同系列的 -fast 變體，
+    // 但**這個值一樣有可能在未來某天又被下架**——如果之後又遇到「敘事生成失敗」且錯誤訊息
+    // 提到某個模型被deprecated，直接照錯誤訊息去 docs 連結查目前可用的模型改這裡即可，
+    // 不需要動其他程式碼。也可以完全不改這裡，改設環境變數 LLM_MODEL 覆蓋(見下面 resolveProvider)。
+    defaultModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     apiKeyEnv: null, // 這正是重點：不需要任何API金鑰
     docs: "https://developers.cloudflare.com/workers-ai/models/",
     freeTier: "每天10,000 Neurons免費額度（查證當下），超過要升級Workers付費方案",
