@@ -24,6 +24,14 @@ const SKILL_NAMES = [
   "偵察", "技藝", "醫療", "秘識", "交涉"
 ];
 
+// 技能分類（對應 core/schema.js 的 SKILLS，用來在前端試算 0 級技能的懲罰提示）
+const SKILL_CATEGORY = {
+  格鬥: "戰鬥", 射擊: "戰鬥",
+  體魄: "身手", 潛行: "身手", 求生: "身手",
+  偵察: "心智", 技藝: "心智", 醫療: "心智", 秘識: "心智",
+  交涉: "社交",
+};
+
 const chargenDraft = {
   concept: { name: "", gender: "男", age: 24, background: "" },
   attributes: { 力量: 1, 敏捷: 1, 耐力: 1, 智力: 1, 感知: 1, 意志: 1 },
@@ -197,25 +205,18 @@ function adoptCharacter(charData) {
   const hp = charData.derived.hp;
   document.getElementById("hp-text").textContent = `${hp.intact} / ${hp.max}`;
   document.getElementById("hp-detail").textContent = `完好 ${hp.intact} · 沖擊 ${hp.B} · 嚴重 ${hp.L} · 惡性 ${hp.A}`;
+  renderHpBar("hp-bar-container", hp);
 
-  const hpBar = document.getElementById("hp-bar-container");
-  const prevHpKey = hpBar.dataset.hpKey;
-  const nextHpKey = `${hp.intact}-${hp.B}-${hp.L}-${hp.A}`;
-  hpBar.innerHTML = "";
-  hpBar.style.gridTemplateColumns = `repeat(${hp.max}, minmax(0, 1fr))`;
-  const segments = [
-    ...Array(hp.intact).fill("hp-seg hp-seg-intact"),
-    ...Array(hp.B).fill("hp-seg hp-seg-b"),
-    ...Array(hp.L).fill("hp-seg hp-seg-l"),
-    ...Array(hp.A).fill("hp-seg hp-seg-a"),
-  ];
-  segments.forEach(cls => {
-    const d = document.createElement("div");
-    d.className = cls;
-    hpBar.appendChild(d);
-  });
-  hpBar.dataset.hpKey = nextHpKey;
-  if (prevHpKey && prevHpKey !== nextHpKey) flashElement(hpBar);
+  // 衍生數值：防禦/先攻/意志 —— 建卡時算給玩家看過，進遊戲後不該就此消失
+  const d = charData.derived;
+  const derivedBar = document.getElementById("derived-stats-bar");
+  if (derivedBar && d) {
+    derivedBar.innerHTML = `
+      <span>防禦 <strong class="text-emerald-300 text-xs">${d.baseDefense}</strong></span>
+      <span>先攻 <strong class="text-emerald-300 text-xs">${d.initiative}</strong></span>
+      <span>意志 <strong class="text-emerald-300 text-xs">${d.willpower.current}/${d.willpower.max}</strong></span>
+    `;
+  }
 
   // 渲染六維屬性（緊湊 2 欄，數值右側大字號）
   document.getElementById("attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
@@ -223,21 +224,58 @@ function adoptCharacter(charData) {
     const bonus = legendaryAttributeBonus(val);
     const bonusTag = bonus > 0 ? `<span class="text-emerald-300 text-[10px] align-top ml-0.5">+${bonus}★</span>` : "";
     return `
-      <div class="px-2.5 py-1.5 rounded bg-zinc-900 border hairline-border flex justify-between items-center gap-2 font-mono">
+      <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center gap-2 font-mono">
         <span class="text-zinc-400 text-[11px] leading-tight">${en}<br><span class="text-zinc-500 text-[10px]">${key}</span></span>
         <span class="font-bold text-zinc-100 text-lg leading-none">${val}${bonusTag}</span>
       </div>`;
   }).join("");
 
-  // 渲染技能清單
-  document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => `
-    <div class="px-2.5 py-1.5 rounded bg-zinc-900 border hairline-border flex justify-between items-center font-mono text-xs">
-      <span class="text-zinc-300">${skill}</span>
+  // 渲染技能清單（含已登記的專業，否則玩家會忘記自己有專業加成）
+  document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => {
+    const specs = charData.specializations?.[skill];
+    const specText = Array.isArray(specs) && specs.length
+      ? `<span class="text-[9px] text-zinc-500 ml-1">(${specs.map(escapeHtml).join("、")})</span>`
+      : "";
+    return `
+    <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center font-mono text-xs">
+      <span class="text-zinc-300">${escapeHtml(skill)}${specText}</span>
       <span class="font-bold ${lv > 0 ? 'text-emerald-300' : 'text-zinc-500'}">${lv}</span>
-    </div>
-  `).join("");
+    </div>`;
+  }).join("");
 
   renderTraitCards(charData);
+}
+
+/** 生命傷勢軌繪製：用 flex-grow 按比例分配寬度，不論生命上限多高都是一條等比例的軌道，
+ *  不會像過去用 CSS grid 逐格畫方塊那樣，血量一高就變成密密麻麻的「條碼」。
+ *  回傳這次血量狀態是否比上次有變化，供呼叫端決定要不要疊加額外的受擊動畫。 */
+function renderHpBar(containerId, hpState) {
+  const bar = document.getElementById(containerId);
+  if (!bar) return false;
+  bar.classList.remove("grid");
+  bar.classList.add("flex", "overflow-hidden");
+  bar.style.gridTemplateColumns = "";
+
+  const prevKey = bar.dataset.hpKey;
+  const nextKey = `${hpState.intact}-${hpState.B}-${hpState.L}-${hpState.A}`;
+  bar.innerHTML = "";
+  [
+    { count: hpState.intact, cls: "hp-seg hp-seg-intact" },
+    { count: hpState.B, cls: "hp-seg hp-seg-b" },
+    { count: hpState.L, cls: "hp-seg hp-seg-l" },
+    { count: hpState.A, cls: "hp-seg hp-seg-a" },
+  ].forEach(seg => {
+    if (seg.count <= 0) return;
+    const d = document.createElement("div");
+    d.className = seg.cls;
+    d.style.flex = seg.count;
+    bar.appendChild(d);
+  });
+  bar.dataset.hpKey = nextKey;
+
+  const changed = Boolean(prevKey && prevKey !== nextKey);
+  if (changed) flashElement(bar);
+  return changed;
 }
 
 function flashElement(el) {
@@ -279,7 +317,7 @@ function renderTraitStage() {
     else if (rel === 1) posClass = "trait-card-next";
     else if (rel === n - 1) posClass = "trait-card-prev";
     return `
-      <div data-trait-index="${i}" class="trait-card ${posClass} bg-zinc-900 border hairline-border rounded p-3 flex flex-col justify-between cursor-pointer">
+      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile hud-corners rounded p-3 flex flex-col justify-between cursor-pointer">
         <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || "資源")}]</span>
         <div class="font-bold text-zinc-100 text-sm">${escapeHtml(t.name || "未命名")}</div>
         <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-2">${escapeHtml(t.desc || "")}</div>
@@ -364,18 +402,24 @@ function updateScenarioHud(scenario) {
   }
   hud.style.display = "flex";
 
+  // 「目前目標」跟「主線進度」是兩件不同的事：前者是這個節點的名字，
+  // 後者是整個劇本的完成度。過去黏在一起顯示（例如「醒來的代價 0%」）會讓玩家
+  // 誤以為要把這個節點推進到100%才算完成，實際上通常過一回合節點就結束了。
   const titleEl = document.getElementById("scenario-node-title");
   if (scenario.progress?.scenarioComplete) {
     titleEl.innerHTML = `<i class="fas fa-flag-checkered"></i> 主線已完成`;
   } else if (node.isFinale) {
-    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> ${escapeHtml(node.title)}`;
+    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> 當前目標：${escapeHtml(node.title)}`;
   } else {
-    titleEl.textContent = node.title;
+    titleEl.textContent = `當前目標：${node.title}`;
   }
 
   const pct = scenario.progress?.overallCompletionPct ?? 0;
+  const currentChapter = scenario.progress?.chapters?.[scenario.progress?.currentChapterIndex ?? 0];
   document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
-  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
+  document.getElementById("scenario-progress-text").textContent = currentChapter
+    ? `主線進度：節點 ${currentChapter.completedNodes}/${currentChapter.totalNodes}（${pct}%）`
+    : `主線進度：${pct}%`;
 
   const badge = document.getElementById("scenario-time-badge");
   const status = scenario.progress?.timeStatus;
@@ -387,8 +431,14 @@ function updateScenarioHud(scenario) {
     badge.className = "ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
   }
 
+  // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
+  // 在毫無劇情鋪陳的情況下手滑點下去，憑空跳出一隻佔位怪物，破壞AI辛苦營造的沉浸感。
   const combatBtn = document.getElementById("combat-start-btn");
-  if (combatBtn) combatBtn.classList.toggle("pulse-glow", Boolean(node?.isFinale));
+  if (combatBtn) {
+    const isFinale = Boolean(node?.isFinale);
+    combatBtn.style.display = isFinale ? "" : "none";
+    combatBtn.classList.toggle("pulse-glow", isFinale);
+  }
 }
 
 function renderOptions(options) {
@@ -399,16 +449,36 @@ function renderOptions(options) {
     return;
   }
 
-  grid.innerHTML = options.map((opt, i) => `
+  grid.innerHTML = options.map((opt, i) => {
+    // 試算玩家目前的骰池(DP)，讓玩家點下去之前就知道自己大概有幾顆骰子可拼，
+    // 而不是看著「屬性+技能」的組合名稱自己臆測。
+    const attrVal = currentCharacter?.attributes?.[opt.attribute] ?? 1;
+    const skillVal = opt.skill ? (currentCharacter?.skills?.[opt.skill] ?? 0) : null;
+    const dp = attrVal + (skillVal ?? 0);
+
+    let warningHtml = "";
+    if (opt.skill && skillVal === 0) {
+      const category = SKILL_CATEGORY[opt.skill];
+      warningHtml = category === "心智"
+        ? `<span class="text-red-400 font-bold whitespace-nowrap">⚠ 自動失敗</span>`
+        : `<span class="text-yellow-400 whitespace-nowrap">⚠ 未受訓 ${category === "社交" ? "-2" : "-1"}成功</span>`;
+    }
+
+    return `
     <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
-      <span class="flex flex-col gap-1">
-        <span class="font-bold text-zinc-100">${escapeHtml(opt.label)}</span>
-        <span class="text-[11px] font-mono text-zinc-400">
-          檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})
+      <span class="flex flex-col gap-1 flex-1 min-w-0">
+        <span class="font-bold text-zinc-100 flex items-center justify-between gap-2">
+          <span class="truncate">${escapeHtml(opt.label)}</span>
+          <span class="shrink-0 text-emerald-400 text-[10px] font-mono border border-emerald-500/30 px-1.5 py-0.5 rounded bg-emerald-500/10">DP ${dp}</span>
+        </span>
+        <span class="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5 flex-wrap">
+          <span>檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})</span>
+          ${warningHtml}
         </span>
       </span>
-    </button>`).join("");
+    </button>`;
+  }).join("");
 }
 
 function selectOption(index) {
@@ -612,25 +682,8 @@ function renderCombat() {
 
 function renderCombatHpBar(barId, textId, hpState) {
   document.getElementById(textId).textContent = `${hpState.intact} / ${hpState.max}`;
-  const bar = document.getElementById(barId);
-  const prevKey = bar.dataset.hpKey;
-  const nextKey = `${hpState.intact}-${hpState.B}-${hpState.L}-${hpState.A}`;
-  bar.innerHTML = "";
-  bar.style.gridTemplateColumns = `repeat(${hpState.max}, minmax(0, 1fr))`;
-  const segments = [
-    ...Array(hpState.intact).fill("hp-seg hp-seg-intact"),
-    ...Array(hpState.B).fill("hp-seg hp-seg-b"),
-    ...Array(hpState.L).fill("hp-seg hp-seg-l"),
-    ...Array(hpState.A).fill("hp-seg hp-seg-a"),
-  ];
-  segments.forEach((cls) => {
-    const d = document.createElement("div");
-    d.className = cls;
-    bar.appendChild(d);
-  });
-  bar.dataset.hpKey = nextKey;
-  if (prevKey && prevKey !== nextKey) {
-    flashElement(bar);
+  const changed = renderHpBar(barId, hpState);
+  if (changed) {
     const wrap = document.getElementById(barId === "combat-enemy-hp-bar" ? "combat-enemy-hp-wrap" : "combat-player-hp-wrap");
     if (wrap) {
       wrap.classList.remove("shake-hit");

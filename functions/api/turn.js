@@ -39,6 +39,7 @@ import {
 import {
   buildOptionsSpec,
   parseTurnResponse,
+  extractNarrationFallback,
   validateOption,
   validateOptions,
   optionToCheckParams,
@@ -206,8 +207,11 @@ export async function onRequestPost(context) {
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));
   } else {
-    // 降級處理：把整段文字當敘事用，選項留空。
+    // 降級處理：選項留空，敘事文字則先試著用正則挖出 narration 欄位的純文字
+    // （常見成因是輸出被截斷、JSON缺了結尾括號），挖不到才退回顯示整段原始文字。
     // 玩家還是能用第五個「自訂行動」繼續玩，不會卡死——這比整個回合失敗好。
+    const fallbackNarration = extractNarrationFallback(text);
+    if (fallbackNarration) narration = fallbackNarration;
     warnings.push(`${parsed.error}（已降級為純敘事，本回合沒有選項）`);
   }
 

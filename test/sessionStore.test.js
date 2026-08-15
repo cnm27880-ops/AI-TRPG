@@ -40,15 +40,13 @@ function fakeKv() {
   };
 }
 
-/** 一份合法的建卡草稿：屬性花9點、技能花20點，跟書中「羅蘭」範例同樣的預算用法 */
+/** 一份合法的建卡草稿：屬性花滿6點自由點數、技能花滿8點自由點數(六維輕量版建卡的固定總預算，
+ *  見 content/characterBuilder.js／RULES_DIGEST.md 第6節)，數值跟「特戰隊員」身分模板一致。 */
 function validDraft() {
   return {
     concept: { name: "測試輪迴者", gender: "女", age: 24, background: "測試用" },
-    attributeCategoryAllocation: { 生理: 3, 心智: 2, 互動: 1 },
-    attributes: { 力量: 3, 敏捷: 3, 耐力: 2, 智力: 2, 感知: 2, 決心: 2, 風度: 1, 操控: 1, 沉著: 2 },
-    skillCategoryAllocation: { 生理: 6, 心智: 5, 互動: 4 },
-    skills: { 運動: 3, 躲藏: 2, 槍械: 3, 調查: 2, 電腦: 2, 醫學: 1, 交際: 2, 感受: 2 },
-    specializations: { 槍械: ["步槍"], 調查: ["痕跡辨識"] },
+    attributes: { 力量: 2, 敏捷: 4, 耐力: 2, 智力: 1, 感知: 2, 意志: 1 },
+    skills: { 射擊: 3, 潛行: 2, 體魄: 2, 偵察: 1 },
   };
 }
 
@@ -157,14 +155,14 @@ test("resolveSessionStore：有KV binding就用KV，沒有就退到記憶體版"
 
 test("chargenRules：把預算常數給前端，前端不用自己抄一份", () => {
   const r = chargenRules();
-  assert.deepEqual(r.attributes.categoryBudgets, [3, 2, 1]);
-  assert.deepEqual(r.skills.categoryBudgets, [6, 5, 4]);
-  assert.equal(r.attributes.freePoints, 3);
-  assert.equal(r.skills.freePoints, 5);
+  assert.equal(r.attributes.freePoints, 6);
+  assert.equal(r.skills.freePoints, 8);
   assert.equal(r.attributes.cap, 5);
   assert.equal(r.skills.cap, 3);
-  assert.equal(r.specializations.free, 3);
-  assert.equal(r.attributes.keys.length, 9);
+  assert.equal(r.attributes.startValue, 1);
+  assert.equal(r.skills.startValue, 0);
+  assert.equal(r.attributes.keys.length, 6);
+  assert.ok(r.archetypes && Object.keys(r.archetypes).length > 0, "要把身分模板一起給前端套用");
 });
 
 test("buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎算", () => {
@@ -173,60 +171,51 @@ test("buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎
 
   const c = result.character;
   assert.equal(c.concept.name, "測試輪迴者");
-  assert.equal(c.attributes["力量"], 3);
-  assert.equal(c.skills["運動"], 3);
-  assert.equal(c.skills["馴獸"], 0, "沒填的技能要補0，否則performCheck會丟錯");
-  assert.deepEqual(c.specializations["槍械"], ["步槍"]);
+  assert.equal(c.attributes["敏捷"], 4);
+  assert.equal(c.skills["射擊"], 3);
+  assert.equal(c.skills["醫療"], 0, "沒填的技能要補0，否則performCheck會丟錯");
 
   // 衍生屬性：耐力2 + 體積5 = 7
   assert.equal(c.derived.hp.max, 7);
   assert.equal(c.derived.hp.intact, 7);
-  assert.equal(c.derived.willpower.max, 4); // 決心2 + 沉著2
-  assert.equal(c.derived.initiative, 5); // 敏捷3 + 沉著2
-  assert.equal(c.derived.baseDefense, 2); // min(敏捷3, 感知2)
+  assert.equal(c.derived.willpower.max, 2); // 意志1 × 2
+  assert.equal(c.derived.initiative, 6); // 敏捷4 + 感知2
+  assert.equal(c.derived.baseDefense, 2); // min(敏捷4, 感知2)
 });
 
 test("buildCharacter：超出預算要擋下來並說清楚超了多少", () => {
   const draft = validDraft();
   draft.attributes["力量"] = 5;
-  draft.attributes["敏捷"] = 5;
+  draft.attributes["智力"] = 5;
   const result = buildCharacter(draft);
   assert.equal(result.valid, false);
-  assert.match(result.errors.join(), /超過總預算/);
+  assert.match(result.errors.join(), /屬性點數超支/);
   assert.equal(result.character, undefined, "驗證失敗時不可以回傳角色卡");
 });
 
 test("buildCharacter：沒有名字要擋下來", () => {
   const draft = validDraft();
   draft.concept.name = "  ";
-  assert.match(buildCharacter(draft).errors.join(), /名字/);
+  assert.match(buildCharacter(draft).errors.join(), /名稱/);
 });
 
-test("buildCharacter：未知的屬性/技能名要擋下來(擋掉前端亂送欄位)", () => {
+// [已知簡化] 輕量版 buildCharacter() 只看 ATTRIBUTE_KEYS/ALL_SKILLS 範圍內的欄位，
+// 草稿裡任何範圍外的鍵一律被忽略，不會被拒絕也不會被套用到角色卡上——不是漏擋，
+// 是輕量版本來就沒有「嚴格擋未知欄位」這道查核(見 content/characterBuilder.js)。
+test("buildCharacter：範圍外的屬性/技能欄位會被忽略，不影響驗證結果", () => {
   const draft = validDraft();
   draft.attributes["魅力"] = 3;
   draft.skills["駭客"] = 2;
   const result = buildCharacter(draft);
-  assert.match(result.errors.join(), /未知的屬性「魅力」/);
-  assert.match(result.errors.join(), /未知的技能「駭客」/);
+  assert.equal(result.valid, true);
+  assert.equal(result.character.attributes["魅力"], undefined);
+  assert.equal(result.character.skills["駭客"], undefined);
 });
 
-test("buildCharacter：專業掛在0級技能上要擋下來(規則書：不能掛0級技能)", () => {
+test("buildCharacter：技能等級不能小於0或大於3", () => {
   const draft = validDraft();
-  draft.specializations["馴獸"] = ["犬類"];
-  assert.match(buildCharacter(draft).errors.join(), /0級/);
-});
-
-test("buildCharacter：專業超過3個免費配額要擋下來", () => {
-  const draft = validDraft();
-  draft.specializations = { 槍械: ["步槍", "手槍"], 調查: ["痕跡辨識"], 運動: ["游泳"] };
-  assert.match(buildCharacter(draft).errors.join(), /超過免費配額/);
-});
-
-test("buildCharacter：分類預算分配不是{3,2,1}的排列要擋下來", () => {
-  const draft = validDraft();
-  draft.attributeCategoryAllocation = { 生理: 3, 心智: 3, 互動: 1 };
-  assert.match(buildCharacter(draft).errors.join(), /排列/);
+  draft.skills["醫療"] = 4;
+  assert.match(buildCharacter(draft).errors.join(), /醫療 不能大於 3/);
 });
 
 test("buildCharacter：驗證失敗時仍回傳budgets，讓UI能顯示還剩幾點", () => {
