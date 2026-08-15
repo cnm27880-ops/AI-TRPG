@@ -328,11 +328,67 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
 
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
+    if (res.scenario) updateScenarioHud(res.scenario);
   } catch (err) {
     appendFeedBlock("SYSTEM.ERROR", `回合執行失敗: ${err.message}`, "text-xs text-red-400 font-mono");
   } finally {
     turnInFlight = false;
   }
+}
+
+// --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
+const TIME_STATUS_STYLE = {
+  充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  吃緊: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
+  危急: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+  逾時: "border-red-500/40 bg-red-500/10 text-red-300",
+};
+
+function updateScenarioHud(scenario) {
+  const hud = document.getElementById("scenario-hud");
+  if (!hud) return;
+
+  if (scenario.nodeCompleted) {
+    const n = scenario.nodeCompleted;
+    appendFeedBlock(
+      `<span class="text-emerald-300">劇情節點完成</span>`,
+      `「${escapeHtml(n.title)}」已達成 · 扭轉度 ${n.divergenceTier} 級 · 獲得 <span class="text-emerald-300 font-bold">${n.reward}</span> 點經驗`,
+      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 hud-corners pulse-glow"
+    );
+  }
+
+  const node = scenario.activeNode;
+  if (!node && !scenario.progress?.scenarioComplete) {
+    hud.style.display = "none";
+    return;
+  }
+  hud.style.display = "flex";
+
+  const titleEl = document.getElementById("scenario-node-title");
+  if (scenario.progress?.scenarioComplete) {
+    titleEl.innerHTML = `<i class="fas fa-flag-checkered"></i> 主線已完成`;
+  } else if (node.isFinale) {
+    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> ${escapeHtml(node.title)}`;
+  } else {
+    titleEl.textContent = node.title;
+  }
+
+  const pct = scenario.progress?.overallCompletionPct ?? 0;
+  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
+  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
+
+  const badge = document.getElementById("scenario-time-badge");
+  const status = scenario.progress?.timeStatus;
+  if (status) {
+    badge.textContent = `時間：${status}`;
+    badge.className = `ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
+  } else {
+    badge.textContent = "";
+    badge.className = "ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
+  }
+
+  const combatBtn = document.getElementById("combat-start-btn");
+  if (combatBtn) combatBtn.classList.toggle("pulse-glow", Boolean(node?.isFinale));
 }
 
 function renderOptions(options) {
@@ -632,6 +688,13 @@ async function combatAttack(weaponKey) {
 
     currentCombat = res.combat;
     if (res.character) adoptCharacter(res.character);
+    if (res.scenario?.nodeCompleted) {
+      const n = res.scenario.nodeCompleted;
+      const block = document.createElement("div");
+      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold hud-corners pulse-glow";
+      block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
+      document.getElementById("combat-log").appendChild(block);
+    }
     renderCombat();
   } finally {
     combatInFlight = false;
