@@ -11,14 +11,18 @@ Cloudflare官方文件(https://developers.cloudflare.com/pages/)為準。
 ```
 wrangler.toml              Cloudflare Pages的設定檔(靜態資源目錄、Node相容性flag)
 package.json                npm專案設定，"test"跑單元測試，"deploy"是部署捷徑指令
-public/index.html           佔位首頁(還沒有真正的前端UI)
+public/index.html           前端UI(單頁)，這就是玩家會看到的畫面
+public/app.js               前端應用層，負責渲染角色卡與呼叫下面這些API
 functions/api/check.js      POST /api/check —— 呼叫 core/check.js 做一次判定
+functions/api/narrate.js    POST /api/narrate —— 判定 + 敘事分級 + Gemini生成敘事(需要金鑰)
 functions/api/combat/resolve.js  POST /api/combat/resolve —— 呼叫 resolveCombatAction() 跑一次完整攻擊
 ```
 
-這兩個API端點直接複用引擎裡已經有176+個單元測試涵蓋過的運算邏輯，**沒有新的遊戲規則**，
-純粹是「把function包成HTTP端點」。真正還沒做的是前端(要打這些API的網頁UI)跟Gemini敘事整合
-(見 `GEMINI_INTEGRATION.md`)。
+這些API端點直接複用引擎裡已經有222個單元測試涵蓋過的運算邏輯，**沒有新的遊戲規則**，
+純粹是「把function包成HTTP端點」。
+
+`public/` 就是 `wrangler.toml` 裡 `pages_build_output_dir` 指到的目錄——**網站只會發佈這個目錄
+底下的檔案**，repo根目錄的規則書全文(`rules-2.35.txt`，15MB)與各種.md文件都不會被公開發佈。
 
 ## 部署前你需要準備
 
@@ -61,7 +65,7 @@ npx wrangler login
 npm test
 ```
 
-應該會看到190個測試全部通過(`# pass 190` `# fail 0`)。如果這裡就失敗了，先別急著部署，
+應該會看到222個測試全部通過(`# pass 222` `# fail 0`)。如果這裡就失敗了，先別急著部署，
 表示你的環境(Node版本太舊之類)有問題，跟Cloudflare無關。
 
 ### 步驟5：部署
@@ -89,9 +93,28 @@ curl -X POST https://你的網址.pages.dev/api/check `
 最可能的原因是 `wrangler.toml` 裡的 `compatibility_flags = ["nodejs_compat"]` 沒有生效
 (見 `wrangler.toml` 檔案裡的註解說明為什麼一定要開這個)。
 
+## 想在本機先看看畫面
+
+不用先部署也可以在本機跑起來，Cloudflare官方的做法是：
+
+```bash
+npx wrangler pages dev
+```
+
+它會同時提供 `public/` 的靜態檔案跟 `functions/` 底下的API，等於在本機模擬正式環境。
+注意 `/api/narrate` 需要 `GEMINI_API_KEY`，本機測試可以用 `--binding GEMINI_API_KEY=你的金鑰`
+帶進去(這個指令參數請以 `npx wrangler pages dev --help` 的輸出為準，wrangler的CLI參數會改版)。
+
+**如果你直接用瀏覽器打開 `public/index.html`**：畫面會出來，但右上角會顯示 `ENGINE OFFLINE`，
+任何行動都會跳出 `SYSTEM.ERROR`——這是正常的，因為那樣沒有任何東西在提供 `/api/*`。
+這是刻意設計的：寧可讓你看到「後端沒接上」，也不會假裝擲出了一個骰子結果。
+
 ## 之後要做的(不在這次骨架範圍內)
 
-- 真正的前端UI(打這些API、顯示角色卡/戰鬥畫面)。
+- 建卡流程與存檔(目前角色卡寫死在 `public/app.js`，重整頁面就回到初始狀態，
+  需要 KV / D1 之類的儲存才能真的存檔)。
+- 戰鬥介面(`/api/combat/resolve` 目前還沒有任何UI在呼叫)。
+- 把前端的Tailwind從Play CDN換成build-time版本(見 `ARCHITECTURE.md` 的前端接線決策記錄)。
 - 環境變數/API金鑰的管理(Gemini整合需要，見 `GEMINI_INTEGRATION.md`，那邊會用到
   `wrangler pages secret put` 這個指令)。
 - 自訂網域(如果你不想用`*.pages.dev`，需要在Cloudflare Dashboard另外設定，這步驟因人而異，

@@ -15,6 +15,7 @@
 // TEST_PLAN.md裡引用過的書中範例)手動打一次API，確認回傳結果跟單元測試算出來的一樣，再正式串前端。
 
 import { performCheck } from "../../core/check.js";
+import { inferCheckParams } from "../../content/checkIntent.js";
 
 export async function onRequestPost(context) {
   let body;
@@ -24,14 +25,23 @@ export async function onRequestPost(context) {
     return jsonError("請求body必須是合法JSON", 400);
   }
 
-  const { character, params } = body ?? {};
-  if (!character || !params) {
-    return jsonError("body必須包含 character(人物卡物件) 與 params(判定參數，見core/check.js的performCheck())", 400);
+  const { character, params, playerAction } = body ?? {};
+  if (!character) {
+    return jsonError("body必須包含 character(人物卡物件)", 400);
+  }
+  if (!params && !playerAction) {
+    return jsonError(
+      "body必須包含 params(判定參數，見core/check.js的performCheck())，或 playerAction(玩家行動描述，由content/checkIntent.js推導檢定)",
+      400
+    );
   }
 
+  // params 優先；只給 playerAction 時由引擎層推導該擲什麼檢定，前端不做這個規則決定。
+  const resolvedParams = params ?? inferCheckParams(playerAction, { character });
+
   try {
-    const result = performCheck(character, params);
-    return new Response(JSON.stringify({ ok: true, result }), {
+    const result = performCheck(character, resolvedParams);
+    return new Response(JSON.stringify({ ok: true, params: resolvedParams, result }), {
       headers: { "content-type": "application/json; charset=utf-8" },
     });
   } catch (err) {

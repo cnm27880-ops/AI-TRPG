@@ -17,6 +17,7 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { buildTurnPrompt, SYSTEM_INSTRUCTION } from "../../content/gemini/promptContract.js";
 import { callGemini } from "../../content/gemini/client.js";
+import { inferCheckParams } from "../../content/checkIntent.js";
 
 export async function onRequestPost(context) {
   const apiKey = context.env?.GEMINI_API_KEY;
@@ -35,13 +36,18 @@ export async function onRequestPost(context) {
   }
 
   const { character, checkParams, playerAction, sceneContext, recentEvents } = body ?? {};
-  if (!character || !checkParams || !playerAction) {
-    return jsonError("body必須包含 character、checkParams(見performCheck())、playerAction(玩家行動描述)", 400);
+  if (!character || !playerAction) {
+    return jsonError("body必須包含 character(人物卡物件) 與 playerAction(玩家行動描述)", 400);
   }
+
+  // checkParams 是選填的：前端不該自己決定「這個行動要用哪個屬性搭哪個技能」，那是規則層面的決定
+  // (見 content/checkIntent.js 檔頭)。呼叫端沒指定時，由引擎這邊推導；有指定時(例如之後接上
+  // 「讓AI在有限選項裡挑檢定」的端點，或戰鬥中由劇本指定)才用呼叫端給的值。
+  const resolvedParams = checkParams ?? inferCheckParams(playerAction, { character });
 
   let checkResult;
   try {
-    checkResult = performCheck(character, checkParams);
+    checkResult = performCheck(character, resolvedParams);
   } catch (err) {
     return jsonError(`判定計算失敗：${err.message}`, 400);
   }
@@ -56,14 +62,20 @@ export async function onRequestPost(context) {
       prompt,
     });
     return new Response(
-      JSON.stringify({ ok: true, checkResult, outcome, narration: text }),
+      JSON.stringify({ ok: true, checkParams: resolvedParams, checkResult, outcome, narration: text }),
       { headers: { "content-type": "application/json; charset=utf-8" } }
     );
   } catch (err) {
     // Gemini呼叫失敗時，仍然把算好的判定結果回傳，讓前端至少知道規則層面發生了什麼，
     // 不會因為AI敘事失敗就連帶掩蓋掉「其實判定已經算完了」這件事。
     return new Response(
-      JSON.stringify({ ok: false, checkResult, outcome, error: `Gemini敘事失敗：${err.message}` }),
+      JSON.stringify({
+        ok: false,
+        checkParams: resolvedParams,
+        checkResult,
+        outcome,
+        error: `Gemini敘事失敗：${err.message}`,
+      }),
       { status: 502, headers: { "content-type": "application/json; charset=utf-8" } }
     );
   }

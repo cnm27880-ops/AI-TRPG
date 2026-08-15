@@ -306,6 +306,39 @@ GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非
   (可選的)`core/eventLog.js` 事件摘要組進使用者訊息，這一層完全不含網路呼叫，8個測試全部可以
   離線驗證組裝邏輯本身，跟「打不打得通Gemini」這件事分開驗證。
 
+## 前端UI接線(Phase 5)的決策記錄
+
+前端UI是另外請一個AI獨立做的，跟這個引擎不是同一輪開發，接回來時兩邊的假設對不上，
+以下是把它們接起來時做的決定與當時的理由：
+
+- **前端做的是D&D式假設，不是這套規則**：接回來的UI原本用 `{STR:14, DEX:16}` 這種英文縮寫+
+  10~18的數值、`hp:{current,max}` 單一血條、以及 `calcMod()` 產生的 `+2/+3` 修正值。
+  這三個都是D&D概念，這套規則沒有：屬性是**中文九維**、建卡值域**1~5**、屬性帶來的加值是
+  **傳奇屬性附加成功** `floor((值-1)/5)`、生命是**四段傷勢軌**(完好/沖擊B/嚴重L/惡性A)且總量守恆。
+  已全部改成照 `core/schema.js` 的形狀，否則 `performCheck()` 收到英文屬性名會直接丟
+  「人物卡沒有屬性undefined」。
+- **前端原本在API失敗時用 `Math.random()` 生一個假的成功結果**，骰子動畫裡也寫死一個「7」。
+  這直接違反最高原則第1條——畫面上會出現沒有經過引擎的數字，而且玩家跟開發者都分不出
+  「引擎算出成功」跟「後端根本沒接上」。已改成明確顯示 `SYSTEM.ERROR` 區塊與 `ENGINE OFFLINE` 標記，
+  **寧可讓玩家看到壞掉，也不能讓他看到假的骰子結果**。
+- **「這個行動該擲什麼檢定」放在引擎層，不放前端**(`content/checkIntent.js`)：前端第一版是自己
+  用關鍵字表挑屬性/技能的。挑錯技能會直接影響成功率(甚至觸發技能0的自動失敗)，那是規則決定，
+  依原則第1條必須待在測得到的地方。現在 `/api/check` 與 `/api/narrate` 都接受只給 `playerAction`，
+  由後端推導；呼叫端仍可用 `params`/`checkParams` 明確指定(之後戰鬥或劇本節點會用到)。
+  **關鍵字比對只是暫時方案**，正解是多一次AI呼叫讓Gemini在有限選項裡挑檢定(符合原則第4條)，
+  細節見該模組檔頭。
+- **部署目標只有一個：Cloudflare Pages**。接回來時repo裡同時有 `wrangler.toml`(輸出目錄`public/`)
+  跟一個把整個repo根目錄丟去GitHub Pages的Jekyll workflow，而 `index.html` 躺在根目錄、
+  前端JS躺在 `public/append.js` 且**從來沒有被任何HTML載入過**。已統一成 `public/index.html` +
+  `public/app.js`；GitHub Pages workflow保留但降級成「只上傳public/的純靜態預覽」，因為
+  GitHub Pages不能執行 `functions/`，在那上面所有 `/api/*` 一定404(畫面會顯示ENGINE OFFLINE)。
+- **[未解決，需要你決定] UI依賴三個外部CDN**(Tailwind Play CDN / Font Awesome / Google Fonts)，
+  而且**所有自訂CSS都寫在 `<style type="text/tailwindcss">` 裡**——這個block只有Tailwind Play CDN
+  的JS載入後才會被處理。也就是說CDN一旦連不上，掉的不只是配色，是連 bottom sheet、卡片堆疊、
+  骰子動畫的定位CSS全部消失，版面會整個垮掉(實測過：把CDN擋掉後抽屜會變成static定位跑到頁面外)。
+  Tailwind官方也明講Play CDN不是給正式環境用的。要正式上線應該改成build-time的Tailwind，
+  但那會引入建置步驟，屬於架構決定，留給使用者拍板。
+
 ## 給下一個 AI 的具體建議
 
 1. 先讀這份檔案，再讀 `TEST_PLAN.md`，兩份一起看就知道「什麼做完了、什麼是規則書的、什麼是我們設計的」。

@@ -39,6 +39,8 @@ content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約
     d-tier-samples-*.json              7個資源分類(血統/改造/瞳術/稱號/流派/技藝/法術)各3個D級
                                         真實條目，直接從rules2.35.txt摘錄轉換(不是自編內容)，
                                         供建卡流程測試時選用，含3組真實發現的定價落差，見ARCHITECTURE.md
+  checkIntent.js  [設計] 玩家自然語言行動 -> 檢定參數(屬性/技能/專業)的對照層。放在引擎層而不是
+                   前端的理由見檔頭註解：「這個行動該擲什麼」是規則決定，必須有測試蓋住
   scenario/
     schema.js       副本包的章節/節點結構驗證(含選填的timeLimitRounds時間預算欄位)
     divergence.js   劇情扭轉度系統——0~4級分級表、獎勵倍率、難度加值、進度條彙總計算
@@ -58,10 +60,15 @@ core/combat/        戰鬥引擎(Phase 2)，只做「引擎本身」，不含任
   resolveCombatAction.js 把攻擊判定+傷害減免+生命值扣減接成一次完整攻擊行動
 
 functions/api/       Cloudflare Pages Functions範例端點，直接呼叫上面的引擎(見DEPLOYMENT.md)
-  check.js            POST /api/check —— 跑一次判定
+  check.js            POST /api/check —— 跑一次判定(給params，或只給playerAction讓引擎推導)
   combat/resolve.js   POST /api/combat/resolve —— 跑一次完整攻擊行動
   narrate.js          POST /api/narrate —— 判定+敘事分級+Gemini生成敘事文字(見GEMINI_INTEGRATION.md)
 wrangler.toml         Cloudflare Pages設定骨架
+
+public/              前端UI(Cloudflare Pages的靜態資源根目錄，`pages_build_output_dir`指向這裡)
+  index.html          單頁UI：角色HUD/敘事流/行動主控台/骰子動畫/手機抽屜，含視覺層的inline script
+  app.js              應用層：渲染角色卡、呼叫/api/*、把引擎算出的結果畫成敘事區塊
+                       **不做任何規則運算**，數字一律來自後端
 
 test/                198個測試，node內建測試跑者，`node --test` 全跑
   engine.test.js, health.test.js, statistics.test.js, invariants.test.js, integration.test.js
@@ -134,7 +141,9 @@ node --test
 - Cloudflare Pages 部署骨架、Gemini 敘事整合骨架都做了(`wrangler.toml`/`functions/api/`/
   `content/gemini/`)，**但沒有實際部署過、沒有實際打過Gemini的API**(這個開發環境沒有帳號/金鑰/
   網路)，你拿到後要自己走一次 `DEPLOYMENT.md`/`GEMINI_INTEGRATION.md` 才能確認真的接得上。
-- 任何前端 UI。
+- 前端UI已經接上引擎(`public/`)，但仍缺：建卡流程、存檔/讀檔(重整頁面就回到示範角色)、
+  劇本節點推進與事件日誌的畫面、戰鬥介面(`/api/combat/resolve` 還沒有任何UI在呼叫)。
+  另外UI目前依賴Tailwind Play CDN，官方明講那不是給正式環境用的，見下方說明。
 
 這些都记录在 `ARCHITECTURE.md` 的 Phase 進度表裡，不是遺漏，是刻意分期。
 
