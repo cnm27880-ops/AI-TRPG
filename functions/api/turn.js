@@ -333,9 +333,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
   if (!outcome) {
     const lines = [];
     if (sceneContext) lines.push(`【場景背景】${sceneContext}`);
-
-    lines.push(dmMemoBlock); // [新增] 開場也需要看到狀態表
-
+    if (dmMemo) lines.push(dmMemo); // [新增] 開場也需要看到狀態表
     if (recentNarration) {
       lines.push("【前情提要】以下是這場遊戲到目前為止的經過，請保持一致性：");
       lines.push(recentNarration);
