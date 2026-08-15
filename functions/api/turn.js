@@ -25,7 +25,7 @@
 
 import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
-import { SYSTEM_INSTRUCTION, buildTurnPrompt } from "../../content/gemini/promptContract.js";
+import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS } from "../../content/llm/providers.js";
@@ -158,6 +158,9 @@ export async function onRequestPost(context) {
     ? summarizeForJournal(session.log).slice(-EVENT_MEMORY_LIMIT)
     : [];
 
+  // [新增] 生成 DM 備忘錄狀態表
+  const dmMemo = buildDmMemo(character, session);
+
   // --- 副本節點：這回合「應該推進哪個節點」，餵進 prompt 讓AI知道關鍵事件是什麼 ---
   const scenarioPack = session?.scenario ? getScenarioPack(session.scenario.packId) : null;
   const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
@@ -173,6 +176,7 @@ export async function onRequestPost(context) {
     recentNarration,
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode) : null,
+    dmMemo, // [新增] 將表格傳遞給組裝器
   });
 
   let text;
@@ -321,13 +325,15 @@ export async function onRequestPost(context) {
  * 組這一回合要送給AI的訊息。
  * 開場模式沒有判定結果，所以不能用 buildTurnPrompt()（它會要求 outcome 必填）。
  */
-function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNarration, character, nodeGuidance }) {
+function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNarration, character, nodeGuidance, dmMemo }) {
   const optionsSpec = buildOptionsSpec(character);
   const tail = nodeGuidance ? `\n\n${nodeGuidance}` : "";
+  const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
 
   if (!outcome) {
     const lines = [];
     if (sceneContext) lines.push(`【場景背景】${sceneContext}`);
+    if (dmMemo) lines.push(dmMemo); // [新增] 開場也需要看到狀態表
     if (recentNarration) {
       lines.push("【前情提要】以下是這場遊戲到目前為止的經過，請保持一致性：");
       lines.push(recentNarration);
@@ -352,7 +358,9 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
     recentEvents,
     recentNarration,
   });
-  return `${turnPrompt}\n\n${optionsSpec}${tail}`;
+
+  // [修改] 把狀態表格接在後面
+  return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}`;
 }
 
 function json(payload, status = 200) {
