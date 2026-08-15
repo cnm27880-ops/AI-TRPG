@@ -1,33 +1,33 @@
-// 無限恐怖TRPG —— 前端應用層 (精簡純淨版)
+// 無限恐怖TRPG —— 前端應用層 (六維十技能純淨版)
 
 let currentCharacter = null;
 let currentOptions = [];
 let turnInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
-let hasAttemptedSubmit = false; // 標記：是否已經按過提交，未按過前不顯示紅字報錯
 
 const SESSION_KEY = "ai-trpg-session-id";
 
+// 六維屬性顯示
 const ATTRIBUTE_DISPLAY = [
   { key: "力量", en: "STR" },
   { key: "敏捷", en: "DEX" },
   { key: "耐力", en: "CON" },
   { key: "智力", en: "INT" },
   { key: "感知", en: "PER" },
-  { key: "決心", en: "WIL" },
-  { key: "風度", en: "PRE" },
-  { key: "操控", en: "MAN" },
-  { key: "沉著", en: "COM" },
+  { key: "意志", en: "WIL" },
+];
+
+// 十大核心技能
+const SKILL_NAMES = [
+  "格鬥", "射擊", "體魄", "潛行", "求生",
+  "偵察", "技藝", "醫療", "秘識", "交涉"
 ];
 
 const chargenDraft = {
-  concept: { name: "", gender: "", age: null, background: "" },
-  attributeCategoryAllocation: {},
-  attributes: {},
-  skillCategoryAllocation: {},
-  skills: {},
-  specializations: {},
+  concept: { name: "", gender: "男", age: 24, background: "" },
+  attributes: { 力量: 1, 敏捷: 1, 耐力: 1, 智力: 1, 感知: 1, 意志: 1 },
+  skills: Object.fromEntries(SKILL_NAMES.map(s => [s, 0])),
 };
 
 function legendaryAttributeBonus(val) {
@@ -36,7 +36,6 @@ function legendaryAttributeBonus(val) {
 
 // --- 建卡初始化 ---
 async function startNewChargen() {
-  hasAttemptedSubmit = false;
   showScreen("chargen");
 
   if (!chargenRules) {
@@ -49,45 +48,44 @@ async function startNewChargen() {
     }
   }
 
-  const a = chargenRules.attributes;
-  const sk = chargenRules.skills;
-
-  for (const key of a.keys) chargenDraft.attributes[key] = a.startValue;
-  for (const list of Object.values(sk.byCategory)) {
-    for (const name of list) chargenDraft.skills[name] = sk.startValue;
-  }
-
-  renderAllocPickers();
+  renderArchetypeCards();
   renderChargenAttributes();
   renderChargenSkills();
-  renderSpecInputs();
-  await validateChargen(false); // 初始驗證，不顯示紅字
+  await validateChargen();
 }
 
-function renderAllocPickers() {
-  const build = (containerId, categories, budgets, target) => {
-    const el = document.getElementById(containerId);
-    el.innerHTML = categories.map(cat => `
-      <label class="flex items-center gap-1 bg-zinc-950 border hairline-border px-2 py-1 rounded">
-        <span class="text-zinc-400">${cat}</span>
-        <select data-alloc="${target}" data-cat="${cat}" class="bg-transparent text-emerald-400 font-bold focus:outline-none">
-          <option value="">—</option>
-          ${budgets.map(b => `<option value="${b}">${b} 點</option>`).join("")}
-        </select>
-      </label>`).join("");
-  };
+function renderArchetypeCards() {
+  const container = document.getElementById("archetype-container");
+  if (!container || !chargenRules?.archetypes) return;
 
-  build("cg-attr-alloc", Object.keys(chargenRules.attributes.byCategory), chargenRules.attributes.categoryBudgets, "attributeCategoryAllocation");
-  build("cg-skill-alloc", Object.keys(chargenRules.skills.byCategory), chargenRules.skills.categoryBudgets, "skillCategoryAllocation");
+  container.innerHTML = Object.entries(chargenRules.archetypes).map(([key, arch]) => `
+    <button onclick="applyArchetype('${key}')" id="arch-btn-${key}" class="archetype-card text-left p-3 rounded bg-zinc-950 border hairline-border hover:border-emerald-500/50 transition space-y-1">
+      <div class="font-bold text-zinc-200 text-xs text-emerald-400">${arch.name}</div>
+      <div class="text-[10px] text-zinc-500 leading-tight">${arch.desc}</div>
+    </button>
+  `).join("");
+}
 
-  document.querySelectorAll("[data-alloc]").forEach(sel => {
-    sel.addEventListener("change", () => {
-      const bucket = chargenDraft[sel.dataset.alloc];
-      if (sel.value === "") delete bucket[sel.dataset.cat];
-      else bucket[sel.dataset.cat] = Number(sel.value);
-      validateChargen(hasAttemptedSubmit);
-    });
-  });
+function applyArchetype(key) {
+  const arch = chargenRules?.archetypes?.[key];
+  if (!arch) return;
+
+  // 重設高亮
+  document.querySelectorAll(".archetype-card").forEach(c => c.classList.remove("active"));
+  document.getElementById(`arch-btn-${key}`)?.classList.add("active");
+
+  // 套用屬性
+  for (const k of ATTRIBUTE_DISPLAY.map(a => a.key)) {
+    chargenDraft.attributes[k] = arch.attributes[k] ?? 1;
+  }
+  // 套用技能
+  for (const k of SKILL_NAMES) {
+    chargenDraft.skills[k] = arch.skills[k] ?? 0;
+  }
+
+  renderChargenAttributes();
+  renderChargenSkills();
+  validateChargen();
 }
 
 function stepperHtml(kind, name, value, min, max) {
@@ -103,66 +101,20 @@ function stepperHtml(kind, name, value, min, max) {
 }
 
 function renderChargenAttributes() {
-  const a = chargenRules.attributes;
-  document.getElementById("cg-attr-grid").innerHTML = Object.entries(a.byCategory).map(([cat, list]) => `
-    <div class="space-y-1.5">
-      <div class="text-[10px] font-mono text-zinc-500 uppercase">${cat}屬性</div>
-      ${list.map(x => stepperHtml("attr", x.key, chargenDraft.attributes[x.key], a.startValue, a.cap)).join("")}
-    </div>`).join("");
+  document.getElementById("cg-attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key }) => 
+    stepperHtml("attr", key, chargenDraft.attributes[key] ?? 1, 1, 5)
+  ).join("");
 }
 
 function renderChargenSkills() {
-  const sk = chargenRules.skills;
-  document.getElementById("cg-skill-grid").innerHTML = Object.entries(sk.byCategory).map(([cat, list]) => `
-    <div class="space-y-1.5">
-      <div class="text-[10px] font-mono text-zinc-500 uppercase">${cat}技能</div>
-      ${list.map(n => stepperHtml("skill", n, chargenDraft.skills[n], sk.startValue, sk.cap)).join("")}
-    </div>`).join("");
+  document.getElementById("cg-skill-grid").innerHTML = SKILL_NAMES.map(name => 
+    stepperHtml("skill", name, chargenDraft.skills[name] ?? 0, 0, 3)
+  ).join("");
 }
 
-function renderSpecInputs() {
-  const count = chargenRules.specializations.free;
-  document.getElementById("cg-spec-list").innerHTML = Array.from({ length: count }).map((_, i) => `
-    <div class="flex gap-2">
-      <select data-spec-skill="${i}" class="flex-1 bg-zinc-950 border hairline-border px-2 py-1.5 text-xs font-mono rounded text-zinc-300">
-        <option value="">（不使用此專業名額）</option>
-      </select>
-      <input data-spec-name="${i}" type="text" placeholder="專業名稱 (例: 步槍)" class="flex-1 bg-zinc-950 border hairline-border px-2 py-1.5 text-xs rounded text-zinc-200">
-    </div>`).join("");
-  refreshSpecSkillOptions();
-
-  document.getElementById("cg-spec-list").addEventListener("change", collectSpecializations);
-  document.getElementById("cg-spec-list").addEventListener("input", collectSpecializations);
-}
-
-function refreshSpecSkillOptions() {
-  const trained = Object.entries(chargenDraft.skills).filter(([, lv]) => lv >= 1).map(([name]) => name);
-  document.querySelectorAll("[data-spec-skill]").forEach(sel => {
-    const current = sel.value;
-    sel.innerHTML = `<option value="">（不使用此專業名額）</option>` + trained.map(n => `<option value="${n}">${n}</option>`).join("");
-    if (trained.includes(current)) sel.value = current;
-  });
-}
-
-function collectSpecializations() {
-  const specs = {};
-  document.querySelectorAll("[data-spec-skill]").forEach(sel => {
-    const i = sel.dataset.specSkill;
-    const nameInput = document.querySelector(`[data-spec-name="${i}"]`);
-    const skill = sel.value;
-    const specName = nameInput?.value.trim();
-    if (skill && specName) (specs[skill] ??= []).push(specName);
-  });
-  chargenDraft.specializations = specs;
-  validateChargen(hasAttemptedSubmit);
-}
-
-async function validateChargen(showErrors = true) {
-  chargenDraft.concept.name = document.getElementById("cg-name").value.trim();
-  chargenDraft.concept.gender = document.getElementById("cg-gender").value.trim();
-  const ageRaw = document.getElementById("cg-age").value;
-  chargenDraft.concept.age = ageRaw ? Number(ageRaw) : null;
-  chargenDraft.concept.background = document.getElementById("cg-background").value.trim();
+async function validateChargen() {
+  chargenDraft.concept.name = document.getElementById("cg-name")?.value.trim() || "";
+  chargenDraft.concept.gender = document.getElementById("cg-gender")?.value || "男";
 
   let data;
   try {
@@ -176,38 +128,38 @@ async function validateChargen(showErrors = true) {
     return;
   }
 
-  const budgetText = b => b ? `花費 ${b.totalCost}/${b.totalBudget} (剩 ${b.remaining})` : "—";
-  document.getElementById("cg-attr-budget").textContent = budgetText(data.budgets?.attributes);
-  document.getElementById("cg-skill-budget").textContent = budgetText(data.budgets?.skills);
-  document.getElementById("cg-spec-budget").textContent = `已選 ${data.budgets?.specializations?.totalSpecs || 0} / 3`;
+  const ab = data.budgets?.attributes;
+  const sb = data.budgets?.skills;
 
-  // 只有按了送出且有錯時才顯示紅字，否則保持乾淨
-  if (showErrors && data.errors && data.errors.length > 0) {
-    document.getElementById("cg-errors").innerHTML = `
-      <div class="p-3 bg-red-500/10 border border-red-500/40 rounded text-xs font-mono text-red-400 space-y-1">
-        ${data.errors.map(e => `<div>• ${e}</div>`).join("")}
-      </div>`;
-  } else {
-    document.getElementById("cg-errors").innerHTML = "";
-  }
+  document.getElementById("cg-attr-budget").textContent = ab ? `已用 ${ab.totalCost} / ${ab.totalBudget} 點` : "—";
+  document.getElementById("cg-skill-budget").textContent = sb ? `已用 ${sb.totalCost} / ${sb.totalBudget} 點` : "—";
 
   const d = data.character?.derived;
   if (d) {
-    document.getElementById("cg-derived").textContent = `預覽衍生：生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防御 ${d.baseDefense}`;
+    document.getElementById("cg-derived").textContent = `衍生數值：生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
   }
 
   return data.valid;
 }
 
-// --- 遊戲運行 ---
+// --- 進入遊戲 ---
 async function startNewGame() {
-  hasAttemptedSubmit = true;
-  const isValid = await validateChargen(true);
-  if (!isValid) return;
+  const nameInput = document.getElementById("cg-name");
+  if (!nameInput.value.trim()) {
+    alert("請輸入輪迴者姓名！");
+    nameInput.focus();
+    return;
+  }
+
+  const isValid = await validateChargen();
+  if (!isValid) {
+    alert("配點超支，請調整後再開始！");
+    return;
+  }
 
   const submitBtn = document.getElementById("cg-submit");
   submitBtn.disabled = true;
-  submitBtn.textContent = "正在傳送進輪迴世界...";
+  submitBtn.textContent = "傳送進主神空間中...";
 
   try {
     const res = await (await fetch("/api/session", {
@@ -256,9 +208,8 @@ function adoptCharacter(charData) {
     hpBar.appendChild(d);
   });
 
-  // 渲染九維屬性
-  const attrGrid = document.getElementById("attr-grid");
-  attrGrid.innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
+  // 渲染六維屬性
+  document.getElementById("attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
     const val = charData.attributes[key] || 1;
     const bonus = legendaryAttributeBonus(val);
     const bonusTag = bonus > 0 ? `<span class="text-emerald-400 text-[10px]">+${bonus}★</span>` : "";
@@ -268,6 +219,14 @@ function adoptCharacter(charData) {
         <span class="font-bold text-zinc-100">${val} ${bonusTag}</span>
       </div>`;
   }).join("");
+
+  // 渲染技能清單
+  document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => `
+    <div class="px-2.5 py-1.5 rounded bg-zinc-900 border hairline-border flex justify-between items-center font-mono text-xs">
+      <span class="text-zinc-400">${skill}</span>
+      <span class="font-bold ${lv > 0 ? 'text-emerald-400' : 'text-zinc-600'}">${lv}</span>
+    </div>
+  `).join("");
 }
 
 async function runTurn({ chosenOption, playerAction, opening } = {}) {
@@ -343,7 +302,7 @@ function appendFeedBlock(title, content, extraClass = "") {
   feed.scrollTop = feed.scrollHeight;
 }
 
-// --- 首頁存檔接續 ---
+// --- 首頁存檔 ---
 async function checkLocalSession() {
   const savedId = localStorage.getItem(SESSION_KEY);
   if (!savedId) return;
@@ -400,6 +359,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   await checkLocalSession();
 
   document.getElementById("cg-submit")?.addEventListener("click", startNewGame);
+  document.getElementById("cg-name")?.addEventListener("input", validateChargen);
+  document.getElementById("cg-gender")?.addEventListener("change", validateChargen);
 
   // Stepper 事件委派
   for (const gridId of ["cg-attr-grid", "cg-skill-grid"]) {
@@ -408,17 +369,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (!btn) return;
       const { step, name, delta } = btn.dataset;
       const bucket = step === "attr" ? chargenDraft.attributes : chargenDraft.skills;
-      const rules = step === "attr" ? chargenRules.attributes : chargenRules.skills;
-      const next = bucket[name] + Number(delta);
-      if (next < rules.startValue || next > rules.cap) return;
+      const next = (bucket[name] ?? (step === "attr" ? 1 : 0)) + Number(delta);
+      const min = step === "attr" ? 1 : 0;
+      const max = step === "attr" ? 5 : 3;
+      if (next < min || next > max) return;
       bucket[name] = next;
       if (step === "attr") renderChargenAttributes();
-      else {
-        renderChargenSkills();
-        refreshSpecSkillOptions();
-        collectSpecializations();
-      }
-      validateChargen(hasAttemptedSubmit);
+      else renderChargenSkills();
+      validateChargen();
     });
   }
 
@@ -448,3 +406,4 @@ window.startNewChargen = startNewChargen;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
+window.applyArchetype = applyArchetype;
