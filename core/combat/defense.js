@@ -3,7 +3,7 @@
 //
 // 防御分成兩組完全不同的數字，這是這次讀規則書時最容易搞混、也最重要的一點：
 //   1) 「防御值」(this.total)：直接從攻擊方的DP扣掉(骰池變小)，包含：
-//        基礎防御 = max(敏捷, 感知)
+//        基礎防御 = min(敏捷, 感知)  ← 見下方[修正記錄2]
 //        閃避防御 = 傳奇敏捷提供的 n(legendaryAttributeBonus(敏捷))
 //        洞察防御 = 傳奇感知提供的 n(legendaryAttributeBonus(感知))
 //        格擋防御 = 白刃技能等級 + 肉搏技能等級 + 盾牌防御(裝備體積來源，外部資料)
@@ -20,6 +20,13 @@
 //      閃避防御增加n」是完全對稱的結構。之前只把 dodge(敏捷來源) 算進 bonusSuccesses，
 //      insight(感知來源) 沒有算進去，已修正。這個例子也印證了「洞察防御公式本身」當初的推測
 //      (洞察防御=legendaryAttributeBonus(感知))是對的，只是漏了它同時也貢獻防御附加成功。
+//
+//      [修正記錄2] 基礎防御原本實作成 max(敏捷, 感知)，是錯的，已改為 min。
+//      當初的依據是建卡頁防御預設欄位寫「基礎防御 = 敏捷（0）/ 感知（0）」——那個「/」沒有
+//      說明是取高還是取低，所以被推測成取高。但規則書「衍生屬性段」(第1784行)有明確的文字敘述：
+//        「基礎防御：用于決定人物的防御值，初始值為**敏捷和感知中較低者**。」
+//      明確的文字敘述優先於含糊的欄位符號。這個錯誤會讓每個角色的防御值都偏高，
+//      連帶讓所有攻擊的命中率偏低，是實際會影響戰鬥結果的bug，不是數值草案調整。
 //
 // 這個模組刻意只吃「已經算好的零件數字」(屬性值、技能等級、裝備/血統來源的防御值)，
 // 不假設角色物件長什麼樣子——因為裝備/血統資料還沒做(Phase 3)，呼叫端目前要自己把這些數字準備好。
@@ -49,7 +56,7 @@ export function computeDefenseProfile({
   fullDefense = false,
   extraBonusSuccesses = 0,
 }) {
-  const base = Math.max(agility, perception);
+  const base = Math.min(agility, perception);
   const dodge = legendaryAttributeBonus(agility);
   const insight = legendaryAttributeBonus(perception);
   const block = meleeWeaponSkill + unarmedSkill + shieldDefense;

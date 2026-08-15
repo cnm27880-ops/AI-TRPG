@@ -26,6 +26,8 @@ let lastProvider = null;
 let currentOptions = [];
 // 防連點：一個回合送出後到收到回應之前，不接受第二次送出（否則會擲兩次骰）
 let turnInFlight = false;
+// 目前這場遊戲的存檔ID。存在 localStorage，重整頁面靠它接續。
+let currentSessionId = null;
 
 // 屬性顯示順序與英文縮寫，順序沿用 core/schema.js 的 ATTRIBUTES
 const ATTRIBUTE_DISPLAY = [
@@ -71,79 +73,34 @@ function legendaryAttributeBonus(attributeValue) {
 }
 
 /**
- * 示範角色 —— 形狀對應 core/schema.js 的 emptyCharacter()。
- * 屬性/技能數值刻意落在建卡合法範圍內(屬性1~5、技能0~3)，敏捷特意給到6是為了展示
- * 「跨過傳奇屬性門檻」的顯示效果(6以上是建卡後用XP成長來的，不是建卡當下能買到的)。
+ * 資源卡的顯示資料。
+ * [已知簡化] 還沒接上 content/packs/ 的真實資源包，也還沒有「把資源效果套用到角色身上」的機制
+ * （見 content/loader.js 與 README 的待辦）。目前純粹是側欄的展示內容。
  */
-function createDemoCharacter() {
-  const attributes = {
-    力量: 4,
-    敏捷: 6,
-    耐力: 3,
-    智力: 3,
-    感知: 4,
-    決心: 3,
-    風度: 2,
-    操控: 2,
-    沉著: 3,
-  };
-
-  const skills = {
-    運動: 2, 肉搏: 1, 駕駛: 0, 槍械: 3, 手上功夫: 0, 躲藏: 2, 求生: 1, 白刃: 2, 弓箭: 0,
-    學識: 1, 電腦: 2, 手藝: 0, 調查: 2, 醫學: 1, 神秘學: 0, 科學: 0,
-    馴獸: 0, 感受: 2, 表達: 1, 脅迫: 1, 交際: 1, 掩飾: 0,
-  };
-
-  return {
-    concept: {
-      name: "亞倫 · 懷特",
-      gender: "男",
-      age: 28,
-      background: "前特勤隊員，第一次進入輪迴空間。",
+function placeholderTraits() {
+  return [
+    {
+      title: "光學視覺補正器",
+      type: "義體 CYBERNETIC",
+      category: "cyber",
+      desc: "進行感知相關檢定時，骰池 +1。",
+      tags: ["耐久: 100%", "D級"],
     },
-    attributes,
-    skills,
-    specializations: { 槍械: ["步槍"], 調查: ["痕跡辨識"] },
-    feats: [],
-    derived: {
-      // 傷勢軌：20點生命，目前受過3點沖擊傷(B)、2點嚴重傷(L)
-      hp: { max: 20, intact: 15, B: 3, L: 2, A: 0 },
-      willpower: { max: 3, current: 3, temp: 0 },
-      energyPools: {},
+    {
+      title: "邊緣獵手",
+      type: "稱號 TITLE",
+      category: "title",
+      desc: "在低光或廢墟環境中進行躲藏檢定時，骰池 +2。",
+      tags: ["被動生效", "D級"],
     },
-    xp: { earned: 50, spent: 0 },
-    abilities: [],
-    // [顯示用] 資源卡，還沒接上 content/packs/ 的真實資料，見 content/loader.js
-    traits: [
-      {
-        title: "光學視覺補正器",
-        type: "義體 CYBERNETIC",
-        category: "cyber",
-        desc: "進行感知相關檢定時，骰池 +1。",
-        tags: ["耐久: 100%", "D級"],
-      },
-      {
-        title: "邊緣獵手",
-        type: "稱號 TITLE",
-        category: "title",
-        desc: "在低光或廢墟環境中進行躲藏檢定時，骰池 +2。",
-        tags: ["被動生效", "D級"],
-      },
-      {
-        title: "自癒基因微粒",
-        type: "血脈 BLOODLINE",
-        category: "blood",
-        desc: "每場戰鬥結束後，恢復 2 點沖擊傷(B → 完好)。",
-        tags: ["冷卻: 1 場戰鬥", "等級 1"],
-      },
-    ],
-  };
-}
-
-function initCharacter() {
-  currentCharacter = createDemoCharacter();
-  renderCharacter(currentCharacter);
-  renderCards(currentCharacter.traits);
+    {
+      title: "自癒基因微粒",
+      type: "血脈 BLOODLINE",
+      category: "blood",
+      desc: "每場戰鬥結束後，恢復 2 點沖擊傷(B → 完好)。",
+      tags: ["冷卻: 1 場戰鬥", "等級 1"],
+    },
+  ];
 }
 
 // --- 角色面板渲染 ---
@@ -350,6 +307,31 @@ function appendWarningBlock(warnings) {
     </div>`);
 }
 
+/** 重新載入存檔時，把完整的判定紀錄摘要顯示出來 */
+function renderJournal(events) {
+  const checks = events.filter((e) => e.type === "check");
+  if (checks.length === 0) return;
+
+  const rows = checks
+    .map((e) => {
+      const p = e.payload ?? {};
+      const cls = p.success
+        ? "text-emerald-600 dark:text-emerald-500"
+        : "text-red-600 dark:text-red-500";
+      return `<div class="flex justify-between gap-3">
+        <span class="truncate">${escapeHtml(p.label ?? "")}</span>
+        <span class="${cls} shrink-0">${p.success ? "成功" : "失敗"} ${p.totalSuccesses}/${p.dc}</span>
+      </div>`;
+    })
+    .join("");
+
+  appendToFeed(`
+    <div class="border hairline-border bg-zinc-100/60 dark:bg-zinc-900/60 p-3 font-mono text-[10px] text-zinc-600 dark:text-zinc-400 rounded-sm">
+      <div class="font-bold mb-1.5 text-zinc-500">SAVE.JOURNAL　共 ${checks.length} 次判定</div>
+      <div class="space-y-0.5">${rows}</div>
+    </div>`);
+}
+
 function appendToFeed(html) {
   const feed = document.getElementById("story-feed");
   if (!feed) return;
@@ -466,11 +448,12 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        character: currentCharacter,
+        sessionId: currentSessionId,
+        // 沒有存檔時才會用到這個(相容模式)。有存檔的話後端一律以存檔裡的角色卡為準，
+        // 不吃前端送的——否則改一下 localStorage 就能把屬性改成99。
+        character: currentSessionId ? undefined : currentCharacter,
         chosenOption,
         playerAction,
-        sceneContext: `劇本 ${currentScenarioId}`,
-        recentEvents: [],
       }),
     });
   } catch (err) {
@@ -504,6 +487,10 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
       : `${(r.note ?? []).join(" + ")} → 成功數 ${r.totalSuccesses} vs 難度 ${r.dc}`;
     window.showDiceResult?.(r.autoFail ? "×" : String(r.totalSuccesses), formula);
     appendCheckResultBlock(r);
+  }
+
+  if (typeof data.persistent === "boolean") {
+    updateSaveBadge({ persistent: data.persistent, hasSession: Boolean(data.sessionId) });
   }
 
   if (data.ok) {
@@ -567,11 +554,395 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+// ===========================================================================
+// 建卡畫面
+// ===========================================================================
+//
+// 所有預算數字都來自 GET /api/character，前端**不寫死任何規則常數**。
+// 每次玩家調整加點就打一次 POST /api/character 拿即時的預算回饋與錯誤訊息——
+// 加點合不合法一律由引擎判斷，前端只負責畫出來。
+
+let chargenRules = null;
+const chargenDraft = {
+  concept: { name: "", gender: "", age: null, background: "" },
+  attributeCategoryAllocation: {},
+  attributes: {},
+  skillCategoryAllocation: {},
+  skills: {},
+  specializations: {},
+};
+
+async function initChargen() {
+  showScreen("chargen");
+
+  let res;
+  try {
+    res = await (await fetch("/api/character")).json();
+  } catch (err) {
+    document.getElementById("chargen-intro").textContent = `無法載入建卡規則：${err.message}`;
+    return;
+  }
+  chargenRules = res.rules;
+
+  const a = chargenRules.attributes;
+  const sk = chargenRules.skills;
+  document.getElementById("chargen-intro").textContent =
+    `屬性：分類預算 ${a.categoryBudgets.join("/")} + 自由 ${a.freePoints} 點，上限 ${a.cap}（4→5 那級要花 2 點）　|　` +
+    `技能：分類預算 ${sk.categoryBudgets.join("/")} + 自由 ${sk.freePoints} 點，上限 ${sk.cap}`;
+
+  // 屬性從1開始、技能從0開始（規則書的起始值，由後端提供）
+  for (const key of a.keys) chargenDraft.attributes[key] = a.startValue;
+  for (const list of Object.values(sk.byCategory)) {
+    for (const name of list) chargenDraft.skills[name] = sk.startValue;
+  }
+
+  renderAllocPickers();
+  renderChargenAttributes();
+  renderChargenSkills();
+  renderSpecInputs();
+  await validateChargen();
+}
+
+/** 分類預算分配：玩家決定哪個分類拿到哪個數字（例如生理3/心智2/互動1） */
+function renderAllocPickers() {
+  const build = (containerId, categories, budgets, target) => {
+    const el = document.getElementById(containerId);
+    el.innerHTML = categories
+      .map(
+        (cat) => `
+      <label class="flex items-center gap-1.5 bg-zinc-100 dark:bg-zinc-900 border hairline-border px-2 py-1 rounded-sm">
+        <span class="text-zinc-500">${cat}</span>
+        <select data-alloc="${target}" data-cat="${cat}" class="bg-transparent text-zinc-900 dark:text-zinc-100 focus:outline-none">
+          <option value="">—</option>
+          ${budgets.map((b) => `<option value="${b}">${b}</option>`).join("")}
+        </select>
+      </label>`
+      )
+      .join("");
+  };
+
+  const attrCats = Object.keys(chargenRules.attributes.byCategory);
+  const skillCats = Object.keys(chargenRules.skills.byCategory);
+  build("cg-attr-alloc", attrCats, chargenRules.attributes.categoryBudgets, "attributeCategoryAllocation");
+  build("cg-skill-alloc", skillCats, chargenRules.skills.categoryBudgets, "skillCategoryAllocation");
+
+  document.querySelectorAll("[data-alloc]").forEach((sel) => {
+    sel.addEventListener("change", () => {
+      const bucket = chargenDraft[sel.dataset.alloc];
+      if (sel.value === "") delete bucket[sel.dataset.cat];
+      else bucket[sel.dataset.cat] = Number(sel.value);
+      validateChargen();
+    });
+  });
+}
+
+function stepperHtml(kind, name, value, min, max) {
+  return `
+    <div class="flex items-center justify-between bg-zinc-100 dark:bg-zinc-900 border hairline-border px-2.5 py-1.5 rounded-sm text-xs font-mono">
+      <span class="text-zinc-600 dark:text-zinc-400">${escapeHtml(name)}</span>
+      <span class="flex items-center gap-2">
+        <button data-step="${kind}" data-name="${escapeHtml(name)}" data-delta="-1"
+          class="w-5 h-5 border hairline-border rounded-sm hover:bg-zinc-200 dark:hover:bg-zinc-800 leading-none disabled:opacity-30"
+          ${value <= min ? "disabled" : ""}>−</button>
+        <span class="w-4 text-center font-bold text-zinc-900 dark:text-zinc-100">${value}</span>
+        <button data-step="${kind}" data-name="${escapeHtml(name)}" data-delta="1"
+          class="w-5 h-5 border hairline-border rounded-sm hover:bg-zinc-200 dark:hover:bg-zinc-800 leading-none disabled:opacity-30"
+          ${value >= max ? "disabled" : ""}>+</button>
+      </span>
+    </div>`;
+}
+
+function renderChargenAttributes() {
+  const a = chargenRules.attributes;
+  document.getElementById("cg-attr-grid").innerHTML = Object.entries(a.byCategory)
+    .map(
+      ([cat, list]) => `
+      <div class="space-y-1.5">
+        <div class="text-[10px] font-mono text-zinc-500">${cat}</div>
+        ${list.map((x) => stepperHtml("attr", x.key, chargenDraft.attributes[x.key], a.startValue, a.cap)).join("")}
+      </div>`
+    )
+    .join("");
+}
+
+function renderChargenSkills() {
+  const sk = chargenRules.skills;
+  document.getElementById("cg-skill-grid").innerHTML = Object.entries(sk.byCategory)
+    .map(
+      ([cat, list]) => `
+      <div class="space-y-1.5">
+        <div class="text-[10px] font-mono text-zinc-500">${cat}</div>
+        ${list.map((n) => stepperHtml("skill", n, chargenDraft.skills[n], sk.startValue, sk.cap)).join("")}
+      </div>`
+    )
+    .join("");
+}
+
+/** 專業輸入欄：數量由後端給的免費配額決定 */
+function renderSpecInputs() {
+  const count = chargenRules.specializations.free;
+  document.getElementById("cg-spec-list").innerHTML = Array.from({ length: count })
+    .map(
+      (_, i) => `
+      <div class="flex gap-2">
+        <select data-spec-skill="${i}" class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border px-2 py-1.5 text-xs font-mono focus:outline-none rounded-sm">
+          <option value="">（不使用這個專業名額）</option>
+        </select>
+        <input data-spec-name="${i}" type="text" placeholder="專業名稱" class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border px-2 py-1.5 text-xs focus:outline-none rounded-sm">
+      </div>`
+    )
+    .join("");
+  refreshSpecSkillOptions();
+
+  document.getElementById("cg-spec-list").addEventListener("change", collectSpecializations);
+  document.getElementById("cg-spec-list").addEventListener("input", collectSpecializations);
+}
+
+/** 只讓玩家把專業掛在等級≥1的技能上（規則書：不能掛0級技能） */
+function refreshSpecSkillOptions() {
+  const trained = Object.entries(chargenDraft.skills)
+    .filter(([, lv]) => lv >= 1)
+    .map(([name]) => name);
+
+  document.querySelectorAll("[data-spec-skill]").forEach((sel) => {
+    const current = sel.value;
+    sel.innerHTML =
+      `<option value="">（不使用這個專業名額）</option>` +
+      trained.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join("");
+    if (trained.includes(current)) sel.value = current;
+  });
+}
+
+function collectSpecializations() {
+  const specs = {};
+  document.querySelectorAll("[data-spec-skill]").forEach((sel) => {
+    const i = sel.dataset.specSkill;
+    const nameInput = document.querySelector(`[data-spec-name="${i}"]`);
+    const skill = sel.value;
+    const specName = nameInput?.value.trim();
+    if (skill && specName) (specs[skill] ??= []).push(specName);
+  });
+  chargenDraft.specializations = specs;
+  validateChargen();
+}
+
+/** 送去後端驗證，把預算與錯誤畫出來。加點合不合法一律由引擎判斷。 */
+async function validateChargen() {
+  chargenDraft.concept.name = document.getElementById("cg-name").value;
+  chargenDraft.concept.gender = document.getElementById("cg-gender").value;
+  const ageRaw = document.getElementById("cg-age").value;
+  chargenDraft.concept.age = ageRaw ? Number(ageRaw) : null;
+  chargenDraft.concept.background = document.getElementById("cg-background").value;
+
+  let data;
+  try {
+    data = await (
+      await fetch("/api/character", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: chargenDraft }),
+      })
+    ).json();
+  } catch (err) {
+    document.getElementById("cg-errors").innerHTML =
+      `<div class="text-xs font-mono text-red-500">無法連線到 /api/character：${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  const budgetText = (b) =>
+    b ? `花費 ${b.totalCost} / ${b.totalBudget}　剩 ${b.remaining}` : "—";
+  const budgetClass = (b) =>
+    b && b.remaining < 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-500";
+
+  const ab = data.budgets?.attributes;
+  const sb = data.budgets?.skills;
+  const pb = data.budgets?.specializations;
+  const attrEl = document.getElementById("cg-attr-budget");
+  const skillEl = document.getElementById("cg-skill-budget");
+  const specEl = document.getElementById("cg-spec-budget");
+  attrEl.textContent = budgetText(ab);
+  attrEl.className = `text-xs font-mono ${budgetClass(ab)}`;
+  skillEl.textContent = budgetText(sb);
+  skillEl.className = `text-xs font-mono ${budgetClass(sb)}`;
+  specEl.textContent = pb ? `已用 ${pb.totalSpecs} / ${chargenRules.specializations.free}` : "—";
+  specEl.className = `text-xs font-mono ${pb && pb.remaining < 0 ? "text-red-500" : "text-zinc-500"}`;
+
+  document.getElementById("cg-errors").innerHTML = data.errors.length
+    ? `<div class="border-l-2 border-red-500/60 pl-3 py-1 space-y-0.5">${data.errors
+        .map((e) => `<div class="text-xs font-mono text-red-600 dark:text-red-400">${escapeHtml(e)}</div>`)
+        .join("")}</div>`
+    : "";
+
+  const submit = document.getElementById("cg-submit");
+  submit.disabled = !data.valid;
+
+  // 衍生屬性即時預覽，讓玩家看到加耐力真的會變HP
+  const d = data.character?.derived;
+  document.getElementById("cg-derived").textContent = d
+    ? `生命 ${d.hp.max}（耐力+體積）・意志 ${d.willpower.max}・先攻 ${d.initiative}・基礎防御 ${d.baseDefense}`
+    : "";
+}
+
+// ===========================================================================
+// 存檔生命週期
+// ===========================================================================
+
+const SESSION_KEY = "ai-trpg-session-id";
+
+function updateSaveBadge({ persistent, hasSession }) {
+  const el = document.getElementById("save-status");
+  if (!el) return;
+  if (!hasSession) {
+    el.textContent = "尚未建卡";
+    el.className = "px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono";
+  } else if (persistent) {
+    el.textContent = "已存檔";
+    el.className = "px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono";
+  } else {
+    // 記憶體模式：一定要讓玩家知道，否則他會以為有存檔然後某天發現全沒了
+    el.textContent = "未持久化";
+    el.className = "px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/40 text-amber-600 dark:text-amber-500 text-[10px] font-mono";
+  }
+}
+
+/**
+ * 切換建卡／遊戲畫面。
+ *
+ * 刻意直接操作 style.display，不用 Tailwind 的 .hidden class：
+ * 那個 class 需要 Tailwind CSS 載入才有作用，而這份 UI 的 CSS 是從外部 CDN 來的。
+ * CDN 慢或掛掉時，用 class 的話兩個畫面會同時顯示（玩家會看到建卡表單疊在遊戲畫面上）。
+ * 畫面切換是功能不是樣式，不應該依賴外部資源。
+ */
+function showScreen(which) {
+  const chargen = document.getElementById("chargen-screen");
+  const game = document.getElementById("app-viewport");
+  if (chargen) chargen.style.display = which === "chargen" ? "block" : "none";
+  if (game) game.style.display = which === "game" ? "flex" : "none";
+}
+
+function showGameScreen() {
+  showScreen("game");
+}
+
+/** 建卡完成 → 建立存檔 → 進遊戲 → 跑開場回合 */
+async function startNewGame() {
+  const submit = document.getElementById("cg-submit");
+  submit.disabled = true;
+  submit.textContent = "建立中…";
+
+  let data;
+  try {
+    data = await (
+      await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draft: chargenDraft, sceneContext: "" }),
+      })
+    ).json();
+  } catch (err) {
+    submit.disabled = false;
+    submit.textContent = "完成建卡並開始遊戲";
+    document.getElementById("cg-errors").innerHTML =
+      `<div class="text-xs font-mono text-red-500">建立存檔失敗：${escapeHtml(err.message)}</div>`;
+    return;
+  }
+
+  if (!data.ok) {
+    submit.disabled = false;
+    submit.textContent = "完成建卡並開始遊戲";
+    document.getElementById("cg-errors").innerHTML =
+      `<div class="text-xs font-mono text-red-500">${escapeHtml(data.error ?? "建立存檔失敗")}</div>`;
+    return;
+  }
+
+  currentSessionId = data.session.id;
+  localStorage.setItem(SESSION_KEY, currentSessionId);
+  adoptCharacter(data.session.character);
+  updateSaveBadge({ persistent: data.persistent, hasSession: true });
+  showGameScreen();
+  await runTurn({ opening: true });
+}
+
+/** 把角色卡套進側欄。存檔載入與建卡完成都走這裡，確保只有一個入口。 */
+function adoptCharacter(character) {
+  currentCharacter = character;
+  renderCharacter(character);
+  renderCards(character.traits ?? placeholderTraits());
+}
+
+/** 重整頁面後接續上次的存檔 */
+async function resumeSession(id) {
+  let data;
+  try {
+    data = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`)).json();
+  } catch {
+    return false;
+  }
+  if (!data.ok) return false;
+
+  currentSessionId = id;
+  adoptCharacter(data.session.character);
+  updateSaveBadge({ persistent: data.persistent, hasSession: true });
+  showGameScreen();
+
+  // 事件日誌是完整的判定紀錄（不像 history 只留最近幾輪），先摘要顯示在最前面。
+  // 這也是 core/eventLog.js 當初設計「角色日誌回顧」時要的東西。
+  renderJournal(data.session.log?.events ?? []);
+
+  // 把存檔裡的歷史畫回敘事區，讓玩家看得到之前發生過什麼
+  for (const turn of data.session.history ?? []) {
+    if (turn.action) appendPlayerActionBlock(turn.action);
+    if (turn.narration) appendDMNarrationBlock(turn.narration);
+  }
+  renderOptions(data.session.scene?.options ?? []);
+
+  // 沒有可用選項時（例如上次剛好AI回傳壞掉）跑一次接續回合把選項要回來
+  if (!(data.session.scene?.options ?? []).length) await runTurn({ opening: true });
+  return true;
+}
+
+async function newGame() {
+  localStorage.removeItem(SESSION_KEY);
+  currentSessionId = null;
+  currentOptions = [];
+  const feed = document.getElementById("story-feed");
+  if (feed) feed.innerHTML = "";
+  updateSaveBadge({ persistent: false, hasSession: false });
+  await initChargen();
+}
+
 // --- 綁定 ---
 
-document.addEventListener("DOMContentLoaded", () => {
-  initCharacter();
+
+document.addEventListener("DOMContentLoaded", async () => {
   updateBackendBadge();
+
+  document.getElementById("btn-new-game")?.addEventListener("click", newGame);
+  document.getElementById("cg-submit")?.addEventListener("click", startNewGame);
+  ["cg-name", "cg-gender", "cg-age", "cg-background"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", validateChargen);
+  });
+
+  // 加減點按鈕用事件委派，因為 stepper 是動態產生的
+  for (const gridId of ["cg-attr-grid", "cg-skill-grid"]) {
+    document.getElementById(gridId)?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-step]");
+      if (!btn) return;
+      const { step, name, delta } = btn.dataset;
+      const bucket = step === "attr" ? chargenDraft.attributes : chargenDraft.skills;
+      const rules = step === "attr" ? chargenRules.attributes : chargenRules.skills;
+      const next = bucket[name] + Number(delta);
+      if (next < rules.startValue || next > rules.cap) return;
+      bucket[name] = next;
+      if (step === "attr") renderChargenAttributes();
+      else {
+        renderChargenSkills();
+        refreshSpecSkillOptions();
+        collectSpecializations();
+      }
+      validateChargen();
+    });
+  }
 
   document.querySelectorAll("[data-action-input]").forEach((input) => {
     input.addEventListener("keydown", (e) => {
@@ -604,8 +975,12 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // 開場：不擲骰，只跟AI要場景描述與第一批選項
-  runTurn({ opening: true });
+  // 有存檔就接續，沒有就進建卡畫面
+  const savedId = localStorage.getItem(SESSION_KEY);
+  if (!savedId || !(await resumeSession(savedId))) {
+    localStorage.removeItem(SESSION_KEY);
+    await initChargen();
+  }
 });
 
 window.sendPlayerAction = sendPlayerAction;

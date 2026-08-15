@@ -262,9 +262,73 @@
         <div class="hidden md:flex items-center gap-4 text-xs font-mono text-zinc-500 dark:text-zinc-400">
             <!-- 規則引擎(/api/*)的連線狀態，由 app.js 依實際API回應更新 -->
             <span id="backend-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">ENGINE ?</span>
-            <span>劇本: <strong class="text-zinc-800 dark:text-zinc-200">JUDGE-01</strong></span>
+            <!-- 存檔狀態：顯示是否真的有持久化（記憶體模式會變成警告色） -->
+            <span id="save-status" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-500 text-[10px] font-mono">尚未建卡</span>
+            <button id="btn-new-game" class="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border hairline-border text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-[10px] font-mono transition">新遊戲</button>
         </div>
     </header>
+
+    <!-- 建卡畫面 —— 沒有存檔時顯示這個，建完卡才進入遊戲。
+         所有預算數字都由 GET /api/character 提供，這裡不寫死任何規則常數，
+         避免規則改了但前端沒跟著改，玩家看到的預算跟後端驗的不一樣。 -->
+    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-5xl mx-auto p-4 md:p-8">
+        <div class="space-y-6">
+            <div class="border-b hairline-border pb-3">
+                <h2 class="text-lg font-bold tracking-tight">建立輪迴者</h2>
+                <p id="chargen-intro" class="text-xs font-mono text-zinc-500 mt-1">載入建卡規則中…</p>
+            </div>
+
+            <!-- 概念 -->
+            <section class="space-y-2">
+                <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">概念</h3>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-2">
+                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-gender" type="text" placeholder="性別" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-age" type="number" placeholder="年齡" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                    <input id="cg-background" type="text" placeholder="背景" class="bg-zinc-100 dark:bg-zinc-900 border hairline-border px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 rounded-sm">
+                </div>
+            </section>
+
+            <!-- 屬性 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">屬性</h3>
+                    <span id="cg-attr-budget" class="text-xs font-mono"></span>
+                </div>
+                <div id="cg-attr-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-attr-grid" class="grid grid-cols-1 md:grid-cols-3 gap-2"></div>
+            </section>
+
+            <!-- 技能 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">技能</h3>
+                    <span id="cg-skill-budget" class="text-xs font-mono"></span>
+                </div>
+                <div id="cg-skill-alloc" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                <div id="cg-skill-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </section>
+
+            <!-- 專業 -->
+            <section class="space-y-2">
+                <div class="flex items-baseline justify-between">
+                    <h3 class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest font-semibold">專業</h3>
+                    <span id="cg-spec-budget" class="text-xs font-mono"></span>
+                </div>
+                <p class="text-[10px] font-mono text-zinc-500">只能掛在等級≥1的技能上。專業名稱自己填，例如「步槍」「痕跡辨識」。</p>
+                <div id="cg-spec-list" class="space-y-1.5"></div>
+            </section>
+
+            <!-- 錯誤與送出 -->
+            <div id="cg-errors" class="space-y-1"></div>
+            <div class="flex items-center gap-3 pt-2 border-t hairline-border">
+                <button id="cg-submit" class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-5 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box disabled:opacity-40 disabled:pointer-events-none">
+                    完成建卡並開始遊戲
+                </button>
+                <span id="cg-derived" class="text-xs font-mono text-zinc-500"></span>
+            </div>
+        </div>
+    </div>
 
     <!-- Main Application Viewport -->
     <div id="app-viewport" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto transition-all duration-300 relative">
