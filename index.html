@@ -280,8 +280,8 @@
                             <span>•</span>
                             <span class="text-emerald-500 font-bold">ONLINE</span>
                         </div>
-                        <h2 class="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5"><span id="char-name">亞倫 · 懷特 (Aaron)</span></h2>
-                        <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400"><span id="char-class">級別 2 / 戰術專員</span></p>
+                        <h2 class="text-base font-bold text-zinc-900 dark:text-zinc-100 tracking-tight mt-0.5">亞倫 · 懷特 (Aaron)</h2>
+                        <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400">級別 2 / 戰術專員</p>
                     </div>
                     <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-zinc-200 dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border hairline-border hud-corner-box transition-colors">D-TIER</span>
                 </div>
@@ -292,10 +292,10 @@
                         <span class="text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
                             <i class="fas fa-heartbeat text-emerald-500 text-[11px]"></i> 生命值 (HP)
                         </span>
-                        <span class="text-zinc-800 dark:text-zinc-200 font-medium font-mono"><span id="hp-text">18 <span class="text-zinc-500">/</span> 24</span></span>
+                        <span class="text-zinc-800 dark:text-zinc-200 font-medium font-mono">18 <span class="text-zinc-500">/</span> 24</span>
                     </div>
                     <!-- Segmented Visual Bar -->
-                    <div id="hp-bar-container" class="grid grid-cols-12 gap-1 h-1.5 p-0.5 bg-zinc-200 dark:bg-zinc-900 rounded border hairline-border transition-colors">
+                    <div class="grid grid-cols-12 gap-1 h-1.5 p-0.5 bg-zinc-200 dark:bg-zinc-900 rounded border hairline-border transition-colors">
                         <div class="bg-emerald-500 rounded-sm"></div>
                         <div class="bg-emerald-500 rounded-sm"></div>
                         <div class="bg-emerald-500 rounded-sm"></div>
@@ -322,19 +322,19 @@
                 <div class="grid grid-cols-2 gap-1.5 text-xs font-mono">
                     <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
                         <span class="text-zinc-500 dark:text-zinc-400">STR 力量</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100"><span id="attr-str">14</span> <span class="text-emerald-500 text-[10px]" id="mod-str">+2</span></span>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-100">14 <span class="text-emerald-500 text-[10px]">+2</span></span>
                     </div>
                     <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
                         <span class="text-zinc-500 dark:text-zinc-400">DEX 敏捷</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100"><span id="attr-dex">16</span> <span class="text-emerald-500 text-[10px]" id="mod-dex">+3</span></span>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-100">16 <span class="text-emerald-500 text-[10px]">+3</span></span>
                     </div>
                     <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
                         <span class="text-zinc-500 dark:text-zinc-400">INT 智力</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100"><span id="attr-int">11</span> <span class="text-zinc-500 text-[10px]" id="mod-int">+0</span></span>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-100">11 <span class="text-zinc-500 text-[10px]">+0</span></span>
                     </div>
                     <div class="px-2.5 py-1.5 rounded bg-zinc-100 dark:bg-zinc-900/90 border hairline-border flex justify-between items-center hud-corner-box transition-colors">
                         <span class="text-zinc-500 dark:text-zinc-400">WIL 意志</span>
-                        <span class="font-bold text-zinc-800 dark:text-zinc-100"><span id="attr-wil">13</span> <span class="text-emerald-500 text-[10px]" id="mod-wil">+1</span></span>
+                        <span class="font-bold text-zinc-800 dark:text-zinc-100">13 <span class="text-emerald-500 text-[10px]">+1</span></span>
                     </div>
                 </div>
             </div>
@@ -407,7 +407,7 @@
         <main class="flex-1 flex flex-col h-full overflow-hidden bg-transparent z-0 relative">
 
             <!-- Narration Feed -->
-            <div id="story-feed" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
 
                 <!-- DM Text (Flows naturally with hairline indicator) -->
                 <div class="border-l hairline-border pl-4">
@@ -483,8 +483,8 @@
         <!-- Drawer Content -->
         <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
             <div class="flex justify-between items-center font-mono text-sm border-b hairline-border pb-2">
-                <span class="text-emerald-600 dark:text-emerald-500 transition-colors">HP <span id="mobile-hp-text">18/24</span></span>
-                <span class="text-zinc-600 dark:text-zinc-400 transition-colors">STR <span id="mobile-str">14</span> | DEX <span id="mobile-dex">16</span> | INT <span id="mobile-int">11</span></span>
+                <span class="text-emerald-600 dark:text-emerald-500 transition-colors">HP 18/24</span>
+                <span class="text-zinc-600 dark:text-zinc-400 transition-colors">STR 14 | DEX 16 | INT 11</span>
             </div>
             <div class="flex flex-col gap-2">
                 <button class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border p-3 text-sm text-left text-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition asymmetric-card">
@@ -730,6 +730,5 @@
         window.setDeviceView = setDeviceView;
 
     </script>
-    <script src="append.js"></script>
 </body>
 </html>
