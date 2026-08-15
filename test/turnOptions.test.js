@@ -212,7 +212,7 @@ test("角色卡上沒有該技能欄位時降級成純屬性檢定(否則perform
 
 // --- 整批查驗 ---
 
-test("validateOptions：壞的被剔除、好的保留，並回報數量不符", () => {
+test("validateOptions：壞的被剔除、好的保留，數量不符時回報警告並用通用選項墊滿", () => {
   const character = demoCharacter();
   const { options, warnings } = validateOptions(
     [
@@ -223,23 +223,34 @@ test("validateOptions：壞的被剔除、好的保留，並回報數量不符",
     character
   );
 
-  assert.equal(options.length, 2);
+  assert.equal(options.length, OPTION_COUNT, "數量不足要被墊滿到OPTION_COUNT個，玩家畫面不能時多時少");
+  assert.ok(options.some((o) => o.label === "搜查"), "AI真正給的合法選項要保留");
+  assert.ok(options.some((o) => o.label === "衝刺"), "AI真正給的合法選項要保留");
   assert.match(warnings.join(), /被捨棄/);
   assert.match(warnings.join(), new RegExp(`預期${OPTION_COUNT}個`));
 });
 
-test("validateOptions：options不是陣列時不丟錯，回報警告並回傳空陣列", () => {
+test("validateOptions：options不是陣列時不丟錯，回報警告並用通用選項墊滿四個", () => {
   const { options, warnings } = validateOptions("不是陣列", demoCharacter());
-  assert.deepEqual(options, []);
+  assert.equal(options.length, OPTION_COUNT);
   assert.match(warnings.join(), /options陣列/);
 });
 
-test("validateOptions：不會自己補足數量(補選項等於程式碼在編劇情)", () => {
+test("validateOptions：AI給的數量不足時，用FALLBACK_OPTIONS墊到OPTION_COUNT個(2026-08-15決策變更，見函式註解)", () => {
   const { options } = validateOptions(
     [{ label: "只有一個", attribute: "感知", skill: "偵察", difficulty: "普通" }],
     demoCharacter()
   );
-  assert.equal(options.length, 1, "數量不足時不可以自己生選項出來");
+  assert.equal(options.length, OPTION_COUNT, "版面必須永遠有OPTION_COUNT個選項，不管AI給了幾個");
+  assert.equal(options[0].label, "只有一個", "AI真正給的選項優先，墊底選項只補在後面");
+});
+
+test("validateOptions：AI完全沒給任何合法選項時，也要墊滿四個通用選項(不能讓玩家看到空版面)", () => {
+  const { options } = validateOptions([], demoCharacter());
+  assert.equal(options.length, OPTION_COUNT);
+  for (const opt of options) {
+    assert.ok(opt.label && opt.attribute && opt.dc, "墊底選項也必須是查驗過的合法選項");
+  }
 });
 
 // --- 接回引擎 ---

@@ -338,6 +338,11 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
   if (playerAction) appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(playerAction), "font-mono italic text-emerald-400/80");
 
   try {
+    // 供應商/金鑰覆寫：只有玩家在設定裡明確選了供應商才帶上，留空就讓伺服器用自己的預設，
+    // 不會因為localStorage殘留一把空字串金鑰就意外蓋掉伺服器設定。
+    const provider = localStorage.getItem("user_llm_provider") || undefined;
+    const apiKey = provider ? (localStorage.getItem("user_api_key") || undefined) : undefined;
+
     const res = await (await fetch("/api/turn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -345,7 +350,9 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
         sessionId: currentSessionId,
         chosenOption,
         playerAction,
-        style: localStorage.getItem("user_narrative_style") || "白描"
+        style: localStorage.getItem("user_narrative_style") || "白描",
+        provider,
+        apiKey,
       })
     })).json();
 

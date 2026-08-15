@@ -266,34 +266,59 @@ export function validateOption(raw, character) {
 }
 
 /**
- * 查驗整批選項。
+ * 系統預設的通用行動選項，只在 validateOptions() 判定數量不足時用來墊底(見該函式的說明)。
  *
- * 刻意**不**在數量不足時自己補選項——補出來的選項文字等於是程式碼在編劇情，
- * 那違反「敘事只能來自 AI、數值只能來自引擎」的分工。數量不足就如實回報，
- * 前端照樣會提供第五個「自訂行動」輸入框，玩家不會卡住。
+ * 這些選項刻意寫得跟場景/劇情完全無關——不描寫任何NPC、地點或情境細節，純粹是
+ * 「觀察／突破／交涉／潛行」四種通用行為傾向，放進任何場景都說得通。這樣拿它們墊底
+ * 不算是程式碼在替AI編故事，只是保證版面一定有得選，跟AI實際寫了什麼敘事內容完全脫鉤。
+ */
+export const FALLBACK_OPTIONS = [
+  { label: "謹慎觀察四周，尋找線索", attribute: "感知", skill: "偵察", difficulty: "容易" },
+  { label: "強行突破當前的阻礙", attribute: "力量", skill: "格鬥", difficulty: "普通" },
+  { label: "試著開口溝通或喊話", attribute: "意志", skill: "交涉", difficulty: "普通" },
+  { label: "悄悄行動，伺機而動", attribute: "敏捷", skill: "潛行", difficulty: "普通" },
+];
+
+/**
+ * 查驗整批選項，數量不足時用 FALLBACK_OPTIONS 墊到 OPTION_COUNT 個。
+ *
+ * [2026-08-15 決策變更] 這裡原本刻意不補選項，理由是「補出來的選項文字等於是程式碼在編
+ * 劇情」，違反「敘事只能來自 AI、數值只能來自引擎」的分工。但使用者明確要求「不管AI輸出
+ * 什麼，每個回覆底下都要有四個選項」——版面時而2顆時而4顆按鈕的不一致，體驗上比「絕對
+ * 不讓引擎生一個字的選項文字」更糟。折衷做法：墊底只用完全通用、不涉及任何場景細節的
+ * FALLBACK_OPTIONS，跟這回合AI寫了什麼敘事完全無關，所以嚴格來說引擎沒有在「編故事」，
+ * 只是保底版面；AI真正給的合法選項一律優先，只有數量不足額才補墊底選項。
+ * 「自訂行動」輸入框本來就是前端固定提供、不受這裡影響，雙重保底玩家不會卡住。
  *
  * @returns {{options: object[], warnings: string[]}}
  */
 export function validateOptions(rawOptions, character) {
   const warnings = [];
+  const options = [];
 
   if (!Array.isArray(rawOptions)) {
-    return { options: [], warnings: ["AI沒有回傳options陣列"] };
+    warnings.push("AI沒有回傳options陣列");
+  } else {
+    rawOptions.forEach((raw, index) => {
+      const result = validateOption(raw, character);
+      result.warnings.forEach((w) => warnings.push(`選項${index + 1}：${w}`));
+      if (result.ok) {
+        options.push(result.option);
+      } else {
+        warnings.push(`選項${index + 1}被捨棄：${result.error}`);
+      }
+    });
   }
 
-  const options = [];
-  rawOptions.forEach((raw, index) => {
-    const result = validateOption(raw, character);
-    result.warnings.forEach((w) => warnings.push(`選項${index + 1}：${w}`));
-    if (result.ok) {
-      options.push(result.option);
-    } else {
-      warnings.push(`選項${index + 1}被捨棄：${result.error}`);
-    }
-  });
-
   if (options.length !== OPTION_COUNT) {
-    warnings.push(`AI給了${options.length}個可用選項，預期${OPTION_COUNT}個`);
+    warnings.push(`AI給了${options.length}個可用選項，預期${OPTION_COUNT}個，已用通用選項墊滿`);
+  }
+
+  for (const fallback of FALLBACK_OPTIONS) {
+    if (options.length >= OPTION_COUNT) break;
+    if (options.some((o) => o.label === fallback.label)) continue;
+    const result = validateOption(fallback, character);
+    if (result.ok) options.push(result.option);
   }
 
   return { options, warnings };

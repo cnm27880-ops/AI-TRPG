@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ECHOES // 無限恐怖 TRPG 終端</title>
+    <script>
+        // 在任何畫面繪製前就決定明暗主題，避免先閃一下錯的主題再跳回正確的(FOUC)。
+        (function () {
+            var saved = localStorage.getItem('user_theme');
+            document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
@@ -105,7 +112,7 @@
 
         /* 故事流：段落引導線與最終提問 */
         #story-feed { border-left: 1px solid rgba(255,255,255,0.06); margin-left: 4px; padding-left: 1.25rem !important; }
-        .feed-block-dm { line-height: 1.75; }
+        .feed-block-dm { line-height: 1.75; font-weight: 600; }
         .feed-final-question {
             border-left: 2px solid var(--accent);
             padding: 0.15rem 0 0.15rem 0.75rem;
@@ -238,9 +245,10 @@
             font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: #6ee7b7;
         }
 
-        /* 互動元件通用：按下回饋 */
+        /* 互動元件通用：按下回饋，並移除瀏覽器預設的偏移對焦框(改用hover/active的視覺回饋取代) */
         button { -webkit-tap-highlight-color: transparent; }
         button:active { transform: translateY(0.5px); }
+        button, input, select, textarea, a { outline: none; }
 
         /* 可讀性強化：正文提高對比與行距 */
         .text-legible { color: #d4d4d8; line-height: 1.65; }
@@ -261,11 +269,17 @@
             content: ''; position: absolute; inset: 6px 6px 20px 6px;
             border: 1px solid rgba(255,255,255,.16); pointer-events: none;
         }
+        /* 旗幟橫幅永遠是深綠底，這行標語文字固定用淺綠，不隨明暗主題切換(切換會讓對比度反過來)。 */
+        .menu-banner-tagline { color: rgba(167,243,208,.85); }
 
         /* 戰術斜切頂欄 / 場景資訊條 */
         .chevron-bar {
             clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 100%, 18px 100%);
         }
+        /* 場景資訊條背景：原本用Tailwind的from/via/to漸層工具類別，但那些類別的顏色是靠
+           Tailwind內部的CSS變數組成，明暗主題切換時很難可靠覆寫，改用固定的自訂類別。 */
+        .scene-bar-tint { background: linear-gradient(90deg, #18181b 0%, rgba(9,9,11,.95) 55%, rgba(9,9,11,.8) 100%); }
+        .scenario-hud-tint { background: linear-gradient(90deg, rgba(16,185,129,.1), rgba(9,9,11,.6), transparent); }
         .chevron-bar-r {
             clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
         }
@@ -307,28 +321,106 @@
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
             background: linear-gradient(90deg, transparent, rgba(16,185,129,.5), transparent);
         }
+
+        /* ============================================================
+           明暗主題切換 —— 預設(無 data-theme 或 data-theme="dark")維持既有深色美術風格。
+           做法：不幫每個元素加 dark:/light: 前綴類別(現有HTML完全沒有用過這種寫法，
+           要全部重寫風險太高)，改用「更高特異度覆寫既有Tailwind工具類別」——
+           html[data-theme="light"] .bg-zinc-900 這種選擇器的特異度天生就比 Tailwind
+           產生的單一類別選擇器高，可以在完全不動任何現有HTML class list的前提下
+           切換色彩，不影響深色版本原本的任何一條規則。
+           ============================================================ */
+        html[data-theme="light"] {
+            --bg-void: #f4f4f5;
+            --bg-panel: #ffffff;
+            --bg-card: #ffffff;
+            --ink-100: #18181b;
+            --ink-400: #52525b;
+            --ink-500: #71717a;
+            --accent: #059669;
+            --accent-alt: #16a34a;
+            --danger: #dc2626;
+        }
+        html[data-theme="light"] body { background-color: var(--bg-void); color: var(--ink-100); }
+        html[data-theme="light"] body::before {
+            background:
+                radial-gradient(ellipse 60% 40% at 12% -5%, rgba(5,150,105,0.07), transparent 60%),
+                radial-gradient(ellipse 50% 35% at 105% 105%, rgba(220,38,38,0.045), transparent 60%);
+        }
+        html[data-theme="light"] .bg-tech-grid { background-image: radial-gradient(rgba(0,0,0,0.055) 1px, transparent 1px); }
+        html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #d4d4d8; }
+
+        /* 邊框 */
+        html[data-theme="light"] .hairline-border { border-color: rgba(0,0,0,0.12); }
+        html[data-theme="light"] .hairline-b { border-bottom-color: rgba(0,0,0,0.12); }
+        html[data-theme="light"] .hairline-t { border-top-color: rgba(0,0,0,0.12); }
+        html[data-theme="light"] .hairline-r { border-right-color: rgba(0,0,0,0.12); }
+
+        /* 中性表面色：背景(zinc灰階全部改為白/極淺灰) */
+        html[data-theme="light"] .bg-zinc-950,
+        html[data-theme="light"] .bg-zinc-900,
+        html[data-theme="light"] .bg-zinc-800,
+        html[data-theme="light"] .bg-zinc-700,
+        html[data-theme="light"] .bg-panel { background-color: #ffffff; }
+        html[data-theme="light"] .hover\:bg-zinc-800:hover { background-color: #f4f4f5; }
+        html[data-theme="light"] .bg-zinc-950\/60,
+        html[data-theme="light"] .bg-zinc-900\/50,
+        html[data-theme="light"] .bg-zinc-900\/30 { background-color: rgba(0,0,0,0.035); }
+        html[data-theme="light"] .bg-zinc-950\/90,
+        html[data-theme="light"] .bg-zinc-950\/95 { background-color: rgba(255,255,255,0.92); }
+
+        /* 中性表面色：文字 */
+        html[data-theme="light"] .text-zinc-100 { color: #18181b; }
+        html[data-theme="light"] .text-zinc-200 { color: #27272a; }
+        html[data-theme="light"] .text-zinc-300 { color: #3f3f46; }
+        html[data-theme="light"] .text-zinc-400 { color: #52525b; }
+        html[data-theme="light"] .text-zinc-500 { color: #71717a; }
+        html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #a1a1aa; }
+
+        /* 強調色文字：原本是給深色底配的淺色調，白底上要改深一點才夠對比 */
+        html[data-theme="light"] .text-emerald-200,
+        html[data-theme="light"] .text-emerald-200\/85,
+        html[data-theme="light"] .text-emerald-300,
+        html[data-theme="light"] .text-emerald-300\/90 { color: #047857; }
+        html[data-theme="light"] .text-emerald-400 { color: #059669; }
+        html[data-theme="light"] .text-red-300 { color: #b91c1c; }
+        html[data-theme="light"] .text-red-400 { color: #dc2626; }
+        html[data-theme="light"] .text-yellow-300 { color: #a16207; }
+        html[data-theme="light"] .text-yellow-400 { color: #ca8a04; }
+        html[data-theme="light"] .text-orange-300 { color: #c2410c; }
+
+        /* 自訂元件：戰術面板/浮層/磚塊，深色漸層換成淺色漸層 */
+        html[data-theme="light"] .hud-box { background: rgba(255,255,255,.78); border-color: rgba(0,0,0,.1); }
+        html[data-theme="light"] .hud-float {
+            background: linear-gradient(165deg, rgba(255,255,255,.85), rgba(244,244,245,.92));
+            box-shadow: -1px 0 0 rgba(5,150,105,.18), 0 0 40px -20px rgba(0,0,0,.15);
+        }
+        html[data-theme="light"] .stat-tile { background: linear-gradient(155deg, #ffffff, #f4f4f5); border-color: rgba(0,0,0,.1); }
+        html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(5,150,105,.12), rgba(255,255,255,.7) 60%); }
+        html[data-theme="light"] .scene-bar-tint { background: linear-gradient(90deg, #ffffff 0%, rgba(244,244,245,.95) 55%, rgba(244,244,245,.85) 100%); }
+        html[data-theme="light"] .scenario-hud-tint { background: linear-gradient(90deg, rgba(5,150,105,.1), rgba(244,244,245,.75), transparent); }
+        html[data-theme="light"] .folder-tab { background: rgba(0,0,0,.035); color: #52525b; }
+        html[data-theme="light"] .folder-tab:hover { color: #18181b; }
+        html[data-theme="light"] .action-tile {
+            background: linear-gradient(160deg, #ffffff, #f4f4f5);
+            border-color: rgba(0,0,0,.1);
+        }
+        html[data-theme="light"] .action-tile:hover { background: linear-gradient(160deg, #ffffff, #ecfdf5); border-color: rgba(5,150,105,.5); }
+        html[data-theme="light"] .action-tile-icon { color: #059669; }
+        html[data-theme="light"] .action-tile-label { color: #18181b; }
+        html[data-theme="light"] .action-tile-sub { color: #52525b; }
+        html[data-theme="light"] .action-tile.primary { background: linear-gradient(160deg, rgba(5,150,105,.14), #ffffff); border-color: rgba(5,150,105,.5); }
+        html[data-theme="light"] .action-tile.primary .action-tile-icon { color: #047857; }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
-    <!-- 頂部導航列 -->
-    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
-        <div class="flex items-center gap-3">
-            <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer group" onclick="showScreen('portal')">
-                <span class="relative flex w-2 h-2">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
-                </span>
-                <span class="font-bold text-zinc-100 tracking-widest group-hover:text-emerald-300 transition-colors">LORD TERMINAL</span>
-                <span class="text-zinc-700">/</span>
-                <span class="text-zinc-400 text-[11px]">v2.35 Lite</span>
-            </div>
-            <div id="backend-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-[11px] font-mono text-zinc-300 hidden sm:block">
-                SYSTEM READY
-            </div>
-        </div>
-
+    <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
+    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
         <div class="flex items-center gap-2">
+            <button onclick="toggleTheme()" title="切換明暗主題" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+                <i id="theme-toggle-icon" class="fas fa-moon text-emerald-300 text-[11px]"></i>
+            </button>
             <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
                 <span>存檔管理</span>
@@ -345,11 +437,11 @@
 
         <!-- 主選單旗幟橫幅 -->
         <div class="menu-banner anim-fade-up">
-            <div class="text-[11px] font-mono text-emerald-200/85 tracking-[0.35em] mb-1.5">主神空間 · INFINITE TERROR</div>
+            <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">主神空間 · INFINITE TERROR</div>
             <h1 class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
         </div>
 
-        <p class="text-[13px] text-zinc-300 font-serif leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
+        <p class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
             進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
         </p>
 
@@ -511,7 +603,7 @@
 
         <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-            <div class="chevron-bar bg-gradient-to-r from-zinc-900 via-zinc-950/95 to-zinc-950/80 pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
+            <div class="chevron-bar scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
                 <div class="flex items-center gap-2 text-zinc-300">
                     <i class="fas fa-map-marker-alt text-emerald-400"></i>
                     <span id="current-scene-text" class="text-zinc-100 font-semibold">主神空間 · 任務進行中</span>
@@ -526,7 +618,7 @@
             </div>
 
             <!-- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 -->
-            <div id="scenario-hud" style="display:none" class="bg-gradient-to-r from-emerald-500/10 via-zinc-950/60 to-transparent border-b border-emerald-500/20 px-4 py-1.5 text-[11px] font-mono flex items-center gap-3 shrink-0">
+            <div id="scenario-hud" style="display:none" class="scenario-hud-tint border-b border-emerald-500/20 px-4 py-1.5 text-[11px] font-mono flex items-center gap-3 shrink-0">
                 <i class="fas fa-bookmark text-emerald-400 shrink-0"></i>
                 <span id="scenario-node-title" class="text-emerald-200 font-semibold whitespace-nowrap">—</span>
                 <div class="flex-1 h-1.5 bg-zinc-900 rounded overflow-hidden border hairline-border max-w-[180px]">
@@ -670,9 +762,22 @@
                         <option value="賽博朋克">賽博朋克（高科技、低生活）</option>
                     </select>
                 </div>
-                <div>
-                    <label class="text-zinc-300 block mb-1">自訂 API Key 覆寫 (選填)</label>
-                    <input id="setting-api-key" type="password" placeholder="留空使用 Cloudflare 預設..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                <div class="pt-2 border-t hairline-border space-y-3">
+                    <div>
+                        <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
+                        <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                            <option value="">（使用伺服器預設）</option>
+                            <option value="gemini">Google Gemini（官方）</option>
+                            <option value="deepseek">DeepSeek（官方）</option>
+                            <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
+                            <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
+                        </select>
+                    </div>
+                    <div id="setting-api-key-row">
+                        <label class="text-zinc-300 block mb-1">此供應商的 API Key</label>
+                        <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <p class="text-[10px] text-zinc-500 mt-1">選了供應商才需要填，Cloudflare Workers AI 不需要金鑰。金鑰只存在你瀏覽器的localStorage，只在你送出這把金鑰時才會經由本次請求送到伺服器。</p>
+                    </div>
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
@@ -684,6 +789,21 @@
     </div>
 
     <script>
+        /** 切換明暗主題並記住玩家的選擇；圖示顯示的是「目前」的主題(月亮=深色中、太陽=淺色中)。 */
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+            const next = current === 'light' ? 'dark' : 'light';
+            document.documentElement.setAttribute('data-theme', next);
+            localStorage.setItem('user_theme', next);
+            updateThemeToggleIcon(next);
+        }
+        function updateThemeToggleIcon(theme) {
+            const icon = document.getElementById('theme-toggle-icon');
+            if (!icon) return;
+            icon.className = theme === 'light'
+                ? 'fas fa-sun text-yellow-500 text-[11px]'
+                : 'fas fa-moon text-emerald-300 text-[11px]';
+        }
         function replayEnterAnim(el) {
             if (!el) return;
             el.classList.remove('screen-enter');
@@ -706,6 +826,18 @@
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
+            if (id === 'settingsModal') {
+                document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
+                document.getElementById('setting-provider').value = localStorage.getItem('user_llm_provider') || '';
+                document.getElementById('setting-api-key').value = localStorage.getItem('user_api_key') || '';
+                onSettingProviderChange();
+            }
+        }
+        /** 沒選供應商(用伺服器預設)或選了不需要金鑰的Workers AI時，隱藏金鑰欄位，避免玩家以為填了才算數。 */
+        function onSettingProviderChange() {
+            const provider = document.getElementById('setting-provider').value;
+            const row = document.getElementById('setting-api-key-row');
+            if (row) row.style.display = (provider && provider !== 'workers-ai') ? 'block' : 'none';
         }
         function closeModal(id) {
             const el = document.getElementById(id);
@@ -732,11 +864,24 @@
         }
         function saveSettings() {
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
-            const key = document.getElementById('setting-api-key').value;
-            if (key) localStorage.setItem('user_api_key', key);
+
+            const provider = document.getElementById('setting-provider').value;
+            localStorage.setItem('user_llm_provider', provider);
+
+            // provider留空或選了不用金鑰的Workers AI時，金鑰欄位不算數，清掉避免殘留舊值誤送出。
+            const key = document.getElementById('setting-api-key').value.trim();
+            if (provider && provider !== 'workers-ai' && key) {
+                localStorage.setItem('user_api_key', key);
+            } else {
+                localStorage.removeItem('user_api_key');
+            }
+
             closeModal('settingsModal');
             alert('設定已儲存！');
         }
+
+        // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，這裡只需要同步圖示。
+        updateThemeToggleIcon(document.documentElement.getAttribute('data-theme'));
     </script>
     <script src="./app.js"></script>
 </body>
