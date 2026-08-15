@@ -22,6 +22,10 @@ let backendOnline = null; // null=尚未測試, true/false=最近一次API呼叫
 // 最近一次敘事實際由哪一家AI產生。刻意顯示出來：自動偵測會在沒設金鑰時退到Workers AI，
 // 沒有這個顯示的話，你會以為自己在用Gemini、其實一直在用退路供應商而不自知。
 let lastProvider = null;
+// 這一回合 AI 提出、且已通過後端規則查驗的選項
+let currentOptions = [];
+// 防連點：一個回合送出後到收到回應之前，不接受第二次送出（否則會擲兩次骰）
+let turnInFlight = false;
 
 // 屬性顯示順序與英文縮寫，順序沿用 core/schema.js 的 ATTRIBUTES
 const ATTRIBUTE_DISPLAY = [
@@ -332,6 +336,20 @@ function appendSystemErrorBlock(message) {
     </div>`);
 }
 
+/**
+ * 顯示規則查驗過程中的修正。
+ * 例如 AI 挑了一個不存在的技能而被降級成純屬性檢定——這種事必須讓玩家/開發者看得到，
+ * 靜靜修掉的話，你永遠不會知道你的 AI 供應商其實常常在亂挑技能。
+ */
+function appendWarningBlock(warnings) {
+  const items = warnings.map((w) => `<li>${escapeHtml(w)}</li>`).join("");
+  appendToFeed(`
+    <div class="border-l-2 border-amber-500/60 pl-3 py-1 font-mono text-[10px] text-amber-700 dark:text-amber-500/80 animate-fade-in">
+      <div class="font-bold mb-0.5">SYSTEM.RULE_CHECK</div>
+      <ul class="list-disc list-inside space-y-0.5">${items}</ul>
+    </div>`);
+}
+
 function appendToFeed(html) {
   const feed = document.getElementById("story-feed");
   if (!feed) return;
@@ -359,35 +377,107 @@ function updateBackendBadge() {
 
 // --- API 呼叫 ---
 
-/**
- * 送出玩家行動。
- *
- * [刻意設計] 這裡**不**決定「這次行動要用哪個屬性搭哪個技能」，只把玩家原話送出去。
- * 那個判斷是規則層面的決定(選錯技能會直接影響成功率，甚至觸發技能0的自動失敗)，
- * 依 ARCHITECTURE.md 的最高原則，規則決定必須待在引擎層、有測試蓋住，
- * 所以它住在 content/checkIntent.js，由 /api/narrate 在後端做，不是在瀏覽器裡做。
- */
-async function sendPlayerAction(actionText) {
-  if (!actionText || actionText.trim() === "") return;
-  const text = actionText.trim();
+// --- 選項渲染 ---
 
-  clearActionInputs();
-  appendPlayerActionBlock(text);
+/**
+ * 畫出 AI 提出、引擎查驗過的行動選項。
+ *
+ * [刻意設計] 每個選項都把它對應的「屬性+技能・難度」直接顯示在按鈕上。
+ * 這不是裝飾：玩家有權在下注前知道自己要賭什麼。整個專案的原則就是引擎的運算要攤開來，
+ * 如果選項的檢定藏起來，玩家就無法判斷「用我練過的槍械」還是「用沒練過的神秘學」，
+ * 那四個選項就變成瞎猜，選擇本身失去意義。
+ */
+function renderOptions(options) {
+  currentOptions = Array.isArray(options) ? options : [];
+
+  const desktop = document.getElementById("option-grid");
+  const mobile = document.getElementById("option-grid-mobile");
+
+  if (currentOptions.length === 0) {
+    const empty = `<div class="col-span-2 text-xs font-mono text-zinc-500 border hairline-border border-dashed p-3 text-center">
+      本回合沒有可用選項，請用下方的自訂行動繼續
+    </div>`;
+    if (desktop) desktop.innerHTML = empty;
+    if (mobile) mobile.innerHTML = empty;
+    return;
+  }
+
+  const html = currentOptions
+    .map((opt, i) => {
+      // 檢定摘要：力量 + 運動・困難 (DC3)
+      const skillPart = opt.skill ? ` + ${escapeHtml(opt.skill)}` : "";
+      const specPart = opt.specialization ? `(${escapeHtml(opt.specialization)})` : "";
+      const check = `${escapeHtml(opt.attribute)}${skillPart}${specPart}`;
+      return `
+      <button data-option-index="${i}" class="text-left bg-zinc-100 dark:bg-zinc-900 border hairline-border p-2.5 text-sm text-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition asymmetric-card">
+        <div class="flex items-start gap-2">
+          <span class="font-mono text-xs text-zinc-500 shrink-0 mt-0.5">[${i + 1}]</span>
+          <span class="leading-snug">${escapeHtml(opt.label)}</span>
+        </div>
+        <div class="mt-1.5 pl-6 font-mono text-[10px] text-zinc-500 flex items-center gap-1.5">
+          <span class="text-emerald-600 dark:text-emerald-500">${check}</span>
+          <span class="text-zinc-400 dark:text-zinc-600">・</span>
+          <span>${escapeHtml(opt.difficulty)} DC${opt.dc}</span>
+        </div>
+      </button>`;
+    })
+    .join("");
+
+  if (desktop) desktop.innerHTML = html;
+  if (mobile) mobile.innerHTML = html;
+}
+
+/** 送出回合期間把選項鎖住，避免玩家連點造成兩次擲骰。 */
+function setOptionsDisabled(disabled) {
+  document.querySelectorAll("[data-option-index]").forEach((btn) => {
+    btn.disabled = disabled;
+    btn.classList.toggle("opacity-40", disabled);
+    btn.classList.toggle("pointer-events-none", disabled);
+  });
+}
+
+// --- 回合迴圈 ---
+
+/**
+ * 跑一個回合。
+ *
+ * [刻意設計] 這裡**不**決定「這次行動要用哪個屬性搭哪個技能」。
+ * 選項模式下那個組合是 AI 挑的（規則書把這件事指派給 ST），並且由後端重新查驗過；
+ * 自訂行動模式下則由後端的 content/checkIntent.js 推導。兩條路徑都在伺服器端，
+ * 因為那是規則決定，必須待在測得到的地方（ARCHITECTURE.md 最高原則第1條）。
+ *
+ * @param {object} params
+ * @param {object} [params.chosenOption] 玩家點選的選項（原封不動送回後端重新查驗）
+ * @param {string} [params.playerAction] 玩家自己打的行動文字
+ * @param {boolean} [params.opening] 開場模式：不擲骰，只要場景敘述與第一批選項
+ */
+async function runTurn({ chosenOption, playerAction, opening } = {}) {
+  if (turnInFlight) return;
+  turnInFlight = true;
+  setOptionsDisabled(true);
+
+  const actionLabel = chosenOption?.label ?? playerAction;
+  if (actionLabel) appendPlayerActionBlock(actionLabel);
+  if (chosenOption) window.openDiceModal?.();
 
   let res;
   try {
-    res = await fetch("/api/narrate", {
+    res = await fetch("/api/turn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         character: currentCharacter,
-        playerAction: text,
+        chosenOption,
+        playerAction,
         sceneContext: `劇本 ${currentScenarioId}`,
         recentEvents: [],
       }),
     });
   } catch (err) {
-    appendSystemErrorBlock(`無法連線到 /api/narrate：${err.message}`);
+    window.showDiceError?.();
+    appendSystemErrorBlock(`無法連線到 /api/turn：${err.message}`);
+    turnInFlight = false;
+    setOptionsDisabled(false);
     return;
   }
 
@@ -395,72 +485,50 @@ async function sendPlayerAction(actionText) {
   try {
     data = await res.json();
   } catch {
-    appendSystemErrorBlock(`/api/narrate 回傳的不是合法JSON(HTTP ${res.status})`);
+    window.showDiceError?.();
+    appendSystemErrorBlock(`/api/turn 回傳的不是合法JSON(HTTP ${res.status})`);
+    turnInFlight = false;
+    setOptionsDisabled(false);
     return;
   }
 
-  // 後端就算Gemini敘事失敗(502)，也會把已經算好的checkResult一起回傳，
-  // 所以這裡先把規則層的結果畫出來，再處理敘事的部分。
-  if (data.checkResult) {
-    backendOnline = true;
-    if (data.provider) lastProvider = data.model ? `${data.provider}/${data.model}` : data.provider;
-    updateBackendBadge();
-    appendCheckResultBlock(data.checkResult);
-  }
-
-  if (data.ok && data.narration) {
-    appendDMNarrationBlock(data.narration);
-  } else {
-    appendSystemErrorBlock(data.error ?? `/api/narrate 失敗(HTTP ${res.status})`);
-  }
-}
-
-/**
- * 手動觸發一次檢定(PERFORM CHECK按鈕)。骰子動畫只是視覺效果，
- * 顯示出來的成功數一律來自後端 /api/check 的回傳值，前端不自己擲骰、也不自己決定擲什麼。
- *
- * 送出的是輸入框裡的行動文字(空白就送一個中性的觀察動作)，由後端的 content/checkIntent.js
- * 推導該用哪個屬性/技能。
- */
-async function performCheckRoll(actionText) {
-  const intentText = (actionText ?? readActionInput() ?? "").trim() || "我謹慎地觀察四周";
-
-  window.openDiceModal?.();
-
-  let result = null;
-  let errorMessage = null;
-
-  try {
-    const res = await fetch("/api/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ character: currentCharacter, playerAction: intentText }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      result = data.result;
-      backendOnline = true;
-    } else {
-      errorMessage = data.error ?? `/api/check 失敗(HTTP ${res.status})`;
-    }
-  } catch (err) {
-    errorMessage = `無法連線到 /api/check：${err.message}`;
-  }
-
+  backendOnline = true;
+  if (data.provider) lastProvider = data.model ? `${data.provider}/${data.model}` : data.provider;
   updateBackendBadge();
 
-  if (errorMessage) {
-    window.showDiceError?.();
-    appendSystemErrorBlock(errorMessage);
-    return;
+  // 規則層的結果一定先畫出來 —— 就算敘事層失敗，判定也已經真的發生了。
+  if (data.checkResult) {
+    const r = data.checkResult;
+    const formula = r.autoFail
+      ? r.reason
+      : `${(r.note ?? []).join(" + ")} → 成功數 ${r.totalSuccesses} vs 難度 ${r.dc}`;
+    window.showDiceResult?.(r.autoFail ? "×" : String(r.totalSuccesses), formula);
+    appendCheckResultBlock(r);
   }
 
-  const formula = result.autoFail
-    ? result.reason
-    : `${(result.note ?? []).join(" + ")} → 成功數 ${result.totalSuccesses} vs 難度 ${result.dc}`;
+  if (data.ok) {
+    if (data.narration) appendDMNarrationBlock(data.narration);
+    renderOptions(data.options);
+  } else {
+    if (!data.checkResult) window.showDiceError?.();
+    appendSystemErrorBlock(data.error ?? `/api/turn 失敗(HTTP ${res.status})`);
+    renderOptions([]);
+  }
 
-  window.showDiceResult?.(result.autoFail ? "×" : String(result.totalSuccesses), formula);
-  appendCheckResultBlock(result);
+  // 查驗過程中的修正(AI挑了不存在的技能之類)如實顯示，不靜靜吞掉
+  if (Array.isArray(data.warnings) && data.warnings.length > 0) {
+    appendWarningBlock(data.warnings);
+  }
+
+  turnInFlight = false;
+  setOptionsDisabled(false);
+}
+
+async function sendPlayerAction(actionText) {
+  const text = (actionText ?? "").trim();
+  if (!text) return;
+  clearActionInputs();
+  await runTurn({ playerAction: text });
 }
 
 // --- 小工具 ---
@@ -514,19 +582,31 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  document.querySelectorAll("[data-action-button]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      sendPlayerAction(btn.dataset.actionButton);
-    });
-  });
-
-  document.querySelectorAll("[data-perform-check]").forEach((btn) => {
+    document.querySelectorAll("[data-send-custom]").forEach((btn) => {
     btn.addEventListener("click", () => {
       window.closeDrawerIfOpen?.();
-      performCheckRoll();
+      sendPlayerAction(readActionInput());
     });
   });
+
+  // 選項按鈕是動態產生的，所以用事件委派綁在容器上，而不是每次renderOptions後重綁。
+  // 送出的是 currentOptions 裡那個原始物件——後端會再查驗一次，前端不做任何規則判斷。
+  for (const id of ["option-grid", "option-grid-mobile"]) {
+    const container = document.getElementById(id);
+    if (!container) continue;
+    container.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-option-index]");
+      if (!btn) return;
+      const option = currentOptions[Number(btn.dataset.optionIndex)];
+      if (!option) return;
+      window.closeDrawerIfOpen?.();
+      runTurn({ chosenOption: option });
+    });
+  }
+
+  // 開場：不擲骰，只跟AI要場景描述與第一批選項
+  runTurn({ opening: true });
 });
 
-window.performCheckRoll = performCheckRoll;
 window.sendPlayerAction = sendPlayerAction;
+window.runTurn = runTurn;

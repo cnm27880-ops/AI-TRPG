@@ -43,6 +43,9 @@ content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約
                    前端的理由見檔頭註解：「這個行動該擲什麼」是規則決定，必須有測試蓋住
   narrativeStyle.js [設計] 文筆風格層。跟「規則契約層」刻意分開的第二層系統提示，
                    換文筆永遠碰不到規則，見 LLM_PROVIDERS.md 與檔頭註解
+  turnOptions.js  [規則書授權+設計] 回合選項系統。AI為每個選項挑「屬性+技能」組合
+                   (規則書第3819~3849行明文把這件事指派給ST)，難度只能從五級量表挑，
+                   引擎逐項查驗後才採用——技能名不在規則書技能表裡就不算數
   llm/
     providers.js  [設計] LLM供應商註冊表(Gemini/DeepSeek/OpenRouter/Workers AI/任意OpenAI相容中轉)
     client.js     [設計] 統一呼叫層，市面上的API其實只有兩種線路格式，這裡各實作一份
@@ -65,9 +68,10 @@ core/combat/        戰鬥引擎(Phase 2)，只做「引擎本身」，不含任
   resolveCombatAction.js 把攻擊判定+傷害減免+生命值扣減接成一次完整攻擊行動
 
 functions/api/       Cloudflare Pages Functions範例端點，直接呼叫上面的引擎(見DEPLOYMENT.md)
-  check.js            POST /api/check —— 跑一次判定(給params，或只給playerAction讓引擎推導)
+  turn.js             POST /api/turn —— **遊戲主迴圈**：查驗選項->擲骰->敘事->產生下一輪4個選項
+  check.js            POST /api/check —— 只跑一次判定(給params，或只給playerAction讓引擎推導)
   combat/resolve.js   POST /api/combat/resolve —— 跑一次完整攻擊行動
-  narrate.js          POST /api/narrate —— 判定+敘事分級+Gemini生成敘事文字(見GEMINI_INTEGRATION.md)
+  narrate.js          POST /api/narrate —— 只要判定+敘事、不要選項時用這個
 wrangler.toml         Cloudflare Pages設定骨架
 
 public/              前端UI(Cloudflare Pages的靜態資源根目錄，`pages_build_output_dir`指向這裡)
@@ -127,7 +131,7 @@ LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰�
 node --test
 ```
 
-目前 249 個測試，全部通過。
+目前 271 個測試，全部通過。
 
 ## `[規則書]` 與 `[設計]` 標記
 
@@ -148,8 +152,9 @@ node --test
 - Cloudflare Pages 部署骨架、Gemini 敘事整合骨架都做了(`wrangler.toml`/`functions/api/`/
   `content/gemini/`)，**但沒有實際部署過、沒有實際打過Gemini的API**(這個開發環境沒有帳號/金鑰/
   網路)，你拿到後要自己走一次 `DEPLOYMENT.md`/`GEMINI_INTEGRATION.md` 才能確認真的接得上。
-- 前端UI已經接上引擎(`public/`)，但仍缺：建卡流程、存檔/讀檔(重整頁面就回到示範角色)、
-  劇本節點推進與事件日誌的畫面、戰鬥介面(`/api/combat/resolve` 還沒有任何UI在呼叫)。
+- 前端UI已經接上引擎(`public/`)，回合迴圈可以玩了(AI給4個選項+第5種自訂行動)，但仍缺：
+  建卡流程、存檔/讀檔(重整頁面就回到示範角色)、劇本節點推進、事件日誌畫面、
+  戰鬥介面(`/api/combat/resolve` 還沒有任何UI在呼叫)。
   另外UI目前依賴Tailwind Play CDN，官方明講那不是給正式環境用的，見下方說明。
 
 這些都记录在 `ARCHITECTURE.md` 的 Phase 進度表裡，不是遺漏，是刻意分期。

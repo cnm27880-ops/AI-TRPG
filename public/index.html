@@ -341,65 +341,26 @@
             <!-- Narration Feed -->
             <div id="story-feed" class="flex-1 overflow-y-auto p-4 md:p-8 flex flex-col gap-6 pb-32 md:pb-8">
 
-                <!-- DM Text (Flows naturally with hairline indicator) -->
-                <div class="border-l hairline-border pl-4">
-                    <p class="text-zinc-800 dark:text-zinc-300 leading-relaxed transition-colors">
-                        你輕輕推開沉重的金屬氣閘門，陳舊的鉸鏈發出刺耳的摩擦聲。通道內閃爍著微弱的紅色應急燈光，空氣中瀰漫著機油與某種焦糊氣味。在通道盡頭的陰影中，似乎有某種東西正在緩慢蠕動。
-                    </p>
-                </div>
+                <!-- 敘事區的內容全部由 app.js 動態產生：頁面載入時會先跑一次「開場回合」，
+                     由 AI 描述場景並提出四個選項。這裡不放靜態範例文字，避免玩家分不出
+                     哪些是真的由引擎+AI 產生的、哪些是寫死的樣板。 -->
 
-                <!-- Player Action (Distinct quoted dark block) -->
-                <div class="bg-zinc-200/50 dark:bg-zinc-900/80 border hairline-border p-4 rounded-sm text-zinc-900 dark:text-zinc-200 transition-colors">
-                    <p class="italic text-sm text-zinc-600 dark:text-zinc-400 mb-1 transition-colors font-mono">▶ Player Intent</p>
-                    <p>"我立刻舉起高斯步槍，開啟紅外線掃描，緩慢向前推進，準備隨時開火。"</p>
-                </div>
-
-                <!-- DM Text -->
-                <div class="border-l hairline-border pl-4">
-                    <p class="text-zinc-800 dark:text-zinc-300 leading-relaxed transition-colors">
-                        紅外線掃描器發出短促的蜂鳴聲，螢幕上亮起一個巨大的熱能輪廓。那隻生物察覺到了你的掃描波，發出一聲尖銳的嘶吼，猛然向你撲來！
-                    </p>
-                </div>
-
-                <!-- Dice Check HUD (範例排版；實際判定區塊由 app.js 的 appendCheckResultBlock() 產生) -->
-                <div class="bg-zinc-200/50 dark:bg-zinc-950/80 border hairline-border p-3 font-mono text-xs hud-corner-box transition-colors">
-                    <div class="text-zinc-600 dark:text-zinc-500 mb-1 transition-colors">SYSTEM.CHECK_RESOLUTION</div>
-                    <div class="flex justify-between items-center text-sm">
-                        <span class="text-zinc-900 dark:text-zinc-300 transition-colors">敏捷(6) + 運動(2)</span>
-                        <span class="text-emerald-600 dark:text-emerald-500 transition-colors">SUCCESS</span>
-                    </div>
-                    <div class="text-zinc-600 dark:text-zinc-500 mt-1 transition-colors">
-                        骰池 8 = 成功數 <span class="text-zinc-900 dark:text-zinc-200 transition-colors">4</span> vs 難度 (3)
-                    </div>
-                    <div class="text-zinc-500 dark:text-zinc-600 mt-1">原始成功 3 ・ 附加成功 +1</div>
-                </div>
-
-                <!-- Final DM Prompt (Bolded white/dark text with green border) -->
-                <div class="border-l-2 border-emerald-500 pl-4 mt-4">
-                    <p class="font-bold text-zinc-900 dark:text-zinc-100 transition-colors">
-                        你千鈞一髮地側身翻滾，利爪擦過你的裝甲板爆出一陣火花。你現在位於有利的射擊位置，你要如何反擊？
-                    </p>
-                </div>
             </div>
 
             <!-- Bottom Action Console (Desktop) -->
             <div id="desktopActionConsole" class="hidden md:flex flex-col border-t hairline-border bg-white/90 dark:bg-zinc-950/90 p-4 gap-3 shrink-0 backdrop-blur transition-colors">
-                <!-- data-action-button 的值就是要送出的行動文字，讓 app.js 不必去反解按鈕的innerText -->
-                <div class="flex gap-2">
-                    <button data-action-button="精準射擊頭部" class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border p-2 text-sm text-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition asymmetric-card">
-                        <span class="font-mono text-xs text-zinc-500 mr-2 transition-colors">[A]</span>精準射擊頭部
-                    </button>
-                    <button data-action-button="投擲破片手榴彈" class="flex-1 bg-zinc-100 dark:bg-zinc-900 border hairline-border p-2 text-sm text-zinc-800 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-white transition asymmetric-card">
-                        <span class="font-mono text-xs text-zinc-500 mr-2 transition-colors">[B]</span>投擲破片手榴彈
-                    </button>
-                </div>
+                <!-- 四個選項由 AI 產生、引擎查驗過後，交給 app.js 的 renderOptions() 填入。
+                     每個選項會顯示它對應的「屬性+技能・難度」，讓玩家看得到自己在賭什麼。 -->
+                <div id="option-grid" class="grid grid-cols-2 gap-2"></div>
+
+                <!-- 第五種：自訂行動。永遠存在，就算 AI 一個選項都沒給也能繼續玩。 -->
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
-                        <input type="text" data-action-input placeholder="自定義行動指令..." class="w-full bg-zinc-100 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-2 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
+                        <input type="text" data-action-input placeholder="[5] 自訂行動：描述你想做的事，按 Enter 送出..." class="w-full bg-zinc-100 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-2 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
                         <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-2.5 text-zinc-400 dark:text-zinc-600 text-xs pointer-events-none"></i>
                     </div>
-                    <button data-perform-check class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box whitespace-nowrap">
-                        PERFORM CHECK
+                    <button data-send-custom class="bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-2 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box whitespace-nowrap">
+                        送出行動
                     </button>
                 </div>
             </div>
@@ -420,21 +381,16 @@
                 <span id="mobile-hp-text" class="text-emerald-600 dark:text-emerald-500 transition-colors">—</span>
                 <span id="mobile-attr-text" class="text-zinc-600 dark:text-zinc-400 transition-colors">—</span>
             </div>
-            <div class="flex flex-col gap-2">
-                <button data-action-button="精準射擊頭部" class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border p-3 text-sm text-left text-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition asymmetric-card">
-                    <span class="font-mono text-xs text-zinc-500 mr-2">[A]</span>精準射擊頭部
-                </button>
-                <button data-action-button="投擲破片手榴彈" class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border p-3 text-sm text-left text-zinc-800 dark:text-zinc-300 hover:bg-zinc-300 dark:hover:bg-zinc-800 transition asymmetric-card">
-                    <span class="font-mono text-xs text-zinc-500 mr-2">[B]</span>投擲破片手榴彈
-                </button>
-            </div>
+            <!-- 手機版的四個選項，由 renderOptions() 同步填入 -->
+            <div id="option-grid-mobile" class="flex flex-col gap-2"></div>
+
             <div class="relative mt-2">
-                <input type="text" data-action-input placeholder="自定義指令..." class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-3 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
+                <input type="text" data-action-input placeholder="[5] 自訂行動..." class="w-full bg-zinc-200/80 dark:bg-zinc-900 border hairline-border pl-3 pr-10 py-3 text-sm focus:outline-none focus:border-emerald-500 transition text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 dark:placeholder-zinc-600 rounded-sm">
                 <i class="fas fa-level-down-alt fa-rotate-90 absolute right-3 top-3.5 text-zinc-400 dark:text-zinc-600 text-sm pointer-events-none"></i>
             </div>
 
-            <button data-perform-check class="mt-auto w-full bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-3 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box">
-                PERFORM CHECK
+            <button data-send-custom class="mt-auto w-full bg-emerald-500/10 border border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-4 py-3 font-mono text-sm hover:bg-emerald-500/20 transition hud-corner-box">
+                送出行動
             </button>
         </div>
     </div>
