@@ -26,10 +26,10 @@ function demoCharacter() {
   c.attributes["感知"] = 4;
   c.attributes["敏捷"] = 6;
   c.attributes["力量"] = 4;
-  c.skills["調查"] = 2;
-  c.skills["運動"] = 2;
-  c.skills["槍械"] = 3;
-  c.specializations["槍械"] = ["步槍"];
+  c.skills["偵察"] = 2;
+  c.skills["體魄"] = 2;
+  c.skills["射擊"] = 3;
+  c.specializations["射擊"] = ["步槍"];
   return c;
 }
 
@@ -54,8 +54,8 @@ test("difficultyToDc：未知分級退回預設，不丟錯(AI偶爾會寫出量
 
 test("buildOptionsSpec：會列出角色真正練過的技能與等級(避免AI四個選項全挑0級技能)", () => {
   const spec = buildOptionsSpec(demoCharacter());
-  assert.match(spec, /槍械3/);
-  assert.match(spec, /調查2/);
+  assert.match(spec, /射擊3/);
+  assert.match(spec, /偵察2/);
   assert.match(spec, /步槍/); // 已登記的專業
   assert.match(spec, new RegExp(String(OPTION_COUNT)));
   for (const id of DIFFICULTY_IDS) assert.ok(spec.includes(id), `難度分級 ${id} 沒有列進spec`);
@@ -122,7 +122,7 @@ test("extractNarrationFallback：完全沒有narration欄位時回傳null，交�
 
 test("合法選項可以通過，並算出對應的DC", () => {
   const r = validateOption(
-    { label: "翻找櫃檯後方", attribute: "感知", skill: "調查", difficulty: "困難" },
+    { label: "翻找櫃檯後方", attribute: "感知", skill: "偵察", difficulty: "困難" },
     demoCharacter()
   );
   assert.equal(r.ok, true);
@@ -146,12 +146,12 @@ test("AI用了不存在的屬性時，整個選項被捨棄(沒有屬性就組�
     demoCharacter()
   );
   assert.equal(r.ok, false);
-  assert.match(r.error, /九維屬性/);
+  assert.match(r.error, /不在規則書屬性表裡/);
 });
 
 test("AI自己編一個DC數字時不予採用，難度一律走分級量表", () => {
   const r = validateOption(
-    { label: "衝過去", attribute: "力量", skill: "運動", difficulty: "DC7", dc: 7 },
+    { label: "衝過去", attribute: "力量", skill: "體魄", difficulty: "DC7", dc: 7 },
     demoCharacter()
   );
   assert.equal(r.ok, true);
@@ -177,7 +177,7 @@ test("前端/AI直接塞一個dc數字進來時完全不予採用，DC一律從�
 test("角色沒登記的專業不會被帶上，讓引擎照『無對應專業減半』規則處理", () => {
   const character = demoCharacter();
   const r = validateOption(
-    { label: "狙擊", attribute: "感知", skill: "槍械", specialization: "狙擊槍", difficulty: "普通" },
+    { label: "狙擊", attribute: "感知", skill: "射擊", specialization: "狙擊槍", difficulty: "普通" },
     character
   );
   assert.equal(r.ok, true);
@@ -186,14 +186,14 @@ test("角色沒登記的專業不會被帶上，讓引擎照『無對應專業�
 
   // 而角色真的有登記的專業要保留
   const ok = validateOption(
-    { label: "狙擊", attribute: "感知", skill: "槍械", specialization: "步槍", difficulty: "普通" },
+    { label: "狙擊", attribute: "感知", skill: "射擊", specialization: "步槍", difficulty: "普通" },
     character
   );
   assert.equal(ok.option.specialization, "步槍");
 });
 
 test("缺label的選項要被捨棄(沒有文字就沒辦法顯示給玩家看)", () => {
-  const r = validateOption({ attribute: "力量", skill: "運動", difficulty: "普通" }, demoCharacter());
+  const r = validateOption({ attribute: "力量", skill: "體魄", difficulty: "普通" }, demoCharacter());
   assert.equal(r.ok, false);
   assert.match(r.error, /label/);
 });
@@ -216,9 +216,9 @@ test("validateOptions：壞的被剔除、好的保留，並回報數量不符",
   const character = demoCharacter();
   const { options, warnings } = validateOptions(
     [
-      { label: "搜查", attribute: "感知", skill: "調查", difficulty: "普通" },
+      { label: "搜查", attribute: "感知", skill: "偵察", difficulty: "普通" },
       { label: "壞的", attribute: "不存在的屬性", difficulty: "普通" },
-      { label: "衝刺", attribute: "敏捷", skill: "運動", difficulty: "困難" },
+      { label: "衝刺", attribute: "敏捷", skill: "體魄", difficulty: "困難" },
     ],
     character
   );
@@ -236,7 +236,7 @@ test("validateOptions：options不是陣列時不丟錯，回報警告並回傳�
 
 test("validateOptions：不會自己補足數量(補選項等於程式碼在編劇情)", () => {
   const { options } = validateOptions(
-    [{ label: "只有一個", attribute: "感知", skill: "調查", difficulty: "普通" }],
+    [{ label: "只有一個", attribute: "感知", skill: "偵察", difficulty: "普通" }],
     demoCharacter()
   );
   assert.equal(options.length, 1, "數量不足時不可以自己生選項出來");
