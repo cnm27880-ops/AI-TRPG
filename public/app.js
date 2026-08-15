@@ -19,6 +19,9 @@
 let currentCharacter = null;
 let currentScenarioId = "SCENARIO-01";
 let backendOnline = null; // null=尚未測試, true/false=最近一次API呼叫的結果
+// 最近一次敘事實際由哪一家AI產生。刻意顯示出來：自動偵測會在沒設金鑰時退到Workers AI，
+// 沒有這個顯示的話，你會以為自己在用Gemini、其實一直在用退路供應商而不自知。
+let lastProvider = null;
 
 // 屬性顯示順序與英文縮寫，順序沿用 core/schema.js 的 ATTRIBUTES
 const ATTRIBUTE_DISPLAY = [
@@ -340,7 +343,7 @@ function updateBackendBadge() {
   const badge = document.getElementById("backend-status");
   if (!badge) return;
   if (backendOnline === true) {
-    badge.textContent = "ENGINE ONLINE";
+    badge.textContent = lastProvider ? `ENGINE ONLINE · ${lastProvider}` : "ENGINE ONLINE";
     badge.className =
       "px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-600 dark:text-emerald-400 text-[10px] font-mono";
   } else if (backendOnline === false) {
@@ -400,6 +403,7 @@ async function sendPlayerAction(actionText) {
   // 所以這裡先把規則層的結果畫出來，再處理敘事的部分。
   if (data.checkResult) {
     backendOnline = true;
+    if (data.provider) lastProvider = data.model ? `${data.provider}/${data.model}` : data.provider;
     updateBackendBadge();
     appendCheckResultBlock(data.checkResult);
   }

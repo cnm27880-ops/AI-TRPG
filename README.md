@@ -41,6 +41,11 @@ content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約
                                         供建卡流程測試時選用，含3組真實發現的定價落差，見ARCHITECTURE.md
   checkIntent.js  [設計] 玩家自然語言行動 -> 檢定參數(屬性/技能/專業)的對照層。放在引擎層而不是
                    前端的理由見檔頭註解：「這個行動該擲什麼」是規則決定，必須有測試蓋住
+  narrativeStyle.js [設計] 文筆風格層。跟「規則契約層」刻意分開的第二層系統提示，
+                   換文筆永遠碰不到規則，見 LLM_PROVIDERS.md 與檔頭註解
+  llm/
+    providers.js  [設計] LLM供應商註冊表(Gemini/DeepSeek/OpenRouter/Workers AI/任意OpenAI相容中轉)
+    client.js     [設計] 統一呼叫層，市面上的API其實只有兩種線路格式，這裡各實作一份
   scenario/
     schema.js       副本包的章節/節點結構驗證(含選填的timeLimitRounds時間預算欄位)
     divergence.js   劇情扭轉度系統——0~4級分級表、獎勵倍率、難度加值、進度條彙總計算
@@ -82,6 +87,8 @@ TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的�
 ARCHITECTURE.md       給接手者看的架構總覽與決策紀錄(見上)
 DEPLOYMENT.md         Cloudflare Pages部署步驟(給你自己看的操作手冊，不是給接手AI看的架構文件)
 GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
+LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰的Workers AI/第三方中轉)
+                       與文筆設定檔的用法，含各家端點的查證日期與出處
 ```
 
 ## 已對照規則書驗證的部分
@@ -120,7 +127,7 @@ GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
 node --test
 ```
 
-目前 212 個測試，全部通過。
+目前 249 個測試，全部通過。
 
 ## `[規則書]` 與 `[設計]` 標記
 
