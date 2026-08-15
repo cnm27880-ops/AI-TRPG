@@ -13,6 +13,7 @@ import {
   difficultyToDc,
   buildOptionsSpec,
   parseTurnResponse,
+  extractNarrationFallback,
   validateOption,
   validateOptions,
   optionToCheckParams,
@@ -94,6 +95,27 @@ test("parseTurnResponse：真的不是JSON時要明確回報失敗，不能假�
 test("parseTurnResponse：空白內容要回報失敗", () => {
   assert.equal(parseTurnResponse("").ok, false);
   assert.equal(parseTurnResponse(null).ok, false);
+});
+
+// --- narration 降級抽取(JSON解析失敗時，避免把裸JSON印給玩家看) ---
+
+test("extractNarrationFallback：JSON被截斷(缺結尾括號)時仍能挖出narration純文字", () => {
+  const truncated = '{\n  "narration": "你醒來時發現自己在一個陌生的隔離艙內。",\n  "options": [\n    { "label": "試';
+  assert.equal(
+    extractNarrationFallback(truncated),
+    "你醒來時發現自己在一個陌生的隔離艙內。"
+  );
+});
+
+test("extractNarrationFallback：還原跳脫字元(換行、引號)", () => {
+  const text = '{"narration": "第一行\\n第二行，還有\\"引號\\"。", "options": []';
+  assert.equal(extractNarrationFallback(text), '第一行\n第二行，還有"引號"。');
+});
+
+test("extractNarrationFallback：完全沒有narration欄位時回傳null，交由呼叫端退回原始文字", () => {
+  assert.equal(extractNarrationFallback("這就是一段普通的敘事，完全沒有JSON。"), null);
+  assert.equal(extractNarrationFallback(""), null);
+  assert.equal(extractNarrationFallback(null), null);
 });
 
 // --- 選項查驗：這是「AI說了不算」的核心 ---

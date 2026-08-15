@@ -87,6 +87,15 @@
             background-color: rgba(16, 185, 129, 0.1) !important;
         }
 
+        /* 屬性/技能/特質小磚：取代太過樸素的純色平面卡片，呼應整體 HUD 質感 */
+        .stat-tile {
+            position: relative;
+            background: linear-gradient(155deg, rgba(39,39,43,.6), rgba(9,9,11,.75));
+            border: 1px solid rgba(255,255,255,.09);
+            transition: border-color .2s ease, background .2s ease, transform .2s ease;
+        }
+        .stat-tile:hover { border-color: rgba(16,185,129,.4); transform: translateY(-1px); }
+
         /* 生命傷勢軌分段 */
         .hp-seg { border-radius: 1px; transition: background-color .3s ease; }
         .hp-seg-intact { background: var(--accent); }
@@ -467,6 +476,7 @@
                     </div>
                     <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
                     <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
+                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
                 </div>
             </div>
 
@@ -507,7 +517,7 @@
                     <span id="current-scene-text" class="text-zinc-100 font-semibold">主神空間 · 任務進行中</span>
                 </div>
                 <div class="flex items-center gap-3 text-[11px] text-zinc-300">
-                    <button id="combat-start-btn" onclick="startCombat()" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
+                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
                         <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
                     </button>
                     <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
@@ -600,7 +610,7 @@
                 <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
-                        <input type="text" data-action-input placeholder="[自訂行動] 輸入你想採取的動作 (例：舉槍瞄準並向後方翻滾)..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
+                        <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
                     <button data-send-custom class="chevron-bar-r bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">

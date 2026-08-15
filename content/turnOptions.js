@@ -164,6 +164,27 @@ export function parseTurnResponse(text) {
 }
 
 /**
+ * parseTurnResponse() 判定失敗（通常是輸出被截斷，JSON缺了結尾括號）時的最後防線：
+ * 用正則把 "narration": "..." 欄位的純文字內容挖出來，而不是把整坨壞掉的JSON原文
+ * 直接顯示給玩家看——那會讓玩家在說書人對話框裡看到裸奔的程式碼，瞬間出戲。
+ *
+ * 挖不到就回傳 null，呼叫端(functions/api/turn.js)退回顯示原始文字，
+ * 至少行為跟修正前一樣，不會因為這個防線而讓情況變得更差。
+ *
+ * @param {string} text LLM 原始回覆
+ * @returns {string | null}
+ */
+export function extractNarrationFallback(text) {
+  if (typeof text !== "string") return null;
+  const match = text.match(/"narration"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (!match) return null;
+  return match[1]
+    .replace(/\\n/g, "\n")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, "\\");
+}
+
+/**
  * 查驗單一選項是否合乎規則書。**這是「AI說了不算」的那道關卡。**
  *
  * 查驗策略是「盡量修好，而不是整個丟掉」——因為丟掉一個選項，玩家的可選項就少一個，
