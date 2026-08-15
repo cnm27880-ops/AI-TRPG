@@ -77,19 +77,21 @@ export function buildOptionsSpec(character) {
     .map(([skill, list]) => `${skill}（${list.join("、")}）`)
     .join("、");
 
+  const skillsByCategory = Object.entries(SKILLS)
+    .map(([category, list]) => `${category}：${list.join("、")}`)
+    .join("\n");
+
   return `【你要額外產出的東西：${OPTION_COUNT}個行動選項】
 
 除了敘事之外，你必須提出 ${OPTION_COUNT} 個玩家接下來可以採取的行動選項，
 並且為每個選項指定它會用到的「關鍵屬性 + 關鍵技能」組合與難度分級。
 這是規則書指派給說書人的工作（規則書：可能有多種屬性+技能組合均合適，由ST選擇最合適的一種）。
 
-可用的屬性（只能從這九個裡挑，用完全一樣的中文字）：
+可用的屬性（只能從這${ATTRIBUTE_KEYS.length}個裡挑，用完全一樣的中文字）：
 ${ATTRIBUTE_KEYS.join("、")}
 
 可用的技能（只能從這裡挑，用完全一樣的中文字；也可以填 null 表示純屬性檢定）：
-生理：${SKILLS.生理.join("、")}
-心智：${SKILLS.心智.join("、")}
-互動：${SKILLS.互動.join("、")}
+${skillsByCategory}
 
 這個角色目前的技能等級：
 - 有訓練：${trained || "（無）"}
@@ -112,10 +114,10 @@ ${specs ? `- 已登記的專業：${specs}` : ""}
 {
   "narration": "這一段是你的敘事文字",
   "options": [
-    { "label": "選項文字", "attribute": "感知", "skill": "調查", "specialization": null, "difficulty": "普通" },
-    { "label": "選項文字", "attribute": "力量", "skill": "運動", "specialization": null, "difficulty": "困難" },
-    { "label": "選項文字", "attribute": "風度", "skill": "交際", "specialization": null, "difficulty": "容易" },
-    { "label": "選項文字", "attribute": "敏捷", "skill": "躲藏", "specialization": null, "difficulty": "很困難" }
+    { "label": "選項文字", "attribute": "感知", "skill": "偵察", "specialization": null, "difficulty": "普通" },
+    { "label": "選項文字", "attribute": "力量", "skill": "格鬥", "specialization": null, "difficulty": "困難" },
+    { "label": "選項文字", "attribute": "意志", "skill": "交涉", "specialization": null, "difficulty": "容易" },
+    { "label": "選項文字", "attribute": "敏捷", "skill": "潛行", "specialization": null, "difficulty": "很困難" }
   ]
 }`;
 }
@@ -184,12 +186,12 @@ export function validateOption(raw, character) {
     return { ok: false, warnings, error: "選項缺少label（要顯示給玩家看的行動文字）" };
   }
 
-  // --- 屬性：一定要是規則書九維屬性之一，沒得商量（沒有屬性就無法組骰池） ---
+  // --- 屬性：一定要是規則書六維屬性之一，沒得商量（沒有屬性就無法組骰池） ---
   if (!ATTRIBUTE_KEYS.includes(raw.attribute)) {
     return {
       ok: false,
       warnings,
-      error: `屬性「${raw.attribute}」不在規則書九維屬性表裡（${ATTRIBUTE_KEYS.join("/")}）`,
+      error: `屬性「${raw.attribute}」不在規則書屬性表裡（${ATTRIBUTE_KEYS.join("/")}）`,
     };
   }
 

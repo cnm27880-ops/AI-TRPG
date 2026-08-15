@@ -12,6 +12,8 @@ import {
   resolveSessionStore,
   newSessionId,
 } from "../../content/storage/sessionStore.js";
+import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
+import { initScenarioProgress } from "../../content/scenario/progress.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -23,7 +25,7 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { draft, character: providedCharacter, sceneContext } = body ?? {};
+  const { draft, character: providedCharacter, sceneContext, scenarioId } = body ?? {};
 
   // 兩種建立方式：給建卡草稿（正常流程），或直接給一張現成角色卡（測試/匯入用）
   let character;
@@ -39,7 +41,24 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "body必須包含 draft(建卡草稿) 或 character(現成角色卡)" }, 400);
   }
 
-  const session = createSession({ id: newSessionId(), character, sceneContext });
+  // 副本(scenario)：沒指定就用內建範例當預設，讓「先給我一個範例副本測試」這件事不需要
+  // 前端先做選擇畫面也能玩起來。指定了但查無此包則明確擋下，不會靜默退回預設。
+  const pack = getScenarioPack(scenarioId ?? DEFAULT_SCENARIO_ID);
+  if (!pack) {
+    return json(
+      { ok: false, error: `找不到副本「${scenarioId}」，可用的有：${listScenarios().map((s) => s.id).join("/")}` },
+      400
+    );
+  }
+  const scenarioProgress = initScenarioProgress(pack);
+  const openingScene = pack.entries[0]?.openingScene;
+
+  const session = createSession({
+    id: newSessionId(),
+    character,
+    sceneContext: sceneContext ?? openingScene ?? "",
+  });
+  session.scenario = { packId: pack.id, progress: scenarioProgress };
   await store.put(session);
 
   return json({ ok: true, persistent: store.persistent, storeKind: store.kind, session });

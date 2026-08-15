@@ -133,6 +133,171 @@
         }
         .d20-star { animation: starspin 1.4s linear infinite; transform-origin: 50% 52%; }
         @keyframes starspin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* ============================================================
+           質感升級：環境氛圍 / 緞帶徽章 / 圖示磚塊 / 動效系統
+           ============================================================ */
+
+        /* 環境呼吸光暈（純 CSS，不佔用 DOM 節點） */
+        body { position: relative; }
+        body::before {
+            content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background:
+                radial-gradient(ellipse 60% 40% at 12% -5%, rgba(16,185,129,0.10), transparent 60%),
+                radial-gradient(ellipse 50% 35% at 105% 105%, rgba(239,68,68,0.055), transparent 60%);
+            animation: ambientBreathe 9s ease-in-out infinite;
+        }
+        @keyframes ambientBreathe { 0%, 100% { opacity: .65; } 50% { opacity: 1; } }
+
+        /* 緞帶徽章標題（角形切邊，仿戰術橫幅） */
+        .ribbon-banner {
+            position: relative; display: inline-flex; align-items: center; gap: .5rem;
+            padding: .45rem 1.4rem;
+            background: linear-gradient(135deg, #065f46, #10b981 50%, #065f46);
+            clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0% 100%);
+            box-shadow: 0 6px 20px -8px rgba(16,185,129,.6), inset 0 1px 0 rgba(255,255,255,.3);
+            font-family: 'JetBrains Mono', monospace; font-weight: 800; letter-spacing: .09em;
+            color: #032a1c; text-shadow: 0 1px 0 rgba(255,255,255,.22); white-space: nowrap;
+        }
+        .ribbon-banner.ribbon-sm { padding: .3rem 1rem; font-size: .68rem; letter-spacing: .07em; }
+        .ribbon-banner.ribbon-danger { background: linear-gradient(135deg, #7f1d1d, #ef4444 50%, #7f1d1d); box-shadow: 0 6px 20px -8px rgba(239,68,68,.6), inset 0 1px 0 rgba(255,255,255,.3); color: #2a0606; }
+
+        /* 圖示磚塊按鈕（功能入口卡片） */
+        .action-tile {
+            position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: .4rem; padding: 1.05rem .6rem;
+            background: linear-gradient(160deg, rgba(30,30,34,.92), rgba(9,9,11,.96));
+            border: 1px solid rgba(255,255,255,.09);
+            clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+            transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease, border-color .25s ease, background .25s ease;
+            cursor: pointer;
+        }
+        .action-tile::after {
+            content: ''; position: absolute; top: 0; right: 0; width: 14px; height: 14px;
+            background: linear-gradient(135deg, rgba(16,185,129,.55), transparent 60%);
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+        }
+        .action-tile:hover { transform: translateY(-3px); border-color: rgba(16,185,129,.55); box-shadow: 0 14px 28px -12px rgba(16,185,129,.45); background: linear-gradient(160deg, rgba(39,39,43,.95), rgba(9,9,11,.97)); }
+        .action-tile:active { transform: translateY(-1px) scale(.97); }
+        .action-tile-icon { font-size: 1.4rem; color: #34d399; filter: drop-shadow(0 0 8px rgba(16,185,129,.55)); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+        .action-tile:hover .action-tile-icon { transform: scale(1.14) rotate(-4deg); }
+        .action-tile-label { font-size: .78rem; font-weight: 800; letter-spacing: .04em; color: #f4f4f5; }
+        .action-tile-sub { font-size: .66rem; color: #c4c4c9; }
+        .action-tile.primary { border-color: rgba(16,185,129,.45); background: linear-gradient(160deg, rgba(16,185,129,.16), rgba(9,9,11,.97)); }
+        .action-tile.primary .action-tile-icon { color: #6ee7b7; }
+
+        /* 畫面切換：淡入 + 微上浮 */
+        @keyframes screenFadeIn { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .screen-enter { animation: screenFadeIn .45s cubic-bezier(.2,.8,.2,1) both; }
+        .anim-fade-up { animation: screenFadeIn .5s cubic-bezier(.2,.8,.2,1) both; }
+
+        /* 故事流區塊逐則浮現 */
+        @keyframes blockFadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .feed-block-enter { animation: blockFadeUp .45s ease both; }
+
+        /* 生命條變化閃光提示 */
+        @keyframes hpFlash { 0% { filter: brightness(2.3); } 100% { filter: brightness(1); } }
+        .hp-flash .hp-seg { animation: hpFlash .55s ease; }
+
+        /* 呼吸光暈（強調用途：存檔徽章、偵測到存檔提示） */
+        @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 0 rgba(16,185,129,0); } 50% { box-shadow: 0 0 16px rgba(16,185,129,.5); } }
+        .pulse-glow { animation: pulseGlow 2.6s ease-in-out infinite; }
+
+        /* 受擊震動（戰鬥面板） */
+        @keyframes shakeHit { 10%,90% { transform: translateX(-1px); } 20%,80% { transform: translateX(2px); } 30%,50%,70% { transform: translateX(-4px); } 40%,60% { transform: translateX(4px); } }
+        .shake-hit { animation: shakeHit .45s cubic-bezier(.36,.07,.19,.97) both; }
+
+        /* 彈出視窗：由純淡出改為帶縮放的 pop-in，質感更佳 */
+        .modal-panel { transform: scale(.94) translateY(8px); opacity: 0; transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .22s ease; }
+        .modal-backdrop.modal-open .modal-panel { transform: scale(1) translateY(0); opacity: 1; }
+
+        /* 側邊分頁：底線滑入指示器 */
+        .sidebar-tab-btn { position: relative; transition: color .2s ease; }
+        .sidebar-tab-btn::after {
+            content: ''; position: absolute; left: 10%; right: 10%; bottom: 0; height: 2px;
+            background: linear-gradient(90deg, transparent, #10b981, transparent);
+            transform: scaleX(0); transition: transform .28s cubic-bezier(.2,.8,.2,1);
+        }
+        .sidebar-tab-btn.active::after { transform: scaleX(1); }
+
+        /* 迷你標籤徽章（章節小標題，取代純文字） */
+        .section-tag {
+            display: inline-flex; align-items: center; gap: .35rem;
+            padding: .2rem .6rem .2rem .5rem;
+            background: linear-gradient(90deg, rgba(16,185,129,.16), rgba(16,185,129,.02));
+            border-left: 2px solid #10b981;
+            font-size: .68rem; font-weight: 700; letter-spacing: .08em; color: #6ee7b7;
+        }
+
+        /* 互動元件通用：按下回饋 */
+        button { -webkit-tap-highlight-color: transparent; }
+        button:active { transform: translateY(0.5px); }
+
+        /* 可讀性強化：正文提高對比與行距 */
+        .text-legible { color: #d4d4d8; line-height: 1.65; }
+
+        /* ============================================================
+           打破儀表板感：遊戲化 HUD 元件（角形切邊皆為獨立非捲動元素，
+           不影響內部可捲動內容，確保版面不偏移）
+           ============================================================ */
+
+        /* 大型主選單橫幅（首頁標題用，仿戰術旗幟） */
+        .menu-banner {
+            position: relative; padding: 1.1rem 2.25rem 1.3rem;
+            background: linear-gradient(120deg, #052e22 0%, #0f5e46 45%, #052e22 100%);
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), 50% 100%, 0 calc(100% - 16px));
+            box-shadow: 0 14px 32px -14px rgba(16,185,129,.55), inset 0 1px 0 rgba(255,255,255,.18);
+        }
+        .menu-banner::before {
+            content: ''; position: absolute; inset: 6px 6px 20px 6px;
+            border: 1px solid rgba(255,255,255,.16); pointer-events: none;
+        }
+
+        /* 戰術斜切頂欄 / 場景資訊條 */
+        .chevron-bar {
+            clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 100%, 18px 100%);
+        }
+        .chevron-bar-r {
+            clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+        }
+
+        /* 檔案夾式分頁按鈕（取代扁平底線分頁） */
+        .folder-tab {
+            position: relative; flex: 1; padding: .6rem .25rem .5rem;
+            font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+            color: #a1a1aa; background: rgba(9,9,11,.35);
+            clip-path: polygon(10% 0, 90% 0, 100% 100%, 0% 100%);
+            transition: color .2s ease, background .2s ease, transform .2s ease;
+        }
+        .folder-tab:hover { color: #d4d4d8; transform: translateY(-1px); }
+        .folder-tab.active {
+            color: #06120d; font-weight: 800;
+            background: linear-gradient(180deg, #34d399, #10b981);
+            box-shadow: 0 -6px 16px -6px rgba(16,185,129,.6);
+            transform: translateY(-2px);
+        }
+
+        /* 角色姓名銘牌（取代純文字狀態標籤） */
+        .name-plate {
+            position: relative; padding: .85rem 1rem .8rem 1.15rem;
+            background: linear-gradient(115deg, rgba(16,185,129,.14), rgba(9,9,11,.4) 60%);
+            border-left: 3px solid #10b981;
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+        }
+
+        /* HUD 浮層面板（取代純色矩形卡片背景） */
+        .hud-float {
+            background: linear-gradient(165deg, rgba(24,24,27,.72), rgba(9,9,11,.82));
+            backdrop-filter: blur(10px);
+            box-shadow: -1px 0 0 rgba(16,185,129,.18), 0 0 40px -20px rgba(0,0,0,.8);
+        }
+
+        /* 對話輸入列的斜切造型與資料流動感掃描線 */
+        .terminal-strip { position: relative; overflow: hidden; }
+        .terminal-strip::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(16,185,129,.5), transparent);
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -140,69 +305,80 @@
     <!-- 頂部導航列 -->
     <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
         <div class="flex items-center gap-3">
-            <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer" onclick="showScreen('portal')">
-                <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                <span class="font-bold text-zinc-100 tracking-widest">LORD TERMINAL</span>
+            <div class="flex items-center gap-2 font-mono text-xs tracking-wider cursor-pointer group" onclick="showScreen('portal')">
+                <span class="relative flex w-2 h-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                </span>
+                <span class="font-bold text-zinc-100 tracking-widest group-hover:text-emerald-300 transition-colors">LORD TERMINAL</span>
                 <span class="text-zinc-700">/</span>
-                <span class="text-zinc-500 text-[11px]">v2.35 Lite</span>
+                <span class="text-zinc-400 text-[11px]">v2.35 Lite</span>
             </div>
-            <div id="backend-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-[10px] font-mono text-zinc-500 hidden sm:block">
+            <div id="backend-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-[11px] font-mono text-zinc-300 hidden sm:block">
                 SYSTEM READY
             </div>
         </div>
 
         <div class="flex items-center gap-2">
-            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition hover:border-emerald-500/30">
+            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
                 <span>存檔管理</span>
             </button>
-            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-300 flex items-center gap-1.5 transition hover:border-emerald-500/30">
-                <i class="fas fa-sliders-h text-zinc-500 text-[11px]"></i>
+            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+                <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
                 <span>設定</span>
             </button>
         </div>
     </header>
 
-    <!-- 1. 登入/啟動首頁 (Portal Screen) -->
-    <div id="portal-screen" class="flex-1 overflow-y-auto flex items-center justify-center p-4">
-        <div class="w-full max-w-lg hud-box hud-corners p-6 sm:p-8 rounded-lg space-y-6 text-center">
-            <div class="space-y-2">
-                <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-mono">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                    <span>主神核心連線中 · 無限恐怖 2.35</span>
-                </div>
-                <h1 class="text-2xl sm:text-3xl font-bold tracking-tight font-mono text-zinc-100">想明白生命的意義嗎？</h1>
-                <p class="text-xs text-zinc-400 font-serif leading-relaxed max-w-sm mx-auto">
-                    進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
-                </p>
-            </div>
+    <!-- 1. 登入/啟動首頁 (Portal Screen) — 遊戲主選單風格，非儀表板卡片 -->
+    <div id="portal-screen" class="flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 gap-7 text-center">
 
-            <!-- 檢測到存檔 -->
-            <div id="portal-resume-box" style="display:none" class="p-3 bg-zinc-900/80 border border-emerald-500/40 rounded-lg text-left font-mono text-xs space-y-2">
-                <div class="flex justify-between items-center text-zinc-400 text-[11px]">
-                    <span>檢測到上次存檔</span>
-                    <span class="text-emerald-400 font-bold" id="resume-char-name">輪迴者</span>
-                </div>
-                <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-bold transition flex items-center justify-center gap-2">
-                    <i class="fas fa-play text-xs"></i> 接續輪迴任務
-                </button>
-            </div>
-
-            <div class="space-y-2 font-mono text-xs">
-                <button onclick="startNewChargen()" class="w-full py-3 bg-zinc-100 text-zinc-900 hover:bg-white rounded font-bold transition flex items-center justify-center gap-2">
-                    <i class="fas fa-dna text-emerald-600"></i> 建立新輪迴者檔案
-                </button>
-                <div class="flex gap-2">
-                    <button onclick="openModal('sessionModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
-                        <i class="fas fa-key text-[11px] text-zinc-400"></i> 輸入 ID 讀檔
-                    </button>
-                    <button onclick="openModal('settingsModal')" class="flex-1 py-2.5 bg-zinc-900 hover:bg-zinc-800 border hairline-border text-zinc-300 rounded transition">
-                        <i class="fas fa-cog text-[11px] text-zinc-400"></i> 系統與文筆設定
-                    </button>
-                </div>
-            </div>
-            <div class="text-[10px] font-mono text-zinc-600">HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI</div>
+        <!-- 主選單旗幟橫幅 -->
+        <div class="menu-banner anim-fade-up">
+            <div class="text-[11px] font-mono text-emerald-200/85 tracking-[0.35em] mb-1.5">主神空間 · INFINITE TERROR</div>
+            <h1 class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
         </div>
+
+        <p class="text-[13px] text-zinc-300 font-serif leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
+            進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
+        </p>
+
+        <!-- 檢測到存檔 -->
+        <div id="portal-resume-box" style="display:none" class="w-full max-w-sm hud-float border border-emerald-500/40 text-left font-mono text-xs space-y-2.5 pulse-glow p-3.5">
+            <div class="flex justify-between items-center text-zinc-300 text-[11px]">
+                <span class="section-tag">檢測到上次存檔</span>
+                <span class="text-emerald-300 font-bold" id="resume-char-name">輪迴者</span>
+            </div>
+            <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px flex items-center justify-center gap-2">
+                <i class="fas fa-play text-xs"></i> 接續輪迴任務
+            </button>
+        </div>
+
+        <!-- 主選單功能磚 -->
+        <div class="w-full max-w-md grid grid-cols-3 gap-3 font-mono anim-fade-up" style="animation-delay:.16s">
+            <button onclick="startNewChargen()" class="action-tile primary col-span-3 sm:col-span-1">
+                <i class="fas fa-dna action-tile-icon"></i>
+                <span class="action-tile-label">建立新檔案</span>
+                <span class="action-tile-sub">開始新輪迴</span>
+            </button>
+            <button onclick="openModal('sessionModal')" class="action-tile">
+                <i class="fas fa-key action-tile-icon"></i>
+                <span class="action-tile-label">讀取存檔</span>
+                <span class="action-tile-sub">輸入 ID</span>
+            </button>
+            <button onclick="openModal('settingsModal')" class="action-tile">
+                <i class="fas fa-sliders-h action-tile-icon"></i>
+                <span class="action-tile-label">系統設定</span>
+                <span class="action-tile-sub">文筆風格</span>
+            </button>
+        </div>
+
+        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>主神核心連線中 · 無限恐怖 2.35</span>
+        </div>
+        <div class="text-[10px] font-mono text-zinc-500">HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI</div>
     </div>
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
@@ -210,20 +386,20 @@
         <div class="hud-box hud-corners p-6 rounded-lg space-y-6">
             <div class="flex items-center justify-between border-b hairline-border pb-3">
                 <div>
-                    <div class="text-[10px] font-mono text-emerald-400 uppercase tracking-widest">Character Creation</div>
-                    <h2 class="text-lg font-bold text-zinc-100 mt-0.5">輪迴者基因建卡</h2>
+                    <div class="ribbon-banner ribbon-sm">Character Creation</div>
+                    <h2 class="text-lg font-bold text-zinc-100 mt-2">輪迴者基因建卡</h2>
                 </div>
-                <button onclick="showScreen('portal')" class="text-xs font-mono text-zinc-400 hover:text-zinc-200">
+                <button onclick="showScreen('portal')" class="text-xs font-mono text-zinc-300 hover:text-emerald-300 transition-colors flex items-center gap-1.5">
                     <i class="fas fa-arrow-left"></i> 回主頁
                 </button>
             </div>
 
             <!-- 1. 基本檔案 -->
-            <section class="space-y-2">
-                <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">1. 基本檔案</div>
+            <section class="space-y-2 anim-fade-up">
+                <div class="section-tag">1. 基本檔案</div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input id="cg-name" type="text" placeholder="輪迴者姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
-                    <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 text-zinc-200">
+                    <input id="cg-name" type="text" placeholder="輪迴者姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500">
+                    <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100">
                         <option value="男">男</option>
                         <option value="女">女</option>
                         <option value="未知">未知</option>
@@ -232,27 +408,27 @@
             </section>
 
             <!-- 2. 快速套用身分模板 -->
-            <section class="space-y-2">
-                <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">2. 選擇身分模板（點擊直接套用，亦可在下方微調）</div>
+            <section class="space-y-2 anim-fade-up">
+                <div class="section-tag">2. 選擇身分模板（點擊直接套用，亦可在下方微調）</div>
                 <div id="archetype-container" class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs font-mono">
                     <!-- 由 app.js 動態渲染 4 大身分卡 -->
                 </div>
             </section>
 
             <!-- 3. 六維屬性配點 -->
-            <section class="space-y-2">
+            <section class="space-y-2 anim-fade-up">
                 <div class="flex justify-between items-center">
-                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">3. 六維屬性配點</div>
-                    <span id="cg-attr-budget" class="text-xs font-mono text-emerald-400"></span>
+                    <div class="section-tag">3. 六維屬性配點</div>
+                    <span id="cg-attr-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
                 </div>
                 <div id="cg-attr-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
             </section>
 
             <!-- 4. 十大技能配點 -->
-            <section class="space-y-2">
+            <section class="space-y-2 anim-fade-up">
                 <div class="flex justify-between items-center">
-                    <div class="text-xs font-mono text-zinc-400 uppercase font-semibold">4. 十大技能配點</div>
-                    <span id="cg-skill-budget" class="text-xs font-mono text-emerald-400"></span>
+                    <div class="section-tag">4. 十大技能配點</div>
+                    <span id="cg-skill-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
                 </div>
                 <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </section>
@@ -261,8 +437,8 @@
             <div id="cg-errors" class="space-y-1"></div>
 
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t hairline-border">
-                <span id="cg-derived" class="text-xs font-mono text-zinc-400"></span>
-                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-300 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded font-bold">
+                <span id="cg-derived" class="text-xs font-mono text-zinc-300"></span>
+                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] rounded font-bold">
                     完成建卡並進入輪迴世界
                 </button>
             </div>
@@ -271,35 +447,35 @@
 
     <!-- 3. 遊戲主視窗 (In-Game Screen) -->
     <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
-        <!-- 左側 HUD -->
-        <aside class="w-72 md:w-80 hairline-r bg-panel/60 backdrop-blur-md flex flex-col shrink-0 overflow-hidden hidden md:flex">
-            <div class="p-4 hairline-b space-y-2.5">
+        <!-- 左側 HUD：浮層面板，非實色儀表板欄 -->
+        <aside class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden hidden md:flex">
+            <div class="name-plate">
                 <div class="flex items-center justify-between">
                     <div>
-                        <div class="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">OPERATIVE STATUS</div>
-                        <h2 id="char-name" class="text-lg font-bold text-zinc-100 tracking-tight mt-0.5">—</h2>
+                        <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">OPERATIVE STATUS</div>
+                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
-                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-400">輪迴者</span>
+                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
                 </div>
-                <div id="char-class" class="text-xs font-mono text-zinc-400">—</div>
+                <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
 
                 <!-- 四段傷勢軌 -->
-                <div class="space-y-1 pt-2">
+                <div class="space-y-1 pt-3">
                     <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-500">生命傷勢軌</span>
+                        <span class="text-zinc-300">生命傷勢軌</span>
                         <span id="hp-text" class="text-zinc-100 font-bold">—</span>
                     </div>
-                    <div id="hp-bar-container" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-600 pt-0.5">—</div>
+                    <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
+                    <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
                 </div>
             </div>
 
-            <!-- 分頁 Tab -->
-            <div class="flex hairline-b bg-zinc-900/40 text-[11px] font-mono">
-                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="flex-1 py-2 text-center text-emerald-400 border-b-2 border-emerald-500 font-bold">屬性</button>
-                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">技能</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">特質</button>
-                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="flex-1 py-2 text-center text-zinc-400 hover:text-zinc-200">日誌</button>
+            <!-- 分頁 Tab：檔案夾造型 -->
+            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b">
+                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="folder-tab sidebar-tab-btn active">屬性</button>
+                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="folder-tab sidebar-tab-btn">技能</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="folder-tab sidebar-tab-btn">特質</button>
+                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="folder-tab sidebar-tab-btn">日誌</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
@@ -310,33 +486,44 @@
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                 </div>
                 <div id="sidebar-tab-traits" class="hidden space-y-2">
-                    <div class="flex items-center justify-between text-[10px] font-mono text-zinc-500 uppercase tracking-wider px-0.5">
+                    <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5">
                         <span>特質 / 資源</span>
                         <span>滾輪 / 點擊切換 ↻</span>
                     </div>
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
-                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-600 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
+                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
                 </div>
                 <div id="sidebar-tab-journal" class="hidden space-y-2">
-                    <div id="journal-feed" class="space-y-1.5 font-mono text-[10px] text-zinc-400"></div>
+                    <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
                 </div>
             </div>
         </aside>
 
         <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-            <div class="hairline-b bg-zinc-950/80 px-4 py-2 flex items-center justify-between text-xs font-mono shrink-0">
-                <div class="flex items-center gap-2 text-zinc-400">
+            <div class="chevron-bar bg-gradient-to-r from-zinc-900 via-zinc-950/95 to-zinc-950/80 pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
+                <div class="flex items-center gap-2 text-zinc-300">
                     <i class="fas fa-map-marker-alt text-emerald-400"></i>
-                    <span id="current-scene-text" class="text-zinc-200">主神空間 · 任務進行中</span>
+                    <span id="current-scene-text" class="text-zinc-100 font-semibold">主神空間 · 任務進行中</span>
                 </div>
-                <div class="flex items-center gap-3 text-[11px] text-zinc-500">
-                    <button id="combat-start-btn" onclick="startCombat()" class="px-2 py-0.5 rounded bg-red-500/10 border border-red-500/40 text-red-400 hover:bg-red-500/20 transition font-mono">
+                <div class="flex items-center gap-3 text-[11px] text-zinc-300">
+                    <button id="combat-start-btn" onclick="startCombat()" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
                         <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
                     </button>
-                    <span>回合: <span id="turn-counter" class="text-zinc-300 font-bold">1</span></span>
-                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-400">已存檔</span>
+                    <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
+                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300">已存檔</span>
                 </div>
+            </div>
+
+            <!-- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 -->
+            <div id="scenario-hud" style="display:none" class="bg-gradient-to-r from-emerald-500/10 via-zinc-950/60 to-transparent border-b border-emerald-500/20 px-4 py-1.5 text-[11px] font-mono flex items-center gap-3 shrink-0">
+                <i class="fas fa-bookmark text-emerald-400 shrink-0"></i>
+                <span id="scenario-node-title" class="text-emerald-200 font-semibold whitespace-nowrap">—</span>
+                <div class="flex-1 h-1.5 bg-zinc-900 rounded overflow-hidden border hairline-border max-w-[180px]">
+                    <div id="scenario-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500" style="width:0%"></div>
+                </div>
+                <span id="scenario-progress-text" class="text-zinc-400 shrink-0">0%</span>
+                <span id="scenario-time-badge" class="ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0"></span>
             </div>
 
             <div id="story-feed" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 font-serif text-sm text-zinc-200"></div>
@@ -345,41 +532,47 @@
             <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
                 <div class="hud-box hud-corners p-4 rounded-lg space-y-3 shrink-0">
                     <div class="flex items-center justify-between font-mono text-xs">
-                        <span class="text-red-400 font-bold" id="combat-enemy-name">—</span>
-                        <span class="text-zinc-500">第 <span id="combat-round">1</span> 輪</span>
+                        <span class="text-red-300 font-bold flex items-center gap-1.5"><i class="fas fa-skull text-[11px]"></i><span id="combat-enemy-name">—</span></span>
+                        <span class="text-zinc-300">第 <span id="combat-round">1</span> 輪</span>
                     </div>
-                    <div class="space-y-1">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
-                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-200">—</span>
+                    <div class="space-y-1" id="combat-enemy-hp-wrap">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
+                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-100 font-semibold">—</span>
                         </div>
-                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
                     </div>
-                    <div class="space-y-1">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-500">
-                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-200">—</span>
+                    <div class="space-y-1" id="combat-player-hp-wrap">
+                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
+                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-100 font-semibold">—</span>
                         </div>
-                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-1.5 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
+                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
                     </div>
-                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-400">—</div>
+                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-300 font-semibold">—</div>
                 </div>
 
                 <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
 
                 <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
                     <div id="combat-over-text" class="text-lg font-bold"></div>
-                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
+                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                         返回劇情
                     </button>
                 </div>
 
-                <div id="combat-actions" class="grid grid-cols-2 gap-2 shrink-0">
-                    <button data-combat-attack="unarmed" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
-                        <span>徒手攻擊</span>
-                        <span class="text-[10px] text-zinc-500">力量 + 格鬥</span>
+                <div id="combat-actions" class="grid grid-cols-2 gap-2.5 shrink-0 font-mono">
+                    <button data-combat-attack="unarmed" class="action-tile !p-2.5 !flex-row justify-center">
+                        <i class="fas fa-hand-fist action-tile-icon !text-base"></i>
+                        <span class="flex flex-col items-start leading-tight">
+                            <span class="action-tile-label">徒手攻擊</span>
+                            <span class="action-tile-sub">力量 + 格鬥</span>
+                        </span>
                     </button>
-                    <button data-combat-attack="pistol" class="p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition text-xs font-mono text-zinc-200 flex flex-col items-center gap-0.5">
-                        <span>手槍射擊</span>
-                        <span class="text-[10px] text-zinc-500">敏捷 + 射擊</span>
+                    <button data-combat-attack="pistol" class="action-tile !p-2.5 !flex-row justify-center">
+                        <i class="fas fa-gun action-tile-icon !text-base"></i>
+                        <span class="flex flex-col items-start leading-tight">
+                            <span class="action-tile-label">手槍射擊</span>
+                            <span class="action-tile-sub">敏捷 + 射擊</span>
+                        </span>
                     </button>
                 </div>
             </div>
@@ -403,14 +596,14 @@
                 </div>
             </div>
 
-            <div id="story-action-panel" class="hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
+            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
                 <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
-                        <input type="text" data-action-input placeholder="[自訂行動] 輸入你想採取的動作 (例：舉槍瞄準並向後方翻滾)..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 transition text-zinc-100 placeholder-zinc-500 rounded">
-                        <i class="fas fa-terminal absolute right-3 top-3 text-zinc-600 text-xs pointer-events-none"></i>
+                        <input type="text" data-action-input placeholder="[自訂行動] 輸入你想採取的動作 (例：舉槍瞄準並向後方翻滾)..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
+                        <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
-                    <button data-send-custom class="bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 px-5 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition rounded shrink-0 font-bold flex items-center gap-1.5">
+                    <button data-send-custom class="chevron-bar-r bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
                         <span>執行</span>
                         <i class="fas fa-arrow-right text-[10px]"></i>
                     </button>
@@ -421,27 +614,27 @@
 
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box hud-corners">
-            <div class="flex justify-between items-center border-b hairline-border pb-3">
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-database text-emerald-400 text-sm"></i>
-                    <h3 class="font-bold text-sm text-zinc-100 font-mono">輪迴存檔管理</h3>
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+            <div class="flex justify-between items-center pb-1">
+                <div class="ribbon-banner ribbon-sm">
+                    <i class="fas fa-database text-[11px]"></i>
+                    <span>輪迴存檔管理</span>
                 </div>
-                <button onclick="closeModal('sessionModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
+                <button onclick="closeModal('sessionModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-3 font-mono text-xs">
                 <div>
-                    <label class="text-zinc-400 block mb-1">當前 Session ID</label>
+                    <label class="text-zinc-300 block mb-1">當前 Session ID</label>
                     <div class="flex gap-2">
-                        <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-300 select-all font-mono" placeholder="尚未建立存檔">
-                        <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-200 transition">複製</button>
+                        <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 select-all font-mono" placeholder="尚未建立存檔">
+                        <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-100 transition-all hover:-translate-y-px">複製</button>
                     </div>
                 </div>
                 <div class="pt-2 border-t hairline-border">
-                    <label class="text-zinc-400 block mb-1">輸入 Session ID 讀取存檔</label>
+                    <label class="text-zinc-300 block mb-1">輸入 Session ID 讀取存檔</label>
                     <div class="flex gap-2">
-                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500 font-mono">
-                        <button onclick="handleResumeFromModal()" class="px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 hover:bg-emerald-500/30 rounded font-bold transition">讀取</button>
+                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition font-mono">
+                        <button onclick="handleResumeFromModal()" class="px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px">讀取</button>
                     </div>
                 </div>
             </div>
@@ -449,18 +642,18 @@
     </div>
 
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 space-y-4 shadow-2xl hud-box hud-corners">
-            <div class="flex justify-between items-center border-b hairline-border pb-3">
-                <div class="flex items-center gap-2">
-                    <i class="fas fa-sliders-h text-emerald-400 text-sm"></i>
-                    <h3 class="font-bold text-sm text-zinc-100 font-mono">系統與文筆設定</h3>
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+            <div class="flex justify-between items-center pb-1">
+                <div class="ribbon-banner ribbon-sm">
+                    <i class="fas fa-sliders-h text-[11px]"></i>
+                    <span>系統與文筆設定</span>
                 </div>
-                <button onclick="closeModal('settingsModal')" class="text-zinc-500 hover:text-zinc-300"><i class="fas fa-times"></i></button>
+                <button onclick="closeModal('settingsModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-3 font-mono text-xs">
                 <div>
-                    <label class="text-zinc-400 block mb-1">說書人文筆風格</label>
-                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
+                    <label class="text-zinc-300 block mb-1">說書人文筆風格</label>
+                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                         <option value="白描">白描（沉浸冷峻、動詞優先）</option>
                         <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
                         <option value="熱血漫">熱血漫（力量碰撞、節奏緊湊）</option>
@@ -468,12 +661,12 @@
                     </select>
                 </div>
                 <div>
-                    <label class="text-zinc-400 block mb-1">自訂 API Key 覆寫 (選填)</label>
-                    <input id="setting-api-key" type="password" placeholder="留空使用 Cloudflare 預設..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 focus:outline-none focus:border-emerald-500">
+                    <label class="text-zinc-300 block mb-1">自訂 API Key 覆寫 (選填)</label>
+                    <input id="setting-api-key" type="password" placeholder="留空使用 Cloudflare 預設..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                 </div>
             </div>
             <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
-                <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition">
+                <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                     儲存設定
                 </button>
             </div>
@@ -481,20 +674,33 @@
     </div>
 
     <script>
+        function replayEnterAnim(el) {
+            if (!el) return;
+            el.classList.remove('screen-enter');
+            void el.offsetWidth; // 強制重排以重新觸發動畫
+            el.classList.add('screen-enter');
+        }
         function showScreen(screen) {
-            document.getElementById('portal-screen').style.display = (screen === 'portal') ? 'flex' : 'none';
-            document.getElementById('chargen-screen').style.display = (screen === 'chargen') ? 'block' : 'none';
-            document.getElementById('app-viewport').style.display = (screen === 'game') ? 'flex' : 'none';
+            const portal = document.getElementById('portal-screen');
+            const chargen = document.getElementById('chargen-screen');
+            const game = document.getElementById('app-viewport');
+            portal.style.display = (screen === 'portal') ? 'flex' : 'none';
+            chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
+            game.style.display = (screen === 'game') ? 'flex' : 'none';
+            replayEnterAnim({ portal, chargen, game }[screen]);
         }
         function openModal(id) {
             const el = document.getElementById(id);
             el?.classList.remove('opacity-0', 'pointer-events-none');
+            requestAnimationFrame(() => el?.classList.add('modal-open'));
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
         }
         function closeModal(id) {
-            document.getElementById(id)?.classList.add('opacity-0', 'pointer-events-none');
+            const el = document.getElementById(id);
+            el?.classList.remove('modal-open');
+            el?.classList.add('opacity-0', 'pointer-events-none');
         }
         function switchSidebarTab(tabKey) {
             ['attr', 'skills', 'traits', 'journal'].forEach(k => {
@@ -502,12 +708,11 @@
                 const b = document.getElementById(`tab-btn-${k}`);
                 if (k === tabKey) {
                     p?.classList.remove('hidden');
-                    b?.classList.add('text-emerald-400', 'border-b-2', 'border-emerald-500', 'font-bold');
-                    b?.classList.remove('text-zinc-400');
+                    p?.classList.add('anim-fade-up');
+                    b?.classList.add('active');
                 } else {
                     p?.classList.add('hidden');
-                    b?.classList.remove('text-emerald-400', 'border-b-2', 'border-emerald-500', 'font-bold');
-                    b?.classList.add('text-zinc-400');
+                    b?.classList.remove('active');
                 }
             });
         }

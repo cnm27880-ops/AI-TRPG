@@ -10,6 +10,8 @@
 import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
 import { createEncounter, resolveLeadingEnemyTurns } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
+import { getScenarioPack } from "../../../content/scenario/registry.js";
+import { findActiveNode } from "../../../content/scenario/progress.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -31,7 +33,15 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "這場存檔已經有進行中的戰鬥，請先結束才能開始新的" }, 409);
   }
 
-  const combat = createEncounter(session.character);
+  // 副本的最終戰節點若已經是目前活躍節點，改用它掛的 bossEncounter 樣板，
+  // 而不是預設的雜魚——玩家推進到最終戰後隨時按「遭遇戰鬥」都是打這場戰。
+  // combat.scenarioFinaleNodeId 讓 /api/combat/act 知道這場戰打贏後要順便結算哪個節點。
+  const scenarioPack = session.scenario ? getScenarioPack(session.scenario.packId) : null;
+  const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
+  const finaleNode = activeNode?.isFinale ? activeNode : null;
+
+  const combat = createEncounter(session.character, finaleNode?.bossEncounter);
+  if (finaleNode) combat.scenarioFinaleNodeId = finaleNode.id;
 
   // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見
   // content/combat/encounterState.js 的 resolveLeadingEnemyTurns 說明）。

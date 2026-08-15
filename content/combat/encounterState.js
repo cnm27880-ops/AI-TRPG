@@ -55,6 +55,7 @@ export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY) {
       attributes: enemyTemplate.attributes,
       skills: enemyTemplate.skills,
       weaponKey: enemyTemplate.weaponKey,
+      armor: enemyTemplate.armor ?? 0,
       hpState: createHpState(enemyDerived.hp.max),
       budget: createActionBudget(),
     },

@@ -54,14 +54,19 @@ async function startNewChargen() {
   await validateChargen();
 }
 
+const ARCHETYPE_ICONS = ["fa-crosshairs", "fa-user-ninja", "fa-flask", "fa-shield-halved"];
+
 function renderArchetypeCards() {
   const container = document.getElementById("archetype-container");
   if (!container || !chargenRules?.archetypes) return;
 
-  container.innerHTML = Object.entries(chargenRules.archetypes).map(([key, arch]) => `
-    <button onclick="applyArchetype('${key}')" id="arch-btn-${key}" class="archetype-card text-left p-3 rounded bg-zinc-950 border hairline-border hover:border-emerald-500/50 transition space-y-1">
-      <div class="font-bold text-zinc-200 text-xs text-emerald-400">${arch.name}</div>
-      <div class="text-[10px] text-zinc-500 leading-tight">${arch.desc}</div>
+  container.innerHTML = Object.entries(chargenRules.archetypes).map(([key, arch], i) => `
+    <button onclick="applyArchetype('${key}')" id="arch-btn-${key}" class="archetype-card text-left p-3 rounded bg-zinc-950 border hairline-border hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all space-y-1.5">
+      <div class="flex items-center gap-1.5 font-bold text-emerald-300 text-xs">
+        <i class="fas ${ARCHETYPE_ICONS[i % ARCHETYPE_ICONS.length]} text-[11px]"></i>
+        <span>${escapeHtml(arch.name)}</span>
+      </div>
+      <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(arch.desc)}</div>
     </button>
   `).join("");
 }
@@ -91,11 +96,11 @@ function applyArchetype(key) {
 function stepperHtml(kind, name, value, min, max) {
   return `
     <div class="flex items-center justify-between bg-zinc-950 border hairline-border px-2.5 py-1.5 rounded text-xs font-mono">
-      <span class="text-zinc-300">${name}</span>
+      <span class="text-zinc-200">${name}</span>
       <span class="flex items-center gap-2">
-        <button data-step="${kind}" data-name="${name}" data-delta="-1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 leading-none disabled:opacity-30" ${value <= min ? "disabled" : ""}>−</button>
-        <span class="w-4 text-center font-bold text-emerald-400">${value}</span>
-        <button data-step="${kind}" data-name="${name}" data-delta="1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 leading-none disabled:opacity-30" ${value >= max ? "disabled" : ""}>+</button>
+        <button data-step="${kind}" data-name="${name}" data-delta="-1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value <= min ? "disabled" : ""}>−</button>
+        <span class="w-4 text-center font-bold text-emerald-300">${value}</span>
+        <button data-step="${kind}" data-name="${name}" data-delta="1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value >= max ? "disabled" : ""}>+</button>
       </span>
     </div>`;
 }
@@ -194,6 +199,8 @@ function adoptCharacter(charData) {
   document.getElementById("hp-detail").textContent = `完好 ${hp.intact} · 沖擊 ${hp.B} · 嚴重 ${hp.L} · 惡性 ${hp.A}`;
 
   const hpBar = document.getElementById("hp-bar-container");
+  const prevHpKey = hpBar.dataset.hpKey;
+  const nextHpKey = `${hp.intact}-${hp.B}-${hp.L}-${hp.A}`;
   hpBar.innerHTML = "";
   hpBar.style.gridTemplateColumns = `repeat(${hp.max}, minmax(0, 1fr))`;
   const segments = [
@@ -207,15 +214,17 @@ function adoptCharacter(charData) {
     d.className = cls;
     hpBar.appendChild(d);
   });
+  hpBar.dataset.hpKey = nextHpKey;
+  if (prevHpKey && prevHpKey !== nextHpKey) flashElement(hpBar);
 
   // 渲染六維屬性（緊湊 2 欄，數值右側大字號）
   document.getElementById("attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
     const val = charData.attributes[key] || 1;
     const bonus = legendaryAttributeBonus(val);
-    const bonusTag = bonus > 0 ? `<span class="text-emerald-400 text-[9px] align-top ml-0.5">+${bonus}★</span>` : "";
+    const bonusTag = bonus > 0 ? `<span class="text-emerald-300 text-[10px] align-top ml-0.5">+${bonus}★</span>` : "";
     return `
       <div class="px-2.5 py-1.5 rounded bg-zinc-900 border hairline-border flex justify-between items-center gap-2 font-mono">
-        <span class="text-zinc-500 text-[10px] leading-tight">${en}<br><span class="text-zinc-600 text-[9px]">${key}</span></span>
+        <span class="text-zinc-400 text-[11px] leading-tight">${en}<br><span class="text-zinc-500 text-[10px]">${key}</span></span>
         <span class="font-bold text-zinc-100 text-lg leading-none">${val}${bonusTag}</span>
       </div>`;
   }).join("");
@@ -223,12 +232,18 @@ function adoptCharacter(charData) {
   // 渲染技能清單
   document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => `
     <div class="px-2.5 py-1.5 rounded bg-zinc-900 border hairline-border flex justify-between items-center font-mono text-xs">
-      <span class="text-zinc-400">${skill}</span>
-      <span class="font-bold ${lv > 0 ? 'text-emerald-400' : 'text-zinc-600'}">${lv}</span>
+      <span class="text-zinc-300">${skill}</span>
+      <span class="font-bold ${lv > 0 ? 'text-emerald-300' : 'text-zinc-500'}">${lv}</span>
     </div>
   `).join("");
 
   renderTraitCards(charData);
+}
+
+function flashElement(el) {
+  el.classList.remove("hp-flash");
+  void el.offsetWidth; // 強制重排以重新觸發動畫
+  el.classList.add("hp-flash");
 }
 
 // --- 特質 / 資源卡 3D 堆疊抽屜 ---
@@ -265,9 +280,9 @@ function renderTraitStage() {
     else if (rel === n - 1) posClass = "trait-card-prev";
     return `
       <div data-trait-index="${i}" class="trait-card ${posClass} bg-zinc-900 border hairline-border rounded p-3 flex flex-col justify-between cursor-pointer">
-        <span class="text-[10px] font-mono text-emerald-400">[${t.category || "資源"}]</span>
-        <div class="font-bold text-zinc-100 text-sm">${t.name || "未命名"}</div>
-        <div class="text-[10px] font-mono text-zinc-500 leading-snug line-clamp-2">${t.desc || ""}</div>
+        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || "資源")}]</span>
+        <div class="font-bold text-zinc-100 text-sm">${escapeHtml(t.name || "未命名")}</div>
+        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-2">${escapeHtml(t.desc || "")}</div>
       </div>`;
   }).join("");
 }
@@ -313,6 +328,7 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
 
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
+    if (res.scenario) updateScenarioHud(res.scenario);
   } catch (err) {
     appendFeedBlock("SYSTEM.ERROR", `回合執行失敗: ${err.message}`, "text-xs text-red-400 font-mono");
   } finally {
@@ -320,22 +336,78 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
   }
 }
 
+// --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
+const TIME_STATUS_STYLE = {
+  充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
+  吃緊: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300",
+  危急: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+  逾時: "border-red-500/40 bg-red-500/10 text-red-300",
+};
+
+function updateScenarioHud(scenario) {
+  const hud = document.getElementById("scenario-hud");
+  if (!hud) return;
+
+  if (scenario.nodeCompleted) {
+    const n = scenario.nodeCompleted;
+    appendFeedBlock(
+      `<span class="text-emerald-300">劇情節點完成</span>`,
+      `「${escapeHtml(n.title)}」已達成 · 扭轉度 ${n.divergenceTier} 級 · 獲得 <span class="text-emerald-300 font-bold">${n.reward}</span> 點經驗`,
+      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 hud-corners pulse-glow"
+    );
+  }
+
+  const node = scenario.activeNode;
+  if (!node && !scenario.progress?.scenarioComplete) {
+    hud.style.display = "none";
+    return;
+  }
+  hud.style.display = "flex";
+
+  const titleEl = document.getElementById("scenario-node-title");
+  if (scenario.progress?.scenarioComplete) {
+    titleEl.innerHTML = `<i class="fas fa-flag-checkered"></i> 主線已完成`;
+  } else if (node.isFinale) {
+    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> ${escapeHtml(node.title)}`;
+  } else {
+    titleEl.textContent = node.title;
+  }
+
+  const pct = scenario.progress?.overallCompletionPct ?? 0;
+  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
+  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
+
+  const badge = document.getElementById("scenario-time-badge");
+  const status = scenario.progress?.timeStatus;
+  if (status) {
+    badge.textContent = `時間：${status}`;
+    badge.className = `ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
+  } else {
+    badge.textContent = "";
+    badge.className = "ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
+  }
+
+  const combatBtn = document.getElementById("combat-start-btn");
+  if (combatBtn) combatBtn.classList.toggle("pulse-glow", Boolean(node?.isFinale));
+}
+
 function renderOptions(options) {
   currentOptions = options;
   const grid = document.getElementById("option-grid");
   if (!options || options.length === 0) {
-    grid.innerHTML = `<div class="col-span-2 text-xs font-mono text-zinc-500 p-2 border hairline-border border-dashed text-center">本回合無預設選項，請於下方自訂行動。</div>`;
+    grid.innerHTML = `<div class="col-span-2 text-xs font-mono text-zinc-400 p-2.5 border hairline-border border-dashed text-center rounded">本回合無預設選項，請於下方自訂行動。</div>`;
     return;
   }
 
   grid.innerHTML = options.map((opt, i) => `
-    <button onclick="selectOption(${i})" class="text-left p-2.5 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition flex flex-col gap-1 text-xs">
-      <div class="font-bold text-zinc-200 flex items-center gap-1.5">
-        <span class="text-emerald-400 font-mono">[${i+1}]</span> ${escapeHtml(opt.label)}
-      </div>
-      <div class="text-[10px] font-mono text-zinc-500">
-        檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})
-      </div>
+    <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
+      <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
+      <span class="flex flex-col gap-1">
+        <span class="font-bold text-zinc-100">${escapeHtml(opt.label)}</span>
+        <span class="text-[11px] font-mono text-zinc-400">
+          檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})
+        </span>
+      </span>
     </button>`).join("");
 }
 
@@ -376,8 +448,8 @@ function playDiceRollAnimation(checkResult) {
 function appendFeedBlock(title, content, extraClass = "") {
   const feed = document.getElementById("story-feed");
   const block = document.createElement("div");
-  block.className = `space-y-1 ${extraClass}`;
-  block.innerHTML = `<div class="text-[11px] font-bold opacity-75 font-mono">${title}</div><div>${content}</div>`;
+  block.className = `space-y-1 feed-block-enter ${extraClass}`;
+  block.innerHTML = `<div class="text-[11px] font-bold opacity-80 font-mono">${title}</div><div>${content}</div>`;
   feed.appendChild(block);
   feed.scrollTop = feed.scrollHeight;
 }
@@ -541,6 +613,8 @@ function renderCombat() {
 function renderCombatHpBar(barId, textId, hpState) {
   document.getElementById(textId).textContent = `${hpState.intact} / ${hpState.max}`;
   const bar = document.getElementById(barId);
+  const prevKey = bar.dataset.hpKey;
+  const nextKey = `${hpState.intact}-${hpState.B}-${hpState.L}-${hpState.A}`;
   bar.innerHTML = "";
   bar.style.gridTemplateColumns = `repeat(${hpState.max}, minmax(0, 1fr))`;
   const segments = [
@@ -554,6 +628,16 @@ function renderCombatHpBar(barId, textId, hpState) {
     d.className = cls;
     bar.appendChild(d);
   });
+  bar.dataset.hpKey = nextKey;
+  if (prevKey && prevKey !== nextKey) {
+    flashElement(bar);
+    const wrap = document.getElementById(barId === "combat-enemy-hp-bar" ? "combat-enemy-hp-wrap" : "combat-player-hp-wrap");
+    if (wrap) {
+      wrap.classList.remove("shake-hit");
+      void wrap.offsetWidth; // 強制重排以重新觸發動畫
+      wrap.classList.add("shake-hit");
+    }
+  }
 }
 
 function appendCombatLog(entry) {
@@ -561,9 +645,9 @@ function appendCombatLog(entry) {
   const actorLabel = entry.actor === "player" ? "你" : currentCombat.enemy.name;
   const weaponLabel = COMBAT_WEAPON_LABELS[entry.weaponKey] ?? entry.weaponKey;
   const outcome = entry.hit ? `命中，造成 ${entry.damage} 點傷害` : "未命中";
-  const color = entry.actor === "player" ? "text-emerald-400" : "text-red-400";
+  const color = entry.actor === "player" ? "text-emerald-300" : "text-red-300";
   const block = document.createElement("div");
-  block.className = "p-2 rounded bg-panel/70 border hairline-border text-[11px]";
+  block.className = "feed-block-enter p-2 rounded bg-panel/70 border hairline-border text-[11px] text-zinc-300";
   block.innerHTML = `<span class="${color} font-bold">${escapeHtml(actorLabel)}</span> 使用${escapeHtml(weaponLabel)} → ${escapeHtml(outcome)}`;
   log.appendChild(block);
   log.scrollTop = log.scrollHeight;
@@ -604,6 +688,13 @@ async function combatAttack(weaponKey) {
 
     currentCombat = res.combat;
     if (res.character) adoptCharacter(res.character);
+    if (res.scenario?.nodeCompleted) {
+      const n = res.scenario.nodeCompleted;
+      const block = document.createElement("div");
+      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold hud-corners pulse-glow";
+      block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
+      document.getElementById("combat-log").appendChild(block);
+    }
     renderCombat();
   } finally {
     combatInFlight = false;

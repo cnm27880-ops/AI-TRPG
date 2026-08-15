@@ -12,6 +12,8 @@
 import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
 import { resolvePlayerAttack, resolveEnemyAttack, isCombatOver } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
+import { getScenarioPack } from "../../../content/scenario/registry.js";
+import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -67,6 +69,38 @@ export async function onRequestPost(context) {
   // 保險同步：不管是哪一步讓戰鬥結束的，都確保角色卡血量反映combat.player.hpState最終結果。
   session.character.derived.hp = { ...combat.player.hpState };
 
+  const combatOver = isCombatOver(combat);
+
+  // 副本最終戰：玩家打贏了 /api/combat/start 標記過的 scenarioFinaleNodeId 時，
+  // 自動結算那個節點(扭轉度固定用0級/完全遵循原劇情——戰鬥勝負本身沒有「敘事扭轉度」可言，
+  // 那是敘事節點的概念，見 content/scenario/divergence.js 檔頭說明)，
+  // 玩家不需要另外靠AI敘事JSON信號才能拿到最終戰獎勵。
+  let scenarioResult = null;
+  if (combatOver.over && combatOver.winner === "player" && combat.scenarioFinaleNodeId && session.scenario) {
+    const pack = getScenarioPack(session.scenario.packId);
+    if (pack) {
+      const result = completeNodeAndAdvance(pack, session.scenario.progress, combat.scenarioFinaleNodeId, 0);
+      if (result.ok) {
+        session.character.xp.earned += result.reward;
+        session.scenario = { packId: pack.id, progress: result.progress };
+        const ts = new Date().toISOString();
+        appendEvent(
+          session.log,
+          EVENT_TYPES.NODE_COMPLETE,
+          { nodeId: result.node.id, title: result.node.title, divergenceTier: 0, reward: result.reward },
+          { timestamp: ts }
+        );
+        appendEvent(
+          session.log,
+          EVENT_TYPES.XP_GRANT,
+          { total: result.reward, reason: `擊敗最終戰「${result.node.title}」` },
+          { timestamp: ts }
+        );
+        scenarioResult = { nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward } };
+      }
+    }
+  }
+
   session.combat = combat;
   await store.put(session);
 
@@ -76,8 +110,9 @@ export async function onRequestPost(context) {
     combat,
     playerAttack,
     enemyAttack,
-    combatOver: isCombatOver(combat),
+    combatOver,
     character: session.character,
+    scenario: scenarioResult,
   });
 }
 

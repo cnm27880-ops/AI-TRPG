@@ -43,6 +43,9 @@ import {
   validateOptions,
   optionToCheckParams,
 } from "../../content/turnOptions.js";
+import { getScenarioPack } from "../../content/scenario/registry.js";
+import { findActiveNode, completeNodeAndAdvance, spendChapterTime, justExpired, getProgressSummary } from "../../content/scenario/progress.js";
+import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 12;
@@ -155,6 +158,13 @@ export async function onRequestPost(context) {
     ? summarizeForJournal(session.log).slice(-EVENT_MEMORY_LIMIT)
     : [];
 
+  // --- 副本節點：這回合「應該推進哪個節點」，餵進 prompt 讓AI知道關鍵事件是什麼 ---
+  const scenarioPack = session?.scenario ? getScenarioPack(session.scenario.packId) : null;
+  const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
+  if (session?.scenario && !scenarioPack) {
+    warnings.push(`存檔記錄的副本「${session.scenario.packId}」目前找不到對應的內建副本包，本回合略過節點指引`);
+  }
+
   const prompt = buildPrompt({
     actionText,
     outcome,
@@ -162,6 +172,7 @@ export async function onRequestPost(context) {
     recentEvents,
     recentNarration,
     character,
+    nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode) : null,
   });
 
   let text;
@@ -194,6 +205,74 @@ export async function onRequestPost(context) {
     // 降級處理：把整段文字當敘事用，選項留空。
     // 玩家還是能用第五個「自訂行動」繼續玩，不會卡死——這比整個回合失敗好。
     warnings.push(`${parsed.error}（已降級為純敘事，本回合沒有選項）`);
+  }
+
+  // ---------------------------------------------------------------------
+  // 第三段之後、寫回存檔之前：副本節點結算(這場存檔有掛副本進度時才會跑)。
+  //
+  // 「AI說了不算」在這裡的意思是：AI只能標記 nodeComplete(見 nodePrompt.js)，
+  // 實際能不能結算(前置節點是否真的都完成、有沒有重複結算)、獎勵算多少，
+  // 一律由 content/scenario/progress.js 查驗與查表，不接受AI自己講一個數字。
+  // ---------------------------------------------------------------------
+  let scenarioResult = null;
+  if (session?.scenario && scenarioPack) {
+    let progress = session.scenario.progress;
+
+    // 時間預算：只有玩家真的採取行動的回合才算(開場敘事那一回合玩家還沒做任何選擇)。
+    const tookAction = Boolean(chosenOption || playerAction);
+    if (tookAction) {
+      const before = progress;
+      progress = spendChapterTime(progress, 1, actionText ?? "推進劇情");
+      if (justExpired(before, progress)) {
+        warnings.push("這個章節的時間預算已經耗盡，接下來的敘事應該會轉向劣化結局，請留意場景描述。");
+      }
+    }
+
+    let nodeCompleted = null;
+    // isFinale節點刻意不接受敘事信號結算(見 nodePrompt.js 給AI的指引)：只能透過玩家
+    // 實際打贏 /api/combat/* 來完成(見 functions/api/combat/act.js)。這裡是最後一道防線，
+    // 就算AI沒理會prompt指示硬塞了nodeComplete，也不會被引擎採用。
+    if (activeNode && !activeNode.isFinale && parsed.ok) {
+      const signal = validateNodeComplete(parsed.data.nodeComplete);
+      if (signal) {
+        const result = completeNodeAndAdvance(scenarioPack, progress, activeNode.id, signal.tier);
+        if (result.ok) {
+          progress = result.progress;
+          character.xp.earned += result.reward;
+          const ts = new Date().toISOString();
+          appendEvent(
+            session.log,
+            EVENT_TYPES.NODE_COMPLETE,
+            { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward },
+            { timestamp: ts }
+          );
+          appendEvent(
+            session.log,
+            EVENT_TYPES.XP_GRANT,
+            { total: result.reward, reason: `完成節點「${activeNode.title}」` },
+            { timestamp: ts }
+          );
+          nodeCompleted = { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward };
+        } else {
+          // 查驗失敗不當成硬錯誤：AI可能判斷錯了時機，忽略這次信號，遊戲照常繼續。
+          warnings.push(`副本節點結算被引擎擋下：${result.error}`);
+        }
+      }
+    }
+
+    session.scenario = { packId: scenarioPack.id, progress };
+
+    // 注意：這裡重新用「結算完這回合之後」的 progress 算一次 activeNode，不是沿用
+    // 這回合開頭那個(拿去組prompt指引的)舊值——如果這回合剛好完成了一個節點，
+    // 玩家應該立刻在這次回應裡看到「下一個節點/最終戰」，不用再多打一輪才看到更新。
+    const nextActiveNode = findActiveNode(scenarioPack, progress);
+    scenarioResult = {
+      activeNode: nextActiveNode
+        ? { id: nextActiveNode.id, title: nextActiveNode.title, isFinale: Boolean(nextActiveNode.isFinale) }
+        : null,
+      nodeCompleted,
+      progress: getProgressSummary(scenarioPack, progress),
+    };
   }
 
   // ---------------------------------------------------------------------
@@ -232,6 +311,7 @@ export async function onRequestPost(context) {
     outcome,
     narration,
     options,
+    scenario: scenarioResult,
     turnCount: session?.log?.events?.length ?? 0,
     warnings,
   });
@@ -241,8 +321,9 @@ export async function onRequestPost(context) {
  * 組這一回合要送給AI的訊息。
  * 開場模式沒有判定結果，所以不能用 buildTurnPrompt()（它會要求 outcome 必填）。
  */
-function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNarration, character }) {
+function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNarration, character, nodeGuidance }) {
   const optionsSpec = buildOptionsSpec(character);
+  const tail = nodeGuidance ? `\n\n${nodeGuidance}` : "";
 
   if (!outcome) {
     const lines = [];
@@ -261,7 +342,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
         : "【這是本場遊戲的開場】請描寫玩家角色目前所在的場景，建立氣氛與可以互動的線索。" +
             "這一回合沒有擲骰，不要描寫任何行動的成敗。"
     );
-    return `${lines.join("\n")}\n\n${optionsSpec}`;
+    return `${lines.join("\n")}\n\n${optionsSpec}${tail}`;
   }
 
   const turnPrompt = buildTurnPrompt({
@@ -271,7 +352,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
     recentEvents,
     recentNarration,
   });
-  return `${turnPrompt}\n\n${optionsSpec}`;
+  return `${turnPrompt}\n\n${optionsSpec}${tail}`;
 }
 
 function json(payload, status = 200) {
