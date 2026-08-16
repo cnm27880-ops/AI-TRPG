@@ -516,3 +516,48 @@ test("結構化輸出：沒帶schema時的400不可以觸發重試(那是真的�
   );
   assert.equal(n, 1, "只該打一次");
 });
+
+// --- SiliconFlow 硅基流動 ---
+
+test("SiliconFlow：走OpenAI相容格式，Bearer認證，打到 .com 站的 /chat/completions", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  const result = await callLlm({
+    provider: "siliconflow",
+    env: { SILICONFLOW_API_KEY: "sf-key" },
+    prompt: "玩家推開門",
+    fetchFn: ff,
+  });
+
+  assert.equal(result.text, "測試敘事文字");
+  assert.equal(ff.calls[0].url, "https://api.siliconflow.com/v1/chat/completions");
+  assert.equal(ff.calls[0].options.headers.authorization, "Bearer sf-key");
+});
+
+test("SiliconFlow：.cn 站的使用者可以用 LLM_BASE_URL 切換(兩站帳號金鑰是分開的)", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "siliconflow",
+    env: { SILICONFLOW_API_KEY: "k", LLM_BASE_URL: "https://api.siliconflow.cn/v1" },
+    prompt: "x",
+    fetchFn: ff,
+  });
+  assert.match(ff.calls[0].url, /api\.siliconflow\.cn/);
+});
+
+test("SiliconFlow：支援結構化輸出(官方JSON schema頁)，所以要送出 response_format", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "siliconflow",
+    env: { SILICONFLOW_API_KEY: "k" },
+    prompt: "x",
+    responseSchema: SCHEMA,
+    fetchFn: ff,
+  });
+  assert.equal(JSON.parse(ff.calls[0].options.body).response_format.type, "json_schema");
+});
+
+test("pickProvider：有 SILICONFLOW_API_KEY 時自動選 siliconflow", () => {
+  assert.equal(pickProvider({ SILICONFLOW_API_KEY: "k" }), "siliconflow");
+  // 明示永遠勝過猜測
+  assert.equal(pickProvider({ SILICONFLOW_API_KEY: "k", LLM_PROVIDER: "gemini" }), "gemini");
+});

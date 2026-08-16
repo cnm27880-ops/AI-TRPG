@@ -86,6 +86,39 @@ export const PROVIDERS = {
     jsonMode: "openai-schema",
   },
 
+  // --- SiliconFlow 硅基流動（聚合平台，有一批常駐免費模型） ---
+  siliconflow: {
+    label: "SiliconFlow 硅基流動（含免費模型）",
+    protocol: PROTOCOLS.OPENAI_CHAT,
+    // 查證2026-08-16官方 quickstart：https://docs.siliconflow.com/en/userguide/quickstart
+    // 官方英文站給的是 .com；另有 .cn 站(api.siliconflow.cn/v1)，兩邊帳號與金鑰是分開的。
+    // 你申請的是哪一邊就用哪一邊——用錯會是 401，不是 404，錯誤訊息不會告訴你是站別問題。
+    // 要改用 .cn 設環境變數 LLM_BASE_URL=https://api.siliconflow.cn/v1 即可，不用改這裡。
+    baseUrl: "https://api.siliconflow.com/v1",
+    // [注意] 免費模型清單會輪替，這個值是查證當下(2026-08-16)第三方追蹤站列出的常駐免費模型之一。
+    // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
+    // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
+    defaultModel: "Qwen/Qwen3-8B",
+    apiKeyEnv: "SILICONFLOW_API_KEY",
+    docs: "https://docs.siliconflow.com/en/userguide/quickstart",
+    // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
+    // 500 RPM / 2,000,000 TPM，而且 L0~L5 六個用量級別完全相同——官方文件說
+    // 「免費模型的限流固定、付費模型才隨級別變動」，各級別相同正好佐證這是免費模型的頁面。
+    // 那張表**沒有每日請求數這一欄**。
+    // 實測本專案一回合約 4,300 tokens(prompt 3,938 + completion 約 350)，
+    // 換算下來 RPM 與 TPM 兩邊的天花板都落在每分鐘 460~500 個回合左右，
+    // 單人遊戲(一分鐘頂多打幾個回合)有兩個數量級的餘裕。
+    freeTier:
+      "有一批常駐免費模型。免費模型限流固定為 500 RPM / 2,000,000 TPM，各用量級別相同，" +
+      "主控台未列每日請求上限。以本專案一回合約4,300 tokens估算，單人遊戲遠遠用不完。",
+    // 官方有 JSON schema 專頁(docs.siliconflow.cn/en/userguide/guides/json-mode)，
+    // 明講設 response_format 為 {type:"json_schema", json_schema:{...}} 可啟用結構化輸出。
+    // [例外] 官方同一頁註明 DeepSeek 的 R1 系列與 V3 不支援 JSON mode——
+    // 如果你把 LLM_MODEL 換成那些模型，結構化輸出會失效(client.js 收到400會自動退回純prompt模式，
+    // 遊戲照樣能玩，只是保底選項的觸發率會回升)。
+    jsonMode: "openai-schema",
+  },
+
   // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
   nvidia: {
     label: "NVIDIA NIM（build.nvidia.com，免費無總量上限）",
@@ -220,6 +253,7 @@ export function pickProvider(env = {}) {
   if (env.LLM_PROVIDER) return env.LLM_PROVIDER;
   if (env.GEMINI_API_KEY) return "gemini";
   if (env.DEEPSEEK_API_KEY) return "deepseek";
+  if (env.SILICONFLOW_API_KEY) return "siliconflow";
   if (env.NVIDIA_API_KEY) return "nvidia";
   if (env.OPENROUTER_API_KEY) return "openrouter";
   if (env.LLM_API_KEY && env.LLM_BASE_URL) return "custom";

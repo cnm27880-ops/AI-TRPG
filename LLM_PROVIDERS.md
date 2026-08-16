@@ -58,12 +58,13 @@
 
 | 變數 | 用途 |
 |---|---|
-| `LLM_PROVIDER` | `gemini` / `deepseek` / `nvidia` / `openrouter` / `workers-ai` / `custom`。不設就自動偵測 |
+| `LLM_PROVIDER` | `gemini` / `deepseek` / `siliconflow` / `nvidia` / `openrouter` / `workers-ai` / `custom`。不設就自動偵測 |
 | `LLM_MODEL` | 覆寫模型名稱 |
 | `LLM_BASE_URL` | 第三方中轉接口的網址（要含 `/v1`，不要含 `/chat/completions`） |
 | `LLM_API_KEY` | 通用金鑰欄位（`custom` 用這個） |
 | `GEMINI_API_KEY` | Gemini 金鑰 |
 | `DEEPSEEK_API_KEY` | DeepSeek 金鑰 |
+| `SILICONFLOW_API_KEY` | SiliconFlow 硅基流動 金鑰 |
 | `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) 金鑰 |
 | `OPENROUTER_API_KEY` | OpenRouter 金鑰 |
 | `LLM_MAX_TOKENS` | 輸出長度上限，預設 2048。**不要調到 1000 以下**，原因見下方 |
@@ -88,6 +89,7 @@
 |---|---|---|---|
 | Google Gemini | 必填 | 內建 | 選填（留空用預設） |
 | DeepSeek | 必填 | 內建 | 選填 |
+| SiliconFlow 硅基流動 | 必填 | 內建 | 選填（免費模型 slug 會輪替，建議自己填） |
 | NVIDIA NIM | 必填（免費免卡） | 內建 | 選填 |
 | OpenRouter | 必填 | 內建 | **必填**（免費模型 slug 常變動，沒有預設值） |
 | Cloudflare Workers AI | 不需要 | 不適用 | 選填 |
@@ -117,13 +119,34 @@ Cohere、AI21、自架的 vLLM / LiteLLM 等，只要它是 OpenAI 相容格式�
 
 ### 設定金鑰（部署到 Cloudflare）
 
-金鑰**絕對不能**寫進 `wrangler.toml` 或任何會被commit的檔案：
+金鑰**絕對不能**寫進 `wrangler.toml`、`public/` 底下任何檔案、或任何會被commit的地方：
 
 ```bash
 npx wrangler pages secret put DEEPSEEK_API_KEY --project-name=wxh-engine
 ```
 
 非機密的設定（模型名稱、文筆）可以直接放在 Cloudflare Dashboard 的環境變數，或用 `[vars]`。
+
+### 把某一家設成「整個網站的預設」
+
+想讓所有玩家不用自己填金鑰就能玩，就在部署環境設兩個變數（以 SiliconFlow 為例）：
+
+```bash
+# 金鑰用 secret，不會出現在程式碼、也不會被送到瀏覽器
+npx wrangler pages secret put SILICONFLOW_API_KEY --project-name=wxh-engine
+# 供應商是非機密設定，可以直接放 Dashboard 環境變數或 [vars]
+LLM_PROVIDER=siliconflow
+```
+
+**金鑰只能放在伺服器端。** 這個專案的設計是：金鑰只在 `functions/api/*` 裡讀 `env`，
+永遠不會出現在回應內容裡，也不會被寫進 `public/`。原因很直接——`public/` 底下的東西
+會原封不動送到每一個訪客的瀏覽器，把金鑰寫在那裡等於公開它；commit 進 repo 也一樣，
+就算之後刪掉，git 歷史裡還在。
+
+**設成網站預設之後，所有訪客的回合都算在你的額度上。** 個人自己玩沒問題，
+但如果網址會流出去，先確認你的日上限撐得住（見上面 SiliconFlow 那節的第 2 點）。
+想讓玩家用自己的金鑰，就不要設 `LLM_PROVIDER`，讓他們在遊戲裡的「系統與文筆設定」自己選
+——那條路徑的金鑰只存在他們自己的瀏覽器。
 
 ### 本機測試
 
@@ -164,6 +187,46 @@ Google 已把 Interactions API 列為 GA 並建議新專案採用，`generateCon
 - 模型：`deepseek-v4-flash`（預設）/ `deepseek-v4-pro`
 - 認證：`Authorization: Bearer <key>`
 - 文件：https://api-docs.deepseek.com/
+
+### SiliconFlow 硅基流動（聚合，含免費模型）
+
+- 端點：`https://api.siliconflow.com/v1/chat/completions`（OpenAI相容）
+- 預設模型：`Qwen/Qwen3-8B`
+- 認證：`Authorization: Bearer <key>`
+- 文件：https://docs.siliconflow.com/en/userguide/quickstart
+
+```
+LLM_PROVIDER=siliconflow
+SILICONFLOW_API_KEY=你的金鑰
+```
+
+**三件部署前一定要自己確認的事：**
+
+1. **`.com` 與 `.cn` 是兩個站，帳號與金鑰分開。** 程式預設用官方英文文件給的 `.com`。
+   如果你的金鑰是在 `.cn` 站申請的，設 `LLM_BASE_URL=https://api.siliconflow.cn/v1`。
+   用錯站別會拿到 **401**（金鑰無效），不是 404 —— 錯誤訊息不會告訴你是站別問題，很容易誤判成金鑰打錯。
+
+2. **額度對單人遊戲來說綽綽有餘。** 2026-08-16 由主控台實際確認（不是第三方轉述）：
+   免費模型的限流是 **500 RPM / 2,000,000 TPM**，而且 L0～L5 六個用量級別完全相同
+   —— 官方文件說「免費模型的限流是固定的、付費模型才隨級別變動」，各級別相同正好佐證
+   這是免費模型的頁面。**那張表沒有「每日請求數」這一欄。**
+
+   換算成這個專案的實際用量：線上實測一個回合約 **4,300 tokens**（prompt 3,938 + completion 約 350），
+   所以 TPM 的天花板約等於每分鐘 465 個回合，跟 500 RPM 幾乎落在同一個位置。
+   人類一分鐘頂多玩幾個回合，等於有兩個數量級的餘裕。
+
+   > 網路上有些第三方追蹤站寫「免費模型未儲值 50 次/日」，但主控台的限流頁沒有這一欄。
+   > 如果你之後遇到跟次數有關的 429，再回主控台確認一次是不是有另外一層日配額。
+
+3. **免費模型清單會輪替。** `Qwen/Qwen3-8B` 是查證當下（2026-08-16）第三方追蹤站列出的常駐免費
+   模型之一，官方沒有「保證永遠免費」的承諾。部署前對一次目前真的免費的 slug，要換設 `LLM_MODEL`。
+
+**選模型時的注意事項**：官方的 [JSON schema 說明頁](https://docs.siliconflow.cn/en/userguide/guides/json-mode)
+註明 **DeepSeek 的 R1 系列與 V3 不支援 JSON mode**。這個專案每回合都要模型輸出結構化 JSON，
+選到那些模型會讓結構化輸出失效（程式會自動退回純 prompt 模式，遊戲照樣能玩，
+但保底選項的觸發率會回升，見上面的「LLM 失敗時要去哪裡看」）。
+同一頁官方自己也提醒「max_tokens 要設得夠大，避免 JSON 字串被截斷」——
+本專案的 `LLM_MAX_TOKENS` 預設 2048 就是為了這件事。
 
 ### NVIDIA NIM（官方，build.nvidia.com）
 

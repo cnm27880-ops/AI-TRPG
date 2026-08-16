@@ -906,6 +906,7 @@
                             <option value="">（使用伺服器預設）</option>
                             <option value="gemini">Google Gemini（官方）</option>
                             <option value="deepseek">DeepSeek（官方）</option>
+                            <option value="siliconflow">SiliconFlow 硅基流動（含免費模型）</option>
                             <option value="nvidia">NVIDIA NIM（官方，自行申請金鑰）</option>
                             <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
                             <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
@@ -1010,6 +1011,7 @@
         const PROVIDER_FIELDS = {
             gemini:        { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Gemini 模型。' },
             deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
+            siliconflow:   { key: true,  baseUrl: false, model: false, modelHint: '留空＝用預設的免費模型。免費模型清單會輪替，請到 cloud.siliconflow.com/models 確認目前可用的 slug。注意：DeepSeek R1／V3 系列不支援 JSON 結構化輸出，選了會讓保底選項變多。' },
             nvidia:        { key: true,  baseUrl: false, model: false, modelHint: '金鑰請自己到 build.nvidia.com 申請。留空＝用預設模型。' },
             openrouter:    { key: true,  baseUrl: false, model: true,  modelHint: '必填：OpenRouter 沒有預設模型（免費模型的 slug 常變動），請到 openrouter.ai/models 挑一個目前存在的貼上。' },
             'workers-ai':  { key: false, baseUrl: false, model: false, modelHint: '免金鑰，用你自己 Cloudflare 帳號的額度。留空＝用預設模型。' },

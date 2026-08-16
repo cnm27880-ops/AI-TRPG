@@ -20,6 +20,7 @@ const SESSION_KEY = "ai-trpg-session-id";
 const PROVIDER_UI_META = {
   gemini: { label: "Google Gemini（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
   deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  siliconflow: { label: "SiliconFlow 硅基流動", needsKey: true, needsBaseUrl: false, needsModel: false },
   nvidia: { label: "NVIDIA NIM（build.nvidia.com）", needsKey: true, needsBaseUrl: false, needsModel: false },
   openrouter: { label: "OpenRouter（聚合）", needsKey: true, needsBaseUrl: false, needsModel: true },
   "workers-ai": { label: "Cloudflare Workers AI（免金鑰）", needsKey: false, needsBaseUrl: false, needsModel: false },
