@@ -50,6 +50,9 @@ export const DIFFICULTY_TIERS = [
 export const DIFFICULTY_IDS = DIFFICULTY_TIERS.map((t) => t.id);
 export const DEFAULT_DIFFICULTY = "普通";
 
+/** 選項提示（這個行動想達成什麼）的長度上限。要塞進按鈕，太長會把版面撐爛。 */
+const HINT_MAX_LENGTH = 24;
+
 const ATTRIBUTE_KEYS = ATTRIBUTES.map((a) => a.key);
 const ALL_SKILLS = Object.values(SKILLS).flat();
 
@@ -99,14 +102,29 @@ ${skillsByCategory}
 ${specs ? `- 已登記的專業：${specs}` : ""}
 
 挑選時請注意：
-- **四個選項要是四種不同的解決思路**（例如：正面強攻／迂迴潛行／溝通交涉／觀察搜證），
-  不要四個都是打架，也不要四個都用同一個技能。
-- 至少有兩個選項應該用到角色**有訓練**的技能，否則玩家等於沒有選擇。
+- **四個選項要是四種不同的解決思路**（例如：正面強攻／迂迴潛行／溝通交涉／觀察搜證）。
+- **四個選項的技能必須全部不同**，不可以有兩個選項用同一個技能。這條沒有例外：
+  玩家如果每一回合都能在選項裡找到自己最強的那個技能，他就不會再讀故事，
+  只會挑骰池最大的那個按下去。
+- 至少有一個、但**最多兩個**選項用到角色有訓練的技能。有訓練的選項是讓玩家有把握的出口，
+  但四個裡面給太多，等於在告訴玩家「照你原本的打法繼續就好」。
 - 心智系技能（${SKILLS.心智.join("、")}）在等級0時規則上是**自動失敗**，
   除非你就是想給一個明知極險的選項，否則不要指定角色沒練的心智系技能。
 - 難度分級只能從這五個裡挑：${DIFFICULTY_IDS.join("／")}
   （${DIFFICULTY_TIERS.map((t) => `${t.id}=${t.hint}`).join("；")}）
 - 選項文字寫成玩家會說出口的行動，20字以內，不要寫成「進行感知檢定」這種系統語言。
+- **每個選項都要附一句 hint（15字以內）：玩家做這件事是想得到什麼。**
+  例如「想知道血跡通往哪裡」「想搶在它繞過來之前離開這層」。
+  這一格是玩家判斷「該按哪個」的主要依據——沒有它，玩家只能比較骰池數字大小，
+  那等於整個故事都白寫了。hint 寫目的與可能的收穫，不要寫成功率、不要重複 label 的字面。
+
+【定向要求：玩家看不到你的prompt，只看得到你寫的敘事】
+每一段敘事都必須讓一個**中途才開始看**的玩家搞清楚三件事，缺一不可：
+1. 他人在哪裡（具體位置：哪一層、哪個艙室、旁邊有什麼），不要只寫氛圍。
+2. 他現在**為什麼**在這裡，也就是眼前這一步是在追求什麼（對應下面的【劇情節點】目標）。
+3. 下一步可以往哪裡去（至少要有一個明確的方向、目標物或阻礙被指名）。
+只有氣氛、沒有這三件事的敘事一律算寫壞了——玩家的反應會是「我完全摸不清狀況，
+只好看哪個選項數字大就按哪個」，那就是這一回合失敗了。
 
 【輸出格式】
 你必須輸出**純JSON**，不要包任何說明文字、不要用markdown程式碼區塊。格式如下：
@@ -114,10 +132,10 @@ ${specs ? `- 已登記的專業：${specs}` : ""}
 {
   "narration": "這一段是你的敘事文字",
   "options": [
-    { "label": "選項文字", "attribute": "感知", "skill": "偵察", "specialization": null, "difficulty": "普通" },
-    { "label": "選項文字", "attribute": "力量", "skill": "格鬥", "specialization": null, "difficulty": "困難" },
-    { "label": "選項文字", "attribute": "意志", "skill": "交涉", "specialization": null, "difficulty": "容易" },
-    { "label": "選項文字", "attribute": "敏捷", "skill": "潛行", "specialization": null, "difficulty": "很困難" }
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "感知", "skill": "偵察", "specialization": null, "difficulty": "普通" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "力量", "skill": "格鬥", "specialization": null, "difficulty": "困難" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "意志", "skill": "交涉", "specialization": null, "difficulty": "容易" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "敏捷", "skill": "潛行", "specialization": null, "difficulty": "很困難" }
   ]
 }`;
 }
@@ -153,12 +171,16 @@ export const TURN_RESPONSE_SCHEMA = {
         type: "object",
         properties: {
           label: { type: "string" },
+          // hint 進 schema 是刻意的（跟技能名不進 schema 的理由不衝突）：它沒有「合法值清單」
+          // 要維護，純粹是一段給玩家看的文字，但它是玩家判斷該按哪個選項的主要依據，
+          // 少了它整個選單就退化成比大小。用 schema 保證它一定出現，比在prompt裡拜託模型可靠。
+          hint: { type: "string" },
           attribute: { type: "string", enum: ATTRIBUTE_KEYS },
           skill: { type: ["string", "null"] },
           specialization: { type: ["string", "null"] },
           difficulty: { type: "string", enum: DIFFICULTY_IDS },
         },
-        required: ["label", "attribute", "difficulty"],
+        required: ["label", "hint", "attribute", "difficulty"],
       },
     },
   },
@@ -283,6 +305,12 @@ export function validateOption(raw, character) {
 
   const option = { label, attribute: raw.attribute };
 
+  // hint（這個選項想達成什麼）：缺了不算錯——選項本身仍然可以玩，只是玩家少一份判斷依據，
+  // 為了這個把整個選項丟掉反而更糟。長度截斷是因為它要塞進按鈕裡，太長會把版面撐爛。
+  if (typeof raw.hint === "string" && raw.hint.trim()) {
+    option.hint = raw.hint.trim().slice(0, HINT_MAX_LENGTH);
+  }
+
   // --- 技能：不在規則書技能表裡就降級成純屬性檢定，不採用AI自創的技能名 ---
   if (raw.skill != null && raw.skill !== "") {
     if (!ALL_SKILLS.includes(raw.skill)) {
@@ -338,10 +366,10 @@ export function validateOption(raw, character) {
  * 不算是程式碼在替AI編故事，只是保證版面一定有得選，跟AI實際寫了什麼敘事內容完全脫鉤。
  */
 export const FALLBACK_OPTIONS = [
-  { label: "謹慎觀察四周，尋找線索", attribute: "感知", skill: "偵察", difficulty: "容易" },
-  { label: "強行突破當前的阻礙", attribute: "力量", skill: "格鬥", difficulty: "普通" },
-  { label: "試著開口溝通或喊話", attribute: "意志", skill: "交涉", difficulty: "普通" },
-  { label: "悄悄行動，伺機而動", attribute: "敏捷", skill: "潛行", difficulty: "普通" },
+  { label: "謹慎觀察四周，尋找線索", hint: "想弄清楚眼前的狀況", attribute: "感知", skill: "偵察", difficulty: "容易" },
+  { label: "強行突破當前的阻礙", hint: "想用力氣打開一條路", attribute: "力量", skill: "格鬥", difficulty: "普通" },
+  { label: "試著開口溝通或喊話", hint: "想確認附近還有沒有人", attribute: "意志", skill: "交涉", difficulty: "普通" },
+  { label: "悄悄行動，伺機而動", hint: "想在不被發現下換位置", attribute: "敏捷", skill: "潛行", difficulty: "普通" },
 ];
 
 /**

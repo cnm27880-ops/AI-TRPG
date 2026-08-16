@@ -21,6 +21,65 @@ const ALL_SKILLS = Object.values(SKILLS).flat();
 /** 自訂欄位的長度上限。超過直接截斷，不報錯——這是選填的風味欄位，不值得擋住整張卡。 */
 const CUSTOM_DETAIL_MAX_LENGTH = 40;
 
+// ---------------------------------------------------------------------------
+// [設計] 遞增配點成本
+//
+// 起因是實際測玩回饋（逐字）：
+//   「只要玩家把單一屬性+單一技能點高，就能一直用同一個檢定通關，
+//     因為我的敏捷+潛行最高，我每次都按相關的選項」
+//
+// 舊制是**線性**的：屬性從1加到5花4點、5個屬性各加1也花4點，兩者代價一模一樣。
+// 在骰池制底下這不是平衡的選擇，是一個明顯的最佳解——骰池愈大成功率愈高，
+// 而「把點全押在一個組合上」不需要付出任何額外代價，理性玩家沒有理由不這樣做。
+//
+// 改成遞增之後（每一級的邊際成本）：
+//   屬性 1->2:1  2->3:1  3->4:2  4->5:3   （累計 0/1/2/4/7）
+//   技能 0->1:1  1->2:1  2->3:2            （累計 0/1/2/4）
+// 專精仍然做得到，而且仍然強——但把敏捷點到5要花掉7點（總預算8點），
+// 玩家會清楚感覺到「這一點是拿其他五個屬性換來的」。這不是削弱專精，
+// 是讓專精變成一個**有代價的選擇**，而不是一個沒有理由不選的選項。
+//
+// 預算跟著調高（屬性6->8、技能8->10），讓四個內建模板維持原本的配點不變——
+// 這次要改的是「極端專精的代價」，不是「所有角色都變弱」。
+//
+// 數值是草案，之後依實際測玩調整；改的時候要連 test/characterBuilder.test.js 一起改。
+// ---------------------------------------------------------------------------
+
+/** 屬性每一級的邊際成本（索引 = 從幾升到幾+1）。基礎值1不用花點。 */
+const ATTRIBUTE_STEP_COST = { 2: 1, 3: 1, 4: 2, 5: 3 };
+/** 技能每一級的邊際成本。基礎值0不用花點。 */
+const SKILL_STEP_COST = { 1: 1, 2: 1, 3: 2 };
+
+export const ATTRIBUTE_BUDGET = 8;
+export const SKILL_BUDGET = 10;
+
+/** 把一個數值從基礎值升到 value 的**累計**成本。查表加總，不用公式，方便日後隨意調整曲線。 */
+function cumulativeCost(value, stepCost, startValue) {
+  let total = 0;
+  for (let level = startValue + 1; level <= value; level++) total += stepCost[level] ?? 0;
+  return total;
+}
+
+/** 屬性從1升到 value 的累計點數成本。 */
+export function attributeCost(value) {
+  return cumulativeCost(value, ATTRIBUTE_STEP_COST, 1);
+}
+
+/** 技能從0升到 value 的累計點數成本。 */
+export function skillCost(value) {
+  return cumulativeCost(value, SKILL_STEP_COST, 0);
+}
+
+/**
+ * 「再加一級」要花幾點。前端用它在加點按鈕旁邊標出下一點的價格——
+ * 玩家必須在按下去之前就看到「這一點要3點」，否則遞增成本只會變成一個
+ * 「我按了才發現點數不夠」的挫折來源，而不是一個可以規劃的取捨。
+ */
+export function nextStepCost(kind, currentValue) {
+  const table = kind === "attr" ? ATTRIBUTE_STEP_COST : SKILL_STEP_COST;
+  return table[currentValue + 1] ?? null;
+}
+
 export const ARCHETYPES = {
   soldier: {
     name: "特戰隊員",
@@ -194,8 +253,24 @@ export const ARCHETYPES = {
 
 export function chargenRules() {
   return {
-    attributes: { keys: ATTRIBUTE_KEYS, startValue: 1, cap: 5, freePoints: 6 },
-    skills: { byCategory: SKILLS, startValue: 0, cap: 3, freePoints: 8 },
+    // stepCost / cumulativeCost 一起送給前端：加點按鈕要在旁邊標「下一點要幾點」，
+    // 前端不自己抄一份成本表，否則曲線改了但前端沒改，玩家看到的價格會跟後端算的不一樣。
+    attributes: {
+      keys: ATTRIBUTE_KEYS,
+      startValue: 1,
+      cap: 5,
+      freePoints: ATTRIBUTE_BUDGET,
+      stepCost: ATTRIBUTE_STEP_COST,
+      cumulativeCost: Object.fromEntries([1, 2, 3, 4, 5].map((v) => [v, attributeCost(v)])),
+    },
+    skills: {
+      byCategory: SKILLS,
+      startValue: 0,
+      cap: 3,
+      freePoints: SKILL_BUDGET,
+      stepCost: SKILL_STEP_COST,
+      cumulativeCost: Object.fromEntries([0, 1, 2, 3].map((v) => [v, skillCost(v)])),
+    },
     archetypes: ARCHETYPES,
   };
 }
@@ -255,32 +330,32 @@ export function buildCharacter(draft = {}) {
     }
   }
 
-  // 計算屬性加點 (基礎值1)
+  // 計算屬性加點 (基礎值1)。成本是**遞增**的，見檔案上方 ATTRIBUTE_STEP_COST 的說明。
   let attrCost = 0;
   for (const key of ATTRIBUTE_KEYS) {
     const val = attributes[key] ?? 1;
     if (val < 1) errors.push(`${key} 不能小於 1`);
     if (val > 5) errors.push(`${key} 不能大於 5`);
-    attrCost += (val - 1);
+    attrCost += attributeCost(val);
   }
 
   // 計算技能加點 (基礎值0)。這裡驗的是**玩家自己配的點**，專長加成之後才疊上去，
   // 所以玩家能配到的上限仍然是3。
-  let skillCost = 0;
+  let skillPointCost = 0;
   for (const key of ALL_SKILLS) {
     const val = skills[key] ?? 0;
     if (val < 0) errors.push(`${key} 不能小於 0`);
     if (val > 3) errors.push(`${key} 不能大於 3`);
-    skillCost += val;
+    skillPointCost += skillCost(val);
   }
 
   const budgets = {
-    attributes: { totalCost: attrCost, totalBudget: 6, remaining: 6 - attrCost },
-    skills: { totalCost: skillCost, totalBudget: 8, remaining: 8 - skillCost }
+    attributes: { totalCost: attrCost, totalBudget: ATTRIBUTE_BUDGET, remaining: ATTRIBUTE_BUDGET - attrCost },
+    skills: { totalCost: skillPointCost, totalBudget: SKILL_BUDGET, remaining: SKILL_BUDGET - skillPointCost },
   };
 
-  if (attrCost > 6) errors.push(`屬性點數超支（已用 ${attrCost} / 6 點）`);
-  if (skillCost > 8) errors.push(`技能點數超支（已用 ${skillCost} / 8 點）`);
+  if (attrCost > ATTRIBUTE_BUDGET) errors.push(`屬性點數超支（已用 ${attrCost} / ${ATTRIBUTE_BUDGET} 點）`);
+  if (skillPointCost > SKILL_BUDGET) errors.push(`技能點數超支（已用 ${skillPointCost} / ${SKILL_BUDGET} 點）`);
 
   if (errors.length > 0) {
     return { valid: false, errors, budgets };

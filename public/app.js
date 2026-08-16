@@ -217,10 +217,21 @@ function selectBackstory(id) {
 }
 
 function stepperHtml(kind, name, value, min, max) {
+  // 「下一點要花幾點」直接標在加號旁邊。成本是遞增的（見 content/characterBuilder.js），
+  // 玩家如果要按下去才發現這一點要3點，那個遞增曲線就只是挫折來源，不是可以規劃的取捨。
+  // 價格一律從後端送來的規則表讀，前端不自己抄一份。
+  const costTable = (kind === "attr" ? chargenRules?.attributes : chargenRules?.skills)?.stepCost;
+  const nextCost = costTable?.[value + 1];
+  const nextCostTag =
+    value < max && nextCost != null
+      ? `<span class="text-[10px] ${nextCost >= 2 ? "text-orange-300" : "text-zinc-500"}" title="升到 ${value + 1} 需要 ${nextCost} 點">${nextCost}點</span>`
+      : `<span class="text-[10px] text-zinc-700">—</span>`;
+
   return `
     <div class="flex items-center justify-between bg-zinc-950 border hairline-border px-2.5 py-1.5 rounded text-xs font-mono">
       <span class="text-zinc-200">${name}</span>
       <span class="flex items-center gap-2">
+        ${nextCostTag}
         <button data-step="${kind}" data-name="${name}" data-delta="-1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value <= min ? "disabled" : ""}>−</button>
         <span class="w-4 text-center font-bold text-emerald-300">${value}</span>
         <button data-step="${kind}" data-name="${name}" data-delta="1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value >= max ? "disabled" : ""}>+</button>
@@ -946,13 +957,22 @@ function updateScenarioHud(scenario) {
   // 「目前目標」跟「主線進度」是兩件不同的事：前者是這個節點的名字，
   // 後者是整個劇本的完成度。過去黏在一起顯示（例如「醒來的代價 0%」）會讓玩家
   // 誤以為要把這個節點推進到100%才算完成，實際上通常過一回合節點就結束了。
+  renderBriefing(scenario.briefing);
+
+  // 「當前目標」顯示的是節點的 playerGoal（玩家看得懂的一句話），不是節點標題。
+  // 標題是寫給副本作者看的索引（「母親的特別指令」對還沒玩到那裡的人就是一句謎語），
+  // 玩家需要的是「我現在具體要幹嘛」——這正是測玩回饋卡住的地方。
   const titleEl = document.getElementById("scenario-node-title");
+  const goalText = node?.goal || node?.title || "";
   if (scenario.progress?.scenarioComplete) {
     titleEl.innerHTML = `<i class="fas fa-flag-checkered"></i> 主線已完成`;
+    titleEl.title = "";
   } else if (node.isFinale) {
-    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> 當前目標：${escapeHtml(node.title)}`;
+    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> 當前目標：${escapeHtml(goalText)}`;
+    titleEl.title = node.title;
   } else {
-    titleEl.textContent = `當前目標：${node.title}`;
+    titleEl.textContent = `當前目標：${goalText}`;
+    titleEl.title = node.title;
   }
 
   const pct = scenario.progress?.overallCompletionPct ?? 0;
@@ -994,6 +1014,31 @@ function updateScenarioHud(scenario) {
     combatBtn.style.display = canFight ? "" : "none";
     combatBtn.classList.toggle("pulse-glow", canFight);
   }
+}
+
+/**
+ * 副本簡介條（資料來自副本包的 briefing 欄位，作者寫死的，不是AI生的）。
+ *
+ * 收合狀態交給 <details> 自己管，這裡只負責填內容與決定要不要顯示整塊。
+ * 沒有 briefing 的副本(例如 echoInstitute)整塊不顯示，行為跟以前一樣。
+ */
+function renderBriefing(briefing) {
+  const box = document.getElementById("scenario-briefing");
+  if (!box) return;
+  if (!briefing) {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+  setText("briefing-title", briefing.title ?? "副本簡介");
+  setText("briefing-objective", briefing.objective ?? "");
+  setText("briefing-premise", briefing.premise ?? "");
+  setText("briefing-caution", briefing.caution ?? "");
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
 }
 
 /**
@@ -1078,19 +1123,35 @@ function renderOptions(options) {
       ? `<span class="shrink-0 text-yellow-300/90 text-[10px] font-mono border border-yellow-500/40 px-1.5 py-0.5 rounded bg-yellow-500/10" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
       : "";
 
+    // 套路懲罰預告（見 content/scenario/repetition.js）。玩家必須在**按下去之前**就看到
+    // 「這是連續第3次用潛行，DC會+1」，這個標籤才有意義——按完才知道等於在罰他，不是在設計。
+    const retreadTag = opt.retread
+      ? `<span class="shrink-0 text-orange-300 text-[10px] font-mono border border-orange-500/40 px-1.5 py-0.5 rounded bg-orange-500/10" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
+      : "";
+    const shownDc = opt.effectiveDc ?? opt.dc;
+
+    // hint（這個行動想達成什麼）刻意排在第二行、字級比骰池數字大：
+    // 測玩回饋是「我就是看選項哪個數字高就按哪個」——那不是玩家的問題，是版面把
+    // 唯一醒目的資訊做成了數字。現在最醒目的是「做這件事想得到什麼」，
+    // 檢定組合與DP退到最後一行的灰字。
+    const hintHtml = opt.hint
+      ? `<span class="text-[11px] text-zinc-300 leading-snug">↳ ${escapeHtml(opt.hint)}</span>`
+      : "";
+
     return `
     <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
       <span class="flex flex-col gap-1 flex-1 min-w-0">
-        <span class="font-bold text-zinc-100 flex items-center justify-between gap-2">
-          <span class="truncate">${escapeHtml(opt.label)}</span>
+        <span class="font-bold text-zinc-100 flex items-start justify-between gap-2">
+          <span class="flex-1">${escapeHtml(opt.label)}</span>
           <span class="shrink-0 flex items-center gap-1.5">
             ${fallbackTag}
-            <span class="text-emerald-400 text-[10px] font-mono border border-emerald-500/30 px-1.5 py-0.5 rounded bg-emerald-500/10">DP ${dp}</span>
+            ${retreadTag}
           </span>
         </span>
-        <span class="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5 flex-wrap">
-          <span>檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})</span>
+        ${hintHtml}
+        <span class="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 flex-wrap">
+          <span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc} · 骰池${dp}</span>
           ${warningHtml}
         </span>
       </span>

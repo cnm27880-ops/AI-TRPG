@@ -606,6 +606,10 @@
                     <div class="section-tag">3. 六維屬性配點</div>
                     <span id="cg-attr-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
                 </div>
+                <div class="text-[10px] font-mono text-zinc-500 leading-snug">
+                    加點成本<strong class="text-orange-300">遞增</strong>：升到 2、3 各 1 點，升到 4 要 2 點，升到 5 要 3 點。
+                    把單一屬性點滿會吃掉大部分預算——專精很強，但要付得起。
+                </div>
                 <div id="cg-attr-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
             </section>
 
@@ -614,6 +618,10 @@
                 <div class="flex justify-between items-center">
                     <div class="section-tag">4. 十大技能配點</div>
                     <span id="cg-skill-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
+                </div>
+                <div class="text-[10px] font-mono text-zinc-500 leading-snug">
+                    升到 1、2 各 1 點，升到 3 要 2 點。副本裡同一個「屬性＋技能」連續使用會愈來愈難，
+                    練<strong class="text-emerald-300">兩三條線</strong>比把一條線點滿更耐用。
                 </div>
                 <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </section>
@@ -718,6 +726,22 @@
                 </span>
                 <span id="scenario-time-badge" class="px-2 py-0.5 rounded border text-[10px] font-bold shrink-0"></span>
             </div>
+
+            <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
+                 測玩回饋是「在AI的回覆中，我完全摸不清故事背景」——固定開頭只講一次，
+                 之後每回合的敘事都只寫當下這個房間，玩家玩到第十回合早就忘記自己在哪艘船上。
+                 世界觀骨幹由副本作者寫死、常駐在畫面上，比要求AI每回合重講可靠也省篇幅。 -->
+            <details id="scenario-briefing" style="display:none" class="border-b border-emerald-500/15 bg-zinc-950/60 px-4 py-1.5 text-[11px] font-mono shrink-0">
+                <summary class="cursor-pointer text-emerald-300/90 hover:text-emerald-200 flex items-center gap-2 select-none">
+                    <i class="fas fa-circle-info text-[10px]"></i>
+                    <span id="briefing-title" class="font-bold">副本簡介</span>
+                    <span id="briefing-objective" class="text-zinc-400 font-normal truncate"></span>
+                </summary>
+                <div class="pt-1.5 pl-5 space-y-1 text-zinc-400 leading-relaxed">
+                    <div id="briefing-premise"></div>
+                    <div id="briefing-caution" class="text-orange-300/90"></div>
+                </div>
+            </details>
 
             <!-- 存檔不是持久的時候的常駐警告條（見 public/app.js 的 renderPersistenceWarning）。
                  content/storage/sessionStore.js 明文要求呼叫端必須把 persistent:false 顯示出來，
