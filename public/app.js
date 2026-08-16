@@ -476,13 +476,17 @@ function stepTrait(delta) {
  * @returns {{ok: true, payload: object} | {ok: false, message: string}}
  */
 function buildLlmOverrides() {
-  const provider = localStorage.getItem("user_llm_provider") || "";
+  // 設定改成「一組設定 = 一筆有名字的設定檔」之後，這裡只讀目前啟用的那一筆。
+  // 金鑰跟著供應商一起存在同一筆裡，不會出現「換了供應商但金鑰還是上一家的」那種錯配。
+  const profile = readActiveProfile();
+  const provider = profile.provider || "";
   if (!provider) return { ok: true, payload: {} }; // 用伺服器預設，什麼都不帶
 
   const meta = PROVIDER_UI_META[provider] ?? {};
-  const apiKey = (localStorage.getItem("user_api_key") || "").trim();
-  const baseUrl = (localStorage.getItem("user_llm_base_url") || "").trim();
-  const model = (localStorage.getItem("user_llm_model") || "").trim();
+  const apiKey = (profile.apiKey || "").trim();
+  const baseUrl = (profile.baseUrl || "").trim();
+  const model = (profile.model || "").trim();
+  const maxTokens = Number(profile.maxTokens);
 
   if (meta.needsKey && !apiKey) {
     return { ok: false, message: `你選了「${meta.label}」，但沒有填 API Key。請到「系統與文筆設定」補上，或把供應商改回「（使用伺服器預設）」。` };
@@ -498,7 +502,33 @@ function buildLlmOverrides() {
   if (apiKey) payload.apiKey = apiKey;
   if (baseUrl) payload.baseUrl = baseUrl;
   if (model) payload.model = model;
+  if (Number.isFinite(maxTokens) && maxTokens > 0) payload.maxTokens = Math.floor(maxTokens);
   return { ok: true, payload };
+}
+
+/**
+ * 讀目前啟用的 API 設定檔。設定檔的寫入端在 public/index.html 的行內script
+ * （那裡是設定視窗的 UI 邏輯），這裡只負責讀。
+ * 讀不到或格式壞掉時回一個空設定＝「用伺服器預設」，不讓壞掉的 localStorage 卡住遊戲。
+ */
+function readActiveProfile() {
+  try {
+    const profiles = JSON.parse(localStorage.getItem("user_llm_profiles") || "null");
+    if (Array.isArray(profiles) && profiles.length) {
+      const activeId = localStorage.getItem("user_llm_active_profile");
+      return profiles.find((p) => p.id === activeId) || profiles[0];
+    }
+  } catch (err) {
+    console.warn("[PROFILES] 設定檔讀取失敗，本回合改用伺服器預設", err);
+  }
+  // 還沒開過設定視窗的舊使用者：沿用舊版的散裝 key，不要讓他們的設定突然失效
+  return {
+    provider: localStorage.getItem("user_llm_provider") || "",
+    apiKey: localStorage.getItem("user_api_key") || "",
+    baseUrl: localStorage.getItem("user_llm_base_url") || "",
+    model: localStorage.getItem("user_llm_model") || "",
+    maxTokens: "",
+  };
 }
 
 /** 上一次送出的回合參數，讓「重試」按鈕不用玩家重打一次自訂行動。 */
@@ -634,7 +664,15 @@ function renderTurnQuality(degraded) {
   const detail = allFallback
     ? "AI 這一輪沒有給出任何可用選項，底下四個全是與劇情無關的通用保底選項（每輪都會是同一組文字）。"
     : `AI 只給了 ${degraded.aiOptionCount} 個可用選項，其餘 ${fallbackCount} 個為通用保底選項。`;
-  const cause = degraded.parseFailed ? "成因：AI 的回覆不是合法 JSON。" : "";
+
+  // 「寫到一半被切斷」跟「格式寫錯」是兩件不同的事，解法也完全不同：
+  // 前者調高長度上限就好，後者要換模型。講同一句話只會讓人往錯的方向修。
+  let cause = "";
+  if (degraded.truncated) {
+    cause = "成因：AI 的回覆寫到一半被切斷（長度上限用完了）。請到「系統與文筆設定」把『單次回覆長度上限』調大——會思考的模型要 8192 以上，因為思考用掉的額度也算在裡面。";
+  } else if (degraded.parseFailed) {
+    cause = "成因：AI 的回覆不是合法 JSON。";
+  }
 
   appendFeedBlock(
     `<span class="text-yellow-300">SYSTEM.FALLBACK // 保底內容</span>`,
@@ -1305,8 +1343,84 @@ async function handleResumeFromModal() {
   }
 }
 
+// --- Google 登入 ---------------------------------------------------------
+// 前端這一側刻意做得很薄：登入票是 HttpOnly cookie，JavaScript 讀不到也不需要讀
+// （那正是它防 XSS 的方式）。這裡只負責「問後端我是誰」與「畫出來」。
+
+let currentUser = null;
+
+function startGoogleLogin() {
+  // 整頁導向而不是開彈出視窗：OAuth 流程要跨網域，彈出視窗常被瀏覽器擋，
+  // 而且行動裝置上的體驗更差。導回來時網址會帶 ?login=ok。
+  window.location.href = "/api/auth/login";
+}
+
+async function googleLogout() {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch (err) {
+    console.warn("[AUTH] 登出請求失敗", err);
+  }
+  // 不管後端回什麼都重整：cookie 若已清掉就會變成訪客，沒清掉也會重新問一次狀態。
+  window.location.href = "/";
+}
+
+async function refreshAuthState() {
+  const box = document.getElementById("auth-box");
+  try {
+    const res = await (await fetch("/api/auth/me")).json();
+    if (!res.enabled) {
+      // 這個部署沒設定 Google 登入：整塊藏起來，不要給一顆一定會失敗的按鈕。
+      if (box) box.style.display = "none";
+      return;
+    }
+    if (box) box.style.display = "flex";
+    currentUser = res.user;
+    renderAuthState(res.user);
+  } catch (err) {
+    console.warn("[AUTH] 查詢登入狀態失敗", err);
+    if (box) box.style.display = "none";
+  }
+}
+
+function renderAuthState(user) {
+  const loginBtn = document.getElementById("auth-login-btn");
+  const userBox = document.getElementById("auth-user");
+  if (!loginBtn || !userBox) return;
+
+  if (!user) {
+    loginBtn.style.display = "";
+    userBox.style.display = "none";
+    return;
+  }
+  loginBtn.style.display = "none";
+  userBox.style.display = "flex";
+  const avatar = document.getElementById("auth-avatar");
+  if (avatar) {
+    if (user.picture) { avatar.src = user.picture; avatar.style.display = ""; }
+    else avatar.style.display = "none";
+  }
+  const name = document.getElementById("auth-name");
+  if (name) name.textContent = user.name || user.email || "已登入";
+}
+
+/** 剛登入回來時，把網址上的 ?login=ok 洗掉，免得玩家重整又看到一次提示。 */
+function consumeLoginRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("login");
+  if (!status) return;
+  history.replaceState(null, "", window.location.pathname);
+  if (status === "ok") {
+    console.info("[AUTH] 登入成功");
+  } else if (status === "cancelled") {
+    console.info("[AUTH] 使用者取消了登入");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   showScreen("portal");
+  consumeLoginRedirect();
+  await refreshAuthState();
   await checkLocalSession();
 
   document.getElementById("cg-submit")?.addEventListener("click", startNewGame);
@@ -1395,3 +1509,5 @@ window.handleResumeFromModal = handleResumeFromModal;
 window.applyArchetype = applyArchetype;
 window.startCombat = startCombat;
 window.endCombat = endCombat;
+window.startGoogleLogin = startGoogleLogin;
+window.googleLogout = googleLogout;

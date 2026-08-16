@@ -327,3 +327,45 @@ test("optionToCheckParams：純屬性選項不帶skill欄位", () => {
   assert.equal(params.skill, undefined);
   assert.equal(params.dc, 2);
 });
+
+// --- 輸出被截斷時的敘事挖掘（2026-08-16，玩家實際看到的畫面bug） ---
+//
+// 症狀：說書人對話框裡出現裸奔的 JSON —— `{ "narration": "昏紅的緊急照明燈光在…士兵`
+// 成因：extractNarrationFallback() 的正則要求 narration 字串**有收尾引號**，
+// 而輸出被切斷時那個引號根本不存在，於是 match 不到、回傳 null，
+// 呼叫端只好把整段原文印出來，玩家就看到了程式碼。
+// 被切斷的敘事本身仍然是AI寫的、仍然可讀，沒有理由不給玩家看。
+
+test("extractNarrationFallback：narration字串沒有收尾引號(輸出被切斷)時，仍要挖得出文字", () => {
+  const truncated = '{\n  "narration": "昏紅的緊急照明燈光在B3隔離艙內規律跳動，門邊掛著一枚沾染暗紅血跡的士兵';
+  const got = extractNarrationFallback(truncated);
+  assert.ok(got, "被切斷不等於沒有內容，不可以回 null");
+  assert.match(got, /^昏紅的緊急照明燈光/);
+  assert.ok(!got.includes('"narration"'), "挖出來的必須是純敘事，不可以夾帶JSON語法");
+  assert.ok(!got.includes("{"), "不可以把大括號一起帶出來");
+});
+
+test("extractNarrationFallback：完整的JSON仍然照舊優先用有收尾引號的那一條路", () => {
+  const complete = '{"narration": "完整的敘事", "options": []}';
+  assert.equal(extractNarrationFallback(complete), "完整的敘事");
+});
+
+test("extractNarrationFallback：被切斷的內容裡有跳脫字元也要正確還原", () => {
+  const truncated = '{"narration": "他說：\\"快走\\"\\n然後轉身';
+  const got = extractNarrationFallback(truncated);
+  assert.match(got, /他說：「?"?快走/);
+  assert.ok(got.includes("\n"), "\\n 要還原成真的換行");
+});
+
+test("extractNarrationFallback：結尾剛好斷在一個落單的反斜線上時，仍要挖得出文字", () => {
+  // 這是最刁鑽的邊界：輸出停在跳脫序列只寫了一半的地方。那個落單的反斜線
+  // 既不符合 \\. 也不符合 [^"\\]，正則若沒有特別容忍它就會整條match不到、
+  // 退回 null，玩家又看到裸JSON——等於修正在最需要它的地方失效。
+  const truncated = '{"narration": "文字結尾剛好斷在跳脫字元\\';
+  assert.doesNotThrow(() => extractNarrationFallback(truncated));
+  assert.equal(extractNarrationFallback(truncated), "文字結尾剛好斷在跳脫字元");
+});
+
+test("extractNarrationFallback：完全沒有narration欄位時還是回 null", () => {
+  assert.equal(extractNarrationFallback("這只是一段普通的散文，沒有JSON"), null);
+});

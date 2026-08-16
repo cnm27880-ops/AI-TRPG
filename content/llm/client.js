@@ -237,7 +237,13 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
     );
   }
 
-  return { text, provider: cfg.id, model: cfg.model, raw };
+  return {
+    text,
+    provider: cfg.id,
+    model: cfg.model,
+    finishReason: raw?.choices?.[0]?.finish_reason ?? null,
+    raw,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +315,13 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
     );
   }
 
-  return { text, provider: cfg.id, model: cfg.model, raw };
+  return {
+    text,
+    provider: cfg.id,
+    model: cfg.model,
+    finishReason: raw?.candidates?.[0]?.finishReason ?? null,
+    raw,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -385,7 +397,14 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, r
     );
   }
 
-  return { text, provider: cfg.id, model: cfg.model, raw };
+  return {
+    text,
+    provider: cfg.id,
+    model: cfg.model,
+    // Workers AI 現在也會回 OpenAI 形狀的 envelope，finish_reason 就在裡面
+    finishReason: raw?.choices?.[0]?.finish_reason ?? null,
+    raw,
+  };
 }
 
 /**

@@ -15,6 +15,8 @@ import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
 import { getDownState } from "../../../content/downState.js";
+import { getCurrentUser } from "../../../content/auth/sessionToken.js";
+import { canAccessSession } from "../../../content/auth/ownership.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -31,6 +33,12 @@ export async function onRequestPost(context) {
 
   const session = await store.get(sessionId);
   if (!session) return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
+
+  // 存檔歸屬檢查：有主人的存檔只有本人能碰（見 content/auth/ownership.js）。
+  // 回 404 而不是 403 是刻意的——告訴對方「這個ID存在但你不能看」等於確認了它的存在。
+  if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
+    return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
+  }
 
   const combat = session.combat;
   if (!combat?.active) {

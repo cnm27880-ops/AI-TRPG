@@ -13,6 +13,8 @@
 import { resolveSessionStore } from "../../content/storage/sessionStore.js";
 import { getDownState, revivalQuote, reviveCharacter } from "../../content/downState.js";
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
+import { getCurrentUser } from "../../content/auth/sessionToken.js";
+import { canAccessSession } from "../../content/auth/ownership.js";
 
 export async function onRequestGet(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -21,6 +23,9 @@ export async function onRequestGet(context) {
 
   const session = await store.get(id);
   if (!session) return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
+    return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  }
 
   return json({
     ok: true,
@@ -45,6 +50,9 @@ export async function onRequestPost(context) {
 
   const session = await store.get(sessionId);
   if (!session) return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
+  if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
+    return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
+  }
 
   const result = reviveCharacter(session.character);
   if (!result.ok) {
