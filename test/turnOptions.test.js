@@ -253,6 +253,52 @@ test("validateOptions：AI完全沒給任何合法選項時，也要墊滿四個
   }
 });
 
+// --- 「這個選項是誰給的」必須看得出來（2026-08-16 任務A的根本原因） ---
+//
+// 這一組測試存在的理由：先前「AI給了3個少1個」跟「AI一個都沒給」被處理成完全一樣的結果，
+// 於是後者可以連續發生幾十輪都沒人發現(症狀只有『選項每輪逐字重複』，得靠肉眼比對)。
+// 現在兩者必須在回傳值上就分得開。
+
+test("validateOptions：AI給的選項標 source=ai，引擎墊的標 source=fallback", () => {
+  const { options } = validateOptions(
+    [{ label: "只有一個", attribute: "感知", skill: "偵察", difficulty: "普通" }],
+    demoCharacter()
+  );
+  assert.equal(options[0].source, "ai", "AI真正給的選項要標成 ai");
+  for (const opt of options.slice(1)) {
+    assert.equal(opt.source, "fallback", "墊底選項要標成 fallback，前端才能標示給玩家看");
+  }
+});
+
+test("validateOptions：回傳 aiOptionCount / fallbackCount，讓呼叫端分得出『少1個』與『整組都是保底』", () => {
+  const partial = validateOptions(
+    [
+      { label: "搜查", attribute: "感知", skill: "偵察", difficulty: "普通" },
+      { label: "衝刺", attribute: "敏捷", skill: "體魄", difficulty: "困難" },
+      { label: "喊話", attribute: "意志", skill: "交涉", difficulty: "容易" },
+    ],
+    demoCharacter()
+  );
+  assert.equal(partial.aiOptionCount, 3);
+  assert.equal(partial.fallbackCount, 1);
+
+  const none = validateOptions(null, demoCharacter());
+  assert.equal(none.aiOptionCount, 0, "AI一個都沒給時 aiOptionCount 必須是0");
+  assert.equal(none.fallbackCount, OPTION_COUNT, "整組都是保底選項");
+});
+
+test("validateOptions：整組都退回保底時，警告文字要跟『只是少幾個』的警告明顯不同", () => {
+  const none = validateOptions(null, demoCharacter()).warnings.join();
+  const partial = validateOptions(
+    [{ label: "搜查", attribute: "感知", skill: "偵察", difficulty: "普通" }],
+    demoCharacter()
+  ).warnings.join();
+
+  assert.match(none, /全部/, "整組保底的警告要明講『全部』，不能跟墊一兩個共用同一句");
+  assert.match(none, /每一輪都會是同一組文字/, "要點出『逐字重複』這個實際觀察得到的症狀");
+  assert.ok(!/每一輪都會是同一組文字/.test(partial), "只少幾個的情況不該用整組保底的警告文字");
+});
+
 // --- 接回引擎 ---
 
 test("查驗過的選項一定能被 performCheck() 實際吃下去而不丟錯", () => {

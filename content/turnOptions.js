@@ -123,6 +123,49 @@ ${specs ? `- 已登記的專業：${specs}` : ""}
 }
 
 /**
+ * 這一回合期望的回覆結構，寫成 JSON Schema。
+ *
+ * [2026-08-16] 用途是「結構化輸出」：多數供應商都支援在請求裡附一份 schema，
+ * 由供應商端**保證**模型的輸出符合它（Gemini 的 responseSchema、OpenAI 相容的
+ * response_format.json_schema、Workers AI 的 json_schema）。這是把
+ * 「祈禱模型照著 prompt 裡的範例寫」換成「格式由協定保證」，
+ * 也是把保底選項的觸發率壓下來最有效的一招——線上實測 8B 模型光靠 prompt
+ * 大約每四輪會有一輪寫出不合法的 JSON。
+ *
+ * schema 刻意寫得**只約束結構、不約束內容**（只有 attribute 與 difficulty 用 enum，
+ * 因為那兩個的合法值很少且固定）。技能名、專業名一律不進 schema，理由是這個專案的
+ * 分工本來就是「AI 挑組合、引擎查驗」（見本檔案開頭的規則書出處說明）——
+ * 查驗權在 validateOption()，不能因為多了一份 schema 就把它變成第二個真理來源，
+ * 那樣以後改技能表要記得改兩個地方，遲早會不一致。
+ *
+ * 這份 schema 放在這個檔案而不是 content/llm/client.js：client.js 只該懂「線路格式」，
+ * 不該懂「一回合長什麼樣」。呼叫端（functions/api/turn.js）負責把兩者接起來。
+ */
+export const TURN_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    narration: { type: "string" },
+    options: {
+      type: "array",
+      minItems: OPTION_COUNT,
+      maxItems: OPTION_COUNT,
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          attribute: { type: "string", enum: ATTRIBUTE_KEYS },
+          skill: { type: ["string", "null"] },
+          specialization: { type: ["string", "null"] },
+          difficulty: { type: "string", enum: DIFFICULTY_IDS },
+        },
+        required: ["label", "attribute", "difficulty"],
+      },
+    },
+  },
+  required: ["narration", "options"],
+};
+
+/**
  * 從 LLM 回傳的文字裡把 JSON 挖出來。
  *
  * 為什麼要「挖」而不是直接 JSON.parse：不論怎麼交代，模型還是常常會
@@ -290,7 +333,18 @@ export const FALLBACK_OPTIONS = [
  * 只是保底版面；AI真正給的合法選項一律優先，只有數量不足額才補墊底選項。
  * 「自訂行動」輸入框本來就是前端固定提供、不受這裡影響，雙重保底玩家不會卡住。
  *
- * @returns {{options: object[], warnings: string[]}}
+ * [2026-08-16 決策變更] 原本這個函式把兩種性質完全不同的情況處理成一模一樣的結果：
+ *   (a) AI給了3個合法選項、少1個  —— 正常的小瑕疵，墊1個沒什麼問題
+ *   (b) AI根本沒回傳可用的選項    —— 代表這一輪的選項**全部**是引擎湊的，
+ *       玩家看到的四個按鈕跟AI寫的敘事毫無關係，而且每一輪都會逐字一樣
+ * 兩者都只在 warnings 裡留一句話，而 warnings 沒有任何呼叫端在看，所以(b)可以連續
+ * 發生幾十輪而沒有人發現。現在改成：
+ *   - 每個選項標上 source（"ai" 或 "fallback"），呼叫端/前端可以直接看出誰是保底的
+ *   - 回傳 aiOptionCount / fallbackCount，讓呼叫端能區分(a)與(b)並決定要不要留log
+ *   - (b) 的警告文字明講「整組都是保底選項」，不再跟(a)共用同一句
+ * 墊底行為本身完全沒變（使用者要求版面一定要有四顆按鈕），變的只有「有沒有講出來」。
+ *
+ * @returns {{options: object[], warnings: string[], aiOptionCount: number, fallbackCount: number}}
  */
 export function validateOptions(rawOptions, character) {
   const warnings = [];
@@ -303,25 +357,32 @@ export function validateOptions(rawOptions, character) {
       const result = validateOption(raw, character);
       result.warnings.forEach((w) => warnings.push(`選項${index + 1}：${w}`));
       if (result.ok) {
-        options.push(result.option);
+        options.push({ ...result.option, source: "ai" });
       } else {
         warnings.push(`選項${index + 1}被捨棄：${result.error}`);
       }
     });
   }
 
-  if (options.length !== OPTION_COUNT) {
-    warnings.push(`AI給了${options.length}個可用選項，預期${OPTION_COUNT}個，已用通用選項墊滿`);
+  const aiOptionCount = options.length;
+
+  if (aiOptionCount === 0) {
+    warnings.push(
+      `AI這一輪沒有給出任何可用選項，底下四個選項**全部**是與劇情無關的通用保底選項` +
+        `（每一輪都會是同一組文字）。這通常代表AI沒有照JSON格式輸出，或選項全部沒通過規則查驗。`
+    );
+  } else if (aiOptionCount !== OPTION_COUNT) {
+    warnings.push(`AI給了${aiOptionCount}個可用選項，預期${OPTION_COUNT}個，已用通用選項墊滿`);
   }
 
   for (const fallback of FALLBACK_OPTIONS) {
     if (options.length >= OPTION_COUNT) break;
     if (options.some((o) => o.label === fallback.label)) continue;
     const result = validateOption(fallback, character);
-    if (result.ok) options.push(result.option);
+    if (result.ok) options.push({ ...result.option, source: "fallback" });
   }
 
-  return { options, warnings };
+  return { options, warnings, aiOptionCount, fallbackCount: options.length - aiOptionCount };
 }
 
 /** 把查驗過的選項轉成 core/check.js 的 performCheck() 需要的參數。 */

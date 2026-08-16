@@ -14,6 +14,7 @@ import { resolvePlayerAttack, resolveEnemyAttack, isCombatOver } from "../../../
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
+import { getDownState } from "../../../content/downState.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -71,15 +72,57 @@ export async function onRequestPost(context) {
 
   const combatOver = isCombatOver(combat);
 
+  // [2026-08-16 新增] 玩家倒下時把它寫進事件日誌。
+  // 在這之前，「玩家被打死」這件事完全沒有留下任何紀錄：戰鬥面板顯示「戰鬥失利」，
+  // 然後 endCombat() 送一句摘要回主迴圈，玩家就用一張死掉的角色卡繼續玩下去。
+  // 現在 /api/turn 有傷勢閘門會擋住，但事件日誌本來就該記下這件事——
+  // 它同時也是餵給AI的事實記憶，AI必須知道玩家倒下過。
+  const playerDown = getDownState(session.character);
+  if (combatOver.over && combatOver.winner === "enemy" && !playerDown.canAct) {
+    appendEvent(
+      session.log,
+      EVENT_TYPES.DEATH,
+      { cause: `在與${combat.enemy.name}的戰鬥中倒下`, dead: playerDown.dead, unconscious: playerDown.unconscious },
+      { timestamp: new Date().toISOString() }
+    );
+  }
+
   // 副本最終戰：玩家打贏了 /api/combat/start 標記過的 scenarioFinaleNodeId 時，
   // 自動結算那個節點(扭轉度固定用0級/完全遵循原劇情——戰鬥勝負本身沒有「敘事扭轉度」可言，
   // 那是敘事節點的概念，見 content/scenario/divergence.js 檔頭說明)，
   // 玩家不需要另外靠AI敘事JSON信號才能拿到最終戰獎勵。
+  // [2026-08-16 修正] 底下兩層 if 任一失敗時，scenarioResult 會停在 null，
+  // 玩家打贏了boss卻沒有XP、沒有節點完成提示、也沒有任何錯誤——跟「沒打贏」長得一模一樣。
+  // 現在失敗一律留 log 並把原因帶回前端(scenarioResult.warnings)，不再靜音。
   let scenarioResult = null;
   if (combatOver.over && combatOver.winner === "player" && combat.scenarioFinaleNodeId && session.scenario) {
+    const scenarioWarnings = [];
     const pack = getScenarioPack(session.scenario.packId);
+    if (!pack) {
+      const msg =
+        `打贏了最終戰，但存檔記錄的副本「${session.scenario.packId}」找不到對應的內建副本包，` +
+        `本次無法結算節點獎勵。`;
+      console.error("[SCENARIO_SETTLEMENT_FAILED]", JSON.stringify({
+        where: "POST /api/combat/act",
+        sessionId,
+        packId: session.scenario.packId,
+        nodeId: combat.scenarioFinaleNodeId,
+        reason: "pack_not_found",
+      }));
+      scenarioWarnings.push(msg);
+    }
     if (pack) {
       const result = completeNodeAndAdvance(pack, session.scenario.progress, combat.scenarioFinaleNodeId, 0);
+      if (!result.ok) {
+        console.error("[SCENARIO_SETTLEMENT_FAILED]", JSON.stringify({
+          where: "POST /api/combat/act",
+          sessionId,
+          packId: pack.id,
+          nodeId: combat.scenarioFinaleNodeId,
+          reason: result.error,
+        }));
+        scenarioWarnings.push(`打贏了最終戰，但節點結算被引擎擋下：${result.error}`);
+      }
       if (result.ok) {
         session.character.xp.earned += result.reward;
         session.scenario = { packId: pack.id, progress: result.progress };
@@ -99,6 +142,10 @@ export async function onRequestPost(context) {
         scenarioResult = { nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward } };
       }
     }
+
+    if (scenarioWarnings.length) {
+      scenarioResult = { ...(scenarioResult ?? { nodeCompleted: null }), warnings: scenarioWarnings };
+    }
   }
 
   session.combat = combat;
@@ -113,6 +160,7 @@ export async function onRequestPost(context) {
     combatOver,
     character: session.character,
     scenario: scenarioResult,
+    downState: playerDown,
   });
 }
 

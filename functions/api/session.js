@@ -14,6 +14,7 @@ import {
 } from "../../content/storage/sessionStore.js";
 import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
+import { getDownState, revivalQuote } from "../../content/downState.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -76,7 +77,16 @@ export async function onRequestGet(context) {
   if (!session) {
     return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
   }
-  return json({ ok: true, persistent: store.persistent, storeKind: store.kind, session });
+  // downState / revival 一起回傳：玩家重整頁面回到一張昏迷或死亡的角色卡時，
+  // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
+  return json({
+    ok: true,
+    persistent: store.persistent,
+    storeKind: store.kind,
+    session,
+    downState: getDownState(session.character),
+    revival: revivalQuote(session.character),
+  });
 }
 
 export async function onRequestDelete(context) {

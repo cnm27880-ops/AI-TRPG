@@ -12,6 +12,7 @@ import { createEncounter, resolveLeadingEnemyTurns } from "../../../content/comb
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { findActiveNode } from "../../../content/scenario/progress.js";
+import { getDownState } from "../../../content/downState.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -33,6 +34,12 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "這場存檔已經有進行中的戰鬥，請先結束才能開始新的" }, 409);
   }
 
+  // 昏迷/死亡的角色不能開新戰鬥（跟 /api/turn 的傷勢閘門同一個原則）。
+  const downState = getDownState(session.character);
+  if (!downState.canAct) {
+    return json({ ok: false, error: downState.reason, downState }, 409);
+  }
+
   // 副本的最終戰節點若已經是目前活躍節點，改用它掛的 bossEncounter 樣板，
   // 而不是預設的雜魚——玩家推進到最終戰後隨時按「遭遇戰鬥」都是打這場戰。
   // combat.scenarioFinaleNodeId 讓 /api/combat/act 知道這場戰打贏後要順便結算哪個節點。
@@ -40,12 +47,27 @@ export async function onRequestPost(context) {
   const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
   const finaleNode = activeNode?.isFinale ? activeNode : null;
 
-  const combat = createEncounter(session.character, finaleNode?.bossEncounter);
-  if (finaleNode) combat.scenarioFinaleNodeId = finaleNode.id;
+  // 敵人樣板有問題(例如 weaponKey 不在武器型錄裡)時，這裡會丟錯。要接住並回成一個
+  // 看得懂的 400，否則 Pages Functions 會回一個沒有內容的 500，前端只能顯示「連線失敗」，
+  // 而真正的原因(某個boss樣板打錯字)完全不會出現在任何地方。
+  let combat;
+  let openingEnemyAttacks;
+  try {
+    combat = createEncounter(session.character, finaleNode?.bossEncounter);
+    if (finaleNode) combat.scenarioFinaleNodeId = finaleNode.id;
 
-  // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見
-  // content/combat/encounterState.js 的 resolveLeadingEnemyTurns 說明）。
-  const openingEnemyAttacks = resolveLeadingEnemyTurns(combat, session.character);
+    // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見
+    // content/combat/encounterState.js 的 resolveLeadingEnemyTurns 說明）。
+    openingEnemyAttacks = resolveLeadingEnemyTurns(combat, session.character);
+  } catch (err) {
+    console.error("[COMBAT_START_FAILED]", JSON.stringify({
+      where: "POST /api/combat/start",
+      sessionId,
+      enemyTemplate: finaleNode?.bossEncounter?.name ?? "(預設佔位敵人)",
+      message: err.message,
+    }));
+    return json({ ok: false, error: `無法建立戰鬥遭遇：${err.message}` }, 400);
+  }
   for (const atk of openingEnemyAttacks) {
     appendEvent(session.log, EVENT_TYPES.COMBAT_ACTION, {
       actor: "enemy",

@@ -69,6 +69,11 @@ content/               即插即用內容包
                          技藝/法術/魔導書/修真/物品/載具/專長/副本/契約)
   templates.js           [規則書] 資源模板DCBA定價表
   affection.js           [設計] NPC好感度分級與判定加值對照表
+  downState.js            [設計] 傷勢閘門——把 core/health.js 的 dead/unconscious 與
+                          core/deathAndRevival.js 的復活規則接到實際流程上(/api/turn、
+                          /api/combat/start、/api/revive)。2026-08-16 之前這兩個 core 模組
+                          在整個 functions/ 與 content/ 底下一次都沒被引用過，玩家可以用
+                          一張死掉的角色卡繼續玩，見下方「靜默失敗排查」決策記錄
   scenario/               [設計] 劇情節點圖、扭轉度系統、時間預算(社交vs主線資源競爭)
   contracts/              [設計骨架] 主神商店奴隸/員工契約，數值留白
   gemini/                 [設計骨架] Gemini敘事整合——AI敘事契約prompt組裝+REST API最小包裝，
@@ -485,3 +490,42 @@ GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非
 - **[修正] 基礎防御取錯方向**：詳見 TEST_PLAN.md 的「已修正的bug」。簡述：實作成
   max(敏捷,感知)，但規則書衍生屬性段明文是「較低者」。這會讓每個角色防御偏高、
   所有攻擊命中率偏低，是實際影響戰鬥結果的bug。已加跨模組一致性測試，避免兩邊只改一邊。
+
+## 靜默失敗排查(2026-08-16)的決策記錄
+
+起因是一個玩家實際回報的症狀：**每一輪的四個行動選項文字逐字相同**。
+追下去發現根本原因不是「AI呼叫失敗」，而是**呼叫成功、但回應內容不能用時被靜默吞掉**：
+AI沒照JSON格式輸出 → `parseTurnResponse()` 失敗 → 選項整組退回 `FALLBACK_OPTIONS`
+(一組固定文字) → 以 **HTTP 200 `ok:true`** 回傳，跟正常回合長得一模一樣。
+這件事只在回應的 `warnings` 陣列裡留一句話，而前端從來沒有讀過 `warnings`，
+伺服器端也完全沒有log。於是它可以連續發生幾十輪而沒有任何人發現。
+
+以此為樣板掃過整個專案後，找到同一個模式的另外9處。這裡記錄的是**通則**，
+免得之後又長出新的一份：
+
+- **保底內容必須自我標示**。引擎可以墊選項(使用者明確要求版面永遠有四顆按鈕)，
+  但墊出來的東西要標記來源(`option.source = "fallback"`)，回應要帶出數量
+  (`degraded.aiOptionCount` / `fallbackOptionCount`)，畫面上要看得出來。
+  「墊底」跟「AI真的產出」的差別，不可以只有寫程式的人知道。
+- **`catch` 區塊裡至少要做一件事**。`catch {}` 與 `catch (err) { return }` 一律視為bug。
+  最低標準是 `console.error/warn` 加一個可 grep 的前綴(本專案用
+  `[LLM_FAILURE]` / `[LLM_DEGRADED]` / `[SCENARIO_SETTLEMENT_FAILED]` / `[RESUME_FAILURE]` 等)。
+- **警告要分受眾**。給開發者的(進 console)與給玩家的(進畫面)是兩件事，
+  全部丟進同一個 `warnings` 陣列的結果就是兩邊都沒人看。副本結算被擋下、
+  最終戰沒結算成獎勵，這些是玩家要知道的，走 `scenario.warnings`。
+- **規則層算出來的東西一定要有呼叫端在讀**。`core/health.js` 的 dead/unconscious 旗標
+  與 `core/deathAndRevival.js` 的整套復活規則，寫得完整、測試也全綠，
+  但在 functions/ 與 content/ 底下**一次都沒有被引用過**——玩家在戰鬥中被打死之後照樣
+  可以繼續選選項、擲骰、推劇情。這是這次找到最嚴重的一項：規則層算對了，結果沒有生效，
+  而且畫面看起來一切正常。修法是新增 `content/downState.js` 當接線層 + `/api/revive` 端點。
+- **閘門一定要配一條出路**。加傷勢閘門擋住死亡角色的同時就要把復活流程接上，
+  否則只是把「靜靜地用死角色繼續玩」換成「靜靜地卡死」，兩種都不能接受。
+- **前端錯誤處理跟後端錯誤回應是同一件事的兩半**。後端回了漂亮的 502 + 錯誤訊息，
+  前端不看 `res.ok` 的話等於沒回。`/api/turn` 的敘事失敗以前就是這樣：
+  前端照常往下跑，玩家只看到「本回合無預設選項」，會以為那是遊戲設計。
+
+`content/downState.js` 的復活費用有一個**誠實記錄的近似**：
+`core/deathAndRevival.js` 的公式需要「建卡分數帳本」，而 `core/schema.js` 目前只有
+`xp:{earned,spent}`。所以 `buildRevivalWallet()` 用經驗值帳本代打，並在檔案裡寫明
+「這不是書中原意的那個數字，等點數帳本做出來只要改這一個函式」。
+不假裝已經做完，也不因為缺一塊資料就整個不做。

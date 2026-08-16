@@ -33,6 +33,23 @@
 //   - Cloudflare Workers AI：https://developers.cloudflare.com/workers-ai/platform/pricing/
 // ============================================================================
 
+/**
+ * 「結構化輸出」的支援方式。
+ *
+ * [2026-08-16] 這是把保底選項觸發率壓下來的關鍵：與其祈禱模型照著 prompt 裡的範例寫 JSON，
+ * 不如在請求裡附一份 schema，由供應商端保證輸出格式。三種線路格式的欄位名都不一樣，
+ * 所以這裡登記「這一家用哪一種」，實際組裝在 client.js。
+ *
+ * null = 不確定這家支不支援，就不要送——送了不支援的欄位有些端點會直接回400，
+ * 那等於把一個本來會動的設定弄壞。這比「少一點保險」嚴重得多，所以預設保守。
+ * 玩家自己知道他的端點支援時，可以用環境變數 LLM_JSON_MODE=on 強制打開。
+ */
+export const JSON_MODES = {
+  OPENAI_SCHEMA: "openai-schema",
+  GEMINI_SCHEMA: "gemini-schema",
+  WORKERS_AI_SCHEMA: "workers-ai-schema",
+};
+
 /** 各家API的線路格式。新增供應商時先問：它是不是OpenAI相容？是的話用 openai-chat 就好。 */
 export const PROTOCOLS = {
   OPENAI_CHAT: "openai-chat",
@@ -52,6 +69,7 @@ export const PROVIDERS = {
     apiKeyEnv: "GEMINI_API_KEY",
     docs: "https://ai.google.dev/gemini-api/docs/pricing",
     freeTier: "有免費額度（需要自己申請金鑰）",
+    jsonMode: "gemini-schema",
   },
 
   // --- DeepSeek（官方） ---
@@ -65,6 +83,40 @@ export const PROVIDERS = {
     apiKeyEnv: "DEEPSEEK_API_KEY",
     docs: "https://api-docs.deepseek.com/",
     freeTier: "無常態免費額度，依官方計價（新帳號是否送額度請自行確認）",
+    jsonMode: "openai-schema",
+  },
+
+  // --- SiliconFlow 硅基流動（聚合平台，有一批常駐免費模型） ---
+  siliconflow: {
+    label: "SiliconFlow 硅基流動（含免費模型）",
+    protocol: PROTOCOLS.OPENAI_CHAT,
+    // 查證2026-08-16官方 quickstart：https://docs.siliconflow.com/en/userguide/quickstart
+    // 官方英文站給的是 .com；另有 .cn 站(api.siliconflow.cn/v1)，兩邊帳號與金鑰是分開的。
+    // 你申請的是哪一邊就用哪一邊——用錯會是 401，不是 404，錯誤訊息不會告訴你是站別問題。
+    // 要改用 .cn 設環境變數 LLM_BASE_URL=https://api.siliconflow.cn/v1 即可，不用改這裡。
+    baseUrl: "https://api.siliconflow.com/v1",
+    // [注意] 免費模型清單會輪替，這個值是查證當下(2026-08-16)第三方追蹤站列出的常駐免費模型之一。
+    // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
+    // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
+    defaultModel: "Qwen/Qwen3-8B",
+    apiKeyEnv: "SILICONFLOW_API_KEY",
+    docs: "https://docs.siliconflow.com/en/userguide/quickstart",
+    // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
+    // 500 RPM / 2,000,000 TPM，而且 L0~L5 六個用量級別完全相同——官方文件說
+    // 「免費模型的限流固定、付費模型才隨級別變動」，各級別相同正好佐證這是免費模型的頁面。
+    // 那張表**沒有每日請求數這一欄**。
+    // 實測本專案一回合約 4,300 tokens(prompt 3,938 + completion 約 350)，
+    // 換算下來 RPM 與 TPM 兩邊的天花板都落在每分鐘 460~500 個回合左右，
+    // 單人遊戲(一分鐘頂多打幾個回合)有兩個數量級的餘裕。
+    freeTier:
+      "有一批常駐免費模型。免費模型限流固定為 500 RPM / 2,000,000 TPM，各用量級別相同，" +
+      "主控台未列每日請求上限。以本專案一回合約4,300 tokens估算，單人遊戲遠遠用不完。",
+    // 官方有 JSON schema 專頁(docs.siliconflow.cn/en/userguide/guides/json-mode)，
+    // 明講設 response_format 為 {type:"json_schema", json_schema:{...}} 可啟用結構化輸出。
+    // [例外] 官方同一頁註明 DeepSeek 的 R1 系列與 V3 不支援 JSON mode——
+    // 如果你把 LLM_MODEL 換成那些模型，結構化輸出會失效(client.js 收到400會自動退回純prompt模式，
+    // 遊戲照樣能玩，只是保底選項的觸發率會回升)。
+    jsonMode: "openai-schema",
   },
 
   // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
@@ -79,6 +131,9 @@ export const PROVIDERS = {
     defaultModel: "meta/llama-3.3-70b-instruct",
     apiKeyEnv: "NVIDIA_API_KEY",
     docs: "https://build.nvidia.com/",
+    // NIM 的結構化輸出支援度依模型而異，不是每個都吃 response_format，所以預設不送。
+    // 你的模型支援的話設 LLM_JSON_MODE=on 打開。
+    jsonMode: null,
     freeTier: "免費申請即可用，不需信用卡；過去有總量上限，查證當下已取消，僅受RPM限制(預設40，可申請調高)",
   },
 
@@ -91,6 +146,7 @@ export const PROVIDERS = {
     defaultModel: null,
     apiKeyEnv: "OPENROUTER_API_KEY",
     docs: "https://openrouter.ai/models",
+    jsonMode: "openai-schema",
     freeTier: "有一批 `:free` 結尾的免費模型，但slug會變動，需自行到models頁確認",
     // OpenRouter建議(非必要)帶上這兩個header，用來在它的排行榜顯示來源
     extraHeaders: { "HTTP-Referer": "https://github.com/cnm27880-ops/AI-TRPG", "X-Title": "AI-TRPG" },
@@ -110,6 +166,7 @@ export const PROVIDERS = {
     defaultModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     apiKeyEnv: null, // 這正是重點：不需要任何API金鑰
     docs: "https://developers.cloudflare.com/workers-ai/models/",
+    jsonMode: "workers-ai-schema",
     freeTier: "每天10,000 Neurons免費額度（查證當下），超過要升級Workers付費方案",
   },
 
@@ -122,6 +179,8 @@ export const PROVIDERS = {
     apiKeyEnv: "LLM_API_KEY",
     docs: "（依你使用的服務而定）",
     freeTier: "依服務而定",
+    // 自訂端點五花八門，不能假設它支援。支援的話設 LLM_JSON_MODE=on。
+    jsonMode: null,
   },
 };
 
@@ -154,7 +213,28 @@ export function resolveProvider(providerId, env = {}, overrides = {}) {
     (provider.apiKeyEnv ? env[provider.apiKeyEnv] : undefined) ??
     env.LLM_API_KEY;
 
-  return { id: providerId, ...provider, model, baseUrl, apiKey };
+  return { id: providerId, ...provider, model, baseUrl, apiKey, jsonMode: resolveJsonMode(provider, env) };
+}
+
+/**
+ * 決定這次要不要送結構化輸出、以及用哪一種寫法。
+ *
+ * LLM_JSON_MODE 的三個值：
+ *   "off"  一律不送（某個端點吃這個欄位會出事時的逃生門）
+ *   "on"   即使供應商表上寫 null 也強制送（自訂端點的使用者自己知道支不支援）
+ *   不設   照供應商表（保守：不確定的一律不送）
+ */
+function resolveJsonMode(provider, env) {
+  const flag = String(env.LLM_JSON_MODE ?? "").toLowerCase();
+  if (flag === "off") return null;
+  if (flag === "on") return provider.jsonMode ?? defaultJsonModeForProtocol(provider.protocol);
+  return provider.jsonMode ?? null;
+}
+
+function defaultJsonModeForProtocol(protocol) {
+  if (protocol === "gemini") return "gemini-schema";
+  if (protocol === "workers-ai") return "workers-ai-schema";
+  return "openai-schema";
 }
 
 /**
@@ -173,6 +253,7 @@ export function pickProvider(env = {}) {
   if (env.LLM_PROVIDER) return env.LLM_PROVIDER;
   if (env.GEMINI_API_KEY) return "gemini";
   if (env.DEEPSEEK_API_KEY) return "deepseek";
+  if (env.SILICONFLOW_API_KEY) return "siliconflow";
   if (env.NVIDIA_API_KEY) return "nvidia";
   if (env.OPENROUTER_API_KEY) return "openrouter";
   if (env.LLM_API_KEY && env.LLM_BASE_URL) return "custom";
