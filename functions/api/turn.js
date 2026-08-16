@@ -29,7 +29,7 @@ import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { narrativeFeatHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
-import { pickProvider, PROVIDER_IDS } from "../../content/llm/providers.js";
+import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { composeSystemInstruction, DEFAULT_STYLE_ID } from "../../content/narrativeStyle.js";
 import { appendEvent, EVENT_TYPES, summarizeForJournal } from "../../core/eventLog.js";
 import {
@@ -60,6 +60,37 @@ import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 12;
 
+/**
+ * 把LLM失敗寫進 Cloudflare Functions 的 log。
+ *
+ * [2026-08-16 新增] 在這之前，敘事層失敗只會變成一個回傳給前端的502，伺服器端**一個字都沒留**。
+ * 也就是說「金鑰打錯、額度用盡、模型被下架」這幾種最常見的狀況，用
+ * `npx wrangler pages deployment tail` 是完全查不到的，只能靠玩家回報「畫面怪怪的」。
+ * 這裡刻意用 console.error 印出單行前綴 [LLM_FAILURE]，方便之後直接在 tail 輸出裡 grep。
+ */
+function logLlmFailure(err, { provider, sessionId }) {
+  console.error("[LLM_FAILURE]", JSON.stringify({
+    where: "POST /api/turn",
+    sessionId: sessionId ?? null,
+    provider: err?.provider ?? provider,
+    model: err?.model ?? null,
+    stage: err?.stage ?? "unknown",
+    httpStatus: err?.status ?? null,
+    message: err?.message ?? String(err),
+    bodySnippet: err?.bodySnippet ?? null,
+  }));
+}
+
+/**
+ * 把「這一輪其實吃了保底內容」寫進 log。
+ *
+ * 跟上面那個不同：LLM有回應、HTTP也成功，只是內容不能用。這是任務A實際查到的根本原因
+ * ——它以HTTP 200 ok:true 回傳，看起來一切正常，只有選項每輪逐字相同這一個線索。
+ */
+function logDegradedTurn(detail) {
+  console.warn("[LLM_DEGRADED]", JSON.stringify({ where: "POST /api/turn", ...detail }));
+}
+
 export async function onRequestPost(context) {
   const env = context.env ?? {};
   const store = resolveSessionStore(env);
@@ -71,7 +102,17 @@ export async function onRequestPost(context) {
     return jsonError("請求body必須是合法JSON", 400);
   }
 
-  const { sessionId, chosenOption, playerAction, sceneContext, style, provider: bodyProvider, apiKey: bodyApiKey } = body ?? {};
+  const {
+    sessionId,
+    chosenOption,
+    playerAction,
+    sceneContext,
+    style,
+    provider: bodyProvider,
+    apiKey: bodyApiKey,
+    baseUrl: bodyBaseUrl,
+    model: bodyModel,
+  } = body ?? {};
   const warnings = [];
 
   if (bodyProvider && !PROVIDER_IDS.includes(bodyProvider)) {
@@ -79,6 +120,39 @@ export async function onRequestPost(context) {
       `未知的LLM供應商「${bodyProvider}」，可用的有：${PROVIDER_IDS.join(" / ")}`,
       400
     );
+  }
+
+  // [2026-08-16 新增] 「玩家在設定裡選了供應商，但金鑰欄位留空」的攔截。
+  //
+  // 舊行為：金鑰留空就送 apiKey=undefined，伺服器改讀自己的環境變數金鑰。
+  // 那等於玩家以為自己在用A家、實際上跑的是伺服器設定的B家（或伺服器根本沒設，
+  // 於是深入到 client.js 才丟出一句「沒有讀到金鑰」的錯，前端還不顯示）。
+  // 這種「半設定狀態」一律在最前面擋掉，並直接告訴玩家缺什麼。
+  // 前端也有同一道檢查(public/index.html 的 saveSettings 與 app.js 的 runTurn)，
+  // 這裡是伺服器端的最後一道，因為前端可以被繞過、localStorage也可能殘留舊值。
+  if (bodyProvider) {
+    const providerCfg = PROVIDERS[bodyProvider];
+    if (providerCfg.apiKeyEnv && !bodyApiKey) {
+      return jsonError(
+        `你在設定裡選了「${providerCfg.label}」，但沒有提供API金鑰。` +
+          `請到「系統與文筆設定」把金鑰填好，或把供應商改回「（使用伺服器預設）」。`,
+        400
+      );
+    }
+    if (providerCfg.baseUrl === null && providerCfg.apiKeyEnv && !bodyBaseUrl && !env.LLM_BASE_URL) {
+      return jsonError(
+        `供應商「${providerCfg.label}」必須自己指定 Base URL（例如 https://你的服務/v1）。` +
+          `請到「系統與文筆設定」填寫。`,
+        400
+      );
+    }
+    if (!providerCfg.defaultModel && !bodyModel && !env.LLM_MODEL) {
+      return jsonError(
+        `供應商「${providerCfg.label}」沒有預設模型，必須自己指定模型名稱。` +
+          `可用的模型請看 ${providerCfg.docs}，填在「系統與文筆設定」的模型欄位。`,
+        400
+      );
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -205,12 +279,26 @@ export async function onRequestPost(context) {
   let text;
   let model;
   try {
-    const res = await callLlm({ provider, env, systemInstruction, prompt, apiKey: bodyApiKey || undefined });
+    const res = await callLlm({
+      provider,
+      env,
+      systemInstruction,
+      prompt,
+      apiKey: bodyApiKey || undefined,
+      baseUrl: bodyBaseUrl || undefined,
+      model: bodyModel || undefined,
+    });
     text = res.text;
     model = res.model;
   } catch (err) {
+    logLlmFailure(err, { provider, sessionId: session?.id });
     return jsonPartial(
-      { provider, error: `敘事生成失敗（${provider}）：${err.message}` },
+      {
+        provider,
+        model: err?.model ?? null,
+        error: `敘事生成失敗（${provider}）：${err.message}`,
+        llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
+      },
       { session, checkParams, checkResult, outcome, warnings, store },
       502
     );
@@ -222,12 +310,22 @@ export async function onRequestPost(context) {
   const parsed = parseTurnResponse(text);
   let narration = text;
   let options = [];
+  // 這一輪的「內容來源」摘要。會原封不動回傳給前端，讓玩家/開發者一眼看出
+  // 這一輪到底是AI生的還是引擎墊的，不用再靠肉眼比對選項文字有沒有重複。
+  const degraded = {
+    parseFailed: !parsed.ok,
+    narrationSource: "ai",
+    aiOptionCount: 0,
+    fallbackOptionCount: 0,
+  };
 
   if (parsed.ok) {
     if (typeof parsed.data.narration === "string") narration = parsed.data.narration;
     const validated = validateOptions(parsed.data.options, character);
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));
+    degraded.aiOptionCount = validated.aiOptionCount;
+    degraded.fallbackOptionCount = validated.fallbackCount;
   } else {
     // 降級處理：敘事文字先試著用正則挖出 narration 欄位的純文字
     // （常見成因是輸出被截斷、JSON缺了結尾括號），挖不到才退回顯示整段原始文字。
@@ -236,13 +334,36 @@ export async function onRequestPost(context) {
     const fallbackNarration = extractNarrationFallback(text);
     if (fallbackNarration) {
       narration = fallbackNarration;
+      degraded.narrationSource = "ai-extracted";
     } else {
       // 連 narration 欄位都挖不到：至少把AI幻覺出的數字/選項清單切掉，
       // 不要讓「1. 謹慎觀察...」這種選項列表被當成故事內容印給玩家看。
       narration = text.split(/(?:^|\n)\s*(?:1\.|選項[一1])\s/)[0].trim();
+      degraded.narrationSource = "ai-raw";
     }
     warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
-    options = validateOptions(null, character).options;
+    const validated = validateOptions(null, character);
+    options = validated.options;
+    validated.warnings.forEach((w) => warnings.push(w));
+    degraded.aiOptionCount = validated.aiOptionCount;
+    degraded.fallbackOptionCount = validated.fallbackCount;
+  }
+
+  // 有任何一個選項是引擎墊的就留 log。整組都是保底(aiOptionCount === 0)時附上AI原文的前段，
+  // 因為那正是要拿來判斷「模型是不是根本不會照JSON格式輸出」的唯一線索。
+  if (degraded.fallbackOptionCount > 0) {
+    logDegradedTurn({
+      sessionId: session?.id ?? null,
+      provider,
+      model,
+      parseFailed: degraded.parseFailed,
+      aiOptionCount: degraded.aiOptionCount,
+      fallbackOptionCount: degraded.fallbackOptionCount,
+      allOptionsAreFallback: degraded.aiOptionCount === 0,
+      ...(degraded.aiOptionCount === 0
+        ? { rawTextSnippet: String(text).slice(0, 400) }
+        : {}),
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -355,6 +476,8 @@ export async function onRequestPost(context) {
     outcome,
     narration,
     options,
+    // 這一輪的內容來源。前端靠它顯示「保底內容」提示（見 public/app.js 的 renderTurnQuality）。
+    degraded,
     scenario: scenarioResult,
     turnCount: session?.log?.events?.length ?? 0,
     warnings,

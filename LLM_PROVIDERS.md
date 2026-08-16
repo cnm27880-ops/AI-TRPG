@@ -71,6 +71,43 @@
 自動偵測的順序是：`LLM_PROVIDER` → 有哪把金鑰 → 都沒有就用 Workers AI → 連binding都沒有才報錯。
 **任何情況下都不會偷偷產生假的敘事文字**，失敗就是明確報錯。
 
+### 玩家自己在遊戲裡覆寫（「系統與文筆設定」）
+
+除了上面的環境變數，玩家也可以在遊戲畫面右上的「系統與文筆設定」裡自己選供應商、
+填自己的金鑰。這條路徑的優先序高於伺服器端的環境變數（見 `content/llm/providers.js`
+的 `resolveProvider()`）。金鑰只存在玩家瀏覽器的 localStorage，只在送出回合時隨該次請求帶上。
+
+| 供應商 | 金鑰 | Base URL | 模型 |
+|---|---|---|---|
+| Google Gemini | 必填 | 內建 | 選填（留空用預設） |
+| DeepSeek | 必填 | 內建 | 選填 |
+| NVIDIA NIM | 必填（免費免卡） | 內建 | 選填 |
+| OpenRouter | 必填 | 內建 | **必填**（免費模型 slug 常變動，沒有預設值） |
+| Cloudflare Workers AI | 不需要 | 不適用 | 選填 |
+| 自訂（相容OpenAI） | 必填 | **必填** | **必填** |
+
+「自訂」涵蓋沒有共用網址、或不在上面清單裡的服務：Azure OpenAI（每個人的資源名稱不同）、
+Cohere、AI21、自架的 vLLM / LiteLLM 等，只要它是 OpenAI 相容格式就能用，**後端不需要為它多寫任何整合邏輯**。
+
+必填欄位沒填時，前端在送出前就會擋下並指名缺什麼（`public/index.html` 的 `saveSettings()`
+與 `public/app.js` 的 `buildLlmOverrides()`），後端 `functions/api/turn.js` 另有同一道檢查當最後防線。
+這是刻意的：舊版會讓「選了供應商但沒填金鑰」的半設定請求送到後端，然後偷偷改用伺服器自己的金鑰
+——玩家以為在用自己選的那一家，其實不是。
+
+### LLM 失敗時要去哪裡看
+
+敘事層失敗**不會**被靜默轉成保底內容，而是留下三種痕跡：
+
+| 痕跡 | 在哪裡看 | 代表什麼 |
+|---|---|---|
+| `[LLM_FAILURE]` | `npx wrangler pages deployment tail` | 呼叫直接失敗。帶 provider / model / stage / HTTP狀態碼 / 供應商回應本文 |
+| `[LLM_DEGRADED]` | 同上 | 呼叫成功但內容不能用，選項被通用保底選項墊掉 |
+| `SYSTEM.FALLBACK` 黃色提示 + 選項上的「保底」標籤 | 遊戲畫面 | 同上，給玩家/測試者看的版本 |
+
+`stage` 的意思：`config` = 設定問題（金鑰／Base URL／模型沒填，重試沒有用）、
+`http` = 供應商回了錯誤狀態碼（401金鑰無效／402額度用盡／429太頻繁）、
+`shape` = 回應格式不符（第三方中轉其實沒完全相容）、`binding` = Workers AI binding 的問題（常見是模型被下架）。
+
 ### 設定金鑰（部署到 Cloudflare）
 
 金鑰**絕對不能**寫進 `wrangler.toml` 或任何會被commit的檔案：

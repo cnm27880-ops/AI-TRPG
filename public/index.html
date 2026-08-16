@@ -868,28 +868,47 @@
                 </div>
                 <div>
                     <label class="text-zinc-300 block mb-1">說書人文筆風格</label>
+                    <!-- 這幾個 value 必須跟 content/narrativeStyle.js 的 STYLE_PROFILES 的 key 一字不差：
+                         後端查不到就直接回 400、整個回合不會有敘事也不會有選項。
+                         (先前這裡列的「熱血漫」「賽博朋克」後端根本沒有，選下去等於讓遊戲停擺) -->
                     <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                         <option value="白描">白描（沉浸冷峻、動詞優先）</option>
                         <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
-                        <option value="熱血漫">熱血漫（力量碰撞、節奏緊湊）</option>
-                        <option value="賽博朋克">賽博朋克（高科技、低生活）</option>
+                        <option value="冷硬寫實">冷硬寫實（軍事／戰術、克制精準）</option>
+                        <option value="電影感">電影感（鏡頭調度、節奏對比）</option>
+                        <option value="標準">標準（平衡基準線）</option>
                     </select>
                 </div>
                 <div class="pt-2 border-t hairline-border space-y-3">
                     <div>
                         <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
+                        <!-- 新增一家OpenAI相容的供應商 = 在這裡加一行 <option>，再到 app.js 的
+                             PROVIDER_UI_META 與 content/llm/providers.js 的 PROVIDERS 各加一列資料。
+                             後端不需要為任何一家多寫整合邏輯（見 providers.js 檔頭的線路格式說明）。 -->
                         <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                             <option value="">（使用伺服器預設）</option>
                             <option value="gemini">Google Gemini（官方）</option>
                             <option value="deepseek">DeepSeek（官方）</option>
+                            <option value="nvidia">NVIDIA NIM（官方，自行申請金鑰）</option>
                             <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
                             <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
+                            <option value="custom">自訂（相容OpenAI：Azure OpenAI／Cohere／AI21／自架 vLLM・LiteLLM…）</option>
                         </select>
                     </div>
                     <div id="setting-api-key-row">
                         <label class="text-zinc-300 block mb-1">此供應商的 API Key</label>
                         <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                         <p class="text-[10px] text-zinc-500 mt-1">選了供應商才需要填，Cloudflare Workers AI 不需要金鑰。金鑰只存在你瀏覽器的localStorage，只在你送出這把金鑰時才會經由本次請求送到伺服器。</p>
+                    </div>
+                    <div id="setting-base-url-row">
+                        <label class="text-zinc-300 block mb-1">Base URL</label>
+                        <input id="setting-base-url" type="text" placeholder="https://你的服務/v1" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <p class="text-[10px] text-zinc-500 mt-1">只有「自訂」需要填。要包含 <span class="text-zinc-400">/v1</span>，不要包含 /chat/completions。Azure OpenAI 每個人的資源名稱都不同，沒有共用網址，必須自己填。</p>
+                    </div>
+                    <div id="setting-model-row">
+                        <label class="text-zinc-300 block mb-1">模型名稱（選填）</label>
+                        <input id="setting-model" type="text" placeholder="留空＝用該供應商的預設模型" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <p id="setting-model-hint" class="text-[10px] text-zinc-500 mt-1"></p>
                     </div>
                 </div>
             </div>
@@ -961,14 +980,36 @@
                 document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
                 document.getElementById('setting-provider').value = localStorage.getItem('user_llm_provider') || '';
                 document.getElementById('setting-api-key').value = localStorage.getItem('user_api_key') || '';
+                document.getElementById('setting-base-url').value = localStorage.getItem('user_llm_base_url') || '';
+                document.getElementById('setting-model').value = localStorage.getItem('user_llm_model') || '';
                 onSettingProviderChange();
             }
         }
-        /** 沒選供應商(用伺服器預設)或選了不需要金鑰的Workers AI時，隱藏金鑰欄位，避免玩家以為填了才算數。 */
+        /**
+         * 依選到的供應商顯示／隱藏金鑰、Base URL、模型三個欄位。
+         * 用不到的欄位一律藏起來，避免玩家以為填了才算數（或以為沒填就不能用）。
+         * 這份對照表跟 app.js 的 PROVIDER_UI_META 是同一件事，新增供應商時兩邊都要加。
+         */
+        const PROVIDER_FIELDS = {
+            gemini:        { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Gemini 模型。' },
+            deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
+            nvidia:        { key: true,  baseUrl: false, model: false, modelHint: '金鑰請自己到 build.nvidia.com 申請。留空＝用預設模型。' },
+            openrouter:    { key: true,  baseUrl: false, model: true,  modelHint: '必填：OpenRouter 沒有預設模型（免費模型的 slug 常變動），請到 openrouter.ai/models 挑一個目前存在的貼上。' },
+            'workers-ai':  { key: false, baseUrl: false, model: false, modelHint: '免金鑰，用你自己 Cloudflare 帳號的額度。留空＝用預設模型。' },
+            custom:        { key: true,  baseUrl: true,  model: true,  modelHint: '必填：自訂接口沒有預設模型，請填你的服務接受的模型名稱。' },
+        };
         function onSettingProviderChange() {
             const provider = document.getElementById('setting-provider').value;
-            const row = document.getElementById('setting-api-key-row');
-            if (row) row.style.display = (provider && provider !== 'workers-ai') ? 'block' : 'none';
+            const fields = PROVIDER_FIELDS[provider];
+            const show = (id, on) => {
+                const row = document.getElementById(id);
+                if (row) row.style.display = on ? 'block' : 'none';
+            };
+            show('setting-api-key-row', Boolean(fields?.key));
+            show('setting-base-url-row', Boolean(fields?.baseUrl));
+            show('setting-model-row', Boolean(provider));
+            const hint = document.getElementById('setting-model-hint');
+            if (hint) hint.textContent = fields?.modelHint ?? '';
         }
         function closeModal(id) {
             const el = document.getElementById(id);
@@ -1000,15 +1041,38 @@
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
 
             const provider = document.getElementById('setting-provider').value;
+            const fields = PROVIDER_FIELDS[provider];
+            const key = document.getElementById('setting-api-key').value.trim();
+            const baseUrl = document.getElementById('setting-base-url').value.trim();
+            const model = document.getElementById('setting-model').value.trim();
+
+            // [2026-08-16 修正] 選了供應商卻沒填必要欄位時，在這裡就擋下來，不要讓
+            // 「半設定狀態」被存進 localStorage。舊行為是照存不誤，然後每一回合都送出一個
+            // 缺金鑰的請求：伺服器要嘛改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，
+            // 要嘛整回合失敗——而前端當時完全不顯示錯誤，玩家只會看到畫面沒反應。
+            if (fields?.key && !key) {
+                alert(`選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。`);
+                return;
+            }
+            if (fields?.baseUrl && !baseUrl) {
+                alert('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
+                return;
+            }
+            if (fields?.model && !model) {
+                alert('這個供應商沒有預設模型，必須自己填模型名稱。');
+                return;
+            }
+
             localStorage.setItem('user_llm_provider', provider);
 
-            // provider留空或選了不用金鑰的Workers AI時，金鑰欄位不算數，清掉避免殘留舊值誤送出。
-            const key = document.getElementById('setting-api-key').value.trim();
-            if (provider && provider !== 'workers-ai' && key) {
-                localStorage.setItem('user_api_key', key);
-            } else {
-                localStorage.removeItem('user_api_key');
-            }
+            // 用不到的欄位一律清掉，避免換供應商之後殘留舊值被誤送出。
+            const persist = (storageKey, value, keep) => {
+                if (keep && value) localStorage.setItem(storageKey, value);
+                else localStorage.removeItem(storageKey);
+            };
+            persist('user_api_key', key, provider && fields?.key);
+            persist('user_llm_base_url', baseUrl, provider && fields?.baseUrl);
+            persist('user_llm_model', model, Boolean(provider));
 
             closeModal('settingsModal');
             alert('設定已儲存！');

@@ -5,7 +5,7 @@
 // 第三方中轉是不是真的相容OpenAI格式。那些只能靠實際部署後打一次來驗證，見 LLM_PROVIDERS.md。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callLlm } from "../content/llm/client.js";
+import { callLlm, LlmError } from "../content/llm/client.js";
 import { PROVIDERS, PROVIDER_IDS, resolveProvider, pickProvider } from "../content/llm/providers.js";
 
 /** 做一個假的fetch，記錄呼叫參數並回傳指定的JSON */
@@ -252,4 +252,60 @@ test("Workers AI：沒有binding時要明確說出該怎麼修，不是丟undefi
 
 test("callLlm：沒有prompt要丟錯", async () => {
   await assert.rejects(() => callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "k" } }));
+});
+
+// ---------------------------------------------------------------------------
+// 失敗時的結構化錯誤（2026-08-16 新增，見任務A）
+//
+// 這一組測試的用意不是「錯誤訊息長什麼樣」，而是「失敗原因有沒有被完整帶出來」。
+// 先前失敗一律丟普通 Error，只有一句 message；呼叫端(functions/api/turn.js)想在
+// Cloudflare 的 log 裡記下「哪一家、哪個模型、HTTP幾號」時無從取得，只能整包吞掉，
+// 結果就是金鑰失效/額度用盡這種最常見的狀況在伺服器端完全查不到。
+// ---------------------------------------------------------------------------
+
+test("LlmError：HTTP錯誤要帶出 provider / model / status / 回應本文，不能只剩一句message", async () => {
+  const ff = fakeFetch({ error: { message: "Insufficient Balance" } }, { ok: false, status: 402 });
+  const err = await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k" },
+    prompt: "玩家開槍",
+    fetchFn: ff,
+  }).then(() => null, (e) => e);
+
+  assert.ok(err instanceof LlmError, "失敗要丟 LlmError 而不是普通 Error");
+  assert.equal(err.provider, "deepseek");
+  assert.equal(err.model, PROVIDERS.deepseek.defaultModel);
+  assert.equal(err.status, 402, "HTTP狀態碼要留著——這是分辨『金鑰無效(401)』與『額度用盡(402/429)』的唯一依據");
+  assert.equal(err.stage, "http");
+  assert.match(err.bodySnippet, /Insufficient Balance/, "供應商的錯誤本文要留下來，否則沒人知道為什麼被拒絕");
+});
+
+test("LlmError：缺金鑰屬於設定問題(stage=config)，不是HTTP錯誤，status要是null", async () => {
+  const err = await callLlm({ provider: "deepseek", env: {}, prompt: "x" }).then(() => null, (e) => e);
+  assert.ok(err instanceof LlmError);
+  assert.equal(err.stage, "config", "設定問題要跟供應商回錯分開——前者重試沒有意義");
+  assert.equal(err.status, null);
+});
+
+test("LlmError：回應形狀不符(stage=shape)也要帶出原始回應，才能判斷是不是第三方中轉不相容", async () => {
+  const ff = fakeFetch({ 這不是: "OpenAI格式" });
+  const err = await callLlm({
+    provider: "openrouter",
+    env: { OPENROUTER_API_KEY: "k", LLM_MODEL: "some/model" },
+    prompt: "x",
+    fetchFn: ff,
+  }).then(() => null, (e) => e);
+
+  assert.equal(err.stage, "shape");
+  assert.match(err.bodySnippet, /這不是/);
+});
+
+test("LlmError：Workers AI 的 binding 自己丟錯(例如模型被下架)時也要包成 LlmError 帶出模型名", async () => {
+  const env = { AI: { run: async () => { throw new Error("was deprecated on 2026-05-30"); } } };
+  const err = await callLlm({ provider: "workers-ai", env, prompt: "x" }).then(() => null, (e) => e);
+
+  assert.ok(err instanceof LlmError);
+  assert.equal(err.stage, "binding");
+  assert.equal(err.model, PROVIDERS["workers-ai"].defaultModel, "要指名是哪個模型壞掉，否則看log的人不知道該去改哪一個值");
+  assert.match(err.message, /deprecated/);
 });

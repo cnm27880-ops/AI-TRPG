@@ -84,6 +84,34 @@ test("通用敘事守則把內心獨白限定在NPC身上(玩家角色的想法�
   assert.match(UNIVERSAL_STYLE_RULES, /內心獨白只寫NPC/);
 });
 
+// --- 劇情推進規則（2026-08-16 新增，見任務B） ---
+//
+// 這條規則刻意放在**敘事風格層**而不是 promptContract.js 的規則契約層：
+// 「AI不能捏造數字/覆蓋判定結果」是契約層的事，「AI要怎麼把一回合寫得有推進」是文筆層的事。
+// 下面兩個測試就是在釘住這條分界線，避免之後有人順手把它搬去契約層。
+
+test("通用敘事守則含有劇情推進規則(每回合的情境必須跟開頭有實質差異)", () => {
+  assert.match(UNIVERSAL_STYLE_RULES, /劇情推進規則/);
+  assert.match(UNIVERSAL_STYLE_RULES, /必須跟這回合開頭有實質差異/);
+  assert.match(UNIVERSAL_STYLE_RULES, /你注意到氣氛不太對/, "要保留『反面示範』才看得出規則在禁什麼");
+  assert.match(UNIVERSAL_STYLE_RULES, /你還在觀察／思考／嘗試/);
+  assert.match(UNIVERSAL_STYLE_RULES, /畫面、聲音看起來都在重複/);
+});
+
+test("劇情推進規則附上開門的具體範例(抽象規則光靠描述模型常常抓不到)", () => {
+  assert.match(UNIVERSAL_STYLE_RULES, /範例：玩家嘗試開門/);
+  assert.match(UNIVERSAL_STYLE_RULES, /門鎖鬆動了/, "成功的反面示範");
+  assert.match(UNIVERSAL_STYLE_RULES, /你沒能打開門/, "失敗的反面示範");
+  assert.match(UNIVERSAL_STYLE_RULES, /警報聲響起/, "失敗要有具體後果的正面示範");
+});
+
+test("劇情推進規則只放在敘事風格層，不可以混進規則契約層", () => {
+  assert.ok(
+    !/劇情推進規則/.test(SYSTEM_INSTRUCTION),
+    "規則契約層管『AI不能捏造數字』，敘事風格層管『AI怎麼寫』，這條分界不可以被打破"
+  );
+});
+
 test("通用敘事守則不再指定「生理反應」當替代寫法(會跟白描檔的過度生理化黑名單打架)", () => {
   // 白描檔明文禁止「胸腔起伏」「生理性的…」這類寫法，
   // 所以通用守則不可以反過來要求AI去寫生理反應，否則兩層規範互相矛盾。

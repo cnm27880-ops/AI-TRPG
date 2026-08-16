@@ -9,6 +9,23 @@ let lastChargenErrors = [];
 
 const SESSION_KEY = "ai-trpg-session-id";
 
+/**
+ * 前端這邊要知道的供應商差異——只有三件事：要不要金鑰、要不要自己填Base URL、有沒有預設模型。
+ *
+ * [設計] 這份表刻意跟後端 content/llm/providers.js 的 PROVIDERS 分開，只抄「玩家設定畫面
+ * 需要的欄位」，不抄 baseUrl / defaultModel 那些會變動的值——前端猜不到也不需要知道，
+ * 真正的解析一律在後端做（後端 turn.js 也有同一組檢查當最後防線）。
+ * 新增一家OpenAI相容供應商時，這裡加一列、index.html 的 <option> 加一行，不用改任何邏輯。
+ */
+const PROVIDER_UI_META = {
+  gemini: { label: "Google Gemini（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  nvidia: { label: "NVIDIA NIM（build.nvidia.com）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  openrouter: { label: "OpenRouter（聚合）", needsKey: true, needsBaseUrl: false, needsModel: true },
+  "workers-ai": { label: "Cloudflare Workers AI（免金鑰）", needsKey: false, needsBaseUrl: false, needsModel: false },
+  custom: { label: "自訂（相容OpenAI）", needsKey: true, needsBaseUrl: true, needsModel: true },
+};
+
 // 六維屬性顯示
 const ATTRIBUTE_DISPLAY = [
   { key: "力量", en: "STR" },
@@ -438,19 +455,65 @@ function stepTrait(delta) {
   renderTraitStage();
 }
 
+/**
+ * 送出回合前檢查玩家的LLM設定有沒有「選了供應商卻沒填金鑰」這種半設定狀態。
+ *
+ * 為什麼要在前端擋：這種請求送到後端之後，後端只能改用伺服器自己的金鑰（玩家以為在用
+ * 自己選的那一家，其實不是），或是一路深入到 content/llm/client.js 才丟出「沒有讀到金鑰」
+ * ——兩種都是玩家看不懂、也不知道要去哪裡改的結果。在送出前擋下並直接指名缺什麼最省事。
+ * 後端 functions/api/turn.js 有同一道檢查當最後防線（前端可以被繞過）。
+ *
+ * @returns {{ok: true, payload: object} | {ok: false, message: string}}
+ */
+function buildLlmOverrides() {
+  const provider = localStorage.getItem("user_llm_provider") || "";
+  if (!provider) return { ok: true, payload: {} }; // 用伺服器預設，什麼都不帶
+
+  const meta = PROVIDER_UI_META[provider] ?? {};
+  const apiKey = (localStorage.getItem("user_api_key") || "").trim();
+  const baseUrl = (localStorage.getItem("user_llm_base_url") || "").trim();
+  const model = (localStorage.getItem("user_llm_model") || "").trim();
+
+  if (meta.needsKey && !apiKey) {
+    return { ok: false, message: `你選了「${meta.label}」，但沒有填 API Key。請到「系統與文筆設定」補上，或把供應商改回「（使用伺服器預設）」。` };
+  }
+  if (meta.needsBaseUrl && !baseUrl) {
+    return { ok: false, message: `你選了「${meta.label}」，但沒有填 Base URL（例如 https://你的服務/v1）。請到「系統與文筆設定」補上。` };
+  }
+  if (meta.needsModel && !model) {
+    return { ok: false, message: `你選了「${meta.label}」，它沒有預設模型，必須自己填模型名稱。請到「系統與文筆設定」補上。` };
+  }
+
+  const payload = { provider };
+  if (apiKey) payload.apiKey = apiKey;
+  if (baseUrl) payload.baseUrl = baseUrl;
+  if (model) payload.model = model;
+  return { ok: true, payload };
+}
+
+/** 上一次送出的回合參數，讓「重試」按鈕不用玩家重打一次自訂行動。 */
+let lastTurnRequest = null;
+
 async function runTurn({ chosenOption, playerAction, opening } = {}) {
   if (turnInFlight) return;
+
+  const overrides = buildLlmOverrides();
+  if (!overrides.ok) {
+    appendFeedBlock(
+      "SYSTEM.CONFIG",
+      escapeHtml(overrides.message),
+      "text-xs text-yellow-300 font-mono bg-yellow-500/5 p-2.5 rounded border border-yellow-500/40"
+    );
+    return;
+  }
+
   turnInFlight = true;
+  lastTurnRequest = { chosenOption, playerAction, opening };
 
   if (playerAction) appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(playerAction), "font-mono italic text-emerald-400/80");
 
   try {
-    // 供應商/金鑰覆寫：只有玩家在設定裡明確選了供應商才帶上，留空就讓伺服器用自己的預設，
-    // 不會因為localStorage殘留一把空字串金鑰就意外蓋掉伺服器設定。
-    const provider = localStorage.getItem("user_llm_provider") || undefined;
-    const apiKey = provider ? (localStorage.getItem("user_api_key") || undefined) : undefined;
-
-    const res = await (await fetch("/api/turn", {
+    const httpRes = await fetch("/api/turn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -458,34 +521,130 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
         chosenOption,
         playerAction,
         style: localStorage.getItem("user_narrative_style") || "白描",
-        provider,
-        apiKey,
+        ...overrides.payload,
       })
-    })).json();
+    });
 
-    if (res.checkResult) {
-      const r = res.checkResult;
-      await playDiceRollAnimation(r);
-      const outcomeColor = r.autoFail || !r.success ? "text-red-400" : "text-emerald-400";
-      appendFeedBlock(
-        `<span class="${outcomeColor}">SYSTEM.CHECK // ${r.autoFail ? "自動失敗" : (r.success ? "SUCCESS" : "FAILURE")}</span>`,
-        `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
-        "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border hud-corners"
-      );
+    let res;
+    try {
+      res = await httpRes.json();
+    } catch {
+      throw new Error(`伺服器回應不是JSON（HTTP ${httpRes.status}）`);
     }
+
+    // [2026-08-16 修正] 這裡以前完全沒有檢查 res.ok。後端敘事失敗時回的是
+    // 502 + { ok:false, error, options: [] }，前端照樣往下跑：沒有敘事可印、
+    // 選項是空的，於是畫面看起來只是「這回合沒有選項」，玩家完全不知道AI掛了。
+    // 現在明確把錯誤印出來，並給一顆重試按鈕。判定結果照樣顯示——規則層是對的，
+    // 只有敘事層失敗，不該連帶把已經擲出來的骰子也藏起來。
+    if (res.ok === false) {
+      renderTurnWarnings(res.warnings);
+      if (res.checkResult) await renderCheckResult(res.checkResult);
+      appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
+      return;
+    }
+
+    if (res.checkResult) await renderCheckResult(res.checkResult);
+
+    renderTurnWarnings(res.warnings);
 
     if (res.narration) {
       appendNarrationBlock(res.narration);
     }
 
+    renderTurnQuality(res.degraded);
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
     if (res.scenario) updateScenarioHud(res.scenario);
   } catch (err) {
-    appendFeedBlock("SYSTEM.ERROR", `回合執行失敗: ${err.message}`, "text-xs text-red-400 font-mono");
+    console.error("[TURN_FAILURE] /api/turn 呼叫失敗", err);
+    appendTurnError(`回合執行失敗: ${err.message}`, null);
   } finally {
     turnInFlight = false;
   }
+}
+
+async function renderCheckResult(r) {
+  await playDiceRollAnimation(r);
+  const outcomeColor = r.autoFail || !r.success ? "text-red-400" : "text-emerald-400";
+  appendFeedBlock(
+    `<span class="${outcomeColor}">SYSTEM.CHECK // ${r.autoFail ? "自動失敗" : (r.success ? "SUCCESS" : "FAILURE")}</span>`,
+    `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
+    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border hud-corners"
+  );
+}
+
+/**
+ * 把後端的 warnings 陣列送進 console。
+ *
+ * [2026-08-16 新增] 後端一直都有在回 warnings（存檔不是持久的、AI選項被捨棄、
+ * 節點結算被擋下…），但前端從來沒有任何地方讀它，所以那些警告等於寫給空氣看。
+ * 這裡不做成畫面上的彈窗——大部分警告對玩家沒有意義、跳出來只會干擾遊戲；
+ * 印進 console 讓測試時按F12就能一眼看到，才是這些訊息真正該待的地方。
+ */
+function renderTurnWarnings(warnings) {
+  if (!Array.isArray(warnings) || warnings.length === 0) return;
+  console.warn("[TURN_WARNINGS]", warnings);
+}
+
+/**
+ * 顯示「這一輪的選項不是AI給的」提示。
+ *
+ * 這是任務A要求的那個「看得出來的訊號」：在此之前，AI每一輪都沒照JSON格式輸出時，
+ * 後端會安靜地用 FALLBACK_OPTIONS 墊滿四個選項，然後以 HTTP 200 ok:true 回傳，
+ * 畫面上跟正常回合一模一樣——唯一的線索是選項文字逐字重複，得靠肉眼比對才會發現。
+ *
+ * 提示刻意做成一行小字、不擋任何操作：遊戲照樣能玩，但測試時掃一眼就知道現在吃的是保底內容。
+ */
+function renderTurnQuality(degraded) {
+  if (!degraded) return;
+  const fallbackCount = degraded.fallbackOptionCount ?? 0;
+  if (fallbackCount <= 0) return;
+
+  const allFallback = (degraded.aiOptionCount ?? 0) === 0;
+  console.warn(
+    `[TURN_DEGRADED] 本回合有 ${fallbackCount} 個選項是引擎保底產生的` +
+      (allFallback ? "（整組都是保底，AI這輪沒有給出任何可用選項）" : "") +
+      (degraded.parseFailed ? "，原因：AI回覆無法解析成JSON" : ""),
+    degraded
+  );
+
+  const detail = allFallback
+    ? "AI 這一輪沒有給出任何可用選項，底下四個全是與劇情無關的通用保底選項（每輪都會是同一組文字）。"
+    : `AI 只給了 ${degraded.aiOptionCount} 個可用選項，其餘 ${fallbackCount} 個為通用保底選項。`;
+  const cause = degraded.parseFailed ? "成因：AI 的回覆不是合法 JSON。" : "";
+
+  appendFeedBlock(
+    `<span class="text-yellow-300">SYSTEM.FALLBACK // 保底內容</span>`,
+    `${escapeHtml(detail)}${cause ? " " + escapeHtml(cause) : ""}`,
+    "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
+  );
+}
+
+/** 回合失敗時的錯誤區塊：講清楚哪裡壞了，並給一顆重試按鈕，不讓玩家卡在沒反應的畫面。 */
+function appendTurnError(message, res) {
+  const stage = res?.llmFailure?.stage;
+  const httpStatus = res?.llmFailure?.httpStatus;
+  const hint = stage === "config" || stage === "binding"
+    ? "這是設定問題（金鑰／Base URL／模型／binding），重試不會有幫助，請先到「系統與文筆設定」檢查。"
+    : httpStatus === 429
+      ? "供應商回報請求過於頻繁或額度用盡，稍等一下再重試。"
+      : "";
+
+  const feed = document.getElementById("story-feed");
+  const block = document.createElement("div");
+  block.className = "space-y-1 feed-block-enter text-xs font-mono text-red-300 bg-red-500/5 p-2.5 rounded border border-red-500/40";
+  block.innerHTML =
+    `<div class="text-[11px] font-bold opacity-80">SYSTEM.ERROR</div>` +
+    `<div>${escapeHtml(message)}</div>` +
+    (hint ? `<div class="text-yellow-300/80">${escapeHtml(hint)}</div>` : "") +
+    `<button data-turn-retry class="mt-1 px-3 py-1 rounded border border-red-400/50 bg-red-500/10 hover:bg-red-500/20 transition text-red-200 font-bold">重試這一回合</button>`;
+  block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
+    block.remove();
+    if (lastTurnRequest) runTurn(lastTurnRequest);
+  });
+  feed.appendChild(block);
+  feed.scrollTop = feed.scrollHeight;
 }
 
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
@@ -585,13 +744,23 @@ function renderOptions(options) {
         : `<span class="text-yellow-400 whitespace-nowrap">⚠ 未受訓 ${category === "社交" ? "-2" : "-1"}成功</span>`;
     }
 
+    // 引擎墊出來的保底選項標一個小標籤：它跟這一輪的敘事完全無關（見 content/turnOptions.js
+    // 的 FALLBACK_OPTIONS），玩家有權知道自己按下去的是不是AI真的替這個場景想出來的行動。
+    const isFallback = opt.source === "fallback";
+    const fallbackTag = isFallback
+      ? `<span class="shrink-0 text-yellow-300/90 text-[10px] font-mono border border-yellow-500/40 px-1.5 py-0.5 rounded bg-yellow-500/10" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
+      : "";
+
     return `
-    <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border hairline-border hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
       <span class="flex flex-col gap-1 flex-1 min-w-0">
         <span class="font-bold text-zinc-100 flex items-center justify-between gap-2">
           <span class="truncate">${escapeHtml(opt.label)}</span>
-          <span class="shrink-0 text-emerald-400 text-[10px] font-mono border border-emerald-500/30 px-1.5 py-0.5 rounded bg-emerald-500/10">DP ${dp}</span>
+          <span class="shrink-0 flex items-center gap-1.5">
+            ${fallbackTag}
+            <span class="text-emerald-400 text-[10px] font-mono border border-emerald-500/30 px-1.5 py-0.5 rounded bg-emerald-500/10">DP ${dp}</span>
+          </span>
         </span>
         <span class="text-[11px] font-mono text-zinc-400 flex items-center gap-1.5 flex-wrap">
           <span>檢定: ${escapeHtml(opt.attribute)}${opt.skill ? ' + ' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} (DC${opt.dc})</span>

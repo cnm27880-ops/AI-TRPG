@@ -290,7 +290,18 @@ export const FALLBACK_OPTIONS = [
  * 只是保底版面；AI真正給的合法選項一律優先，只有數量不足額才補墊底選項。
  * 「自訂行動」輸入框本來就是前端固定提供、不受這裡影響，雙重保底玩家不會卡住。
  *
- * @returns {{options: object[], warnings: string[]}}
+ * [2026-08-16 決策變更] 原本這個函式把兩種性質完全不同的情況處理成一模一樣的結果：
+ *   (a) AI給了3個合法選項、少1個  —— 正常的小瑕疵，墊1個沒什麼問題
+ *   (b) AI根本沒回傳可用的選項    —— 代表這一輪的選項**全部**是引擎湊的，
+ *       玩家看到的四個按鈕跟AI寫的敘事毫無關係，而且每一輪都會逐字一樣
+ * 兩者都只在 warnings 裡留一句話，而 warnings 沒有任何呼叫端在看，所以(b)可以連續
+ * 發生幾十輪而沒有人發現。現在改成：
+ *   - 每個選項標上 source（"ai" 或 "fallback"），呼叫端/前端可以直接看出誰是保底的
+ *   - 回傳 aiOptionCount / fallbackCount，讓呼叫端能區分(a)與(b)並決定要不要留log
+ *   - (b) 的警告文字明講「整組都是保底選項」，不再跟(a)共用同一句
+ * 墊底行為本身完全沒變（使用者要求版面一定要有四顆按鈕），變的只有「有沒有講出來」。
+ *
+ * @returns {{options: object[], warnings: string[], aiOptionCount: number, fallbackCount: number}}
  */
 export function validateOptions(rawOptions, character) {
   const warnings = [];
@@ -303,25 +314,32 @@ export function validateOptions(rawOptions, character) {
       const result = validateOption(raw, character);
       result.warnings.forEach((w) => warnings.push(`選項${index + 1}：${w}`));
       if (result.ok) {
-        options.push(result.option);
+        options.push({ ...result.option, source: "ai" });
       } else {
         warnings.push(`選項${index + 1}被捨棄：${result.error}`);
       }
     });
   }
 
-  if (options.length !== OPTION_COUNT) {
-    warnings.push(`AI給了${options.length}個可用選項，預期${OPTION_COUNT}個，已用通用選項墊滿`);
+  const aiOptionCount = options.length;
+
+  if (aiOptionCount === 0) {
+    warnings.push(
+      `AI這一輪沒有給出任何可用選項，底下四個選項**全部**是與劇情無關的通用保底選項` +
+        `（每一輪都會是同一組文字）。這通常代表AI沒有照JSON格式輸出，或選項全部沒通過規則查驗。`
+    );
+  } else if (aiOptionCount !== OPTION_COUNT) {
+    warnings.push(`AI給了${aiOptionCount}個可用選項，預期${OPTION_COUNT}個，已用通用選項墊滿`);
   }
 
   for (const fallback of FALLBACK_OPTIONS) {
     if (options.length >= OPTION_COUNT) break;
     if (options.some((o) => o.label === fallback.label)) continue;
     const result = validateOption(fallback, character);
-    if (result.ok) options.push(result.option);
+    if (result.ok) options.push({ ...result.option, source: "fallback" });
   }
 
-  return { options, warnings };
+  return { options, warnings, aiOptionCount, fallbackCount: options.length - aiOptionCount };
 }
 
 /** 把查驗過的選項轉成 core/check.js 的 performCheck() 需要的參數。 */
