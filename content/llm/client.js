@@ -282,10 +282,10 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens })
     });
   }
 
-  const text = raw?.response;
-  if (typeof text !== "string") {
+  const text = extractWorkersAiText(raw);
+  if (text === null) {
     throw new LlmError(
-      `Workers AI 回應格式不符預期(response欄位不存在)，可能是這個模型的輸出格式不同。` +
+      `Workers AI 回應格式不符預期(取不出文字內容)，可能是這個模型的輸出格式不同。` +
         `回應內容：${JSON.stringify(raw)}`,
       {
         provider: cfg.id,
@@ -297,6 +297,44 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens })
   }
 
   return { text, provider: cfg.id, model: cfg.model, raw };
+}
+
+/**
+ * 從 Workers AI 的回應裡取出文字。**這個函式存在的理由是一個線上實測踩到的坑。**
+ *
+ * [2026-08-16 決策記錄]
+ * 原本這裡只認 `raw.response` 而且要求它必須是字串。修好 max_tokens 截斷問題之後，
+ * 同一個端點突然開始回 502「response欄位不存在」——但把原始回應印出來一看，
+ * response 明明就在，只是**變成了物件**：
+ *
+ *   { choices: [{ message: { content: "{\"narration\":…}" } }],
+ *     response: { narration: "…", options: […] },     ← 物件，不是字串
+ *     model: "@cf/meta/llama-3.1-8b-fast-v2", usage: {…} }
+ *
+ * 原因是 Workers AI 會在模型輸出剛好是合法JSON時**幫你解析好**，response 就成了物件；
+ * 輸出不是合法JSON時才維持字串。所以這個分支以前永遠碰不到——因為輸出一直被截斷、
+ * 從來沒有合法過。修好上一個bug才讓它浮出來，這正是「一個bug擋住另一個bug」的典型。
+ * 順帶一提，這個端點現在也會回 OpenAI 形狀的 choices[]，可見型錄與回應格式都在變動。
+ *
+ * 三種來源都接受，優先序是「越接近模型原始輸出的越優先」：
+ *   1. response 是字串        —— 模型的原始文字
+ *   2. choices[0].message.content —— OpenAI形狀envelope裡的原始文字
+ *   3. response 是物件        —— Cloudflare 幫忙解析過的結果，轉回JSON字串給下游
+ * 下游 parseTurnResponse() 吃的是字串，第3種轉回字串之後行為完全一致。
+ *
+ * @returns {string|null} 取不出來時回 null，由呼叫端丟出帶有原始回應的錯誤
+ */
+export function extractWorkersAiText(raw) {
+  if (typeof raw?.response === "string") return raw.response;
+
+  const choiceContent = raw?.choices?.[0]?.message?.content;
+  if (typeof choiceContent === "string") return choiceContent;
+
+  if (raw?.response && typeof raw.response === "object") {
+    return JSON.stringify(raw.response);
+  }
+
+  return null;
 }
 
 async function safeReadText(response) {

@@ -5,7 +5,7 @@
 // 第三方中轉是不是真的相容OpenAI格式。那些只能靠實際部署後打一次來驗證，見 LLM_PROVIDERS.md。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callLlm, LlmError, DEFAULT_MAX_TOKENS } from "../content/llm/client.js";
+import { callLlm, LlmError, DEFAULT_MAX_TOKENS, extractWorkersAiText } from "../content/llm/client.js";
 import { PROVIDERS, PROVIDER_IDS, resolveProvider, pickProvider } from "../content/llm/providers.js";
 
 /** 做一個假的fetch，記錄呼叫參數並回傳指定的JSON */
@@ -360,4 +360,56 @@ test("max_tokens：環境變數是垃圾值時退回預設，不可以把 NaN �
   const ff = fakeFetch(OPENAI_OK);
   await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "很多" }, prompt: "x", fetchFn: ff });
   assert.equal(JSON.parse(ff.calls[0].options.body).max_tokens, DEFAULT_MAX_TOKENS);
+});
+
+// ---------------------------------------------------------------------------
+// Workers AI 的回應形狀（2026-08-16 線上實測第二層發現）
+//
+// 修好 max_tokens 截斷之後，同一個端點開始回 502「response欄位不存在」，
+// 但原始回應裡 response 明明就在——只是變成了**物件**：Workers AI 會在模型輸出
+// 剛好是合法JSON時幫你解析好。這個分支以前永遠碰不到，因為輸出一直被截斷、
+// 從來沒有合法過。一個bug擋住了另一個bug。
+// ---------------------------------------------------------------------------
+
+test("Workers AI：response 是字串時照舊直接使用", () => {
+  assert.equal(extractWorkersAiText({ response: "純文字敘事" }), "純文字敘事");
+});
+
+test("Workers AI：response 是物件時(輸出剛好是合法JSON)要轉回JSON字串，不能當成格式錯誤", () => {
+  const parsed = { narration: "敘事", options: [{ label: "選項" }] };
+  const text = extractWorkersAiText({ response: parsed });
+  assert.equal(typeof text, "string");
+  assert.deepEqual(JSON.parse(text), parsed, "轉回字串之後下游 parseTurnResponse 要能原樣解析回來");
+});
+
+test("Workers AI：新的OpenAI形狀envelope(choices[])也要認得", () => {
+  const raw = { choices: [{ message: { content: "{\"narration\":\"敘事\"}" } }] };
+  assert.equal(extractWorkersAiText(raw), "{\"narration\":\"敘事\"}");
+});
+
+test("Workers AI：三種來源同時存在時，優先用最接近模型原始輸出的那一個", () => {
+  const raw = {
+    response: "原始文字",
+    choices: [{ message: { content: "envelope文字" } }],
+  };
+  assert.equal(extractWorkersAiText(raw), "原始文字");
+});
+
+test("Workers AI：真的取不出文字時回 null(由呼叫端丟出帶原始回應的錯誤)", () => {
+  assert.equal(extractWorkersAiText({ 完全不認識的形狀: 1 }), null);
+  assert.equal(extractWorkersAiText(null), null);
+});
+
+test("Workers AI 端對端：response 是物件時 callLlm 要成功回傳，不是丟 shape 錯誤", async () => {
+  const env = {
+    AI: {
+      run: async () => ({
+        choices: [{ message: { content: "{\"narration\":\"從envelope來的\"}" } }],
+        response: { narration: "被Cloudflare解析過的" },
+      }),
+    },
+  };
+  const result = await callLlm({ provider: "workers-ai", env, prompt: "x" });
+  assert.equal(typeof result.text, "string");
+  assert.match(result.text, /從envelope來的/, "有原始文字時優先用它");
 });
