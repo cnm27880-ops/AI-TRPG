@@ -252,7 +252,15 @@ async function validateChargen() {
     });
     data = await res.json();
   } catch (err) {
-    return;
+    // [2026-08-16 修正] 這裡以前是 `catch (err) { return }`：後端連不上時靜靜返回，
+    // 點數預算、衍生數值、錯誤清單全部停在上一次的值，玩家看不出畫面已經不再更新了。
+    console.error("[CHARGEN_VALIDATE_FAILURE]", err);
+    const errBox = document.getElementById("cg-errors");
+    if (errBox) {
+      errBox.innerHTML = `<div class="text-xs font-mono text-red-400">· 無法連線到後端規則引擎（${escapeHtml(err.message)}），下方的點數與驗證結果可能不是最新的。</div>`;
+    }
+    lastChargenErrors = ["無法連線到後端規則引擎"];
+    return false;
   }
 
   const ab = data.budgets?.attributes;
@@ -311,6 +319,7 @@ async function startNewGame() {
     localStorage.setItem(SESSION_KEY, currentSessionId);
     adoptCharacter(res.session.character);
     showScreen("game");
+    renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
   } catch (err) {
     alert(`進入遊戲失敗：${err.message}`);
@@ -537,10 +546,22 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
     // 選項是空的，於是畫面看起來只是「這回合沒有選項」，玩家完全不知道AI掛了。
     // 現在明確把錯誤印出來，並給一顆重試按鈕。判定結果照樣顯示——規則層是對的，
     // 只有敘事層失敗，不該連帶把已經擲出來的骰子也藏起來。
+    renderPersistenceWarning(res.persistent);
+    renderDownState(res.downState, res.revival);
+
     if (res.ok === false) {
       renderTurnWarnings(res.warnings);
       if (res.checkResult) await renderCheckResult(res.checkResult);
-      appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
+      // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
+      if (httpRes.status === 409 && res.downState) {
+        appendFeedBlock(
+          `<span class="text-red-400">SYSTEM.DOWN // 無法行動</span>`,
+          escapeHtml(res.error),
+          "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
+        );
+      } else {
+        appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
+      }
       return;
     }
 
@@ -621,6 +642,88 @@ function renderTurnQuality(degraded) {
   );
 }
 
+/**
+ * 顯示「角色昏迷／死亡」的橫幅，並在死亡時提供復活按鈕。
+ *
+ * [2026-08-16 新增] core/health.js 一直都會算出 dead / unconscious 旗標，
+ * core/deathAndRevival.js 也早就寫好復活規則，但兩者在整個 functions/ 與 content/
+ * 底下一次都沒被引用過。玩家在戰鬥裡被打死之後，照樣可以選選項、擲骰、推進劇情，
+ * 畫面上一切正常——規則層算對了，結果卻沒有生效。
+ */
+function renderDownState(downState, revival) {
+  const banner = document.getElementById("down-state-banner");
+  if (!banner) return;
+
+  // downState 沒帶回來時（例如敘事層失敗的502）什麼都不做：那代表「這次不知道」，
+  // 不代表「角色沒事」。把橫幅清掉會讓一個已經倒下的角色看起來又好了。
+  if (!downState) return;
+
+  if (downState.canAct) {
+    banner.style.display = "none";
+    banner.innerHTML = "";
+    return;
+  }
+
+  const title = downState.dead ? "角色已死亡" : "角色陷入昏迷";
+  const lines = [escapeHtml(downState.reason ?? "")];
+  if (downState.worsening) lines.push("傷勢正在惡化中。");
+
+  let actionHtml = "";
+  if (downState.dead && revival) {
+    const left = revival.maxRevivals - revival.reviveCount;
+    if (left <= 0) {
+      lines.push(`已用完 ${revival.maxRevivals} 次復活機會，這張角色卡無法再復活，請重新創角。`);
+    } else if (!revival.affordable) {
+      lines.push(`復活需要 ${revival.cost} 點，目前只有 ${revival.available} 點，還差 ${revival.cost - revival.available} 點。`);
+    } else {
+      lines.push(`復活需要 ${revival.cost} 點（目前有 ${revival.available} 點），還剩 ${left} 次機會。`);
+      actionHtml = `<button data-revive class="mt-1 px-3 py-1 rounded border border-emerald-400/50 bg-emerald-500/10 hover:bg-emerald-500/20 transition text-emerald-200 font-bold">花費 ${revival.cost} 點復活</button>`;
+    }
+  }
+
+  banner.style.display = "block";
+  banner.innerHTML =
+    `<div class="text-[11px] font-bold">${escapeHtml(title)}</div>` +
+    lines.filter(Boolean).map((l) => `<div>${l}</div>`).join("") +
+    actionHtml;
+  banner.querySelector("[data-revive]")?.addEventListener("click", attemptRevive);
+}
+
+async function attemptRevive() {
+  if (!currentSessionId) return;
+  try {
+    const res = await (await fetch("/api/revive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+
+    renderDownState(res.downState, res.revival);
+    if (!res.ok) {
+      appendFeedBlock("SYSTEM.REVIVE", `復活失敗：${escapeHtml(res.error)}`, "text-xs text-red-300 font-mono");
+      return;
+    }
+
+    adoptCharacter(res.character);
+    appendFeedBlock(
+      `<span class="text-emerald-300">SYSTEM.REVIVE</span>`,
+      `主神修復完成 · 花費 ${res.cost} 點 · 這是第 ${res.reviveCount} 次復活`,
+      "font-mono text-xs text-emerald-200 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30"
+    );
+    // 復活後那場戰鬥已經在後端標記結束了，把畫面切回故事流。
+    if (currentCombat) {
+      currentCombat = null;
+      document.getElementById("combat-panel").style.display = "none";
+      document.getElementById("story-feed").style.display = "flex";
+      document.getElementById("story-action-panel").style.display = "block";
+    }
+    await runTurn({ opening: true });
+  } catch (err) {
+    console.error("[REVIVE_FAILURE]", err);
+    appendFeedBlock("SYSTEM.ERROR", `復活請求失敗：${escapeHtml(err.message)}`, "text-xs text-red-300 font-mono");
+  }
+}
+
 /** 回合失敗時的錯誤區塊：講清楚哪裡壞了，並給一顆重試按鈕，不讓玩家卡在沒反應的畫面。 */
 function appendTurnError(message, res) {
   const stage = res?.llmFailure?.stage;
@@ -658,6 +761,16 @@ const TIME_STATUS_STYLE = {
 function updateScenarioHud(scenario) {
   const hud = document.getElementById("scenario-hud");
   if (!hud) return;
+
+  // 節點結算被引擎擋下時，玩家會看到「我明明做完了，進度條卻沒動」。
+  // 這種事以前只進 warnings 陣列(沒人讀)，現在直接寫進故事流講清楚原因。
+  (scenario.warnings || []).forEach((w) => {
+    appendFeedBlock(
+      `<span class="text-yellow-300">SYSTEM.SCENARIO</span>`,
+      escapeHtml(w),
+      "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
+    );
+  });
 
   if (scenario.nodeCompleted) {
     const n = scenario.nodeCompleted;
@@ -864,38 +977,95 @@ async function checkLocalSession() {
     if (res.ok && res.session) {
       document.getElementById("portal-resume-box").style.display = "block";
       document.getElementById("resume-char-name").textContent = res.session.character?.concept?.name || "未命名輪迴者";
+      // 存檔不是持久的時候，「繼續遊戲」這個框本身就是最該講這件事的地方——
+      // 玩家正要按下去的按鈕，很可能指向一份已經蒸發的存檔。
+      const note = document.getElementById("resume-persistence-note");
+      if (note) note.style.display = res.persistent ? "none" : "block";
+    } else if (!res.ok) {
+      // 存檔查不到不是壞事(可能只是舊ID)，但也不該完全靜音——留給F12看得到。
+      console.warn("[SESSION_LOOKUP] 本機記著的存檔ID讀不到：", savedId, res.error);
     }
-  } catch {}
+  } catch (err) {
+    console.warn("[SESSION_LOOKUP] 查詢本機存檔時連線失敗", err);
+  }
+}
+
+/**
+ * 顯示／隱藏「存檔不是持久的」警告條。
+ *
+ * [2026-08-16 修正] content/storage/sessionStore.js 的 memorySessionStore 註解、
+ * functions/api/session.js 的檔頭、wrangler.toml 三個地方都白紙黑字寫著
+ * 「呼叫端必須把 persistent:false 顯示給使用者看，不能假裝存檔成功了」，
+ * 但在此之前 `persistent` 這個字在整個 public/ 底下一次都沒有出現過。
+ * 沒有設定 KV binding 時，玩家的存檔隨時會歸零，而且完全沒有警示。
+ */
+function renderPersistenceWarning(persistent) {
+  const bar = document.getElementById("persistence-warning");
+  if (!bar) return;
+  if (persistent === false) {
+    bar.style.display = "flex";
+    console.warn("[STORAGE] 存檔目前只存在記憶體裡(persistent:false)，隨時可能消失。請設定 KV binding，見 DEPLOYMENT.md。");
+  } else if (persistent === true) {
+    bar.style.display = "none";
+  }
 }
 
 async function resumeLocalSession() {
   const savedId = localStorage.getItem(SESSION_KEY);
-  if (savedId) await resumeSession(savedId);
+  if (!savedId) return;
+  // [2026-08-16 修正] 這裡以前是 `if (savedId) await resumeSession(savedId)`，
+  // 而 resumeSession() 內部用 `catch { return false }` 吞掉一切錯誤、呼叫端又不看回傳值。
+  // 玩家按下「繼續遊戲」之後畫面完全不動，也沒有任何訊息，只能自己猜是不是壞了。
+  try {
+    await resumeSession(savedId);
+  } catch (err) {
+    console.error("[RESUME_FAILURE]", err);
+    alert(`讀取存檔失敗：${err.message}\n\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`);
+  }
 }
 
 async function resumeSession(id) {
-  try {
-    const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`)).json();
-    if (!res.ok) return false;
+  const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`)).json();
+  if (!res.ok) throw new Error(res.error || "讀取存檔失敗");
 
-    currentSessionId = id;
-    localStorage.setItem(SESSION_KEY, id);
-    adoptCharacter(res.session.character);
-    showScreen("game");
+  currentSessionId = id;
+  localStorage.setItem(SESSION_KEY, id);
+  adoptCharacter(res.session.character);
+  showScreen("game");
+  renderPersistenceWarning(res.persistent);
 
-    const feed = document.getElementById("story-feed");
-    feed.innerHTML = "";
-    (res.session.history || []).forEach(h => {
-      if (h.action) appendFeedBlock("▶ 輪迴者行動", escapeHtml(h.action), "font-mono italic text-emerald-400/80");
-      if (h.narration) appendNarrationBlock(h.narration);
-    });
+  const feed = document.getElementById("story-feed");
+  feed.innerHTML = "";
+  (res.session.history || []).forEach(h => {
+    if (h.action) appendFeedBlock("▶ 輪迴者行動", escapeHtml(h.action), "font-mono italic text-emerald-400/80");
+    if (h.narration) appendNarrationBlock(h.narration);
+  });
 
-    renderOptions(res.session.scene?.options || []);
-    if (!(res.session.scene?.options || []).length) await runTurn({ opening: true });
-    return true;
-  } catch {
-    return false;
+  renderOptions(res.session.scene?.options || []);
+  renderDownState(res.downState, res.revival);
+
+  // [2026-08-16 修正] 還原「重整頁面時人在戰鬥中」的狀態。
+  //
+  // 舊行為：這裡只還原故事流與選項，完全不看 session.combat。可是存檔裡那場戰鬥的
+  // active 仍然是 true，於是玩家重整之後戰鬥面板消失、再按「遭遇戰鬥」永遠拿到
+  // 409「已經有進行中的戰鬥」——那個節點如果是最終戰，這張存檔的主線就再也推不完了。
+  // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
+  if (res.session.combat?.active) {
+    currentCombat = res.session.combat;
+    enterCombatView();
+    document.getElementById("combat-log").innerHTML = "";
+    (currentCombat.log || []).forEach((entry) => appendCombatLog({
+      actor: entry.actor,
+      weaponKey: entry.weaponKey,
+      hit: entry.hit,
+      damage: entry.damage ?? 0,
+    }));
+    appendCombatSystemLine("已還原重整前進行中的戰鬥。", "text-zinc-400");
+    renderCombat();
+  } else if (!(res.session.scene?.options || []).length) {
+    await runTurn({ opening: true });
   }
+  return true;
 }
 
 // --- 戰鬥（單敵人 MVP，見 content/combat/encounterState.js） ---
@@ -903,6 +1073,25 @@ let currentCombat = null;
 let combatInFlight = false;
 
 const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
+
+/** 切換到戰鬥畫面。開新戰鬥與「重整後還原戰鬥」共用同一段，避免兩邊的顯示狀態走鐘。 */
+function enterCombatView() {
+  document.getElementById("combat-over-banner").style.display = "none";
+  document.getElementById("story-feed").style.display = "none";
+  document.getElementById("story-action-panel").style.display = "none";
+  document.getElementById("combat-panel").style.display = "flex";
+}
+
+/** 在戰鬥紀錄裡插一行系統訊息（錯誤、還原提示…），跟攻擊紀錄用不同顏色區分。 */
+function appendCombatSystemLine(text, colorClass = "text-red-300") {
+  const log = document.getElementById("combat-log");
+  if (!log) return;
+  const block = document.createElement("div");
+  block.className = `feed-block-enter p-2 rounded bg-panel/70 border hairline-border text-[11px] font-mono ${colorClass}`;
+  block.textContent = text;
+  log.appendChild(block);
+  log.scrollTop = log.scrollHeight;
+}
 
 async function startCombat() {
   if (!currentSessionId || combatInFlight) return;
@@ -915,22 +1104,33 @@ async function startCombat() {
     })).json();
 
     if (!res.ok) {
-      alert(`無法開始戰鬥：${res.error}`);
+      appendFeedBlock(
+        "SYSTEM.ERROR",
+        `無法開始戰鬥：${escapeHtml(res.error)}`,
+        "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
+      );
       return;
     }
 
     currentCombat = res.combat;
     document.getElementById("combat-log").innerHTML = "";
-    document.getElementById("combat-over-banner").style.display = "none";
-    document.getElementById("story-feed").style.display = "none";
-    document.getElementById("story-action-panel").style.display = "none";
-    document.getElementById("combat-panel").style.display = "flex";
+    enterCombatView();
 
     // 敵人若贏得先攻，開戰當下就已經打了第一擊（見 functions/api/combat/start.js）
     (res.openingEnemyAttacks || []).forEach((atk) => {
       appendCombatLog({ actor: "enemy", weaponKey: currentCombat.enemy.weaponKey, hit: atk.hit, damage: atk.finalDamage ?? 0 });
     });
     if (res.character) adoptCharacter(res.character);
+    renderPersistenceWarning(res.persistent);
+  } catch (err) {
+    // [2026-08-16 修正] 這裡以前只有 finally、沒有 catch：網路錯誤會變成 unhandled
+    // rejection，按鈕解鎖但畫面毫無反應，玩家不知道自己按了到底有沒有用。
+    console.error("[COMBAT_FAILURE] /api/combat/start 呼叫失敗", err);
+    appendFeedBlock(
+      "SYSTEM.ERROR",
+      `無法開始戰鬥（連線失敗）：${escapeHtml(err.message)}。請確認網路後再試一次。`,
+      "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
+    );
   } finally {
     combatInFlight = false;
     renderCombat();
@@ -1011,7 +1211,8 @@ async function combatAttack(weaponKey) {
     })).json();
 
     if (!res.ok) {
-      alert(`行動失敗：${res.error}`);
+      // 戰鬥中用 alert 會把玩家整個打斷，訊息按掉之後也查不回去；改成寫進戰鬥紀錄。
+      appendCombatSystemLine(`行動失敗：${res.error}`);
       return;
     }
 
@@ -1038,7 +1239,13 @@ async function combatAttack(weaponKey) {
       block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
       document.getElementById("combat-log").appendChild(block);
     }
+    // 打贏最終戰卻沒結算成獎勵時，後端會說明原因（見 functions/api/combat/act.js）。
+    // 這種事以前是完全靜音的：玩家打贏boss、沒有XP、沒有提示，跟沒打贏長得一樣。
+    (res.scenario?.warnings || []).forEach((w) => appendCombatSystemLine(w, "text-yellow-300"));
     renderCombat();
+  } catch (err) {
+    console.error("[COMBAT_FAILURE] /api/combat/act 呼叫失敗", err);
+    appendCombatSystemLine(`行動失敗（連線失敗）：${err.message}。請確認網路後再按一次。`);
   } finally {
     combatInFlight = false;
     renderCombat();
@@ -1054,16 +1261,47 @@ function endCombat() {
   document.getElementById("story-feed").style.display = "flex";
   document.getElementById("story-action-panel").style.display = "block";
 
-  const summary = won ? `擊敗了${enemyName}，戰鬥結束。` : `在與${enemyName}的戰鬥中落敗，勉強脫身。`;
-  runTurn({ playerAction: summary });
+  // [2026-08-16 修正] 這裡以前不管輸贏都送「勉強脫身」回主迴圈，於是打到死掉的角色
+  // 也照樣繼續玩下去。現在輸掉時先問伺服器角色到底是什麼狀態：真的倒下就不送行動回合
+  // (會被 /api/turn 的傷勢閘門擋下)，改成顯示昏迷/死亡橫幅與復活選項。
+  if (!won) {
+    refreshDownStateThenContinue(enemyName);
+    return;
+  }
+
+  runTurn({ playerAction: `擊敗了${enemyName}，戰鬥結束。` });
+}
+
+async function refreshDownStateThenContinue(enemyName) {
+  try {
+    const res = await (await fetch(`/api/revive?id=${encodeURIComponent(currentSessionId)}`)).json();
+    if (res.ok && res.downState && !res.downState.canAct) {
+      renderDownState(res.downState, res.revival);
+      appendFeedBlock(
+        `<span class="text-red-400">SYSTEM.DOWN</span>`,
+        `在與${escapeHtml(enemyName)}的戰鬥中倒下。${escapeHtml(res.downState.reason ?? "")}`,
+        "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
+      );
+      renderOptions([]);
+      return;
+    }
+  } catch (err) {
+    console.error("[DOWNSTATE_LOOKUP] 查詢傷勢狀態失敗", err);
+  }
+  // 還撐得住（只是打輸了但沒倒下）就照舊回主迴圈。
+  runTurn({ playerAction: `在與${enemyName}的戰鬥中落敗，勉強脫身。` });
 }
 
 async function handleResumeFromModal() {
   const id = document.getElementById("input-resume-session").value.trim();
   if (!id) return;
   closeModal("sessionModal");
-  const ok = await resumeSession(id);
-  if (!ok) alert("找不到該 Session ID 的存檔。");
+  try {
+    await resumeSession(id);
+  } catch (err) {
+    console.error("[RESUME_FAILURE]", err);
+    alert(`讀取存檔失敗：${err.message}`);
+  }
 }
 
 document.addEventListener("DOMContentLoaded", async () => {

@@ -44,6 +44,9 @@ export function emptyCharacter(name = "未命名輪迴者") {
       energyPools: {},
     },
     xp: { earned: 0, spent: 0 },
+    // 這輩子已經復活過幾次。規則書給每個角色兩次機會（見 core/deathAndRevival.js 的
+    // MAX_REVIVALS 與該檔案對書中原文的引用）；用完之後再死就是真死，只能重新創角。
+    reviveCount: 0,
     abilities: [],
   };
 }

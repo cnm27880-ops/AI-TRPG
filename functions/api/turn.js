@@ -56,6 +56,7 @@ import {
   getNodeStallRounds,
 } from "../../content/scenario/progress.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
+import { getDownState, revivalQuote } from "../../content/downState.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 12;
@@ -176,6 +177,34 @@ export async function onRequestPost(context) {
     // 這個警告很重要：記憶體版存檔在 Workers 上隨時會消失，玩家會以為自己在存檔卻突然歸零。
     warnings.push(
       "存檔目前存在記憶體裡，隨時可能消失。正式使用請在 wrangler.toml 設定 KV binding（見 DEPLOYMENT.md）"
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // 傷勢閘門：角色昏迷/死亡時不能繼續照常行動。
+  //
+  // [2026-08-16 新增] 在這之前 core/health.js 算出來的 dead/unconscious 旗標
+  // **完全沒有任何呼叫端在讀**，所以玩家在戰鬥中被打死之後，照樣可以繼續選選項、
+  // 繼續擲骰、繼續推進劇情，畫面上一切正常。規則層算對了但結果沒有生效，
+  // 這正是這次排查要清掉的那種模式。
+  //
+  // 刻意只擋「玩家主動行動」的回合，不擋開場/接續敘事（那一回合不擲骰，
+  // 讓AI描述角色倒下的處境是合理的，也是玩家重整頁面回來時該看到的東西）。
+  // ---------------------------------------------------------------------
+  const downState = getDownState(character);
+  if (!downState.canAct && (chosenOption || playerAction)) {
+    return json(
+      {
+        ok: false,
+        error: downState.reason,
+        downState,
+        revival: downState.dead ? revivalQuote(character) : null,
+        sessionId: session?.id ?? null,
+        persistent: store.persistent,
+        options: [],
+        warnings,
+      },
+      409
     );
   }
 
@@ -374,6 +403,10 @@ export async function onRequestPost(context) {
   // 一律由 content/scenario/progress.js 查驗與查表，不接受AI自己講一個數字。
   // ---------------------------------------------------------------------
   let scenarioResult = null;
+  // 副本相關的警告要跟一般 warnings 分開帶回前端：玩家可能已經在敘事上完成了一個節點，
+  // 但進度條沒動——他有權知道為什麼。一般 warnings 是給開發者看的(進console)，
+  // 這一類是給玩家看的(進故事流)，兩者的受眾不同，混在一起只會兩邊都看不到。
+  const scenarioWarnings = [];
   if (session?.scenario && scenarioPack) {
     let progress = session.scenario.progress;
 
@@ -414,7 +447,15 @@ export async function onRequestPost(context) {
           nodeCompleted = { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward };
         } else {
           // 查驗失敗不當成硬錯誤：AI可能判斷錯了時機，忽略這次信號，遊戲照常繼續。
-          warnings.push(`副本節點結算被引擎擋下：${result.error}`);
+          // 但要讓玩家看得到——不然他只會覺得「我明明做完了，進度條為什麼不動」。
+          console.warn("[SCENARIO_SETTLEMENT_BLOCKED]", JSON.stringify({
+            where: "POST /api/turn",
+            sessionId: session.id,
+            packId: scenarioPack.id,
+            nodeId: activeNode.id,
+            reason: result.error,
+          }));
+          scenarioWarnings.push(`本回合的節點結算被引擎擋下：${result.error}`);
         }
       }
     }
@@ -437,6 +478,7 @@ export async function onRequestPost(context) {
         : null,
       nodeCompleted,
       progress: getProgressSummary(scenarioPack, progress),
+      ...(scenarioWarnings.length ? { warnings: scenarioWarnings } : {}),
     };
   }
 
@@ -478,6 +520,9 @@ export async function onRequestPost(context) {
     options,
     // 這一輪的內容來源。前端靠它顯示「保底內容」提示（見 public/app.js 的 renderTurnQuality）。
     degraded,
+    // 角色目前的傷勢閘門狀態。每一回合都附上，前端才能持續顯示昏迷/死亡，
+    // 而不是只有在玩家撞到閘門的那一次才知道。
+    downState: getDownState(character),
     scenario: scenarioResult,
     turnCount: session?.log?.events?.length ?? 0,
     warnings,

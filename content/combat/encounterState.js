@@ -29,6 +29,16 @@ import { PLACEHOLDER_WEAPONS, buildAttackParams, PLACEHOLDER_ENEMY } from "./pla
  * @param {object} [enemyTemplate] 預設用 PLACEHOLDER_ENEMY
  */
 export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY) {
+  // 開戰當下就先驗武器，不要等到敵人第一次揮拳才炸——那時候戰鬥已經寫進存檔了，
+  // 玩家會卡在一場永遠打不下去的戰鬥裡（見 /api/combat/act 的錯誤處理）。
+  if (!PLACEHOLDER_WEAPONS[enemyTemplate.weaponKey]) {
+    throw new Error(
+      `敵人樣板「${enemyTemplate.name}」的武器「${enemyTemplate.weaponKey}」不在武器型錄裡` +
+        `（可用的有：${Object.keys(PLACEHOLDER_WEAPONS).join("/")}）。` +
+        `請檢查該樣板的 weaponKey，見 content/combat/placeholderEncounters.js`
+    );
+  }
+
   const enemyDerived = computeDerivedStats(enemyTemplate.attributes, { size: enemyTemplate.size ?? 5 });
 
   const playerInitiative = rollInitiative(character.derived.initiative);
@@ -103,7 +113,11 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
   if (combat.order[combat.turnIndex] !== "player") throw new Error("現在不是玩家的行動順位");
 
   const weapon = PLACEHOLDER_WEAPONS[weaponKey];
-  if (!weapon) throw new Error(`不合法的武器：${weaponKey}`);
+  if (!weapon) {
+    throw new Error(
+      `不合法的武器：${weaponKey}（可用的有：${Object.keys(PLACEHOLDER_WEAPONS).join("/")}）`
+    );
+  }
 
   const attackParams = buildAttackParams(weapon.attackType, character, weapon);
 
@@ -140,7 +154,18 @@ export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
   if (!combat.active) throw new Error("戰鬥已經結束");
   if (combat.order[combat.turnIndex] !== "enemy") throw new Error("現在不是敵人的行動順位");
 
+  // 敵人的武器一律查表，查不到就明確報錯——先前這裡直接讀 weapon.attackType，
+  // 敵人樣板寫了一個型錄裡沒有的 weaponKey 時會丟 "Cannot read properties of undefined"，
+  // 看log的人完全不知道要去改哪一份資料。目前內建敵人都是 unarmed 所以碰不到，
+  // 但之後新增boss樣板時這是最容易踩的一格。
   const weapon = PLACEHOLDER_WEAPONS[combat.enemy.weaponKey];
+  if (!weapon) {
+    throw new Error(
+      `敵人「${combat.enemy.name}」的武器「${combat.enemy.weaponKey}」不在武器型錄裡` +
+        `（可用的有：${Object.keys(PLACEHOLDER_WEAPONS).join("/")}）。` +
+        `請檢查該敵人樣板的 weaponKey，見 content/combat/placeholderEncounters.js`
+    );
+  }
   const attackParams = buildAttackParams(weapon.attackType, {
     attributes: combat.enemy.attributes,
     skills: combat.enemy.skills,
