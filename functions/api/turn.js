@@ -55,8 +55,10 @@ import {
   getProgressSummary,
   bumpNodeStall,
   getNodeStallRounds,
+  applyThreatOutcome,
 } from "../../content/scenario/progress.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
+import { buildThreatDirective, threatSummary } from "../../content/scenario/threat.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
@@ -218,6 +220,77 @@ export async function onRequestPost(context) {
   }
 
   // ---------------------------------------------------------------------
+  // 副本包：節點指引、節點結算、迫近度風味、固定開頭全都要用到，所以在最前面就取出來，
+  // 底下各段直接共用同一份（以前是在組prompt那一段才取，導致開場短路拿不到它）。
+  // ---------------------------------------------------------------------
+  const scenarioPack = session?.scenario ? getScenarioPack(session.scenario.packId) : null;
+  if (session?.scenario && !scenarioPack) {
+    warnings.push(`存檔記錄的副本「${session.scenario.packId}」目前找不到對應的內建副本包，本回合略過節點指引`);
+  }
+  let scenarioProgress = session?.scenario && scenarioPack ? session.scenario.progress : null;
+  const currentChapter = scenarioPack?.entries?.[scenarioProgress?.chapterIndex ?? 0] ?? null;
+
+  // ---------------------------------------------------------------------
+  // 固定開頭短路：這一回合完全不呼叫AI。
+  //
+  // 條件是「開場模式（沒選項也沒自訂行動）+ 這場遊戲還沒有任何歷史 + 副本章節自備了
+  // openingNarration/openingOptions」。命中時直接把作者寫好的開場文字與四個選項回傳。
+  //
+  // 為什麼值得為它多寫一段特例（測玩回饋的兩個問題它一次解決）：
+  //   1. 品質固定：開場是玩家對這個副本的第一印象，不該每次進來都賭模型今天寫得好不好。
+  //   2. 零延遲：開場那一次呼叫本來是玩家等最久的一次（建完卡 -> 空白畫面 -> 等模型），
+  //      現在是一次純本地回應，按下按鈕當下就有東西可讀。
+  // 玩家的第一個選擇之後就完全回到正常流程，AI照樣接手，什麼都沒被拿掉。
+  // ---------------------------------------------------------------------
+  const isOpening = !chosenOption && !playerAction;
+  if (isOpening && !session?.history?.length && currentChapter?.openingNarration) {
+    const scripted = validateOptions(currentChapter.openingOptions, character);
+    scripted.warnings.forEach((w) => warnings.push(`固定開頭選項：${w}`));
+    // source 從 "ai" 改標成 "scripted"：這些選項既不是AI生的、也不是引擎的保底通用選項，
+    // 前端不該把它們標成「保底」（那個標籤的意思是「跟本回合劇情無關」，固定開頭正好相反）。
+    const options = scripted.options.map((o) => (o.source === "ai" ? { ...o, source: "scripted" } : o));
+
+    session.history = pushHistory(session.history, { action: null, narration: currentChapter.openingNarration });
+    session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
+    await store.put(session);
+
+    const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
+    return json({
+      ok: true,
+      provider: null,
+      model: null,
+      sessionId: session.id,
+      persistent: store.persistent,
+      checkParams: null,
+      checkResult: null,
+      outcome: null,
+      narration: currentChapter.openingNarration,
+      options,
+      degraded: {
+        parseFailed: false,
+        narrationSource: "scripted",
+        aiOptionCount: 0,
+        fallbackOptionCount: scripted.fallbackCount,
+        truncated: false,
+        finishReason: null,
+      },
+      downState,
+      scenario: scenarioPack
+        ? {
+            activeNode: activeNode
+              ? { id: activeNode.id, title: activeNode.title, isFinale: Boolean(activeNode.isFinale) }
+              : null,
+            nodeCompleted: null,
+            progress: getProgressSummary(scenarioPack, scenarioProgress),
+            threat: threatSummary(scenarioProgress?.threat, scenarioPack.threatTrack),
+          }
+        : null,
+      turnCount: session.log?.events?.length ?? 0,
+      warnings,
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // 第一段：規則層。完全不碰AI，就算AI等一下整個掛掉，這段算出來的東西依然正確。
   // ---------------------------------------------------------------------
   let checkParams = null;
@@ -251,6 +324,23 @@ export async function onRequestPost(context) {
       return jsonError(`判定計算失敗：${err.message}`, 400);
     }
     outcome = classifyOutcome(checkResult);
+  }
+
+  // ---------------------------------------------------------------------
+  // 迫近度軌：這一回合的成敗**立刻**換算成一個會被存進存檔的數字（見 content/scenario/threat.js）。
+  //
+  // 這是「成功和失敗要有決定性差異」那個回饋的正解。在這之前，成敗唯一的下場是
+  // core/narration.js 的一句語氣指令，而那句話下一回合就消失了——於是第三回合的處境
+  // 跟第一回合一模一樣，玩家當然感覺不到差別。現在成敗會累積：連兩次失敗就跨一個階段，
+  // 階段一變，餵給AI的強制指令就整段換掉，場景不可能再寫成原樣。
+  //
+  // 順序很重要：必須在組prompt之前算完，這一回合的敘事才能反映這一回合的判定。
+  // ---------------------------------------------------------------------
+  let threatChange = null;
+  if (scenarioProgress && outcome) {
+    const applied = applyThreatOutcome(scenarioProgress, outcome);
+    scenarioProgress = applied.progress;
+    threatChange = applied.change;
   }
 
   // ---------------------------------------------------------------------
@@ -294,14 +384,10 @@ export async function onRequestPost(context) {
   const dmMemo = buildDmMemo(character, session);
 
   // --- 副本節點：這回合「應該推進哪個節點」，餵進 prompt 讓AI知道關鍵事件是什麼 ---
-  const scenarioPack = session?.scenario ? getScenarioPack(session.scenario.packId) : null;
-  const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
-  if (session?.scenario && !scenarioPack) {
-    warnings.push(`存檔記錄的副本「${session.scenario.packId}」目前找不到對應的內建副本包，本回合略過節點指引`);
-  }
+  const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
   // 這個節點已經卡了幾回合都沒結算，餵進 buildNodeGuidance() 讓提醒語氣隨著卡關時間拉長而加重
   // (見 progress.js 的 getNodeStallRounds() 說明)。
-  const stalledRounds = activeNode ? getNodeStallRounds(session.scenario.progress, activeNode.id) : 0;
+  const stalledRounds = activeNode ? getNodeStallRounds(scenarioProgress, activeNode.id) : 0;
 
   const prompt = buildPrompt({
     actionText,
@@ -312,6 +398,10 @@ export async function onRequestPost(context) {
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
+    // 迫近度指令：這一回合的判定已經把威脅推近/拉遠了，AI必須照著那個階段寫。
+    threatDirective: scenarioProgress
+      ? buildThreatDirective(scenarioProgress.threat, scenarioPack?.threatTrack, threatChange)
+      : null,
   });
 
   let text;
@@ -442,7 +532,9 @@ export async function onRequestPost(context) {
   // 這一類是給玩家看的(進故事流)，兩者的受眾不同，混在一起只會兩邊都看不到。
   const scenarioWarnings = [];
   if (session?.scenario && scenarioPack) {
-    let progress = session.scenario.progress;
+    // 從 scenarioProgress 接手（迫近度那一段已經先改過它一次），不要回頭讀 session.scenario.progress，
+    // 否則這一回合算出來的迫近度會在寫回存檔時被舊值蓋掉。
+    let progress = scenarioProgress;
 
     // 時間預算：只有玩家真的採取行動的回合才算(開場敘事那一回合玩家還沒做任何選擇)。
     const tookAction = Boolean(chosenOption || playerAction);
@@ -512,6 +604,13 @@ export async function onRequestPost(context) {
         : null,
       nodeCompleted,
       progress: getProgressSummary(scenarioPack, progress),
+      // 迫近度：前端拿它畫HUD，玩家看得到「這一格是我剛剛失敗推上來的」。
+      threat: {
+        ...threatSummary(progress.threat, scenarioPack.threatTrack),
+        ...(threatChange
+          ? { delta: threatChange.delta, before: threatChange.before, escalated: threatChange.escalated }
+          : {}),
+      },
       ...(scenarioWarnings.length ? { warnings: scenarioWarnings } : {}),
     };
   }
@@ -567,9 +666,20 @@ export async function onRequestPost(context) {
  * 組這一回合要送給AI的訊息。
  * 開場模式沒有判定結果，所以不能用 buildTurnPrompt()（它會要求 outcome 必填）。
  */
-function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNarration, character, nodeGuidance, dmMemo }) {
+function buildPrompt({
+  actionText,
+  outcome,
+  sceneContext,
+  recentEvents,
+  recentNarration,
+  character,
+  nodeGuidance,
+  dmMemo,
+  threatDirective,
+}) {
   const optionsSpec = buildOptionsSpec(character);
-  const tail = nodeGuidance ? `\n\n${nodeGuidance}` : "";
+  const threatBlock = threatDirective ? `\n\n${threatDirective}` : "";
+  const tail = `${threatBlock}${nodeGuidance ? `\n\n${nodeGuidance}` : ""}`;
   const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
 
   // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，

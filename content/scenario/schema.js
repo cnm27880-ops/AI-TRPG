@@ -42,8 +42,15 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * @typedef Chapter
  * @property {string} id
  * @property {string} title
- * @property {string} [openingScene] 選填。這個章節開場時要念給玩家聽的場景敘述基準，
- *   AI 開場那一回合會拿這段當敘事依據(見 functions/api/session.js 怎麼把它塞進 sceneContext)。
+ * @property {string} [openingScene] 選填。這個章節開場時的**事實**背景，會被塞進 sceneContext
+ *   餵給AI當敘事依據(見 functions/api/session.js)。這是給AI看的資料，不是印給玩家看的文字。
+ * @property {string} [openingNarration] 選填。**固定的故事開頭**：這段文字會一字不改地印給玩家，
+ *   完全不經過AI(見 functions/api/turn.js 的開場短路)。用途是讓「玩家踏進副本的第一印象」
+ *   品質固定、而且零延遲——交給AI寫的話，同一個副本每次開場的品質都不一樣，
+ *   玩家還要盯著空畫面等模型跑完。有寫這個欄位就建議一起寫 openingOptions。
+ * @property {object[]} [openingOptions] 選填。跟 openingNarration 配套的固定選項
+ *   (形狀同AI產生的選項：{label, attribute, skill, difficulty})。開場不呼叫AI，選項必須自備。
+ *   一樣會經過 content/turnOptions.js 的 validateOption() 查驗，不因為是人寫的就跳過規則檢查。
  * @property {Node[]} nodes
  * @property {number} [timeLimitRounds] 選填。這個章節的時間預算(見 content/scenario/timeBudget.js)，
  *   主線節點推進與NPC好感度養成共用同一筆預算。不填代表這個章節沒有時間限制。
@@ -76,6 +83,16 @@ export function validateScenarioPack(pack) {
     if (chapter.timeLimitRounds != null && !(chapter.timeLimitRounds > 0)) {
       errors.push(`章節「${chapter.name ?? chapter.title}」的 timeLimitRounds 必須是正數`);
     }
+    // 固定開頭與固定選項是配套的：只寫其中一個，開場那一回合就會變成
+    // 「有敘事但沒選項」或「有選項但敘事是AI臨場寫的」，兩種都不是作者想要的結果。
+    // 這種錯誤在部署當下就要炸掉，不要留到玩家開新遊戲才發現版面缺一半。
+    if (chapter.openingNarration && !(chapter.openingOptions?.length > 0)) {
+      errors.push(`章節「${chapter.name ?? chapter.title}」有 openingNarration 但沒有 openingOptions（固定開頭必須自備選項）`);
+    }
+    if (chapter.openingOptions && !chapter.openingNarration) {
+      errors.push(`章節「${chapter.name ?? chapter.title}」有 openingOptions 但沒有 openingNarration`);
+    }
+
     const nodes = chapter.nodes ?? [];
     for (const node of nodes) {
       if (!node.id) {

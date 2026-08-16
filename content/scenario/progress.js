@@ -13,6 +13,7 @@
 
 import { createTimeBudget, spendTime, isExpired, timeStatus } from "./timeBudget.js";
 import { computeNodeReward, computeNodeDC, summarizeChapter, summarizeCampaign } from "./divergence.js";
+import { createThreatTrack, applyOutcomeToThreat, dischargeThreat, normalizeTrack } from "./threat.js";
 
 /**
  * 建立一份全新副本進度。
@@ -32,6 +33,9 @@ export function initScenarioProgress(pack) {
     nodes,
     timeBudget: firstChapter?.timeLimitRounds ? createTimeBudget(firstChapter.timeLimitRounds) : null,
     expiredAt: null, // 章節時間預算耗盡的那一刻記錄一次，避免每回合重複觸發劣化敘事指令
+    // 迫近度軌（見 threat.js）：判定成敗會累積在這裡，這是「成功和失敗有決定性差異」
+    // 的載體——語氣指令留不到下一回合，但這個數字會。
+    threat: createThreatTrack(0),
   };
 }
 
@@ -175,6 +179,30 @@ export function bumpNodeStall(progress, activeNodeId) {
   const current = progress.nodeStall;
   const rounds = current && current.nodeId === activeNodeId ? current.rounds + 1 : 1;
   return { ...progress, nodeStall: { nodeId: activeNodeId, rounds } };
+}
+
+/**
+ * 把這一回合的判定結果套進迫近度軌（見 threat.js）。
+ *
+ * 包一層在這裡而不是讓 turn.js 直接呼叫 threat.js，理由跟 spendChapterTime 一樣：
+ * 「進度物件長什麼樣」只有這個模組該知道，API層只管「這回合擲了什麼、結果如何」。
+ * 舊存檔沒有 threat 欄位時 normalizeTrack() 會自動補一條全新的軌道，不會壞掉。
+ *
+ * @returns {{progress: object, change: object}} change 見 threat.js 的 applyOutcomeToThreat()
+ */
+export function applyThreatOutcome(progress, outcome) {
+  const result = applyOutcomeToThreat(progress.threat, outcome);
+  return { progress: { ...progress, threat: result.track }, change: result };
+}
+
+/** 讀出目前的迫近度軌（舊存檔會自動補一條全新的）。 */
+export function getThreatTrack(progress) {
+  return normalizeTrack(progress?.threat);
+}
+
+/** 開戰時呼叫：追兵變成正面衝突，迫近度回落（見 threat.js 的 dischargeThreat）。 */
+export function dischargeThreatOnEncounter(progress) {
+  return { ...progress, threat: dischargeThreat(progress?.threat) };
 }
 
 /** 讀出目前活躍節點已經卡了幾回合(還沒卡過就是0)，給 buildNodeGuidance() 用。 */

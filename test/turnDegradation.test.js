@@ -51,8 +51,22 @@ async function readJson(res) {
   return { status: res.status, body: JSON.parse(await res.text()) };
 }
 
+/**
+ * 這一組測試全部在測「AI回覆壞掉時的降級行為」，所以每個回合都必須真的走到LLM那一段。
+ *
+ * [2026-08-16] 刻意指定 echoInstitute 這個副本，而不是用預設副本：預設副本(新手副本
+ * 諾斯托羅莫號)的第一章帶了固定開頭(openingNarration/openingOptions)，開場那一回合
+ * 會在 functions/api/turn.js 直接短路回傳、**完全不呼叫AI**——那正是它存在的理由，
+ * 但也代表拿它來測AI降級會什麼都測不到。echoInstitute 沒有固定開頭，開場照樣呼叫AI。
+ */
+const NO_SCRIPTED_OPENING_SCENARIO = "scenario.echo-institute-01";
+
 async function newSession(env) {
-  const res = await readJson(await sessionPost(req(env, { draft: DRAFT, sceneContext: "廢棄醫院的走廊" })));
+  const res = await readJson(
+    await sessionPost(
+      req(env, { draft: DRAFT, sceneContext: "廢棄醫院的走廊", scenarioId: NO_SCRIPTED_OPENING_SCENARIO })
+    )
+  );
   assert.equal(res.body.ok, true, `建立存檔失敗：${res.body.error}`);
   return res.body.session.id;
 }

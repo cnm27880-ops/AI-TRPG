@@ -11,7 +11,12 @@ import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
 import { createEncounter, resolveLeadingEnemyTurns } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
-import { findActiveNode } from "../../../content/scenario/progress.js";
+import {
+  findActiveNode,
+  getThreatTrack,
+  dischargeThreatOnEncounter,
+} from "../../../content/scenario/progress.js";
+import { THREAT_MAX } from "../../../content/scenario/threat.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../../content/auth/ownership.js";
@@ -55,13 +60,24 @@ export async function onRequestPost(context) {
   const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
   const finaleNode = activeNode?.isFinale ? activeNode : null;
 
+  // 迫近度到頂(接觸)時開的戰鬥，打的是這個副本自己的追兵樣板(scenarioPack.threatEncounter)，
+  // 不是 content/combat/placeholderEncounters.js 的通用雜魚。
+  //
+  // 這一段是「迫近度」這條軌道的兌現點：玩家一路失敗把它推到頂之後，如果那只是換一段
+  // 比較嚇人的文字、按下遭遇戰鬥卻跳出一隻不相干的「掠奪者」，整條軌道就白做了——
+  // 世界觀當場穿幫，玩家也學不到「失敗會累積」這件事。追不到 threatEncounter 的副本包
+  // (例如舊的 echoInstitute)行為完全不變，照樣用預設樣板。
+  const threatTrack = session.scenario ? getThreatTrack(session.scenario.progress) : null;
+  const threatContact = Boolean(threatTrack && threatTrack.level >= THREAT_MAX);
+  const threatTemplate = !finaleNode && threatContact ? scenarioPack?.threatEncounter ?? null : null;
+
   // 敵人樣板有問題(例如 weaponKey 不在武器型錄裡)時，這裡會丟錯。要接住並回成一個
   // 看得懂的 400，否則 Pages Functions 會回一個沒有內容的 500，前端只能顯示「連線失敗」，
   // 而真正的原因(某個boss樣板打錯字)完全不會出現在任何地方。
   let combat;
   let openingEnemyAttacks;
   try {
-    combat = createEncounter(session.character, finaleNode?.bossEncounter);
+    combat = createEncounter(session.character, finaleNode?.bossEncounter ?? threatTemplate ?? undefined);
     if (finaleNode) combat.scenarioFinaleNodeId = finaleNode.id;
 
     // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見
@@ -71,7 +87,7 @@ export async function onRequestPost(context) {
     console.error("[COMBAT_START_FAILED]", JSON.stringify({
       where: "POST /api/combat/start",
       sessionId,
-      enemyTemplate: finaleNode?.bossEncounter?.name ?? "(預設佔位敵人)",
+      enemyTemplate: finaleNode?.bossEncounter?.name ?? threatTemplate?.name ?? "(預設佔位敵人)",
       message: err.message,
     }));
     return json({ ok: false, error: `無法建立戰鬥遭遇：${err.message}` }, 400);
@@ -89,6 +105,11 @@ export async function onRequestPost(context) {
   }
 
   session.combat = combat;
+  // 開戰＝追蹤結束、正面衝突開始，迫近度回落（見 content/scenario/threat.js 的 dischargeThreat）。
+  // 不歸零是刻意的：這艘船上就這一隻，打完之後它還在，玩家不該因為打了一場就回到「它不知道你在哪」。
+  if (session.scenario) {
+    session.scenario = { ...session.scenario, progress: dischargeThreatOnEncounter(session.scenario.progress) };
+  }
   await store.put(session);
 
   return json({ ok: true, persistent: store.persistent, combat, openingEnemyAttacks, character: session.character });

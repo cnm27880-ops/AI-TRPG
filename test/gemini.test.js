@@ -17,7 +17,9 @@ test("buildTurnPrompt：組出來的文字包含判定分級指令與玩家行�
   assert.match(prompt, /廢棄醫院三樓走廊/);
   assert.match(prompt, /我朝著怪物揮出一拳/);
   assert.match(prompt, new RegExp(outcome.tier));
-  assert.match(prompt, new RegExp(outcome.directive));
+  // 用 includes 而不是 new RegExp(directive)：指令文字裡有 **、——、（） 這些在正則裡
+  // 有特殊意義的字元，包成 RegExp 會直接丟語法錯誤。這裡要驗的本來就是「原文有沒有被塞進去」。
+  assert.ok(prompt.includes(outcome.directive), "判定分級指令必須原文出現在prompt裡");
 });
 
 test("buildTurnPrompt：沒有sceneContext跟recentEvents時仍可正常組裝(都是選填)", () => {

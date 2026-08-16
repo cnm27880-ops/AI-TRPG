@@ -534,7 +534,109 @@ function readActiveProfile() {
 /** 上一次送出的回合參數，讓「重試」按鈕不用玩家重打一次自訂行動。 */
 let lastTurnRequest = null;
 
-async function runTurn({ chosenOption, playerAction, opening } = {}) {
+// ---------------------------------------------------------------------------
+// 「說書人書寫中」—— 送出回合到收到敘事之間的等待狀態。
+//
+// [2026-08-16 新增] 這一段是回應實際測玩的回饋（逐字）：
+//   「按鍵反饋的部分，應該要設定說書人書寫中之類的動畫，按下按鈕也要有反饋，
+//     我一開始還以為是網頁當掉，結果只是回覆時間太久，過幾十秒才開始動作」
+//
+// 在這之前，runTurn() 從按下按鈕到 fetch 回來為止，畫面上**沒有任何變化**：
+// 選項還在（還可以再按）、沒有任何載入指示、d20動畫要等回應回來才播。
+// 一個要跑 20~40 秒的請求配上完全靜止的畫面，看起來就是當掉了——玩家的判斷是對的，
+// 是這個介面沒有告訴他真相。
+//
+// 這裡做三件事，缺一不可：
+//   1) 立刻鎖住選項並把按下的那一顆標起來（玩家知道系統收到的是哪一個）
+//   2) 在故事流末端插一個會動的「說書人書寫中」區塊（畫面有東西在動＝沒當）
+//   3) 秒數往上跑，並在夠久之後主動說明「模型比較慢，這是正常的」（管理預期）
+// ---------------------------------------------------------------------------
+
+/** 超過這個秒數就補一句說明，免得玩家在第20秒開始懷疑是不是又掛了。 */
+const SLOW_TURN_HINT_SECONDS = 15;
+
+let pendingTimer = null;
+
+function showNarratorPending() {
+  const feed = document.getElementById("story-feed");
+  if (!feed) return;
+  hideNarratorPending();
+
+  const block = document.createElement("div");
+  block.id = "narrator-pending";
+  block.className =
+    "space-y-1 feed-block-enter pending-sweep font-mono text-[11px] text-emerald-200/80 " +
+    "bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30";
+  block.innerHTML =
+    `<div class="flex items-center gap-2">` +
+    `<i class="fas fa-feather-pointed"></i>` +
+    `<span class="font-bold">說書人書寫中</span>` +
+    `<span class="typing-dots"><span></span><span></span><span></span></span>` +
+    `<span data-pending-elapsed class="ml-auto tabular-nums text-emerald-300/70">0.0s</span>` +
+    `</div>` +
+    `<div data-pending-hint class="text-[10px] text-zinc-400"></div>`;
+  feed.appendChild(block);
+  feed.scrollTop = feed.scrollHeight;
+
+  const startedAt = Date.now();
+  pendingTimer = setInterval(() => {
+    const seconds = (Date.now() - startedAt) / 1000;
+    const el = block.querySelector("[data-pending-elapsed]");
+    if (el) el.textContent = `${seconds.toFixed(1)}s`;
+    const hint = block.querySelector("[data-pending-hint]");
+    if (hint && seconds >= SLOW_TURN_HINT_SECONDS && !hint.textContent) {
+      hint.textContent =
+        "模型正在生成這一回合的敘事與選項，較慢的模型需要 30 秒以上，畫面沒有當掉。";
+    }
+  }, 100);
+}
+
+function hideNarratorPending() {
+  if (pendingTimer) {
+    clearInterval(pendingTimer);
+    pendingTimer = null;
+  }
+  document.getElementById("narrator-pending")?.remove();
+}
+
+/**
+ * 送出回合的當下就鎖住輸入。
+ * @param {boolean} locked
+ * @param {number} [pressedIndex] 玩家按的是第幾個選項。沒傳代表這一回合不是從選項來的
+ *   （自訂行動／開場／戰鬥結束後的自動回合），那就沒有特定按鈕需要標記。
+ */
+function setTurnInputLocked(locked, pressedIndex) {
+  const grid = document.getElementById("option-grid");
+  if (grid) {
+    grid.classList.toggle("options-locked", locked);
+    if (locked && pressedIndex != null && pressedIndex >= 0) {
+      grid.children[pressedIndex]?.classList.add("option-pending");
+    } else if (!locked) {
+      grid.querySelectorAll(".option-pending").forEach((el) => el.classList.remove("option-pending"));
+    }
+  }
+
+  const input = document.querySelector("[data-action-input]");
+  if (input) {
+    input.disabled = locked;
+    input.placeholder = locked
+      ? "> 說書人正在書寫這一回合……"
+      : "> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）...";
+  }
+
+  const sendBtn = document.querySelector("[data-send-custom]");
+  if (sendBtn) {
+    sendBtn.disabled = locked;
+    sendBtn.classList.toggle("opacity-40", locked);
+    sendBtn.classList.toggle("cursor-not-allowed", locked);
+    // 按鈕本身也要換文字：這是玩家眼睛最先落點的地方，比故事流裡的區塊更早被看到。
+    sendBtn.innerHTML = locked
+      ? `<span>書寫中</span><i class="fas fa-circle-notch fa-spin text-[10px]"></i>`
+      : `<span>執行</span><i class="fas fa-arrow-right text-[10px]"></i>`;
+  }
+}
+
+async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {}) {
   if (turnInFlight) return;
 
   const overrides = buildLlmOverrides();
@@ -551,6 +653,14 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
   lastTurnRequest = { chosenOption, playerAction, opening };
 
   if (playerAction) appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(playerAction), "font-mono italic text-emerald-400/80");
+  // 選項是AI寫的文字，玩家按下去之後也該在故事流裡留下紀錄——否則捲回去看的時候，
+  // 只剩下敘事，看不出當時自己選了什麼。
+  if (chosenOption?.label) {
+    appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(chosenOption.label), "font-mono italic text-emerald-400/80");
+  }
+
+  setTurnInputLocked(true, pressedIndex);
+  showNarratorPending();
 
   try {
     const httpRes = await fetch("/api/turn", {
@@ -577,6 +687,8 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
     // 選項是空的，於是畫面看起來只是「這回合沒有選項」，玩家完全不知道AI掛了。
     // 現在明確把錯誤印出來，並給一顆重試按鈕。判定結果照樣顯示——規則層是對的，
     // 只有敘事層失敗，不該連帶把已經擲出來的骰子也藏起來。
+    // 收到回應就把等待指示收掉：接下來的骰子動畫與敘事才是玩家該看的東西。
+    hideNarratorPending();
     renderPersistenceWarning(res.persistent);
     renderDownState(res.downState, res.revival);
 
@@ -613,6 +725,10 @@ async function runTurn({ chosenOption, playerAction, opening } = {}) {
     appendTurnError(`回合執行失敗: ${err.message}`, null);
   } finally {
     turnInFlight = false;
+    // 這兩個一定要在 finally：任何一條失敗路徑忘了解鎖，玩家就永遠按不了下一個選項，
+    // 而且畫面上還掛著一個永遠轉不完的「說書人書寫中」——比原本沒有指示還糟。
+    hideNarratorPending();
+    setTurnInputLocked(false);
   }
 }
 
@@ -846,6 +962,8 @@ function updateScenarioHud(scenario) {
     ? `主線進度：節點 ${currentChapter.completedNodes}/${currentChapter.totalNodes}（${pct}%）`
     : `主線進度：${pct}%`;
 
+  renderThreatMeter(scenario.threat);
+
   const badge = document.getElementById("scenario-time-badge");
   const status = scenario.progress?.timeStatus;
   const timeBudget = scenario.progress?.timeBudget;
@@ -857,20 +975,77 @@ function updateScenarioHud(scenario) {
       text += ` (${remain}/${timeBudget.totalRounds})`;
     }
     badge.textContent = text;
-    badge.className = `ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
+    badge.className = `px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
   } else {
     badge.textContent = "";
-    badge.className = "ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
+    badge.className = "px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
   }
 
   // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
   // 在毫無劇情鋪陳的情況下手滑點下去，憑空跳出一隻佔位怪物，破壞AI辛苦營造的沉浸感。
+  // 迫近度到頂(接觸)時也要開放這顆按鈕：那一刻威脅已經站在玩家面前了，
+  // 後端會直接用副本自己的追兵樣板開戰（見 functions/api/combat/start.js），
+  // 不是憑空跳出一隻佔位怪物，所以不違反上面那個「不要破壞沉浸感」的原則。
   const combatBtn = document.getElementById("combat-start-btn");
   if (combatBtn) {
     const isFinale = Boolean(node?.isFinale);
-    combatBtn.style.display = isFinale ? "" : "none";
-    combatBtn.classList.toggle("pulse-glow", isFinale);
+    const cornered = Boolean(scenario.threat?.contact);
+    const canFight = isFinale || cornered;
+    combatBtn.style.display = canFight ? "" : "none";
+    combatBtn.classList.toggle("pulse-glow", canFight);
   }
+}
+
+/**
+ * 迫近度指示燈（資料來自 content/scenario/threat.js，經 /api/turn 的 scenario.threat 回來）。
+ *
+ * 為什麼要畫出來：迫近度是「判定成敗會累積」這件事唯一的實體。玩家如果看不到它，
+ * 失敗的後果就只剩下敘事裡的一句話，跟修正之前一模一樣。畫成一排燈而不是數字，
+ * 是因為玩家要的是「又靠近了一格」這個感覺，不是精確的整數。
+ *
+ * 階段升高時額外在故事流插一行提示——那一格通常就是玩家剛剛失敗的那一次，
+ * 把因果直接講明，比讓他自己從敘事裡推論有效。
+ */
+let lastThreatStage = null;
+
+function renderThreatMeter(threat) {
+  const box = document.getElementById("scenario-threat");
+  const pips = document.getElementById("scenario-threat-pips");
+  const label = document.getElementById("scenario-threat-label");
+  if (!box || !pips || !label) return;
+
+  if (!threat) {
+    box.style.display = "none";
+    lastThreatStage = null;
+    return;
+  }
+
+  const STAGE_TONE = { 潛伏: 1, 追蹤: 2, 貼近: 3, 接觸: 4 };
+  const tone = STAGE_TONE[threat.stage] ?? 1;
+
+  box.style.display = "flex";
+  box.title = `${threat.name}：${threat.stage} — ${threat.summary ?? ""}`;
+  label.textContent = threat.stage;
+  label.className = `text-[10px] font-bold ${
+    tone >= 4 ? "text-red-400" : tone === 3 ? "text-orange-300" : tone === 2 ? "text-yellow-300" : "text-emerald-300"
+  }`;
+
+  pips.innerHTML = Array.from({ length: threat.max }, (_, i) =>
+    `<span class="threat-pip ${i < threat.level ? `on-${tone}` : ""}"></span>`
+  ).join("");
+  box.classList.toggle("pulse-glow", Boolean(threat.contact));
+
+  if (threat.stage !== lastThreatStage && lastThreatStage !== null && threat.delta) {
+    const worse = threat.delta > 0;
+    appendFeedBlock(
+      `<span class="${worse ? "text-orange-300" : "text-emerald-300"}">SYSTEM.THREAT // ${escapeHtml(threat.stage)}</span>`,
+      `${escapeHtml(threat.name)}${worse ? "上升" : "下降"}至「${escapeHtml(threat.stage)}」：${escapeHtml(threat.summary ?? "")}`,
+      `font-mono text-[11px] p-2 rounded border ${
+        worse ? "text-orange-200/90 bg-orange-500/5 border-orange-500/30" : "text-emerald-200/90 bg-emerald-500/5 border-emerald-500/30"
+      }`
+    );
+  }
+  lastThreatStage = threat.stage;
 }
 
 function renderOptions(options) {
@@ -925,7 +1100,9 @@ function renderOptions(options) {
 
 function selectOption(index) {
   const opt = currentOptions[index];
-  if (opt) runTurn({ chosenOption: opt });
+  // pressedIndex 讓 setTurnInputLocked() 知道要把哪一顆標成「已按下」——
+  // 送出之後選項還留在畫面上，沒有這個標記，玩家會忘記自己按的是哪一個。
+  if (opt) runTurn({ chosenOption: opt, pressedIndex: index });
 }
 
 // 幾何 d20 擲骰結算動畫：純視覺呈現既有 checkResult 數據，不影響骰值計算
@@ -1069,6 +1246,8 @@ async function resumeSession(id) {
 
   currentSessionId = id;
   localStorage.setItem(SESSION_KEY, id);
+  // 換一份存檔＝換一條迫近度軌，上一場的階段不能留著，否則第一次更新會誤報一次「階段變化」。
+  lastThreatStage = null;
   adoptCharacter(res.session.character);
   showScreen("game");
   renderPersistenceWarning(res.persistent);

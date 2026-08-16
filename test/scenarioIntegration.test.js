@@ -11,7 +11,7 @@ import { onRequestPost as turnPost } from "../functions/api/turn.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore, newSessionId } from "../content/storage/sessionStore.js";
-import { DEFAULT_SCENARIO_ID } from "../content/scenario/registry.js";
+import { DEFAULT_SCENARIO_ID, getScenarioPack } from "../content/scenario/registry.js";
 
 const DRAFT = {
   concept: { name: "測試輪迴者", gender: "男" },
@@ -52,8 +52,10 @@ async function readJson(res) {
 }
 
 test("副本整合：開場不消耗節點，三個主線節點依序完成，最終戰只能透過戰鬥結算", async () => {
+  // 注意腳本第一段對應的是**玩家的第一個行動**，不是開場。
+  // 預設副本(新手副本)的開場是固定文字、不呼叫AI（見 functions/api/turn.js 的開場短路），
+  // 所以假AI binding 的第一次呼叫發生在玩家做出第一個選擇之後。
   const env = makeEnv([
-    { narration: "開場", nodeComplete: null },
     { narration: "節點一完成", nodeComplete: { divergenceTier: 0 } },
     { narration: "節點二完成", nodeComplete: { divergenceTier: 1 } },
     { narration: "節點三完成", nodeComplete: { divergenceTier: 2 } },
@@ -65,9 +67,11 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
   assert.equal(r.session.scenario.packId, DEFAULT_SCENARIO_ID);
   const sessionId = r.session.id;
 
-  // 開場：不應該有任何節點被完成
+  // 開場：不應該有任何節點被完成，而且這一回合是固定開頭（不經過AI）
   r = await readJson(await turnPost(req(env, { sessionId })));
   assert.equal(r.scenario.nodeCompleted, null);
+  assert.equal(r.degraded.narrationSource, "scripted", "開場應該用副本自帶的固定開頭");
+  assert.equal(r.options.length, 4, "固定開頭一樣要給滿四個選項");
   const firstNodeId = r.scenario.activeNode.id;
 
   // 三個主線節點依序完成
@@ -95,12 +99,28 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
   assert.equal(r.ok, true);
   assert.equal(r.combat.scenarioFinaleNodeId, finaleNodeId);
   assert.notEqual(r.combat.enemy.name, "掠奪者", "最終戰不該用預設雜魚樣板");
-  assert.equal(r.combat.enemy.armor, 1, "boss樣板的armor要真的被帶進combat.enemy(先前的bug：armor被漏複製)");
+  // armor 拿副本包裡寫的那個值來比，不要寫死數字：換一個預設副本就會失效，
+  // 而這條測試要鎖的是「boss樣板的armor有沒有被複製過去」，不是「armor剛好等於幾」。
+  const finaleTemplate = getScenarioPack(DEFAULT_SCENARIO_ID)
+    .entries.flatMap((ch) => ch.nodes)
+    .find((n) => n.isFinale).bossEncounter;
+  assert.equal(
+    r.combat.enemy.armor,
+    finaleTemplate.armor,
+    "boss樣板的armor要真的被帶進combat.enemy(先前的bug：armor被漏複製)"
+  );
 
   // 讓戰鬥在有限回合內確定分出勝負：直接調整雙方血量，不依賴真實骰子結果
   const store = resolveSessionStore(env);
   const session = await store.get(sessionId);
   session.combat.enemy.hpState = { max: session.combat.enemy.hpState.max, intact: 1, B: 0, L: 0, A: 0, dead: false, unconscious: false };
+  // 護甲也一起歸零（armor 有沒有被正確複製，上面已經斷言過了，這裡不再需要它）。
+  //
+  // [2026-08-16] 這是在修別的東西時順手抓到的既有不穩定：敵人留著護甲時，玩家不只要
+  // 命中，還要「成功數 - 防禦DC - 護甲 >= 1」才扣得到那唯一一點血，實測每次攻擊約 1.2%，
+  // 300 次跑不完的機率約 2.6%——也就是每四十次CI就會無故紅一次，而且看起來像是隨機壞掉。
+  // 這條測試要驗的是「打贏最終戰會不會結算節點」，不是命中率，所以把變因拿掉。
+  session.combat.enemy.armor = 0;
   session.character.derived.hp = { ...session.character.derived.hp, intact: session.character.derived.hp.max, B: 0, L: 0, A: 0 };
   session.combat.player.hpState = { ...session.character.derived.hp };
   await store.put(session);

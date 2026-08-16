@@ -7,8 +7,12 @@
 
 import { validateScenarioPack } from "./schema.js";
 import { ECHO_INSTITUTE_SCENARIO } from "./examples/echoInstitute.js";
+import { NOSTROMO_SCENARIO } from "./examples/alienNostromo.js";
 
-const ALL_PACKS = [ECHO_INSTITUTE_SCENARIO];
+// 排在最前面的是新手副本(諾斯托羅莫號)：它是 DEFAULT_SCENARIO_ID，也就是玩家建完卡
+// 沒有特別選副本時直接進去的那一個。它比 echoInstitute 多了固定開頭與迫近度設定，
+// 教學意圖最完整，所以放第一個。
+const ALL_PACKS = [NOSTROMO_SCENARIO, ECHO_INSTITUTE_SCENARIO];
 
 export const SCENARIO_REGISTRY = {};
 for (const pack of ALL_PACKS) {
@@ -19,8 +23,8 @@ for (const pack of ALL_PACKS) {
   SCENARIO_REGISTRY[pack.id] = pack;
 }
 
-/** 沒有指定 scenarioId 時的預設副本(目前唯一的內建範例)。 */
-export const DEFAULT_SCENARIO_ID = ECHO_INSTITUTE_SCENARIO.id;
+/** 沒有指定 scenarioId 時的預設副本 —— 新手副本《異形》諾斯托羅莫號。 */
+export const DEFAULT_SCENARIO_ID = NOSTROMO_SCENARIO.id;
 
 /** @returns {object|null} */
 export function getScenarioPack(id) {

@@ -212,6 +212,48 @@
         @keyframes shakeHit { 10%,90% { transform: translateX(-1px); } 20%,80% { transform: translateX(2px); } 30%,50%,70% { transform: translateX(-3px); } 40%,60% { transform: translateX(3px); } }
         .shake-hit { animation: shakeHit .4s ease both; }
 
+        /* ===== 說書人書寫中：等待AI回覆時的狀態指示（見 public/app.js 的 showNarratorPending）=====
+           這一段是回應實際測玩的回饋：「按下按鈕也要有反饋，我一開始還以為是網頁當掉，
+           結果只是回覆時間太久」。模型跑一次要十幾到幾十秒，這段時間畫面上必須有東西在動，
+           而且要讓玩家知道「系統收到了、正在跑」，不是「壞了」。 */
+        .typing-dots > span {
+            display: inline-block; width: 4px; height: 4px; margin-right: 3px;
+            border-radius: 50%; background: currentColor; opacity: .35;
+            animation: typingBlink 1.2s infinite ease-in-out;
+        }
+        .typing-dots > span:nth-child(2) { animation-delay: .18s; }
+        .typing-dots > span:nth-child(3) { animation-delay: .36s; }
+        @keyframes typingBlink { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+
+        /* 掃描線：讓「等待中」這件事在餘光裡也看得見，不必盯著小字 */
+        .pending-sweep { position: relative; overflow: hidden; }
+        .pending-sweep::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(16,185,129,.14), transparent);
+            transform: translateX(-100%);
+            animation: pendingSweep 1.6s ease-in-out infinite;
+        }
+        @keyframes pendingSweep { to { transform: translateX(100%); } }
+
+        /* 按下去的那一顆選項：立刻標起來，讓玩家知道系統收到的是哪一個 */
+        .option-pending {
+            border-color: rgba(16,185,129,.7) !important;
+            background: rgba(16,185,129,.12) !important;
+        }
+        /* 送出中，整組選項變成不可點：避免玩家以為沒反應而連按，送出重複的回合 */
+        .options-locked { opacity: .45; pointer-events: none; filter: saturate(.5); }
+
+        /* 迫近度指示燈（見 content/scenario/threat.js） */
+        .threat-pip {
+            width: 7px; height: 12px; border-radius: 2px;
+            background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12);
+            transition: background .3s ease, box-shadow .3s ease;
+        }
+        .threat-pip.on-1 { background: #34d399; border-color: #34d399; }
+        .threat-pip.on-2 { background: #facc15; border-color: #facc15; }
+        .threat-pip.on-3 { background: #fb923c; border-color: #fb923c; }
+        .threat-pip.on-4 { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.6); }
+
         .modal-panel { transform: scale(.96) translateY(6px); opacity: 0; transition: all .25s ease; }
         .modal-backdrop.modal-open .modal-panel { transform: scale(1) translateY(0); opacity: 1; }
 
@@ -667,7 +709,14 @@
                     <div id="scenario-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500" style="width:0%"></div>
                 </div>
                 <span id="scenario-progress-text" class="text-zinc-400 shrink-0">0%</span>
-                <span id="scenario-time-badge" class="ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0"></span>
+                <!-- 迫近度（見 content/scenario/threat.js）：判定成敗會累積在這條軌道上，
+                     所以它必須看得見——玩家要能一眼看出「剛剛那次失敗把它推近了一格」，
+                     否則成敗的差異又變回只存在於敘事語氣裡的東西。 -->
+                <span id="scenario-threat" style="display:none" class="ml-auto flex items-center gap-1.5 shrink-0" title="">
+                    <span id="scenario-threat-label" class="text-[10px] font-bold">迫近</span>
+                    <span id="scenario-threat-pips" class="flex items-center gap-0.5"></span>
+                </span>
+                <span id="scenario-time-badge" class="px-2 py-0.5 rounded border text-[10px] font-bold shrink-0"></span>
             </div>
 
             <!-- 存檔不是持久的時候的常駐警告條（見 public/app.js 的 renderPersistenceWarning）。
