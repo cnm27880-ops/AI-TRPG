@@ -45,7 +45,15 @@ import {
   optionToCheckParams,
 } from "../../content/turnOptions.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
-import { findActiveNode, completeNodeAndAdvance, spendChapterTime, justExpired, getProgressSummary } from "../../content/scenario/progress.js";
+import {
+  findActiveNode,
+  completeNodeAndAdvance,
+  spendChapterTime,
+  justExpired,
+  getProgressSummary,
+  bumpNodeStall,
+  getNodeStallRounds,
+} from "../../content/scenario/progress.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
@@ -177,6 +185,9 @@ export async function onRequestPost(context) {
   if (session?.scenario && !scenarioPack) {
     warnings.push(`存檔記錄的副本「${session.scenario.packId}」目前找不到對應的內建副本包，本回合略過節點指引`);
   }
+  // 這個節點已經卡了幾回合都沒結算，餵進 buildNodeGuidance() 讓提醒語氣隨著卡關時間拉長而加重
+  // (見 progress.js 的 getNodeStallRounds() 說明)。
+  const stalledRounds = activeNode ? getNodeStallRounds(session.scenario.progress, activeNode.id) : 0;
 
   const prompt = buildPrompt({
     actionText,
@@ -185,7 +196,7 @@ export async function onRequestPost(context) {
     recentEvents,
     recentNarration,
     character,
-    nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode) : null,
+    nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
   });
 
@@ -283,6 +294,12 @@ export async function onRequestPost(context) {
           warnings.push(`副本節點結算被引擎擋下：${result.error}`);
         }
       }
+    }
+
+    // 玩家真的採取了行動、但這個節點這回合沒有被結算：累計「卡關回合數」，
+    // 下一回合的 nodeGuidance 就能看到這個數字、加重「不要原地踏步」的提醒語氣。
+    if (tookAction && !nodeCompleted && activeNode) {
+      progress = bumpNodeStall(progress, activeNode.id);
     }
 
     session.scenario = { packId: scenarioPack.id, progress };

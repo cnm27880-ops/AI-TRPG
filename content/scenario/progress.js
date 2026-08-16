@@ -163,6 +163,27 @@ export function justExpired(beforeProgress, afterProgress) {
 }
 
 /**
+ * 玩家在同一個節點上「已經卡了幾回合都沒有結算」——純粹是給prompt看的統計，
+ * 節點到底能不能結算仍然完全由AI的敘事判斷(nodePrompt.js)決定，這裡不會替AI
+ * 自動結算，只是讓AI在guidance文字裡「看得到自己卡了多久」，方便加重語氣。
+ *
+ * 呼叫端(turn.js)在每回合玩家真的採取行動、但這個節點沒有被結算時呼叫。
+ * 節點一換(activeNodeId跟紀錄的不一樣)，計數自然重新從1開始。
+ */
+export function bumpNodeStall(progress, activeNodeId) {
+  if (!activeNodeId) return progress;
+  const current = progress.nodeStall;
+  const rounds = current && current.nodeId === activeNodeId ? current.rounds + 1 : 1;
+  return { ...progress, nodeStall: { nodeId: activeNodeId, rounds } };
+}
+
+/** 讀出目前活躍節點已經卡了幾回合(還沒卡過就是0)，給 buildNodeGuidance() 用。 */
+export function getNodeStallRounds(progress, activeNodeId) {
+  if (!activeNodeId || !progress.nodeStall || progress.nodeStall.nodeId !== activeNodeId) return 0;
+  return progress.nodeStall.rounds;
+}
+
+/**
  * 組給API回應用的進度摘要：各章節完成度/扭轉度百分比 + 目前章節的時間狀態。
  * 前端HUD可以直接拿這包資料畫進度條，不用自己重算。
  */
