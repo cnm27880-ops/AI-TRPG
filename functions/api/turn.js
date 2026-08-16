@@ -221,7 +221,13 @@ export async function onRequestPost(context) {
     // 選項則整批退回 validateOptions()（見該函式），一樣用通用選項墊滿四個，
     // 玩家不會看到「本回合沒有選項」的空版面——這是使用者明確要求的一致性保底。
     const fallbackNarration = extractNarrationFallback(text);
-    if (fallbackNarration) narration = fallbackNarration;
+    if (fallbackNarration) {
+      narration = fallbackNarration;
+    } else {
+      // 連 narration 欄位都挖不到：至少把AI幻覺出的數字/選項清單切掉，
+      // 不要讓「1. 謹慎觀察...」這種選項列表被當成故事內容印給玩家看。
+      narration = text.split(/(?:^|\n)\s*(?:1\.|選項[一1])\s/)[0].trim();
+    }
     warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
     options = validateOptions(null, character).options;
   }
@@ -345,6 +351,10 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
   const tail = nodeGuidance ? `\n\n${nodeGuidance}` : "";
   const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
 
+  // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，
+  // 前面內容再長也不會被忘記——比只放在system instruction裡更難被忽略。
+  const jsonReminder = `\n\n【系統強制指令】\n你的回覆必須是單一個合法的 JSON 物件，請直接以 { 開頭並以 } 結尾。絕對不要輸出 Markdown (\`\`\`json) 或其他閒聊文字！`;
+
   if (!outcome) {
     const lines = [];
     if (sceneContext) lines.push(`【場景背景】${sceneContext}`);
@@ -363,7 +373,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
         : "【這是本場遊戲的開場】請描寫玩家角色目前所在的場景，建立氣氛與可以互動的線索。" +
             "這一回合沒有擲骰，不要描寫任何行動的成敗。"
     );
-    return `${lines.join("\n")}\n\n${optionsSpec}${tail}`;
+    return `${lines.join("\n")}\n\n${optionsSpec}${tail}${jsonReminder}`;
   }
 
   const turnPrompt = buildTurnPrompt({
@@ -375,7 +385,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
   });
 
   // [修改] 把狀態表格接在後面
-  return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}`;
+  return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}${jsonReminder}`;
 }
 
 function json(payload, status = 200) {
