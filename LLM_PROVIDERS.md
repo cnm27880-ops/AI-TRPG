@@ -66,7 +66,14 @@
 | `DEEPSEEK_API_KEY` | DeepSeek 金鑰 |
 | `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) 金鑰 |
 | `OPENROUTER_API_KEY` | OpenRouter 金鑰 |
+| `LLM_MAX_TOKENS` | 輸出長度上限，預設 2048。**不要調到 1000 以下**，原因見下方 |
 | `NARRATIVE_STYLE` | 文筆設定檔名稱：`白描`（預設）/`標準`/`恐怖懸疑`/`冷硬寫實`/`電影感` |
+
+> **為什麼 `LLM_MAX_TOKENS` 不能調小**：每一回合要模型輸出「敘事 + 4個選項」的完整 JSON。
+> 上限太低時，模型會在寫完敘事、還沒開始寫 `options` 的地方被切斷，於是 JSON 解析失敗、
+> 選項整組退回通用保底選項——畫面上看起來就是「每一輪的四個選項一字不差」。
+> 這不是假設：2026-08-16 線上實測時，Workers AI 沒指定 max_tokens 的預設值是 256，
+> 中文又特別吃 token，敘事寫到 100 字出頭就被切斷，每一輪都吃保底選項。
 
 自動偵測的順序是：`LLM_PROVIDER` → 有哪把金鑰 → 都沒有就用 Workers AI → 連binding都沒有才報錯。
 **任何情況下都不會偷偷產生假的敘事文字**，失敗就是明確報錯。

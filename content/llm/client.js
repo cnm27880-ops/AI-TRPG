@@ -43,6 +43,30 @@ export class LlmError extends Error {
 /** 錯誤本文只留前幾百字：完整的錯誤JSON可能很長，塞進log只會讓真正的重點被淹掉。 */
 const BODY_SNIPPET_LIMIT = 400;
 
+/**
+ * 輸出長度上限的預設值。
+ *
+ * [2026-08-16 決策記錄 —— 這個常數是一個實際線上bug的修正，不是隨手填的數字]
+ * 部署到 Cloudflare Pages 之後實測 /api/turn，連續多輪都是：敘事寫到一半斷掉、
+ * options 完全沒出現、parseTurnResponse() 解析失敗、選項整組退回保底文字。
+ * 敘事長度非常穩定地落在100~110個中文字就斷——那不是模型「不會寫JSON」，
+ * 是**輸出被截斷**：Workers AI 這類端點沒有指定 max_tokens 時預設只給 256 個 token，
+ * 而中文在 Llama 系列的分詞器上大約是 1 個字 2 個 token，
+ * 100多個中文字剛好就把 256 個 token 用完，模型還沒輪到寫 "options" 就被切斷了。
+ *
+ * 這一格沒設定，會讓整條敘事鏈路看起來像是「AI不聽話」，實際上是我們沒給它寫完的空間。
+ * 本專案的 prompt 要求 150~400 字敘事 + 4 個選項的 JSON，抓 2048 有充足餘裕；
+ * 要改用環境變數 LLM_MAX_TOKENS 覆寫即可，不用改程式。
+ */
+export const DEFAULT_MAX_TOKENS = 2048;
+
+/** 解析這次要用的輸出上限：呼叫端 > 環境變數 > 預設值（跟 resolveProvider 同一個優先序）。 */
+function resolveMaxTokens(maxTokens, env) {
+  const raw = maxTokens ?? env?.LLM_MAX_TOKENS;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_TOKENS;
+}
+
 function snippet(text) {
   if (typeof text !== "string") return null;
   return text.length > BODY_SNIPPET_LIMIT ? `${text.slice(0, BODY_SNIPPET_LIMIT)}…(已截斷)` : text;
@@ -59,6 +83,8 @@ function snippet(text) {
  * @param {string} [params.model] 覆寫模型名稱
  * @param {string} [params.baseUrl] 覆寫baseUrl（接第三方中轉時用）
  * @param {string} [params.apiKey] 覆寫金鑰
+ * @param {number} [params.maxTokens] 覆寫輸出長度上限（見 DEFAULT_MAX_TOKENS 的說明，
+ *   那個常數修正的是一個實際線上bug：不指定的話輸出會被截斷在256個token）
  * @param {typeof fetch} [params.fetchFn] 依賴注入，測試時塞假的fetch
  * @returns {Promise<{text: string, provider: string, model: string, raw: object}>}
  */
@@ -70,11 +96,13 @@ export async function callLlm({
   model,
   baseUrl,
   apiKey,
+  maxTokens,
   fetchFn,
 }) {
   if (!prompt) throw new Error("callLlm需要prompt(這次要送的使用者訊息文字)");
 
   const cfg = resolveProvider(provider, env, { model, baseUrl, apiKey });
+  const limit = resolveMaxTokens(maxTokens, env);
 
   if (!cfg.model) {
     throw new LlmError(
@@ -87,11 +115,11 @@ export async function callLlm({
 
   switch (cfg.protocol) {
     case PROTOCOLS.WORKERS_AI:
-      return callWorkersAi(cfg, { env, prompt, systemInstruction });
+      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit });
     case PROTOCOLS.GEMINI:
-      return callGeminiProtocol(cfg, { prompt, systemInstruction, fetchFn });
+      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, fetchFn });
     case PROTOCOLS.OPENAI_CHAT:
-      return callOpenAiChat(cfg, { prompt, systemInstruction, fetchFn });
+      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, fetchFn });
     default:
       throw new LlmError(`供應商「${cfg.id}」的線路格式「${cfg.protocol}」還沒有實作`, {
         provider: cfg.id,
@@ -105,7 +133,7 @@ export async function callLlm({
 // OpenAI相容格式 —— DeepSeek / OpenRouter / Groq / 硅基流動 / 各種第三方中轉共用這一段
 // ---------------------------------------------------------------------------
 
-async function callOpenAiChat(cfg, { prompt, systemInstruction, fetchFn = fetch }) {
+async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, fetchFn = fetch }) {
   if (!cfg.baseUrl) {
     throw new LlmError(
       `供應商「${cfg.id}」沒有baseUrl。若是自訂第三方接口，請設定環境變數 LLM_BASE_URL ` +
@@ -132,7 +160,7 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, fetchFn = fetch 
       authorization: `Bearer ${cfg.apiKey}`,
       ...(cfg.extraHeaders ?? {}),
     },
-    body: JSON.stringify({ model: cfg.model, messages }),
+    body: JSON.stringify({ model: cfg.model, messages, max_tokens: maxTokens }),
   });
 
   if (!response.ok) {
@@ -169,7 +197,7 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, fetchFn = fetch 
 // Gemini原生格式（generateContent）
 // ---------------------------------------------------------------------------
 
-async function callGeminiProtocol(cfg, { prompt, systemInstruction, fetchFn = fetch }) {
+async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, fetchFn = fetch }) {
   if (!cfg.apiKey) {
     throw new LlmError(
       `${cfg.label} 需要API金鑰，但沒有讀到。請設定環境變數 ${cfg.apiKeyEnv}` +
@@ -181,6 +209,8 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, fetchFn = fe
   const body = {
     system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
     contents: [{ parts: [{ text: prompt }] }],
+    // Gemini 用 generationConfig.maxOutputTokens，欄位名跟 OpenAI 的 max_tokens 不同
+    generationConfig: { maxOutputTokens: maxTokens },
   };
 
   const response = await fetchFn(`${cfg.baseUrl}/models/${cfg.model}:generateContent`, {
@@ -223,7 +253,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, fetchFn = fe
 // Cloudflare Workers AI（不走HTTP，走binding）
 // ---------------------------------------------------------------------------
 
-async function callWorkersAi(cfg, { env, prompt, systemInstruction }) {
+async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens }) {
   if (!env?.AI || typeof env.AI.run !== "function") {
     throw new LlmError(
       "找不到Cloudflare Workers AI binding(env.AI)。" +
@@ -241,7 +271,7 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction }) {
   // 是一個沒有 provider/model 欄位的裸 Error，log 裡就看不出是哪一家哪個模型壞掉。
   let raw;
   try {
-    raw = await env.AI.run(cfg.model, { messages });
+    raw = await env.AI.run(cfg.model, { messages, max_tokens: maxTokens });
   } catch (err) {
     throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${err.message}`, {
       provider: cfg.id,

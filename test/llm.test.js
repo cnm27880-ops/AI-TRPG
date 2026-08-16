@@ -5,7 +5,7 @@
 // 第三方中轉是不是真的相容OpenAI格式。那些只能靠實際部署後打一次來驗證，見 LLM_PROVIDERS.md。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callLlm, LlmError } from "../content/llm/client.js";
+import { callLlm, LlmError, DEFAULT_MAX_TOKENS } from "../content/llm/client.js";
 import { PROVIDERS, PROVIDER_IDS, resolveProvider, pickProvider } from "../content/llm/providers.js";
 
 /** 做一個假的fetch，記錄呼叫參數並回傳指定的JSON */
@@ -308,4 +308,56 @@ test("LlmError：Workers AI 的 binding 自己丟錯(例如模型被下架)時�
   assert.equal(err.stage, "binding");
   assert.equal(err.model, PROVIDERS["workers-ai"].defaultModel, "要指名是哪個模型壞掉，否則看log的人不知道該去改哪一個值");
   assert.match(err.message, /deprecated/);
+});
+
+// ---------------------------------------------------------------------------
+// 輸出長度上限（2026-08-16 線上實測發現的bug）
+//
+// 部署到 Cloudflare Pages 後連續多輪實測 /api/turn：敘事穩定地寫到100~110個中文字
+// 就斷掉、options 完全沒出現、選項整組退回保底文字。那不是「模型不會寫JSON」，
+// 是沒有指定 max_tokens 時端點預設只給 256 個 token，中文又特別吃 token，
+// 模型還沒輪到寫 "options" 就被切斷。這一組測試釘住「三種線路格式都要把上限送出去」。
+// ---------------------------------------------------------------------------
+
+test("max_tokens：OpenAI相容格式要把上限放進請求body，不能讓端點用它自己的預設值", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  assert.equal(sent.max_tokens, DEFAULT_MAX_TOKENS);
+});
+
+test("max_tokens：Gemini用的欄位是 generationConfig.maxOutputTokens(名字跟OpenAI不一樣)", async () => {
+  const ff = fakeFetch(GEMINI_OK);
+  await callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "k" }, prompt: "x", fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  assert.equal(sent.generationConfig.maxOutputTokens, DEFAULT_MAX_TOKENS);
+});
+
+test("max_tokens：Workers AI 也要帶上（這就是線上真的被截斷的那一條路）", async () => {
+  const calls = [];
+  const env = { AI: { run: async (model, payload) => { calls.push(payload); return { response: "x" }; } } };
+  await callLlm({ provider: "workers-ai", env, prompt: "x" });
+  assert.equal(calls[0].max_tokens, DEFAULT_MAX_TOKENS);
+});
+
+test("max_tokens：環境變數 LLM_MAX_TOKENS 可以覆寫，呼叫端傳入又贏過環境變數", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "512" }, prompt: "x", fetchFn: ff });
+  assert.equal(JSON.parse(ff.calls[0].options.body).max_tokens, 512);
+
+  const ff2 = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "512" },
+    prompt: "x",
+    maxTokens: 4096,
+    fetchFn: ff2,
+  });
+  assert.equal(JSON.parse(ff2.calls[0].options.body).max_tokens, 4096);
+});
+
+test("max_tokens：環境變數是垃圾值時退回預設，不可以把 NaN 送給供應商", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "很多" }, prompt: "x", fetchFn: ff });
+  assert.equal(JSON.parse(ff.calls[0].options.body).max_tokens, DEFAULT_MAX_TOKENS);
 });
