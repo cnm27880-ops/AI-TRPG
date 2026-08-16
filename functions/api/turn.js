@@ -45,7 +45,15 @@ import {
   optionToCheckParams,
 } from "../../content/turnOptions.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
-import { findActiveNode, completeNodeAndAdvance, spendChapterTime, justExpired, getProgressSummary } from "../../content/scenario/progress.js";
+import {
+  findActiveNode,
+  completeNodeAndAdvance,
+  spendChapterTime,
+  justExpired,
+  getProgressSummary,
+  bumpNodeStall,
+  getNodeStallRounds,
+} from "../../content/scenario/progress.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
@@ -177,6 +185,9 @@ export async function onRequestPost(context) {
   if (session?.scenario && !scenarioPack) {
     warnings.push(`存檔記錄的副本「${session.scenario.packId}」目前找不到對應的內建副本包，本回合略過節點指引`);
   }
+  // 這個節點已經卡了幾回合都沒結算，餵進 buildNodeGuidance() 讓提醒語氣隨著卡關時間拉長而加重
+  // (見 progress.js 的 getNodeStallRounds() 說明)。
+  const stalledRounds = activeNode ? getNodeStallRounds(session.scenario.progress, activeNode.id) : 0;
 
   const prompt = buildPrompt({
     actionText,
@@ -185,7 +196,7 @@ export async function onRequestPost(context) {
     recentEvents,
     recentNarration,
     character,
-    nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode) : null,
+    nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
   });
 
@@ -221,7 +232,13 @@ export async function onRequestPost(context) {
     // 選項則整批退回 validateOptions()（見該函式），一樣用通用選項墊滿四個，
     // 玩家不會看到「本回合沒有選項」的空版面——這是使用者明確要求的一致性保底。
     const fallbackNarration = extractNarrationFallback(text);
-    if (fallbackNarration) narration = fallbackNarration;
+    if (fallbackNarration) {
+      narration = fallbackNarration;
+    } else {
+      // 連 narration 欄位都挖不到：至少把AI幻覺出的數字/選項清單切掉，
+      // 不要讓「1. 謹慎觀察...」這種選項列表被當成故事內容印給玩家看。
+      narration = text.split(/(?:^|\n)\s*(?:1\.|選項[一1])\s/)[0].trim();
+    }
     warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
     options = validateOptions(null, character).options;
   }
@@ -277,6 +294,12 @@ export async function onRequestPost(context) {
           warnings.push(`副本節點結算被引擎擋下：${result.error}`);
         }
       }
+    }
+
+    // 玩家真的採取了行動、但這個節點這回合沒有被結算：累計「卡關回合數」，
+    // 下一回合的 nodeGuidance 就能看到這個數字、加重「不要原地踏步」的提醒語氣。
+    if (tookAction && !nodeCompleted && activeNode) {
+      progress = bumpNodeStall(progress, activeNode.id);
     }
 
     session.scenario = { packId: scenarioPack.id, progress };
@@ -345,6 +368,10 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
   const tail = nodeGuidance ? `\n\n${nodeGuidance}` : "";
   const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
 
+  // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，
+  // 前面內容再長也不會被忘記——比只放在system instruction裡更難被忽略。
+  const jsonReminder = `\n\n【系統強制指令】\n你的回覆必須是單一個合法的 JSON 物件，請直接以 { 開頭並以 } 結尾。絕對不要輸出 Markdown (\`\`\`json) 或其他閒聊文字！`;
+
   if (!outcome) {
     const lines = [];
     if (sceneContext) lines.push(`【場景背景】${sceneContext}`);
@@ -363,7 +390,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
         : "【這是本場遊戲的開場】請描寫玩家角色目前所在的場景，建立氣氛與可以互動的線索。" +
             "這一回合沒有擲骰，不要描寫任何行動的成敗。"
     );
-    return `${lines.join("\n")}\n\n${optionsSpec}${tail}`;
+    return `${lines.join("\n")}\n\n${optionsSpec}${tail}${jsonReminder}`;
   }
 
   const turnPrompt = buildTurnPrompt({
@@ -375,7 +402,7 @@ function buildPrompt({ actionText, outcome, sceneContext, recentEvents, recentNa
   });
 
   // [修改] 把狀態表格接在後面
-  return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}`;
+  return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}${jsonReminder}`;
 }
 
 function json(payload, status = 200) {

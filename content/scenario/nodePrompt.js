@@ -15,15 +15,32 @@ import { DIVERGENCE_TIERS } from "./divergence.js";
 
 const MAX_TIER = DIVERGENCE_TIERS.length - 1;
 
+/** 卡關到第幾回合才開始加重語氣、以及加到最重語氣的門檻。 */
+const STALL_WARN_AT = 2;
+const STALL_URGENT_AT = 4;
+
 /**
  * 組出「目前活躍節點」的指引文字，附加在回合prompt後面。
  * @param {object|null} node content/scenario/schema.js 的 Node 形狀，null代表主線已跑完
+ * @param {number} [stalledRounds] 這個節點已經卡了幾回合都沒結算(見 progress.js 的
+ *   getNodeStallRounds())，用來把「不要原地踏步」的提醒隨著卡關時間拉長而加重語氣，
+ *   而不是每一回合都用同一句溫和提醒——固定強度的提醒對AI而言很容易被當背景噪音略過。
  */
-export function buildNodeGuidance(node) {
+export function buildNodeGuidance(node, stalledRounds = 0) {
   if (!node) {
     return `【劇情節點】這個副本的主線節點已經全部完成，接下來請自由收尾這場輪迴任務，
 不需要再回傳 nodeComplete 欄位。`;
   }
+
+  const stallWarning =
+    stalledRounds >= STALL_URGENT_AT
+      ? `\n\n【卡關警告：已連續 ${stalledRounds} 回合沒有推進】這個節點已經卡了太多回合，絕對不可以再讓場景停留在
+同一個僵局裡。這一回合請主動引入新的變化(意外狀況、新的線索、環境改變、敵人動作)來打破僵局，
+把敘事往前推，不要再重複描寫玩家嘗試同一件事、或讓玩家停在原地觀望。`
+      : stalledRounds >= STALL_WARN_AT
+      ? `\n\n【提醒：已經 ${stalledRounds} 回合沒有推進這個節點】不要再寫跟前面回合幾乎一樣的場景與動作，
+這一回合的敘事必須讓情境出現實質變化，往這個節點的關鍵事件靠近一步。`
+      : "";
 
   if (node.isFinale) {
     // 最終戰節點刻意**不**開放 nodeComplete 信號：這個節點只能透過玩家實際打贏
@@ -35,7 +52,7 @@ ${node.canonSummary}
 
 請把敘事帶向與敵人正面對決、一觸即發的處境，但**不要**描寫戰鬥的過程或結果，
 也**不要**在輸出JSON裡加入 nodeComplete 欄位——這個節點只能由玩家實際在戰鬥系統裡
-打贏敵人才會結算，不是由你的敘事文字決定勝負。`;
+打贏敵人才會結算，不是由你的敘事文字決定勝負。${stallWarning}`;
   }
 
   return `【劇情節點：${node.title}】
@@ -49,7 +66,7 @@ ${DIVERGENCE_TIERS.map((t) => `  ${t.tier} = ${t.label}`).join("\n")}
 格式：{"divergenceTier": 分級數字}
 
 如果這個節點的關鍵事件這回合還沒發生(還在鋪陳、玩家還在猶豫、還沒到關鍵時刻)，
-"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。`;
+"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。${stallWarning}`;
 }
 
 /**

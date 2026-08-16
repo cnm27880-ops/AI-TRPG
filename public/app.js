@@ -430,8 +430,15 @@ function updateScenarioHud(scenario) {
 
   const badge = document.getElementById("scenario-time-badge");
   const status = scenario.progress?.timeStatus;
+  const timeBudget = scenario.progress?.timeBudget;
   if (status) {
-    badge.textContent = `時間：${status}`;
+    let text = `時間：${status}`;
+    // 光寫「充裕/吃緊」玩家沒有實感，直接把剩餘回合數標出來(13/16)化解「沒在跑」的錯覺。
+    if (timeBudget) {
+      const remain = Math.max(0, timeBudget.totalRounds - timeBudget.spentRounds);
+      text += ` (${remain}/${timeBudget.totalRounds})`;
+    }
+    badge.textContent = text;
     badge.className = `ml-auto px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
   } else {
     badge.textContent = "";
