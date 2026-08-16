@@ -44,6 +44,7 @@ import {
   validateOption,
   validateOptions,
   optionToCheckParams,
+  TURN_RESPONSE_SCHEMA,
 } from "../../content/turnOptions.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
 import {
@@ -316,6 +317,9 @@ export async function onRequestPost(context) {
       apiKey: bodyApiKey || undefined,
       baseUrl: bodyBaseUrl || undefined,
       model: bodyModel || undefined,
+      // 結構化輸出：由供應商端保證回覆格式合法，而不是祈禱模型照著prompt裡的範例寫。
+      // 供應商不支援時 callLlm 會自動忽略，行為跟沒傳一樣（見 providers.js 的 JSON_MODES）。
+      responseSchema: TURN_RESPONSE_SCHEMA,
     });
     text = res.text;
     model = res.model;
@@ -371,6 +375,12 @@ export async function onRequestPost(context) {
       degraded.narrationSource = "ai-raw";
     }
     warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
+    // 解析失敗時把AI原文的前段帶回前端。
+    // [2026-08-16] 這一格是被實際經驗逼出來的：先前查這個bug時，回應裡只有「解析失敗」
+    // 四個字，看不到模型到底寫了什麼，於是第一次的診斷猜錯了方向（以為是模型不會寫JSON，
+    // 實際上是輸出被截斷）。原文是判斷「截斷 vs 格式錯 vs 多包了一層說明文字」的唯一依據，
+    // 只在失敗時才出現，正常回合不會多這個欄位。
+    degraded.rawSnippet = String(text).slice(0, 300);
     const validated = validateOptions(null, character);
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));

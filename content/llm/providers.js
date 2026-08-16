@@ -33,6 +33,23 @@
 //   - Cloudflare Workers AI：https://developers.cloudflare.com/workers-ai/platform/pricing/
 // ============================================================================
 
+/**
+ * 「結構化輸出」的支援方式。
+ *
+ * [2026-08-16] 這是把保底選項觸發率壓下來的關鍵：與其祈禱模型照著 prompt 裡的範例寫 JSON，
+ * 不如在請求裡附一份 schema，由供應商端保證輸出格式。三種線路格式的欄位名都不一樣，
+ * 所以這裡登記「這一家用哪一種」，實際組裝在 client.js。
+ *
+ * null = 不確定這家支不支援，就不要送——送了不支援的欄位有些端點會直接回400，
+ * 那等於把一個本來會動的設定弄壞。這比「少一點保險」嚴重得多，所以預設保守。
+ * 玩家自己知道他的端點支援時，可以用環境變數 LLM_JSON_MODE=on 強制打開。
+ */
+export const JSON_MODES = {
+  OPENAI_SCHEMA: "openai-schema",
+  GEMINI_SCHEMA: "gemini-schema",
+  WORKERS_AI_SCHEMA: "workers-ai-schema",
+};
+
 /** 各家API的線路格式。新增供應商時先問：它是不是OpenAI相容？是的話用 openai-chat 就好。 */
 export const PROTOCOLS = {
   OPENAI_CHAT: "openai-chat",
@@ -52,6 +69,7 @@ export const PROVIDERS = {
     apiKeyEnv: "GEMINI_API_KEY",
     docs: "https://ai.google.dev/gemini-api/docs/pricing",
     freeTier: "有免費額度（需要自己申請金鑰）",
+    jsonMode: "gemini-schema",
   },
 
   // --- DeepSeek（官方） ---
@@ -65,6 +83,7 @@ export const PROVIDERS = {
     apiKeyEnv: "DEEPSEEK_API_KEY",
     docs: "https://api-docs.deepseek.com/",
     freeTier: "無常態免費額度，依官方計價（新帳號是否送額度請自行確認）",
+    jsonMode: "openai-schema",
   },
 
   // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
@@ -79,6 +98,9 @@ export const PROVIDERS = {
     defaultModel: "meta/llama-3.3-70b-instruct",
     apiKeyEnv: "NVIDIA_API_KEY",
     docs: "https://build.nvidia.com/",
+    // NIM 的結構化輸出支援度依模型而異，不是每個都吃 response_format，所以預設不送。
+    // 你的模型支援的話設 LLM_JSON_MODE=on 打開。
+    jsonMode: null,
     freeTier: "免費申請即可用，不需信用卡；過去有總量上限，查證當下已取消，僅受RPM限制(預設40，可申請調高)",
   },
 
@@ -91,6 +113,7 @@ export const PROVIDERS = {
     defaultModel: null,
     apiKeyEnv: "OPENROUTER_API_KEY",
     docs: "https://openrouter.ai/models",
+    jsonMode: "openai-schema",
     freeTier: "有一批 `:free` 結尾的免費模型，但slug會變動，需自行到models頁確認",
     // OpenRouter建議(非必要)帶上這兩個header，用來在它的排行榜顯示來源
     extraHeaders: { "HTTP-Referer": "https://github.com/cnm27880-ops/AI-TRPG", "X-Title": "AI-TRPG" },
@@ -110,6 +133,7 @@ export const PROVIDERS = {
     defaultModel: "@cf/meta/llama-3.1-8b-instruct-fast",
     apiKeyEnv: null, // 這正是重點：不需要任何API金鑰
     docs: "https://developers.cloudflare.com/workers-ai/models/",
+    jsonMode: "workers-ai-schema",
     freeTier: "每天10,000 Neurons免費額度（查證當下），超過要升級Workers付費方案",
   },
 
@@ -122,6 +146,8 @@ export const PROVIDERS = {
     apiKeyEnv: "LLM_API_KEY",
     docs: "（依你使用的服務而定）",
     freeTier: "依服務而定",
+    // 自訂端點五花八門，不能假設它支援。支援的話設 LLM_JSON_MODE=on。
+    jsonMode: null,
   },
 };
 
@@ -154,7 +180,28 @@ export function resolveProvider(providerId, env = {}, overrides = {}) {
     (provider.apiKeyEnv ? env[provider.apiKeyEnv] : undefined) ??
     env.LLM_API_KEY;
 
-  return { id: providerId, ...provider, model, baseUrl, apiKey };
+  return { id: providerId, ...provider, model, baseUrl, apiKey, jsonMode: resolveJsonMode(provider, env) };
+}
+
+/**
+ * 決定這次要不要送結構化輸出、以及用哪一種寫法。
+ *
+ * LLM_JSON_MODE 的三個值：
+ *   "off"  一律不送（某個端點吃這個欄位會出事時的逃生門）
+ *   "on"   即使供應商表上寫 null 也強制送（自訂端點的使用者自己知道支不支援）
+ *   不設   照供應商表（保守：不確定的一律不送）
+ */
+function resolveJsonMode(provider, env) {
+  const flag = String(env.LLM_JSON_MODE ?? "").toLowerCase();
+  if (flag === "off") return null;
+  if (flag === "on") return provider.jsonMode ?? defaultJsonModeForProtocol(provider.protocol);
+  return provider.jsonMode ?? null;
+}
+
+function defaultJsonModeForProtocol(protocol) {
+  if (protocol === "gemini") return "gemini-schema";
+  if (protocol === "workers-ai") return "workers-ai-schema";
+  return "openai-schema";
 }
 
 /**

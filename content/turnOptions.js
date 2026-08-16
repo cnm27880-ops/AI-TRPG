@@ -123,6 +123,49 @@ ${specs ? `- 已登記的專業：${specs}` : ""}
 }
 
 /**
+ * 這一回合期望的回覆結構，寫成 JSON Schema。
+ *
+ * [2026-08-16] 用途是「結構化輸出」：多數供應商都支援在請求裡附一份 schema，
+ * 由供應商端**保證**模型的輸出符合它（Gemini 的 responseSchema、OpenAI 相容的
+ * response_format.json_schema、Workers AI 的 json_schema）。這是把
+ * 「祈禱模型照著 prompt 裡的範例寫」換成「格式由協定保證」，
+ * 也是把保底選項的觸發率壓下來最有效的一招——線上實測 8B 模型光靠 prompt
+ * 大約每四輪會有一輪寫出不合法的 JSON。
+ *
+ * schema 刻意寫得**只約束結構、不約束內容**（只有 attribute 與 difficulty 用 enum，
+ * 因為那兩個的合法值很少且固定）。技能名、專業名一律不進 schema，理由是這個專案的
+ * 分工本來就是「AI 挑組合、引擎查驗」（見本檔案開頭的規則書出處說明）——
+ * 查驗權在 validateOption()，不能因為多了一份 schema 就把它變成第二個真理來源，
+ * 那樣以後改技能表要記得改兩個地方，遲早會不一致。
+ *
+ * 這份 schema 放在這個檔案而不是 content/llm/client.js：client.js 只該懂「線路格式」，
+ * 不該懂「一回合長什麼樣」。呼叫端（functions/api/turn.js）負責把兩者接起來。
+ */
+export const TURN_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    narration: { type: "string" },
+    options: {
+      type: "array",
+      minItems: OPTION_COUNT,
+      maxItems: OPTION_COUNT,
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          attribute: { type: "string", enum: ATTRIBUTE_KEYS },
+          skill: { type: ["string", "null"] },
+          specialization: { type: ["string", "null"] },
+          difficulty: { type: "string", enum: DIFFICULTY_IDS },
+        },
+        required: ["label", "attribute", "difficulty"],
+      },
+    },
+  },
+  required: ["narration", "options"],
+};
+
+/**
  * 從 LLM 回傳的文字裡把 JSON 挖出來。
  *
  * 為什麼要「挖」而不是直接 JSON.parse：不論怎麼交代，模型還是常常會

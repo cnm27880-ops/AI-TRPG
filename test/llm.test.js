@@ -413,3 +413,106 @@ test("Workers AI 端對端：response 是物件時 callLlm 要成功回傳，不
   assert.equal(typeof result.text, "string");
   assert.match(result.text, /從envelope來的/, "有原始文字時優先用它");
 });
+
+// ---------------------------------------------------------------------------
+// 結構化輸出（2026-08-16）—— 把「祈禱模型照prompt寫JSON」換成「格式由協定保證」。
+// 線上實測 8B 模型光靠 prompt 大約每四輪會有一輪寫出不合法的JSON。
+// ---------------------------------------------------------------------------
+
+const SCHEMA = { type: "object", properties: { narration: { type: "string" } }, required: ["narration"] };
+
+test("結構化輸出：OpenAI相容格式用 response_format.json_schema", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", responseSchema: SCHEMA, fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  assert.equal(sent.response_format.type, "json_schema");
+  assert.deepEqual(sent.response_format.json_schema.schema, SCHEMA);
+});
+
+test("結構化輸出：Gemini 用 generationConfig 的 responseMimeType + responseSchema", async () => {
+  const ff = fakeFetch(GEMINI_OK);
+  await callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "k" }, prompt: "x", responseSchema: SCHEMA, fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  assert.equal(sent.generationConfig.responseMimeType, "application/json");
+  assert.deepEqual(sent.generationConfig.responseSchema, SCHEMA);
+});
+
+test("結構化輸出：Workers AI 用 response_format.json_schema", async () => {
+  const calls = [];
+  const env = { AI: { run: async (m, p) => { calls.push(p); return { response: "x" }; } } };
+  await callLlm({ provider: "workers-ai", env, prompt: "x", responseSchema: SCHEMA });
+  assert.equal(calls[0].response_format.type, "json_schema");
+});
+
+test("結構化輸出：供應商標記為不支援(custom/nvidia)時不可以送出去，免得把能動的設定弄壞", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "custom",
+    env: { LLM_API_KEY: "k", LLM_BASE_URL: "https://x/v1", LLM_MODEL: "m" },
+    prompt: "x",
+    responseSchema: SCHEMA,
+    fetchFn: ff,
+  });
+  assert.equal(JSON.parse(ff.calls[0].options.body).response_format, undefined);
+});
+
+test("結構化輸出：LLM_JSON_MODE=on 可以替自訂端點強制打開", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "custom",
+    env: { LLM_API_KEY: "k", LLM_BASE_URL: "https://x/v1", LLM_MODEL: "m", LLM_JSON_MODE: "on" },
+    prompt: "x",
+    responseSchema: SCHEMA,
+    fetchFn: ff,
+  });
+  assert.equal(JSON.parse(ff.calls[0].options.body).response_format.type, "json_schema");
+});
+
+test("結構化輸出：LLM_JSON_MODE=off 是逃生門，支援的供應商也要停用", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k", LLM_JSON_MODE: "off" },
+    prompt: "x",
+    responseSchema: SCHEMA,
+    fetchFn: ff,
+  });
+  assert.equal(JSON.parse(ff.calls[0].options.body).response_format, undefined);
+});
+
+test("結構化輸出：端點回400時要退回不帶schema再試一次，不能讓整個回合失敗", async () => {
+  const calls = [];
+  let n = 0;
+  const fetchFn = async (url, options) => {
+    calls.push(JSON.parse(options.body));
+    n += 1;
+    if (n === 1) return { ok: false, status: 400, json: async () => ({}), text: async () => "unknown field response_format" };
+    return { ok: true, status: 200, json: async () => OPENAI_OK, text: async () => "" };
+  };
+
+  const result = await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k" },
+    prompt: "x",
+    responseSchema: SCHEMA,
+    fetchFn,
+  });
+
+  assert.equal(result.text, "測試敘事文字", "退回之後這一回合仍然要成功");
+  assert.equal(calls.length, 2);
+  assert.ok(calls[0].response_format, "第一次帶schema");
+  assert.equal(calls[1].response_format, undefined, "第二次不帶");
+});
+
+test("結構化輸出：沒帶schema時的400不可以觸發重試(那是真的錯誤)", async () => {
+  let n = 0;
+  const fetchFn = async () => {
+    n += 1;
+    return { ok: false, status: 400, json: async () => ({}), text: async () => "bad request" };
+  };
+  await assert.rejects(
+    () => callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", fetchFn }),
+    /HTTP 400/
+  );
+  assert.equal(n, 1, "只該打一次");
+});

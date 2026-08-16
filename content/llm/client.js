@@ -85,6 +85,9 @@ function snippet(text) {
  * @param {string} [params.apiKey] 覆寫金鑰
  * @param {number} [params.maxTokens] 覆寫輸出長度上限（見 DEFAULT_MAX_TOKENS 的說明，
  *   那個常數修正的是一個實際線上bug：不指定的話輸出會被截斷在256個token）
+ * @param {object} [params.responseSchema] 期望回覆的 JSON Schema。有給、而且這家供應商
+ *   支援結構化輸出時，會依它的線路格式送出去，由供應商端保證輸出合法（見 providers.js
+ *   的 JSON_MODES）。供應商不支援就自動忽略，行為跟沒給一樣。
  * @param {typeof fetch} [params.fetchFn] 依賴注入，測試時塞假的fetch
  * @returns {Promise<{text: string, provider: string, model: string, raw: object}>}
  */
@@ -97,6 +100,7 @@ export async function callLlm({
   baseUrl,
   apiKey,
   maxTokens,
+  responseSchema,
   fetchFn,
 }) {
   if (!prompt) throw new Error("callLlm需要prompt(這次要送的使用者訊息文字)");
@@ -115,11 +119,11 @@ export async function callLlm({
 
   switch (cfg.protocol) {
     case PROTOCOLS.WORKERS_AI:
-      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit });
+      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit, responseSchema });
     case PROTOCOLS.GEMINI:
-      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, fetchFn });
+      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn });
     case PROTOCOLS.OPENAI_CHAT:
-      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, fetchFn });
+      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn });
     default:
       throw new LlmError(`供應商「${cfg.id}」的線路格式「${cfg.protocol}」還沒有實作`, {
         provider: cfg.id,
@@ -133,7 +137,28 @@ export async function callLlm({
 // OpenAI相容格式 —— DeepSeek / OpenRouter / Groq / 硅基流動 / 各種第三方中轉共用這一段
 // ---------------------------------------------------------------------------
 
-async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, fetchFn = fetch }) {
+/**
+ * 結構化輸出送出去之後，如果端點回 400，代表它不吃這個欄位。
+ *
+ * 這種情況要**退回不帶 schema 再試一次**，而不是讓整個回合失敗——
+ * 「多了一層保險反而把本來會動的設定弄壞」是絕對不能接受的結果，
+ * 尤其 custom 端點五花八門，我們不可能事先知道每一家支不支援。
+ * 退化時留 log，讓看log的人知道這家要設 LLM_JSON_MODE=off 才不會每次都白試一輪。
+ */
+function shouldRetryWithoutSchema(status, sentSchema) {
+  return Boolean(sentSchema) && status === 400;
+}
+
+function logSchemaFallback(cfg, detail) {
+  console.warn("[LLM_JSON_MODE_UNSUPPORTED]", JSON.stringify({
+    provider: cfg.id,
+    model: cfg.model,
+    detail,
+    hint: "這個端點不接受結構化輸出欄位，已自動退回純prompt模式。要省下這一次重試請設 LLM_JSON_MODE=off",
+  }));
+}
+
+async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch }) {
   if (!cfg.baseUrl) {
     throw new LlmError(
       `供應商「${cfg.id}」沒有baseUrl。若是自訂第三方接口，請設定環境變數 LLM_BASE_URL ` +
@@ -153,15 +178,37 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, fetch
   if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
   messages.push({ role: "user", content: prompt });
 
-  const response = await fetchFn(`${cfg.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${cfg.apiKey}`,
-      ...(cfg.extraHeaders ?? {}),
-    },
-    body: JSON.stringify({ model: cfg.model, messages, max_tokens: maxTokens }),
-  });
+  const useSchema = responseSchema && cfg.jsonMode === "openai-schema";
+
+  const send = (withSchema) =>
+    fetchFn(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${cfg.apiKey}`,
+        ...(cfg.extraHeaders ?? {}),
+      },
+      body: JSON.stringify({
+        model: cfg.model,
+        messages,
+        max_tokens: maxTokens,
+        ...(withSchema
+          ? {
+              response_format: {
+                type: "json_schema",
+                json_schema: { name: "turn_response", schema: responseSchema },
+              },
+            }
+          : {}),
+      }),
+    });
+
+  let response = await send(useSchema);
+
+  if (!response.ok && shouldRetryWithoutSchema(response.status, useSchema)) {
+    logSchemaFallback(cfg, `HTTP 400：${snippet(await safeReadText(response))}`);
+    response = await send(false);
+  }
 
   if (!response.ok) {
     const body = await safeReadText(response);
@@ -197,7 +244,7 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, fetch
 // Gemini原生格式（generateContent）
 // ---------------------------------------------------------------------------
 
-async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, fetchFn = fetch }) {
+async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch }) {
   if (!cfg.apiKey) {
     throw new LlmError(
       `${cfg.label} 需要API金鑰，但沒有讀到。請設定環境變數 ${cfg.apiKeyEnv}` +
@@ -206,18 +253,34 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, f
     );
   }
 
-  const body = {
+  const useSchema = responseSchema && cfg.jsonMode === "gemini-schema";
+
+  const buildBody = (withSchema) => ({
     system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
     contents: [{ parts: [{ text: prompt }] }],
-    // Gemini 用 generationConfig.maxOutputTokens，欄位名跟 OpenAI 的 max_tokens 不同
-    generationConfig: { maxOutputTokens: maxTokens },
-  };
-
-  const response = await fetchFn(`${cfg.baseUrl}/models/${cfg.model}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
-    body: JSON.stringify(body),
+    // Gemini 用 generationConfig.maxOutputTokens，欄位名跟 OpenAI 的 max_tokens 不同；
+    // 結構化輸出也在同一個物件裡，用 responseMimeType + responseSchema 兩個欄位。
+    generationConfig: {
+      maxOutputTokens: maxTokens,
+      ...(withSchema
+        ? { responseMimeType: "application/json", responseSchema }
+        : {}),
+    },
   });
+
+  const send = (withSchema) =>
+    fetchFn(`${cfg.baseUrl}/models/${cfg.model}:generateContent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
+      body: JSON.stringify(buildBody(withSchema)),
+    });
+
+  let response = await send(useSchema);
+
+  if (!response.ok && shouldRetryWithoutSchema(response.status, useSchema)) {
+    logSchemaFallback(cfg, `HTTP 400：${snippet(await safeReadText(response))}`);
+    response = await send(false);
+  }
 
   if (!response.ok) {
     const body = await safeReadText(response);
@@ -253,7 +316,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, f
 // Cloudflare Workers AI（不走HTTP，走binding）
 // ---------------------------------------------------------------------------
 
-async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens }) {
+async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, responseSchema }) {
   if (!env?.AI || typeof env.AI.run !== "function") {
     throw new LlmError(
       "找不到Cloudflare Workers AI binding(env.AI)。" +
@@ -269,17 +332,43 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens })
 
   // binding 自己丟出來的錯(模型被下架、額度用盡)也要包成 LlmError，否則呼叫端拿到的
   // 是一個沒有 provider/model 欄位的裸 Error，log 裡就看不出是哪一家哪個模型壞掉。
+  const useSchema = responseSchema && cfg.jsonMode === "workers-ai-schema";
+  const payload = (withSchema) => ({
+    messages,
+    max_tokens: maxTokens,
+    ...(withSchema
+      ? { response_format: { type: "json_schema", json_schema: responseSchema } }
+      : {}),
+  });
+
   let raw;
   try {
-    raw = await env.AI.run(cfg.model, { messages, max_tokens: maxTokens });
+    raw = await env.AI.run(cfg.model, payload(useSchema));
   } catch (err) {
-    throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${err.message}`, {
-      provider: cfg.id,
-      model: cfg.model,
-      stage: "binding",
-      bodySnippet: snippet(String(err?.message ?? err)),
-      cause: err,
-    });
+    // binding 沒有 HTTP 狀態碼可看，只能靠錯誤訊息判斷是不是「不吃 response_format」。
+    // 判斷不準也沒關係：最壞的情況是多試一次不帶 schema 的請求，不會讓結果變差。
+    if (useSchema) {
+      logSchemaFallback(cfg, String(err?.message ?? err));
+      try {
+        raw = await env.AI.run(cfg.model, payload(false));
+      } catch (retryErr) {
+        throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${retryErr.message}`, {
+          provider: cfg.id,
+          model: cfg.model,
+          stage: "binding",
+          bodySnippet: snippet(String(retryErr?.message ?? retryErr)),
+          cause: retryErr,
+        });
+      }
+    } else {
+      throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${err.message}`, {
+        provider: cfg.id,
+        model: cfg.model,
+        stage: "binding",
+        bodySnippet: snippet(String(err?.message ?? err)),
+        cause: err,
+      });
+    }
   }
 
   const text = extractWorkersAiText(raw);
