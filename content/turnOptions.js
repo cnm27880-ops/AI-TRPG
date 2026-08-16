@@ -75,11 +75,6 @@ export function buildOptionsSpec(character) {
     .join("、");
   const untrained = ALL_SKILLS.filter((s) => (character?.skills?.[s] ?? 0) === 0).join("、");
 
-  const specs = Object.entries(character?.specializations ?? {})
-    .filter(([, list]) => Array.isArray(list) && list.length > 0)
-    .map(([skill, list]) => `${skill}（${list.join("、")}）`)
-    .join("、");
-
   const skillsByCategory = Object.entries(SKILLS)
     .map(([category, list]) => `${category}：${list.join("、")}`)
     .join("\n");
@@ -99,7 +94,6 @@ ${skillsByCategory}
 這個角色目前的技能等級：
 - 有訓練：${trained || "（無）"}
 - 未訓練（等級0）：${untrained}
-${specs ? `- 已登記的專業：${specs}` : ""}
 
 挑選時請注意：
 - **四個選項要是四種不同的解決思路**（例如：正面強攻／迂迴潛行／溝通交涉／觀察搜證）。
@@ -132,10 +126,10 @@ ${specs ? `- 已登記的專業：${specs}` : ""}
 {
   "narration": "這一段是你的敘事文字",
   "options": [
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "感知", "skill": "偵察", "specialization": null, "difficulty": "普通" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "力量", "skill": "格鬥", "specialization": null, "difficulty": "困難" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "意志", "skill": "交涉", "specialization": null, "difficulty": "容易" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "敏捷", "skill": "潛行", "specialization": null, "difficulty": "很困難" }
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "感知", "skill": "偵察", "difficulty": "普通" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "力量", "skill": "格鬥", "difficulty": "困難" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "意志", "skill": "交涉", "difficulty": "容易" },
+    { "label": "選項文字", "hint": "想達成什麼", "attribute": "敏捷", "skill": "潛行", "difficulty": "很困難" }
   ]
 }`;
 }
@@ -177,7 +171,6 @@ export const TURN_RESPONSE_SCHEMA = {
           hint: { type: "string" },
           attribute: { type: "string", enum: ATTRIBUTE_KEYS },
           skill: { type: ["string", "null"] },
-          specialization: { type: ["string", "null"] },
           difficulty: { type: "string", enum: DIFFICULTY_IDS },
         },
         required: ["label", "hint", "attribute", "difficulty"],
@@ -324,18 +317,17 @@ export function validateOption(raw, character) {
     }
   }
 
-  // --- 專業：只有角色真的登記過才帶上，否則讓引擎照「無對應專業減半」規則處理 ---
-  if (option.skill && raw.specialization) {
-    const owned = character?.specializations?.[option.skill] ?? [];
-    if (!character || owned.includes(raw.specialization)) {
-      option.specialization = raw.specialization;
-    } else {
-      warnings.push(
-        `角色沒有登記「${option.skill}」的專業「${raw.specialization}」，` +
-          `本次不套用專業（引擎會依規則將技能等級減半）`
-      );
-    }
-  }
+  // --- 專業(specialization)：輕量化規則刻意不做，所以這裡**明確丟棄**，不是忘了處理 ---
+  //
+  // [2026-08-16 決策] 在這之前這裡會查驗並帶上 raw.specialization，一路傳進
+  // optionToCheckParams() -> performCheck()，但 core/check.js 從頭到尾沒有讀過這個欄位。
+  // 也就是說：選項帶不帶專業，判定結果完全一樣。更糟的是上面那句被刪掉的警告文字寫著
+  // 「引擎會依規則將技能等級減半」——那個減半規則在整個專案裡不存在，等於程式碼在說謊。
+  //
+  // 兩條路（接上／拆掉）選了拆掉，理由：建卡已經改成後台自動配點，玩家沒有任何
+  // 購買專業的入口，接上等於為一個沒人能取得的資源實作一整套規則。留著一個
+  // 「假裝生效」的參數比明講「還沒做」危險得多，所以現在明確不接受這個欄位。
+  // 規則書原文的專業機制仍記錄在 RULES_DIGEST.md 的「已知落差」，要做的時候從那裡接回來。
 
   // --- 難度：不在量表裡就退回預設，不接受 AI 自己講一個 DC 數字 ---
   //
@@ -439,6 +431,5 @@ export function validateOptions(rawOptions, character) {
 export function optionToCheckParams(option) {
   const params = { attribute: option.attribute, dc: option.dc ?? difficultyToDc(option.difficulty) };
   if (option.skill) params.skill = option.skill;
-  if (option.specialization) params.specialization = option.specialization;
   return params;
 }

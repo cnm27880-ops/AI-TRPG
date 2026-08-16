@@ -103,11 +103,17 @@ test("performCheck: 沒有登記過專業的技能，不套用減半規則(視�
 // 這不是這份測試打錯字，是規則引擎本身缺了這塊——跳過並留下這個註記，而不是悄悄改測試斷言
 // 去配合「其實沒做」的行為，也不要在沒有人拍板「怎麼減半(無條件捨去/進位？跟技能0級的flat
 // penalty怎麼疊加？)」之前就自己編一個版本進rules引擎。
-test.skip("performCheck: 有登記專業但本次判定沒對到，技能減半", () => {
+// [2026-08-16 決策] 原本這裡是一則 test.skip，等著有人去實作「無對應專業減半」。
+// 那個等待現在結束了：專業系統在輕量化規則裡明確不做（理由見 test/checkIntent.test.js
+// 同一個決定的完整說明），所以改成鎖住「不做」這件事本身。
+test("performCheck: 專業欄位不影響任何計算（輕量化規則不實作專業）", () => {
   const c = emptyCharacter("測試角色");
   c.attributes["智力"] = 4;
-  c.skills["科學"] = 4;
-  c.specializations["科學"] = ["化學"];
-  const result = performCheck(c, { attribute: "智力", skill: "科學", specialization: "物理", dc: 0 });
-  assert.ok(result.note.some((n) => n.includes("減半")), "應該套用減半規則");
+  c.skills["秘識"] = 3;
+  c.specializations["秘識"] = ["化學"];
+
+  const withSpec = performCheck(c, { attribute: "智力", skill: "秘識", specialization: "物理", dc: 0 });
+  const withoutSpec = performCheck(c, { attribute: "智力", skill: "秘識", dc: 0 });
+  assert.equal(withSpec.dp, withoutSpec.dp, "帶不帶專業，骰池必須一樣");
+  assert.ok(!withSpec.note.some((n) => n.includes("減半")), "不該出現任何減半的記錄");
 });

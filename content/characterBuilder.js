@@ -1,18 +1,37 @@
-// [設計] 輕量建卡組裝層
+// [設計] 建卡組裝層 —— 驗證一份配點草稿並組出一張合法的角色卡。
 //
-// 每個身分模板(archetype)除了屬性/技能配點之外，還帶兩組「角色塑造」資料：
-//   - backstoryOptions：2個背景故事候選，玩家二選一，各自帶一個選填的自訂欄位
-//     (例如同袍的名字)，讓同一個模板的兩個玩家不會有一模一樣的來歷。
-//   - feats：3個固定專長。2個是 skillBonus 型(實際影響數值)，1個是 narrative 型
-//     (不影響任何數值，只餵給AI當性格傾向提示，見 content/narrativeStyle.js 的分層說明)。
+// [2026-08-16 改版] 身分模板(archetype) + 二選一背景故事的建卡方式**整組拿掉**了，
+// 換成 content/chargen/lifePath.js 的生平問答。使用者的要求(逐字)：
+//   「我想把目前預設的背景故事拿掉，要透過一些更有代入感的方式讓玩家可以逐步建立
+//     一個他心目中的角色，故事要豐富(且符合無限恐怖的設定，每個人都是現代普通人)，
+//     這樣屬性跟技能都改成後台，透過建卡系統自動幫玩家分配好」
 //
-// skillBonus 的加成時機刻意設計成「0-3配點驗證通過**之後**才疊加」：玩家自己能配到的
-// 上限仍然是3，專長的+1是額外疊上去的，所以最終值可能到4。為了讓前端能顯示
-// 「2 (+1專長) = 3」，回傳的角色卡把兩個值分開存：
-//   character.skillBase.格鬥 = 玩家配點的原始值
-//   character.skills.格鬥     = 專長加成後的最終值(實際判定用這個)
+// 舊的四個模板（特戰隊員／武道極限／科技專家／戰地軍醫）不只是「不夠有代入感」，
+// 它們跟《無限恐怖》的前提直接衝突：被抓進主神空間的是**現代普通人**。
+// 所以整套模板資料是刪掉而不是留著不用——留著等於留一條隨時會被叫回來的舊路。
+// 需要回顧的話在 git 歷史裡。
+//
+// 現在只剩兩層：
+//   buildCharacterFromLifePath()  玩家實際走的入口：六個答案 -> 權重 -> 自動配點 -> 下面這層
+//   buildCharacter()              低階入口：拿一份現成的 attributes/skills 草稿驗證並組卡
+//                                 （自動配點、測試、之後的匯入功能共用同一份驗證）
+//
+// 專長(feats)分兩型，跟改版前一樣：
+//   narrative  —— 不影響任何數值，只餵給AI當性格傾向提示（生平問答給的都是這型）
+//   skillBonus —— 實際加技能等級，在配點驗證**通過之後**才疊加，所以最終值可能超過配點上限3。
+//                 為了讓前端顯示「2 (+1專長)」，兩個值分開存：
+//                   character.skillBase.格鬥 = 配點的原始值
+//                   character.skills.格鬥     = 疊加後的最終值（判定用這個）
 
 import { emptyCharacter, ATTRIBUTES, SKILLS } from "../core/schema.js";
+import {
+  ATTRIBUTE_BUDGET,
+  SKILL_BUDGET,
+  attributeCost,
+  skillCost,
+} from "./chargen/pointCosts.js";
+import { collectLifePath, composeBackground, collectTraits, questionsForClient } from "./chargen/lifePath.js";
+import { allocateFromWeights, describeCharacterTendency } from "./chargen/allocate.js";
 import { computeDerivedStats, DEFAULT_SIZE } from "../core/derivedStats.js";
 
 const ATTRIBUTE_KEYS = ATTRIBUTES.map((a) => a.key);
@@ -21,246 +40,31 @@ const ALL_SKILLS = Object.values(SKILLS).flat();
 /** 自訂欄位的長度上限。超過直接截斷，不報錯——這是選填的風味欄位，不值得擋住整張卡。 */
 const CUSTOM_DETAIL_MAX_LENGTH = 40;
 
-// ---------------------------------------------------------------------------
-// [設計] 遞增配點成本
-//
-// 起因是實際測玩回饋（逐字）：
-//   「只要玩家把單一屬性+單一技能點高，就能一直用同一個檢定通關，
-//     因為我的敏捷+潛行最高，我每次都按相關的選項」
-//
-// 舊制是**線性**的：屬性從1加到5花4點、5個屬性各加1也花4點，兩者代價一模一樣。
-// 在骰池制底下這不是平衡的選擇，是一個明顯的最佳解——骰池愈大成功率愈高，
-// 而「把點全押在一個組合上」不需要付出任何額外代價，理性玩家沒有理由不這樣做。
-//
-// 改成遞增之後（每一級的邊際成本）：
-//   屬性 1->2:1  2->3:1  3->4:2  4->5:3   （累計 0/1/2/4/7）
-//   技能 0->1:1  1->2:1  2->3:2            （累計 0/1/2/4）
-// 專精仍然做得到，而且仍然強——但把敏捷點到5要花掉7點（總預算8點），
-// 玩家會清楚感覺到「這一點是拿其他五個屬性換來的」。這不是削弱專精，
-// 是讓專精變成一個**有代價的選擇**，而不是一個沒有理由不選的選項。
-//
-// 預算跟著調高（屬性6->8、技能8->10），讓四個內建模板維持原本的配點不變——
-// 這次要改的是「極端專精的代價」，不是「所有角色都變弱」。
-//
-// 數值是草案，之後依實際測玩調整；改的時候要連 test/characterBuilder.test.js 一起改。
-// ---------------------------------------------------------------------------
-
-/** 屬性每一級的邊際成本（索引 = 從幾升到幾+1）。基礎值1不用花點。 */
-const ATTRIBUTE_STEP_COST = { 2: 1, 3: 1, 4: 2, 5: 3 };
-/** 技能每一級的邊際成本。基礎值0不用花點。 */
-const SKILL_STEP_COST = { 1: 1, 2: 1, 3: 2 };
-
-export const ATTRIBUTE_BUDGET = 8;
-export const SKILL_BUDGET = 10;
-
-/** 把一個數值從基礎值升到 value 的**累計**成本。查表加總，不用公式，方便日後隨意調整曲線。 */
-function cumulativeCost(value, stepCost, startValue) {
-  let total = 0;
-  for (let level = startValue + 1; level <= value; level++) total += stepCost[level] ?? 0;
-  return total;
-}
-
-/** 屬性從1升到 value 的累計點數成本。 */
-export function attributeCost(value) {
-  return cumulativeCost(value, ATTRIBUTE_STEP_COST, 1);
-}
-
-/** 技能從0升到 value 的累計點數成本。 */
-export function skillCost(value) {
-  return cumulativeCost(value, SKILL_STEP_COST, 0);
-}
+// 配點成本曲線與預算搬到 content/chargen/pointCosts.js（理由見該檔頭）。
+// 這裡原樣再匯出一次，讓既有的 import 路徑（測試、API層）不用跟著改。
+export {
+  ATTRIBUTE_BUDGET,
+  SKILL_BUDGET,
+  attributeCost,
+  skillCost,
+  nextStepCost,
+} from "./chargen/pointCosts.js";
 
 /**
- * 「再加一級」要花幾點。前端用它在加點按鈕旁邊標出下一點的價格——
- * 玩家必須在按下去之前就看到「這一點要3點」，否則遞增成本只會變成一個
- * 「我按了才發現點數不夠」的挫折來源，而不是一個可以規劃的取捨。
+ * 建卡畫面需要的所有資料。
+ *
+ * 主體是生平問答的題目；配點成本表仍然一起送，但**不再是給玩家用的**——
+ * 玩家已經不配點了，那份資料留給「查看詳細數值」那個摺疊區顯示用，
+ * 以及讓任何要接匯入功能的人有一份權威來源可讀（前端永遠不自己抄常數）。
  */
-export function nextStepCost(kind, currentValue) {
-  const table = kind === "attr" ? ATTRIBUTE_STEP_COST : SKILL_STEP_COST;
-  return table[currentValue + 1] ?? null;
-}
-
-export const ARCHETYPES = {
-  soldier: {
-    name: "特戰隊員",
-    desc: "遠程射擊與戰術身法專家",
-    attributes: { 敏捷: 4, 耐力: 2, 感知: 2, 力量: 2, 智力: 1, 意志: 1 },
-    skills: { 射擊: 3, 潛行: 2, 體魄: 2, 偵察: 1 },
-    backstoryOptions: [
-      {
-        id: "soldier-veteran",
-        text: "你是退役的資深士官，在海外維和任務裡親眼看著同袍死在自己面前，退伍後始終沒能真正習慣平民生活的步調。",
-        customizableFields: [
-          { key: "comradeName", label: "那位同袍/求婚對象的名字", placeholder: "選填" },
-        ],
-      },
-      {
-        id: "soldier-active",
-        text: "你是特種部隊現役隊員，被選中捲入這一切的前一週，你才剛向交往多年的對象求婚。",
-        customizableFields: [
-          { key: "comradeName", label: "那位同袍/求婚對象的名字", placeholder: "選填" },
-        ],
-      },
-    ],
-    feats: [
-      {
-        id: "soldier-battle-instinct",
-        name: "戰場直覺",
-        description: "長年在火線上養成的環境掃描習慣，你總是比別人早半秒發現不對勁。",
-        effect: { type: "skillBonus", skill: "偵察", amount: 1 },
-      },
-      {
-        id: "soldier-ptsd-alert",
-        name: "創傷後警覺",
-        description: "睡不好的那幾年留下的後遺症：你的身體永遠準備著要活下來。",
-        effect: { type: "skillBonus", skill: "求生", amount: 1 },
-      },
-      {
-        id: "soldier-blood-oath",
-        name: "過命交情",
-        description: "對戰友情誼、犧牲、生死承諾類情節容易有情緒反應",
-        effect: { type: "narrative" },
-      },
-    ],
-  },
-  martial: {
-    name: "武道極限",
-    desc: "近戰格鬥與強悍體魄",
-    attributes: { 力量: 3, 敏捷: 2, 耐力: 3, 意志: 2, 感知: 1, 智力: 1 },
-    skills: { 格鬥: 3, 體魄: 3, 求生: 1, 偵察: 1 },
-    backstoryOptions: [
-      {
-        id: "martial-underground",
-        text: "你是地下賭盤的職業格鬥選手，靠拳頭養活自己跟弟弟妹妹，最近一場比賽你贏得不明不白，總覺得哪裡不對勁。",
-        customizableFields: [
-          { key: "tiedName", label: "弟妹的名字/雇主的代號", placeholder: "選填" },
-        ],
-      },
-      {
-        id: "martial-bodyguard",
-        text: "你是私人保鑣，雇主是個從不透露真實身分的富商，出事那天你正在執行一份你從沒完全搞懂內容的護送任務。",
-        customizableFields: [
-          { key: "tiedName", label: "弟妹的名字/雇主的代號", placeholder: "選填" },
-        ],
-      },
-    ],
-    feats: [
-      {
-        id: "martial-fist-instinct",
-        name: "拳腳直覺",
-        description: "打了太多場，身體比腦袋更早知道下一拳該往哪裡去。",
-        effect: { type: "skillBonus", skill: "格鬥", amount: 1 },
-      },
-      {
-        id: "martial-pain-tolerance",
-        name: "久經打鬥的耐痛",
-        description: "斷過的骨頭跟縫過的傷口教會你：痛不代表得停下來。",
-        effect: { type: "skillBonus", skill: "體魄", amount: 1 },
-      },
-      {
-        id: "martial-street-code",
-        name: "江湖規矩",
-        description: "對地下秩序、黑話、人情債類情節容易有反應傾向",
-        effect: { type: "narrative" },
-      },
-    ],
-  },
-  tech: {
-    name: "科技專家",
-    desc: "工程駭客與神秘解密",
-    attributes: { 智力: 3, 感知: 3, 意志: 3, 敏捷: 1, 耐力: 1, 力量: 1 },
-    skills: { 技藝: 3, 秘識: 2, 偵察: 2, 射擊: 1 },
-    backstoryOptions: [
-      {
-        id: "tech-hacker",
-        text: "你是接案駭客，遊走法律邊緣賺快錢，這次的委託案報酬高得不正常，你明知不對勁還是接了。",
-        customizableFields: [
-          { key: "clientName", label: "委託人代號/公司名稱", placeholder: "選填" },
-        ],
-      },
-      {
-        id: "tech-engineer",
-        text: "你是機電工程師，公司派你去偏僻據點做例行檢修，設備間的異常記錄你原本想上報，卻一直沒空寫完那份報告。",
-        customizableFields: [
-          { key: "clientName", label: "委託人代號/公司名稱", placeholder: "選填" },
-        ],
-      },
-    ],
-    feats: [
-      {
-        id: "tech-system-instinct",
-        name: "系統直覺",
-        description: "看一眼架構圖就知道哪裡被動過手腳，這種直覺說不清楚但很少出錯。",
-        effect: { type: "skillBonus", skill: "秘識", amount: 1 },
-      },
-      {
-        id: "tech-field-repair",
-        name: "臨場排除故障",
-        description: "沒有工具、沒有手冊、沒有時間，你還是能讓它再撐一陣子。",
-        effect: { type: "skillBonus", skill: "技藝", amount: 1 },
-      },
-      {
-        id: "tech-something-off",
-        name: "總覺得哪裡不對勁",
-        description: "對數據矛盾、系統異常、有人說謊類情節容易起疑心、傾向主動查證",
-        effect: { type: "narrative" },
-      },
-    ],
-  },
-  medic: {
-    name: "戰地軍醫",
-    desc: "急救手術與冷靜交涉",
-    attributes: { 智力: 2, 意志: 3, 耐力: 2, 感知: 3, 敏捷: 1, 力量: 1 },
-    skills: { 醫療: 3, 交涉: 2, 求生: 2, 偵察: 1 },
-    backstoryOptions: [
-      {
-        id: "medic-er-nurse",
-        text: "你是急診室護理師，那晚值大夜班，處理完一台搶救無效的病患後，你走出醫院準備回家。",
-        customizableFields: [
-          { key: "lostPatientName", label: "那位搶救無效的病患的稱呼/志工組織名稱", placeholder: "選填" },
-        ],
-      },
-      {
-        id: "medic-field-volunteer",
-        text: "你是戰地醫療志工，剛從一場撤離任務回來，行李都還沒打開，就被拉進了這一切。",
-        customizableFields: [
-          { key: "lostPatientName", label: "那位搶救無效的病患的稱呼/志工組織名稱", placeholder: "選填" },
-        ],
-      },
-    ],
-    feats: [
-      {
-        id: "medic-triage-instinct",
-        name: "臨場急救直覺",
-        description: "手比腦快：該壓哪裡、先處理誰，身體早就記住了。",
-        effect: { type: "skillBonus", skill: "醫療", amount: 1 },
-      },
-      {
-        id: "medic-steady-hands",
-        name: "見過生死的沉穩",
-        description: "看過太多次最壞的結果，所以你的手在關鍵時刻不會抖。",
-        effect: { type: "skillBonus", skill: "偵察", amount: 1 },
-      },
-      {
-        id: "medic-never-give-up",
-        name: "不放棄的職業病",
-        description: "對「有人可能還沒被放棄、一線生機」類情節容易有強烈反應，傾向主動選擇救援型選項",
-        effect: { type: "narrative" },
-      },
-    ],
-  },
-};
-
 export function chargenRules() {
   return {
-    // stepCost / cumulativeCost 一起送給前端：加點按鈕要在旁邊標「下一點要幾點」，
-    // 前端不自己抄一份成本表，否則曲線改了但前端沒改，玩家看到的價格會跟後端算的不一樣。
+    lifePath: questionsForClient(),
     attributes: {
       keys: ATTRIBUTE_KEYS,
       startValue: 1,
       cap: 5,
       freePoints: ATTRIBUTE_BUDGET,
-      stepCost: ATTRIBUTE_STEP_COST,
       cumulativeCost: Object.fromEntries([1, 2, 3, 4, 5].map((v) => [v, attributeCost(v)])),
     },
     skills: {
@@ -268,10 +72,53 @@ export function chargenRules() {
       startValue: 0,
       cap: 3,
       freePoints: SKILL_BUDGET,
-      stepCost: SKILL_STEP_COST,
       cumulativeCost: Object.fromEntries([0, 1, 2, 3].map((v) => [v, skillCost(v)])),
     },
-    archetypes: ARCHETYPES,
+  };
+}
+
+/**
+ * 生平問答建卡的入口（見 content/chargen/lifePath.js）。
+ *
+ * 這是**目前前端唯一在走的建卡路徑**。它不是另一套建卡規則，只是換一個入口：
+ * 把玩家的六個答案換算成 attributes/skills（content/chargen/allocate.js），
+ * 再交給下面同一個 buildCharacter() 做驗證與組裝。所有點數上限、預算、
+ * 衍生數值的計算完全共用，不會出現「兩條路徑算出不同角色卡」這種事。
+ *
+ * @param {object} input { concept: {name, gender, age}, answers: {題目id: 選項id} }
+ * @returns buildCharacter() 的回傳值，外加 lifePath（小傳與傾向描述，給前端顯示用）
+ */
+export function buildCharacterFromLifePath(input = {}) {
+  const { concept = {}, answers = {} } = input;
+  const { weights, options, errors: pathErrors } = collectLifePath(answers);
+
+  // 問答還沒答完就先回報，不要往下算——半套答案配出來的點數對玩家沒有意義，
+  // 而且會讓建卡畫面顯示一個他還沒決定的角色。
+  if (pathErrors.length > 0) {
+    return { valid: false, errors: pathErrors, budgets: null, lifePath: null };
+  }
+
+  const allocated = allocateFromWeights(weights);
+  const background = composeBackground(options);
+
+  const result = buildCharacter({
+    concept: { ...concept, background },
+    attributes: allocated.attributes,
+    skills: allocated.skills,
+    feats: collectTraits(options),
+    // 生平問答自己就是背景故事，不再走身分模板那一套(archetypeId/backstoryChoiceId)。
+    backgroundText: background,
+  });
+
+  if (!result.valid) return { ...result, lifePath: null };
+
+  return {
+    ...result,
+    lifePath: {
+      background,
+      tendency: describeCharacterTendency(allocated.attributes, allocated.skills),
+      answers: options.map((o) => ({ questionId: o.questionId, optionId: o.id, label: o.label })),
+    },
   };
 }
 
@@ -284,18 +131,32 @@ export function narrativeFeatHints(character) {
     .map((f) => f.description);
 }
 
-function normalizeCustomDetails(rawDetails, backstory) {
-  const result = {};
-  if (!backstory || !rawDetails || typeof rawDetails !== "object") return result;
-
-  for (const field of backstory.customizableFields ?? []) {
-    const raw = rawDetails[field.key];
-    if (typeof raw !== "string") continue;
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    result[field.key] = trimmed.slice(0, CUSTOM_DETAIL_MAX_LENGTH);
+/**
+ * 查驗一份外部傳進來的專長清單。
+ *
+ * 生平問答給的特質是引擎自己組的（content/chargen/lifePath.js 的 collectTraits），
+ * 但這個函式一樣要驗——buildCharacter() 是公開入口，之後接匯入/工坊功能時，
+ * 傳進來的東西就不再是自己人組的了。skillBonus 指向不存在的技能會讓後面的疊加
+ * 靜靜地寫進一個規則書沒有的技能欄位，那種錯不會報錯，只會讓角色卡多一個怪欄位。
+ */
+function normalizeFeats(rawFeats) {
+  if (!Array.isArray(rawFeats)) return [];
+  const feats = [];
+  for (const raw of rawFeats) {
+    if (!raw || typeof raw.name !== "string" || typeof raw.description !== "string") continue;
+    const type = raw.effect?.type;
+    if (type === "narrative") {
+      feats.push({ id: raw.id ?? raw.name, name: raw.name, description: raw.description, effect: { type: "narrative" } });
+    } else if (type === "skillBonus" && ALL_SKILLS.includes(raw.effect.skill) && Number.isInteger(raw.effect.amount)) {
+      feats.push({
+        id: raw.id ?? raw.name,
+        name: raw.name,
+        description: raw.description,
+        effect: { type: "skillBonus", skill: raw.effect.skill, amount: raw.effect.amount },
+      });
+    }
   }
-  return result;
+  return feats;
 }
 
 export function buildCharacter(draft = {}) {
@@ -305,30 +166,11 @@ export function buildCharacter(draft = {}) {
     attributes = {},
     skills = {},
     size = DEFAULT_SIZE,
-    archetypeId,
-    backstoryChoiceId,
-    customDetails,
+    feats: rawFeats,
   } = draft;
 
   const name = typeof concept.name === "string" ? concept.name.trim() : "";
   if (!name) errors.push("角色必須有名稱");
-
-  // 身分模板：背景故事與專長都掛在模板上，所以要先確定是哪一個模板。
-  const archetype = archetypeId ? ARCHETYPES[archetypeId] : null;
-  if (archetypeId && !archetype) {
-    errors.push(`未知的身分模板「${archetypeId}」`);
-  }
-
-  // 背景故事二選一。沒有模板就無從驗證，這時只擋「選了模板卻沒選背景」的情況。
-  let backstory = null;
-  if (archetype) {
-    backstory = archetype.backstoryOptions.find((b) => b.id === backstoryChoiceId) ?? null;
-    if (!backstoryChoiceId) {
-      errors.push("必須選擇一個背景故事");
-    } else if (!backstory) {
-      errors.push(`背景故事「${backstoryChoiceId}」不屬於身分模板「${archetypeId}」`);
-    }
-  }
 
   // 計算屬性加點 (基礎值1)。成本是**遞增**的，見檔案上方 ATTRIBUTE_STEP_COST 的說明。
   let attrCost = 0;
@@ -366,7 +208,8 @@ export function buildCharacter(draft = {}) {
     name,
     gender: concept.gender ?? "未知",
     age: concept.age ?? 24,
-    background: backstory?.text ?? "",
+    // 背景故事由呼叫端提供（生平問答會把六段 story 接成一段小傳），這一層不生成文字。
+    background: typeof concept.background === "string" ? concept.background : "",
   };
 
   for (const key of ATTRIBUTE_KEYS) character.attributes[key] = attributes[key] ?? 1;
@@ -376,18 +219,12 @@ export function buildCharacter(draft = {}) {
   for (const skill of ALL_SKILLS) character.skillBase[skill] = skills[skill] ?? 0;
   character.skills = { ...character.skillBase };
 
-  character.feats = archetype ? archetype.feats.map((f) => ({ ...f })) : [];
+  character.feats = normalizeFeats(rawFeats);
   for (const feat of character.feats) {
     if (feat.effect?.type !== "skillBonus") continue;
     const { skill, amount } = feat.effect;
     if (!ALL_SKILLS.includes(skill)) continue;
     character.skills[skill] = (character.skills[skill] ?? 0) + amount;
-  }
-
-  if (archetypeId) character.archetypeId = archetypeId;
-  if (backstory) {
-    character.backstoryChoiceId = backstory.id;
-    character.customDetails = normalizeCustomDetails(customDetails, backstory);
   }
 
   character.derived = computeDerivedStats(character.attributes, { size });

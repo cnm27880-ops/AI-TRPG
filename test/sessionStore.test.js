@@ -153,23 +153,8 @@ test("resolveSessionStore：有KV binding就用KV，沒有就退到記憶體版"
 
 // --- 建卡 ---
 
-test("chargenRules：把預算常數給前端，前端不用自己抄一份", () => {
-  const r = chargenRules();
-  // 預算值跟 content/characterBuilder.js 的常數比，不要在測試裡再抄一個數字：
-  // 配點成本改成遞增之後預算跟著調整過一次，兩邊各寫一份的話每次調曲線都要改兩個地方。
-  assert.equal(r.attributes.freePoints, ATTRIBUTE_BUDGET);
-  assert.equal(r.skills.freePoints, SKILL_BUDGET);
-  // 成本表也要送給前端：加點按鈕要標「下一點幾點」，前端不自己抄一份成本曲線。
-  assert.equal(r.attributes.stepCost[5], 3, "屬性升到5應該是最貴的一級");
-  assert.equal(r.skills.stepCost[3], 2, "技能升到3要2點");
-  assert.equal(r.attributes.cap, 5);
-  assert.equal(r.skills.cap, 3);
-  assert.equal(r.attributes.startValue, 1);
-  assert.equal(r.skills.startValue, 0);
-  assert.equal(r.attributes.keys.length, 6);
-  assert.ok(r.archetypes && Object.keys(r.archetypes).length > 0, "要把身分模板一起給前端套用");
-});
-
+// chargenRules() 的內容改由 test/characterBuilder.test.js 負責（建卡改成生平問答之後，
+// 它回傳的主體是題目而不是預算常數）。這裡只保留「存檔相關」的測試，不重複測同一件事。
 test("buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎算", () => {
   const result = buildCharacter(validDraft());
   assert.equal(result.valid, true, `不該有錯誤：${result.errors.join("；")}`);

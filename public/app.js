@@ -5,7 +5,6 @@ let currentOptions = [];
 let turnInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
-let lastChargenErrors = [];
 
 const SESSION_KEY = "ai-trpg-session-id";
 
@@ -51,20 +50,39 @@ const SKILL_CATEGORY = {
   交涉: "社交",
 };
 
-const chargenDraft = {
-  concept: { name: "", gender: "男", age: 24, background: "" },
-  attributes: { 力量: 1, 敏捷: 1, 耐力: 1, 智力: 1, 感知: 1, 意志: 1 },
-  skills: Object.fromEntries(SKILL_NAMES.map(s => [s, 0])),
-  archetypeId: null,
-  backstoryChoiceId: null,
-  customDetails: {},
-};
-
 function legendaryAttributeBonus(val) {
   return Math.max(0, Math.floor((val - 1) / 5));
 }
 
 // --- 建卡初始化 ---
+// ===========================================================================
+// 建卡 —— 生平問答（見 content/chargen/lifePath.js）
+//
+// [2026-08-16 改版] 這一整段原本是「選身分模板 -> 選背景故事 -> 手動配點」。
+// 使用者的要求(逐字)：「我想把目前預設的背景故事拿掉，要透過一些更有代入感的方式讓玩家
+// 可以逐步建立一個他心目中的角色…這樣屬性跟技能都改成後台，透過建卡系統自動幫玩家分配好」
+//
+// 所以現在是一個一次一題的精靈：姓名 -> 六個關於「被抓走之前的人生」的問題 -> 這個人是誰。
+// 玩家從頭到尾看不到任何一個數字（想看的人可以在最後一步展開摺疊區）。
+// 一次只顯示一題是刻意的：六題全部攤在同一頁會變成一張問卷，玩家會用掃的；
+// 一次一題他才會真的讀完四個選項，那四個選項就是這個角色的個性。
+// ===========================================================================
+
+/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 檢視。 */
+let chargenStep = 0;
+/** 玩家的答案 { 題目id: 選項id }。 */
+let chargenAnswers = {};
+/** 最後一步從後端拿回來的完整結果（小傳、傾向、角色卡）。 */
+let chargenPreview = null;
+
+function lifePathQuestions() {
+  return chargenRules?.lifePath ?? [];
+}
+
+function reviewStepIndex() {
+  return lifePathQuestions().length + 1;
+}
+
 async function startNewChargen() {
   showScreen("chargen");
 
@@ -73,271 +91,245 @@ async function startNewChargen() {
       const res = await (await fetch("/api/character")).json();
       chargenRules = res.rules;
     } catch (err) {
-      document.getElementById("cg-errors").innerHTML = `<div class="text-xs text-red-400">無法連線到後端規則引擎：${err.message}</div>`;
+      document.getElementById("cg-errors").innerHTML =
+        `<div class="text-xs text-red-400">無法連線到後端規則引擎：${escapeHtml(err.message)}</div>`;
       return;
     }
   }
 
-  renderArchetypeCards();
-  renderChargenAttributes();
-  renderChargenSkills();
-  await validateChargen();
+  chargenStep = 0;
+  chargenAnswers = {};
+  chargenPreview = null;
+  renderChargenStep();
 }
 
-const ARCHETYPE_ICONS = ["fa-crosshairs", "fa-user-ninja", "fa-flask", "fa-shield-halved"];
+function renderChargenStep() {
+  const questions = lifePathQuestions();
+  const total = questions.length + 1; // 基本資料 + 六題（檢視那一步不算進度）
+  const basic = document.getElementById("cg-step-basic");
+  const question = document.getElementById("cg-step-question");
+  const review = document.getElementById("cg-step-review");
+  const back = document.getElementById("cg-back");
+  const submit = document.getElementById("cg-submit");
 
-function renderArchetypeCards() {
-  const container = document.getElementById("archetype-container");
-  if (!container || !chargenRules?.archetypes) return;
+  basic.style.display = chargenStep === 0 ? "" : "none";
+  question.style.display = chargenStep >= 1 && chargenStep <= questions.length ? "" : "none";
+  review.style.display = chargenStep === reviewStepIndex() ? "" : "none";
+  back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
+  document.getElementById("cg-errors").innerHTML = "";
 
-  container.innerHTML = Object.entries(chargenRules.archetypes).map(([key, arch], i) => `
-    <button onclick="applyArchetype('${key}')" id="arch-btn-${key}" class="archetype-card text-left p-3 rounded bg-zinc-950 border hairline-border hover:border-emerald-500/50 hover:-translate-y-0.5 transition-all space-y-1.5">
-      <div class="flex items-center gap-1.5 font-bold text-emerald-300 text-xs">
-        <i class="fas ${ARCHETYPE_ICONS[i % ARCHETYPE_ICONS.length]} text-[11px]"></i>
-        <span>${escapeHtml(arch.name)}</span>
-      </div>
-      <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(arch.desc)}</div>
-    </button>
-  `).join("");
-}
+  const done = Math.min(chargenStep, total);
+  document.getElementById("cg-progress-bar").style.width = `${(done / total) * 100}%`;
 
-function applyArchetype(key) {
-  const arch = chargenRules?.archetypes?.[key];
-  if (!arch) return;
-
-  // 重設高亮
-  document.querySelectorAll(".archetype-card").forEach(c => c.classList.remove("active"));
-  document.getElementById(`arch-btn-${key}`)?.classList.add("active");
-
-  // 套用屬性
-  for (const k of ATTRIBUTE_DISPLAY.map(a => a.key)) {
-    chargenDraft.attributes[k] = arch.attributes[k] ?? 1;
+  if (chargenStep === 0) {
+    document.getElementById("cg-step-label").textContent = "基本資料";
+    document.getElementById("cg-step-count").textContent = `之後還有 ${questions.length} 個問題`;
+    submit.textContent = "開始";
+    document.getElementById("cg-name")?.focus();
+  } else if (chargenStep <= questions.length) {
+    const q = questions[chargenStep - 1];
+    document.getElementById("cg-step-label").textContent = `問題 ${chargenStep}`;
+    document.getElementById("cg-step-count").textContent = `${chargenStep} / ${questions.length}`;
+    document.getElementById("cg-question-title").textContent = q.title;
+    document.getElementById("cg-question-subtitle").textContent = q.subtitle;
+    renderQuestionOptions(q);
+    // 選項本身就是「下一步」，所以按鈕只在已經答過這題時才有意義（用來改完之後往前走）
+    submit.textContent = chargenAnswers[q.id] ? "下一步" : "選一個";
+  } else {
+    document.getElementById("cg-step-label").textContent = "這個人是誰";
+    document.getElementById("cg-step-count").textContent = "完成";
+    submit.textContent = "進入輪迴世界";
   }
-  // 套用技能
-  for (const k of SKILL_NAMES) {
-    chargenDraft.skills[k] = arch.skills[k] ?? 0;
-  }
 
-  // 換模板等於換一整套背景/專長，先前選的背景與自訂欄位都不再適用
-  chargenDraft.archetypeId = key;
-  chargenDraft.backstoryChoiceId = null;
-  chargenDraft.customDetails = {};
-
-  renderChargenAttributes();
-  renderChargenSkills();
-  renderIdentitySection(arch);
-  validateChargen();
+  submit.disabled = false;
+  submit.classList.remove("opacity-40");
 }
 
-// --- 背景故事 / 自訂欄位 / 專長 ---
-function renderIdentitySection(arch) {
-  const section = document.getElementById("cg-identity-section");
-  if (!section) return;
-  section.style.display = "";
+function renderQuestionOptions(question) {
+  const container = document.getElementById("cg-question-options");
+  const chosen = chargenAnswers[question.id];
 
-  renderBackstoryOptions(arch);
-  renderCustomFields(arch);
-  renderFeats(arch);
-}
-
-function renderBackstoryOptions(arch) {
-  const container = document.getElementById("cg-backstory-container");
-  if (!container) return;
-
-  container.innerHTML = (arch.backstoryOptions ?? []).map((b, i) => {
-    const selected = chargenDraft.backstoryChoiceId === b.id;
-    return `
-      <button data-backstory="${escapeHtml(b.id)}"
-        class="backstory-card text-left p-3 rounded bg-zinc-950 border text-[11px] leading-relaxed transition-all ${
+  container.innerHTML = question.options
+    .map((o, i) => {
+      const selected = chosen === o.id;
+      return `
+      <button data-lifepath-option="${escapeHtml(o.id)}"
+        class="anim-fade-up text-left p-3 rounded border transition-all hover:-translate-y-px ${
           selected
-            ? "border-emerald-500 text-emerald-100 bg-emerald-500/10"
-            : "hairline-border text-zinc-400 hover:border-emerald-500/50"
-        }">
-        <div class="flex items-center gap-1.5 mb-1 font-bold ${selected ? "text-emerald-300" : "text-zinc-300"}">
-          <i class="fas ${selected ? "fa-circle-check" : "fa-circle"} text-[10px]"></i>
-          <span>背景 ${String.fromCharCode(65 + i)}</span>
+            ? "border-emerald-500 bg-emerald-500/10"
+            : "hairline-border bg-zinc-950 hover:border-emerald-500/50"
+        }" style="animation-delay:${i * 0.04}s">
+        <div class="text-xs font-bold ${selected ? "text-emerald-200" : "text-zinc-100"} leading-snug">
+          ${escapeHtml(o.label)}
         </div>
-        ${escapeHtml(b.text)}
+        <div class="text-[11px] font-mono text-zinc-400 mt-1 leading-snug">${escapeHtml(o.detail)}</div>
       </button>`;
-  }).join("");
+    })
+    .join("");
 }
 
-function renderCustomFields(arch) {
-  const container = document.getElementById("cg-customfield-container");
-  if (!container) return;
+/** 選一個答案就直接往下一題走——多按一次「下一步」只是多餘的一次點擊。 */
+function chooseLifePathOption(optionId) {
+  const questions = lifePathQuestions();
+  const q = questions[chargenStep - 1];
+  if (!q) return;
 
-  const backstory = (arch.backstoryOptions ?? []).find((b) => b.id === chargenDraft.backstoryChoiceId);
-  if (!backstory) {
-    container.innerHTML = "";
+  chargenAnswers[q.id] = optionId;
+  renderQuestionOptions(q);
+  setTimeout(() => advanceChargen(), 160); // 讓玩家看得到自己選中的那一格亮起來
+}
+
+async function advanceChargen() {
+  const questions = lifePathQuestions();
+
+  if (chargenStep === 0) {
+    const name = document.getElementById("cg-name").value.trim();
+    if (!name) {
+      showChargenError("請先給這個角色一個名字。");
+      document.getElementById("cg-name").focus();
+      return;
+    }
+    chargenStep = 1;
+    renderChargenStep();
     return;
   }
 
-  container.innerHTML = (backstory.customizableFields ?? []).map((f) => `
-    <div class="flex flex-col gap-1">
-      <label class="text-[11px] font-mono text-zinc-400">${escapeHtml(f.label)}</label>
-      <input type="text" data-customfield="${escapeHtml(f.key)}" maxlength="40"
-        value="${escapeHtml(chargenDraft.customDetails[f.key] ?? "")}"
-        placeholder="${escapeHtml(f.placeholder ?? "")}"
-        class="bg-zinc-950 border hairline-border rounded px-2.5 py-1.5 text-xs font-mono text-zinc-200 focus:border-emerald-500/60 focus:outline-none" />
-    </div>`).join("");
+  if (chargenStep <= questions.length) {
+    const q = questions[chargenStep - 1];
+    if (!chargenAnswers[q.id]) {
+      showChargenError("請先選一個答案。");
+      return;
+    }
+    chargenStep += 1;
+    renderChargenStep();
+    if (chargenStep === reviewStepIndex()) await loadChargenPreview();
+    return;
+  }
+
+  await submitChargen();
 }
 
-function renderFeats(arch) {
-  const container = document.getElementById("cg-feats-container");
-  if (!container) return;
+function retreatChargen() {
+  if (chargenStep === 0) return;
+  chargenStep -= 1;
+  renderChargenStep();
+}
 
-  container.innerHTML = (arch.feats ?? []).map((f) => {
-    const isNarrative = f.effect?.type === "narrative";
-    // 敘事型專長刻意用不同配色與標籤：它不影響任何數值，玩家不該以為自己拿到了加成。
-    const badge = isNarrative
-      ? `<span class="shrink-0 px-1.5 py-0.5 rounded border border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] font-bold">純敘事/性格特質</span>`
-      : `<span class="shrink-0 px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-[10px] font-bold">${escapeHtml(f.effect.skill)} +${f.effect.amount}</span>`;
+function showChargenError(message) {
+  document.getElementById("cg-errors").innerHTML =
+    `<div class="text-xs font-mono text-red-400">· ${escapeHtml(message)}</div>`;
+}
 
-    return `
-      <div class="flex items-start gap-2 p-2.5 rounded bg-zinc-950 border ${isNarrative ? "border-violet-500/30" : "hairline-border"}">
+/**
+ * 問完之後跟後端要一次完整結果：小傳、傾向描述、以及換算好的角色卡。
+ * 換算一律在後端做（跟建卡驗證同一段程式碼），前端不自己算任何一個數字。
+ */
+async function loadChargenPreview() {
+  const submit = document.getElementById("cg-submit");
+  submit.disabled = true;
+  submit.classList.add("opacity-40");
+  document.getElementById("cg-review-background").textContent = "整理中……";
+
+  try {
+    const res = await (await fetch("/api/character", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lifePath: { concept: readChargenConcept(), answers: chargenAnswers } }),
+    })).json();
+
+    if (!res.valid) {
+      showChargenError((res.errors ?? ["建卡驗證失敗"]).join("；"));
+      document.getElementById("cg-review-background").textContent = "";
+      return;
+    }
+
+    chargenPreview = res;
+    renderChargenReview(res);
+  } catch (err) {
+    console.error("[CHARGEN_PREVIEW_FAILURE]", err);
+    showChargenError(`無法連線到後端規則引擎（${err.message}）`);
+    document.getElementById("cg-review-background").textContent = "";
+  } finally {
+    submit.disabled = false;
+    submit.classList.remove("opacity-40");
+  }
+}
+
+function readChargenConcept() {
+  return {
+    name: document.getElementById("cg-name").value.trim(),
+    gender: document.getElementById("cg-gender").value || "未知",
+  };
+}
+
+function renderChargenReview(res) {
+  const c = res.character;
+  document.getElementById("cg-review-background").textContent = res.lifePath.background;
+  document.getElementById("cg-review-tendency").textContent = res.lifePath.tendency;
+
+  document.getElementById("cg-review-traits").innerHTML = (c.feats ?? [])
+    .map(
+      (f) => `
+      <div class="flex items-start gap-2 p-2.5 rounded bg-zinc-950 border border-violet-500/30">
         <div class="flex-1 space-y-0.5">
-          <div class="text-xs font-bold ${isNarrative ? "text-violet-200" : "text-emerald-200"}">${escapeHtml(f.name)}</div>
+          <div class="text-xs font-bold text-violet-200">${escapeHtml(f.name)}</div>
           <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(f.description)}</div>
         </div>
-        ${badge}
-      </div>`;
-  }).join("");
+        <span class="shrink-0 px-1.5 py-0.5 rounded border border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] font-bold">性格特質</span>
+      </div>`
+    )
+    .join("");
+
+  document.getElementById("cg-review-attributes").innerHTML = ATTRIBUTE_DISPLAY.map(
+    ({ key }) => statChipHtml(key, c.attributes[key] ?? 1)
+  ).join("");
+
+  document.getElementById("cg-review-skills").innerHTML = SKILL_NAMES.filter((s) => (c.skills[s] ?? 0) > 0)
+    .map((s) => statChipHtml(s, c.skills[s]))
+    .join("");
+
+  const d = c.derived;
+  document.getElementById("cg-derived").textContent =
+    `生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
 }
 
-function selectBackstory(id) {
-  const arch = chargenRules?.archetypes?.[chargenDraft.archetypeId];
-  if (!arch) return;
-  if (!(arch.backstoryOptions ?? []).some((b) => b.id === id)) return;
-
-  chargenDraft.backstoryChoiceId = id;
-  chargenDraft.customDetails = {};
-  renderBackstoryOptions(arch);
-  renderCustomFields(arch);
-  validateChargen();
-}
-
-function stepperHtml(kind, name, value, min, max) {
-  // 「下一點要花幾點」直接標在加號旁邊。成本是遞增的（見 content/characterBuilder.js），
-  // 玩家如果要按下去才發現這一點要3點，那個遞增曲線就只是挫折來源，不是可以規劃的取捨。
-  // 價格一律從後端送來的規則表讀，前端不自己抄一份。
-  const costTable = (kind === "attr" ? chargenRules?.attributes : chargenRules?.skills)?.stepCost;
-  const nextCost = costTable?.[value + 1];
-  const nextCostTag =
-    value < max && nextCost != null
-      ? `<span class="text-[10px] ${nextCost >= 2 ? "text-orange-300" : "text-zinc-500"}" title="升到 ${value + 1} 需要 ${nextCost} 點">${nextCost}點</span>`
-      : `<span class="text-[10px] text-zinc-700">—</span>`;
-
+function statChipHtml(label, value) {
   return `
-    <div class="flex items-center justify-between bg-zinc-950 border hairline-border px-2.5 py-1.5 rounded text-xs font-mono">
-      <span class="text-zinc-200">${name}</span>
-      <span class="flex items-center gap-2">
-        ${nextCostTag}
-        <button data-step="${kind}" data-name="${name}" data-delta="-1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value <= min ? "disabled" : ""}>−</button>
-        <span class="w-4 text-center font-bold text-emerald-300">${value}</span>
-        <button data-step="${kind}" data-name="${name}" data-delta="1" class="w-5 h-5 border hairline-border rounded hover:bg-zinc-800 hover:border-emerald-500/40 transition leading-none disabled:opacity-30" ${value >= max ? "disabled" : ""}>+</button>
-      </span>
+    <div class="flex justify-between items-center bg-zinc-950 border hairline-border px-2 py-1 rounded">
+      <span class="text-zinc-400">${escapeHtml(label)}</span>
+      <span class="font-bold text-emerald-300">${value}</span>
     </div>`;
 }
 
-function renderChargenAttributes() {
-  document.getElementById("cg-attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key }) => 
-    stepperHtml("attr", key, chargenDraft.attributes[key] ?? 1, 1, 5)
-  ).join("");
-}
-
-function renderChargenSkills() {
-  document.getElementById("cg-skill-grid").innerHTML = SKILL_NAMES.map(name => 
-    stepperHtml("skill", name, chargenDraft.skills[name] ?? 0, 0, 3)
-  ).join("");
-}
-
-async function validateChargen() {
-  chargenDraft.concept.name = document.getElementById("cg-name")?.value.trim() || "";
-  chargenDraft.concept.gender = document.getElementById("cg-gender")?.value || "男";
-
-  let data;
-  try {
-    const res = await fetch("/api/character", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draft: chargenDraft }),
-    });
-    data = await res.json();
-  } catch (err) {
-    // [2026-08-16 修正] 這裡以前是 `catch (err) { return }`：後端連不上時靜靜返回，
-    // 點數預算、衍生數值、錯誤清單全部停在上一次的值，玩家看不出畫面已經不再更新了。
-    console.error("[CHARGEN_VALIDATE_FAILURE]", err);
-    const errBox = document.getElementById("cg-errors");
-    if (errBox) {
-      errBox.innerHTML = `<div class="text-xs font-mono text-red-400">· 無法連線到後端規則引擎（${escapeHtml(err.message)}），下方的點數與驗證結果可能不是最新的。</div>`;
-    }
-    lastChargenErrors = ["無法連線到後端規則引擎"];
-    return false;
-  }
-
-  const ab = data.budgets?.attributes;
-  const sb = data.budgets?.skills;
-
-  document.getElementById("cg-attr-budget").textContent = ab ? `已用 ${ab.totalCost} / ${ab.totalBudget} 點` : "—";
-  document.getElementById("cg-skill-budget").textContent = sb ? `已用 ${sb.totalCost} / ${sb.totalBudget} 點` : "—";
-
-  const d = data.character?.derived;
-  if (d) {
-    document.getElementById("cg-derived").textContent = `衍生數值：生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
-  }
-
-  // 「還沒選背景故事」也會讓 valid=false，光看點數預算看不出原因，所以錯誤要列出來。
-  const errBox = document.getElementById("cg-errors");
-  if (errBox) {
-    const errors = data.errors ?? [];
-    errBox.innerHTML = errors
-      .map((msg) => `<div class="text-xs font-mono text-red-400">· ${escapeHtml(msg)}</div>`)
-      .join("");
-  }
-
-  lastChargenErrors = data.errors ?? [];
-  return data.valid;
-}
-
-// --- 進入遊戲 ---
-async function startNewGame() {
-  const nameInput = document.getElementById("cg-name");
-  if (!nameInput.value.trim()) {
-    alert("請輸入輪迴者姓名！");
-    nameInput.focus();
-    return;
-  }
-
-  const isValid = await validateChargen();
-  if (!isValid) {
-    alert(lastChargenErrors.length ? `建卡還沒完成：\n${lastChargenErrors.join("\n")}` : "建卡尚未完成，請檢查上方提示！");
-    return;
-  }
-
-  const submitBtn = document.getElementById("cg-submit");
-  submitBtn.disabled = true;
-  submitBtn.textContent = "傳送進主神空間中...";
+async function submitChargen() {
+  const submit = document.getElementById("cg-submit");
+  submit.disabled = true;
+  submit.textContent = "傳送進主神空間中...";
 
   try {
     const res = await (await fetch("/api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draft: chargenDraft, sceneContext: "" }),
+      body: JSON.stringify({
+        lifePath: { concept: readChargenConcept(), answers: chargenAnswers },
+        sceneContext: "",
+      }),
     })).json();
 
-    if (!res.ok) throw new Error(res.error || "建卡失敗");
+    if (!res.ok) throw new Error((res.errors ?? []).join("；") || res.error || "建卡失敗");
 
     currentSessionId = res.session.id;
     localStorage.setItem(SESSION_KEY, currentSessionId);
+    lastThreatStage = null;
     adoptCharacter(res.session.character);
     showScreen("game");
     renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
   } catch (err) {
-    alert(`進入遊戲失敗：${err.message}`);
+    showChargenError(`進入遊戲失敗：${err.message}`);
   } finally {
-    submitBtn.disabled = false;
-    submitBtn.textContent = "完成建卡並進入輪迴世界";
+    submit.disabled = false;
+    submit.textContent = "進入輪迴世界";
   }
 }
 
@@ -1663,41 +1655,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   await refreshAuthState();
   await checkLocalSession();
 
-  document.getElementById("cg-submit")?.addEventListener("click", startNewGame);
-  document.getElementById("cg-name")?.addEventListener("input", validateChargen);
-  document.getElementById("cg-gender")?.addEventListener("change", validateChargen);
-
-  // Stepper 事件委派
-  for (const gridId of ["cg-attr-grid", "cg-skill-grid"]) {
-    document.getElementById(gridId)?.addEventListener("click", e => {
-      const btn = e.target.closest("[data-step]");
-      if (!btn) return;
-      const { step, name, delta } = btn.dataset;
-      const bucket = step === "attr" ? chargenDraft.attributes : chargenDraft.skills;
-      const next = (bucket[name] ?? (step === "attr" ? 1 : 0)) + Number(delta);
-      const min = step === "attr" ? 1 : 0;
-      const max = step === "attr" ? 5 : 3;
-      if (next < min || next > max) return;
-      bucket[name] = next;
-      if (step === "attr") renderChargenAttributes();
-      else renderChargenSkills();
-      validateChargen();
-    });
-  }
-
-  // 背景故事二選一
-  document.getElementById("cg-backstory-container")?.addEventListener("click", e => {
-    const btn = e.target.closest("[data-backstory]");
-    if (!btn) return;
-    selectBackstory(btn.dataset.backstory);
+  // --- 建卡精靈 ---
+  document.getElementById("cg-submit")?.addEventListener("click", advanceChargen);
+  document.getElementById("cg-back")?.addEventListener("click", retreatChargen);
+  // 姓名欄按 Enter 直接進第一題，不用把手移到按鈕上
+  document.getElementById("cg-name")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") advanceChargen();
   });
-
-  // 背景自訂欄位（選填，超過40字後端會截斷）
-  document.getElementById("cg-customfield-container")?.addEventListener("input", e => {
-    const input = e.target.closest("[data-customfield]");
-    if (!input) return;
-    chargenDraft.customDetails[input.dataset.customfield] = input.value;
-    validateChargen();
+  // 選項用事件委派：選項是每一題重新渲染的，逐顆綁定會在重畫之後失效
+  document.getElementById("cg-question-options")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-lifepath-option]");
+    if (btn) chooseLifePathOption(btn.dataset.lifepathOption);
   });
 
   // 特質 / 資源卡：滾輪與點擊切換
@@ -1746,7 +1714,6 @@ window.startNewChargen = startNewChargen;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
-window.applyArchetype = applyArchetype;
 window.startCombat = startCombat;
 window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;

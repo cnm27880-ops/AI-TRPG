@@ -6,7 +6,7 @@
 // **沒有設定 KV binding 時不會直接壞掉**，會退到記憶體版讓你先把流程跑起來，
 // 但回傳值裡的 persistent 會是 false，前端必須顯示警告——那個模式下存檔隨時會消失。
 
-import { buildCharacter } from "../../content/characterBuilder.js";
+import { buildCharacter, buildCharacterFromLifePath } from "../../content/characterBuilder.js";
 import {
   createSession,
   resolveSessionStore,
@@ -38,11 +38,17 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { draft, character: providedCharacter, sceneContext, scenarioId } = body ?? {};
+  const { lifePath, draft, character: providedCharacter, sceneContext, scenarioId } = body ?? {};
 
-  // 兩種建立方式：給建卡草稿（正常流程），或直接給一張現成角色卡（測試/匯入用）
+  // 三種建立方式：生平問答（正常流程）、現成配點草稿、或直接給一張角色卡（測試/匯入用）
   let character;
-  if (draft) {
+  if (lifePath) {
+    const result = buildCharacterFromLifePath(lifePath);
+    if (!result.valid) {
+      return json({ ok: false, error: "建卡驗證失敗", errors: result.errors }, 400);
+    }
+    character = result.character;
+  } else if (draft) {
     const result = buildCharacter(draft);
     if (!result.valid) {
       return json({ ok: false, error: "建卡驗證失敗", errors: result.errors, budgets: result.budgets }, 400);

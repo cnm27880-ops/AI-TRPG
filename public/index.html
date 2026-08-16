@@ -422,6 +422,42 @@
         html[data-theme="light"] .border-red-500\/40,
         html[data-theme="light"] .border-red-500\/30 { border-color: rgba(185,28,28,.28); }
 
+        /* --- [2026-08-16 第二輪對比度修正] ------------------------------------
+           上一輪只處理了「純色」的工具類（text-emerald-300、text-yellow-300…），
+           但畫面上真正用得最多的其實是**帶透明度的變體**（text-emerald-300\/70、
+           text-emerald-200\/80…）。那些變體沒有被覆寫，於是在淺色主題底下維持深色主題的
+           亮綠再乘上透明度，落在白底上大多只有 1.5~2.5:1 —— 使用者回報的「明亮風格有些地方
+           文字對比度沒調好，黑暗風格就沒問題」正是這一批。
+           （受影響的實際位置：說書人書寫中的秒數、輪迴者行動那行斜體、副本簡介、迫近度提示。）
+
+           作法跟上一輪一致：綠→藍、橘→深橘、紫→深紫，透明度變體一律拉回不透明的深色，
+           因為在白底上「用透明度做層次」本來就行不通——層次改用字級與粗細做。 */
+        html[data-theme="light"] .text-emerald-200\/80,
+        html[data-theme="light"] .text-emerald-200\/90,
+        html[data-theme="light"] .text-emerald-300\/70,
+        html[data-theme="light"] .text-emerald-400\/80 { color: #2563eb; }
+        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
+        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
+        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.06); }
+        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.4); }
+
+        html[data-theme="light"] .text-orange-200\/90 { color: #c2410c; }
+        html[data-theme="light"] .bg-orange-500\/5 { background-color: #fffbf7; }
+        html[data-theme="light"] .border-orange-500\/30 { border-color: rgba(194,65,12,.28); }
+
+        /* 紫（純敘事型專長的標記色）在白底上同樣要壓深，否則跟淺灰幾乎分不出來 */
+        html[data-theme="light"] .text-violet-200,
+        html[data-theme="light"] .text-violet-300 { color: #6d28d9; }
+        html[data-theme="light"] .bg-violet-500\/10 { background-color: #faf5ff; }
+        html[data-theme="light"] .border-violet-500\/30,
+        html[data-theme="light"] .border-violet-500\/40 { border-color: rgba(109,40,217,.3); }
+
+        html[data-theme="light"] .border-red-400\/50 { border-color: rgba(185,28,28,.35); }
+
+        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
+           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
+        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
+
         html[data-theme="light"] .hud-box { background: #ffffff; border-color: rgba(15,23,42,.1); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
         html[data-theme="light"] .hud-float { background: rgba(255,255,255,0.9); border-right-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .stat-tile { background: #ffffff; border-color: rgba(15,23,42,.08); box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
@@ -559,23 +595,40 @@
     </div>
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
-    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 sm:p-6">
-        <div class="hud-box hud-corners p-6 rounded-lg space-y-6">
+    <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-4 sm:p-6">
+        <div class="hud-box hud-corners p-6 rounded-lg space-y-5">
             <div class="flex items-center justify-between hairline-b pb-3">
                 <div>
                     <div class="ribbon-banner ribbon-sm">Character Creation</div>
-                    <h2 class="text-lg font-bold text-zinc-100 mt-2">輪迴者基因建卡</h2>
+                    <h2 class="text-lg font-bold text-zinc-100 mt-2">你被拉進來之前，是什麼樣的人？</h2>
                 </div>
                 <button onclick="showScreen('portal')" class="text-xs font-mono text-zinc-300 hover:text-emerald-300 transition-colors flex items-center gap-1.5">
                     <i class="fas fa-arrow-left"></i> 回主頁
                 </button>
             </div>
 
-            <!-- 1. 基本檔案 -->
-            <section class="space-y-2 anim-fade-up">
-                <div class="section-tag">1. 基本檔案</div>
+            <!-- 進度條：讓玩家知道還有幾題（六題問完才會出現「進入輪迴」） -->
+            <div class="space-y-1.5">
+                <div class="flex justify-between items-center text-[11px] font-mono">
+                    <span id="cg-step-label" class="text-emerald-300 font-bold">基本資料</span>
+                    <span id="cg-step-count" class="text-zinc-400">—</span>
+                </div>
+                <div class="h-1 bg-zinc-900 rounded overflow-hidden border hairline-border">
+                    <div id="cg-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-300" style="width:0%"></div>
+                </div>
+            </div>
+
+            <!-- 第 0 步：姓名與性別 -->
+            <section id="cg-step-basic" class="space-y-3 anim-fade-up">
+                <div class="space-y-1">
+                    <div class="text-sm font-bold text-zinc-100">先給這個人一個名字。</div>
+                    <div class="text-[11px] font-mono text-zinc-400">
+                        接下來的六個問題，問的都是你被拉進主神空間之前的日常。沒有正確答案，
+                        也沒有比較強的選項——你怎麼答，這個人就是什麼樣子。
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input id="cg-name" type="text" placeholder="輪迴者姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500">
+                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500">
                     <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100">
                         <option value="男">男</option>
                         <option value="女">女</option>
@@ -584,55 +637,53 @@
                 </div>
             </section>
 
-            <!-- 2. 快速套用身分模板 -->
-            <section class="space-y-2 anim-fade-up">
-                <div class="section-tag">2. 選擇身分模板（點擊直接套用，亦可在下方微調）</div>
-                <div id="archetype-container" class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs font-mono">
-                    <!-- 由 app.js 動態渲染 4 大身分卡 -->
+            <!-- 第 1~N 步：生平問答（由 app.js 依 /api/character 回傳的題目渲染） -->
+            <section id="cg-step-question" style="display:none" class="space-y-3 anim-fade-up">
+                <div class="space-y-1">
+                    <div id="cg-question-title" class="text-sm font-bold text-zinc-100"></div>
+                    <div id="cg-question-subtitle" class="text-[11px] font-mono text-zinc-400"></div>
                 </div>
+                <div id="cg-question-options" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </section>
 
-            <!-- 2.5 背景故事與專長（選定身分模板後才出現） -->
-            <section id="cg-identity-section" style="display:none" class="space-y-2 anim-fade-up">
-                <div class="section-tag">2.5 背景故事與專長</div>
-                <div id="cg-backstory-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
-                <div id="cg-customfield-container" class="space-y-1.5"></div>
-                <div id="cg-feats-container" class="space-y-1.5"></div>
+            <!-- 最後一步：這個人是誰 -->
+            <section id="cg-step-review" style="display:none" class="space-y-4 anim-fade-up">
+                <div class="space-y-2">
+                    <div class="section-tag">這個人是誰</div>
+                    <div id="cg-review-background" class="text-xs leading-relaxed text-zinc-200 bg-zinc-950/60 border hairline-border rounded p-4"></div>
+                </div>
+
+                <div class="space-y-2">
+                    <div class="section-tag">他擅長什麼</div>
+                    <div id="cg-review-tendency" class="text-xs leading-relaxed text-emerald-200/90 bg-emerald-500/5 border border-emerald-500/30 rounded p-3"></div>
+                    <div id="cg-review-traits" class="space-y-1.5"></div>
+                </div>
+
+                <!-- 屬性技能是後台自動配的，預設收起來。想看的人展開得到，不想看的人完全不用碰。 -->
+                <details class="text-[11px] font-mono">
+                    <summary class="cursor-pointer text-zinc-400 hover:text-emerald-300 select-none">
+                        <i class="fas fa-chevron-right text-[9px] mr-1"></i>查看系統換算出來的詳細數值
+                    </summary>
+                    <div class="pt-2 space-y-2">
+                        <div class="text-[10px] text-zinc-500 leading-snug">
+                            這些數字由你的六個答案自動換算，不需要也不能手動調整。
+                            列出來只是為了讓你看得懂遊戲裡的骰池從哪來。
+                        </div>
+                        <div id="cg-review-attributes" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5"></div>
+                        <div id="cg-review-skills" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5"></div>
+                        <div id="cg-derived" class="text-[11px] text-zinc-400"></div>
+                    </div>
+                </details>
             </section>
 
-            <!-- 3. 六維屬性配點 -->
-            <section class="space-y-2 anim-fade-up">
-                <div class="flex justify-between items-center">
-                    <div class="section-tag">3. 六維屬性配點</div>
-                    <span id="cg-attr-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
-                </div>
-                <div class="text-[10px] font-mono text-zinc-500 leading-snug">
-                    加點成本<strong class="text-orange-300">遞增</strong>：升到 2、3 各 1 點，升到 4 要 2 點，升到 5 要 3 點。
-                    把單一屬性點滿會吃掉大部分預算——專精很強，但要付得起。
-                </div>
-                <div id="cg-attr-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-2"></div>
-            </section>
-
-            <!-- 4. 十大技能配點 -->
-            <section class="space-y-2 anim-fade-up">
-                <div class="flex justify-between items-center">
-                    <div class="section-tag">4. 十大技能配點</div>
-                    <span id="cg-skill-budget" class="text-xs font-mono text-emerald-300 font-bold"></span>
-                </div>
-                <div class="text-[10px] font-mono text-zinc-500 leading-snug">
-                    升到 1、2 各 1 點，升到 3 要 2 點。副本裡同一個「屬性＋技能」連續使用會愈來愈難，
-                    練<strong class="text-emerald-300">兩三條線</strong>比把一條線點滿更耐用。
-                </div>
-                <div id="cg-skill-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
-            </section>
-
-            <!-- 錯誤提示 -->
             <div id="cg-errors" class="space-y-1"></div>
 
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 hairline-t">
-                <span id="cg-derived" class="text-xs font-mono text-zinc-300"></span>
-                <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] rounded font-bold">
-                    完成建卡並進入輪迴世界
+            <div class="flex items-center justify-between gap-3 pt-4 hairline-t">
+                <button id="cg-back" style="visibility:hidden" class="px-4 py-2.5 rounded border hairline-border text-zinc-300 font-mono text-xs hover:border-emerald-500/40 hover:text-emerald-300 transition-all">
+                    <i class="fas fa-arrow-left text-[10px]"></i> 上一步
+                </button>
+                <button id="cg-submit" class="bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] rounded font-bold">
+                    下一步
                 </button>
             </div>
         </div>

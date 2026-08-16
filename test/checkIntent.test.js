@@ -73,38 +73,31 @@ test("角色卡沒有登記該技能時，退回純屬性檢定而不是硬塞�
   assert.doesNotThrow(() => performCheck(character, params));
 });
 
-// [已知落差] 這兩則測試假設 content/checkIntent.js 的 INTENT_TABLE 每一條都能指定一個
-// 「表定專業」，讓 inferCheckParams() 能推論出 specialization 欄位，再交給 performCheck()
-// 套用「無對應專業減半」。但目前 INTENT_TABLE 只有 attribute+skill 兩個欄位(見該檔案)，
-// inferCheckParams() 完全不產生 specialization；就算產生了，performCheck() 也還沒實作
-// 減半邏輯(同一個缺口見 test/engine.test.js 裡被跳過的那一則，理由寫在那邊)。
-// 跳過並留下這個註記，而不是悄悄改斷言去配合「其實沒做」的行為。
-test.skip("角色沒登記對應專業時不帶specialization，讓引擎照『無對應專業減半』規則處理", () => {
+// [2026-08-16 決策] 專業(specialization)在輕量化規則裡**明確不做**，不是待辦。
+//
+// 這裡原本有兩則 test.skip，假設 INTENT_TABLE 每條都能指定「表定專業」、
+// performCheck() 會套用「無對應專業減半」。實際上三層都沒有做：INTENT_TABLE 沒有這個欄位、
+// inferCheckParams() 不產生它、performCheck() 也不讀它——但 content/turnOptions.js 卻會
+// 查驗並往下傳，而且警告文字還寫著「引擎會依規則將技能等級減半」。程式碼在說謊。
+//
+// 建卡改成後台自動配點之後，玩家沒有任何購買專業的入口，為一個取得不到的資源實作整套規則
+// 沒有意義。所以決定拆掉而不是接上，並用下面這則**會執行**的測試把決定鎖住——
+// 留著 skip 的測試等於留著一個「總有一天要做」的暗示，而那不是現在的決定。
+// 規則書原文的專業機制記錄在 RULES_DIGEST.md 的「已知落差」，要做的時候從那裡接回來。
+test("輕量化規則不產生也不接受 specialization（決定不做，不是漏做）", () => {
   const character = emptyCharacter();
   character.skills["射擊"] = 2;
-  character.specializations["射擊"] = ["手槍"]; // 有登記專業，但不是表裡指定的「步槍」
+  character.specializations["射擊"] = ["手槍"];
 
   const params = inferCheckParams("我開槍", { character });
-  assert.equal(params.specialization, undefined);
+  assert.equal(params.specialization, undefined, "推導出來的檢定參數不該帶專業");
 
-  // 引擎這時應該套用減半規則(2 -> 1)，note 裡會記錄這件事
-  const result = performCheck(character, params);
-  assert.ok(
-    result.note.some((n) => n.includes("無對應專業")),
-    `應該要套用無對應專業減半，實際note：${JSON.stringify(result.note)}`
-  );
-});
-
-test.skip("角色有登記對應專業時會帶上specialization，且引擎不套用減半", () => {
-  const character = emptyCharacter();
-  character.skills["射擊"] = 2;
-  character.specializations["射擊"] = ["步槍"];
-
-  const params = inferCheckParams("我開槍", { character });
-  assert.equal(params.specialization, "步槍");
-
-  const result = performCheck(character, params);
-  assert.ok(!result.note.some((n) => n.includes("無對應專業")));
+  // 就算硬塞一個進去，判定結果也必須跟沒塞一模一樣——這條是防止之後有人
+  // 「順手」在 performCheck 裡加半套實作卻沒接完，又變回會說謊的狀態。
+  const withSpec = performCheck(character, { attribute: "敏捷", skill: "射擊", specialization: "步槍", dc: 0 });
+  const withoutSpec = performCheck(character, { attribute: "敏捷", skill: "射擊", dc: 0 });
+  assert.equal(withSpec.dp, withoutSpec.dp);
+  assert.deepEqual(withSpec.note, withoutSpec.note);
 });
 
 test("defaultDc 可以被呼叫端覆蓋(難度該由劇本/場景決定，不是從玩家句子推出來的)", () => {
