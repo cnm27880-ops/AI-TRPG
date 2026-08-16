@@ -26,7 +26,6 @@ core/               核心規則引擎(跟哪個資源包/副本包無關，永�
   eventLog.js       append-only事件日誌，「角色日誌回顧」功能的資料層
   legendaryAttributes.js 九個屬性的傳奇效果總表(檢定附加成功/防御/傷害上限/先攻/XP紅利/重骰等)
   character.js      戰鬥用角色檔案資料形狀(emptyCombatProfile)，橋接屬性/技能與combat/模組
-  characterCreation.js 建卡點數預算驗證(屬性/技能/專業/專長)，用書中「羅蘭」範例反向驗證過
   derivedStats.js   衍生屬性：生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、
                      先攻=敏捷+沉著、基礎防御=min(敏捷,感知)、敏感範圍=感知×10米
 
@@ -93,7 +92,7 @@ test/                198個測試，node內建測試跑者，`node --test` 全�
   campaignXp.test.js, narration.test.js, loader.test.js, divergence.test.js
   eventLog.test.js, deathAndRevival.test.js, affection.test.js, timeBudget.test.js, contracts.test.js
   turnOrder.test.js, defense.test.js, attackTypes.test.js, attack.test.js, legendaryAttributes.test.js
-  actionEconomy.test.js, damageTypes.test.js, resolveCombatAction.test.js, characterCreation.test.js
+  actionEconomy.test.js, damageTypes.test.js, resolveCombatAction.test.js, characterBuilder.test.js
   gemini.test.js
 
 TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的對照表，每加新模組就加新的一列
@@ -158,8 +157,8 @@ node --test
 - 500+ 頁血統/技能樹/道具型錄的批量轉換(資源模板 → JSON 的轉換工具/腳本本身)。
 - 戰鬥引擎的命中判定、行動經濟、傷害減免、完整攻擊行動接線都做了(見 `core/combat/`)，但全力
   一擊/衝鋒等進階戰鬥動作、範圍攻擊(AoE)、混合傷害類型、不良狀態(暈眩/流血等)、載具戰鬥都還沒做。
-- 建卡點數預算驗證做了(`core/characterCreation.js`)，但「逐類別強制查核」跟「專長對技能上限的
-  異動」是已知簡化，見 `ARCHITECTURE.md`。
+- 建卡走 `content/characterBuilder.js` 的輕量化版本(6屬性/10技能)。原始規則書的完整版曾實作於
+  `core/characterCreation.js`，因為只維護單一建卡路徑已移除，內容保留在 git 歷史，見 `ARCHITECTURE.md`。
 - Cloudflare Pages 部署骨架、Gemini 敘事整合骨架都做了(`wrangler.toml`/`functions/api/`/
   `content/gemini/`)，**但沒有實際部署過、沒有實際打過Gemini的API**(這個開發環境沒有帳號/金鑰/
   網路)，你拿到後要自己走一次 `DEPLOYMENT.md`/`GEMINI_INTEGRATION.md` 才能確認真的接得上。

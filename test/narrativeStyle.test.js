@@ -114,6 +114,30 @@ test("白描檔宣告的『凌駕』只限文筆層，不會延伸到規則契�
   assert.match(composed.trim().split("\n\n").at(-1), /以規則契約為準/);
 });
 
+test("角色性格提示放在文筆層(規則契約之前)，且明講自己不是規則", () => {
+  // narrative型專長的描述是「這個角色容易對什麼有反應」的傾向，不是判定規則。
+  // 它必須排在規則契約之前，而且要自帶「不是規則」的但書——否則模型有機會
+  // 把「傾向主動選擇救援型選項」誤讀成「必須幫玩家選救援選項」，那就變成替玩家做決定了。
+  const hint = "對戰友情誼、犧牲、生死承諾類情節容易有情緒反應";
+  const composed = composeSystemInstruction({
+    rulesContract: SYSTEM_INSTRUCTION,
+    characterHints: [hint],
+  });
+
+  assert.ok(composed.includes(hint), "性格提示應該出現在系統提示裡");
+  assert.ok(
+    composed.indexOf(hint) < composed.indexOf(SYSTEM_INSTRUCTION),
+    "性格提示必須排在規則契約之前(屬於文筆層)"
+  );
+  assert.match(composed, /不是規則/);
+  assert.match(composed.trim().split("\n\n").at(-1), /以規則契約為準/);
+});
+
+test("沒有角色性格提示時不會多出空的提示區塊", () => {
+  const composed = composeSystemInstruction({ rulesContract: SYSTEM_INSTRUCTION });
+  assert.ok(!composed.includes("角色性格提示"));
+});
+
 test("未知的文筆設定檔要丟錯並列出可用選項", () => {
   assert.throws(
     () => composeSystemInstruction({ rulesContract: SYSTEM_INSTRUCTION, styleId: "不存在" }),

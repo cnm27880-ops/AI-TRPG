@@ -27,6 +27,7 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import { narrativeFeatHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS } from "../../content/llm/providers.js";
 import { composeSystemInstruction, DEFAULT_STYLE_ID } from "../../content/narrativeStyle.js";
@@ -165,6 +166,7 @@ export async function onRequestPost(context) {
     systemInstruction = composeSystemInstruction({
       rulesContract: SYSTEM_INSTRUCTION,
       styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
+      characterHints: narrativeFeatHints(character),
     });
   } catch (err) {
     return jsonError(`文筆設定檔錯誤：${err.message}`, 400);

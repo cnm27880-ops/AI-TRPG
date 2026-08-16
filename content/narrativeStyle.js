@@ -188,6 +188,10 @@ export const UNIVERSAL_STYLE_RULES = `通用敘事守則（不論採用何種文
  * @param {string} [params.styleId] 使用哪個內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [params.customStyle] 你自己的文筆提示詞。有傳的話就用這個，不用內建的
  * @param {boolean} [params.includeUniversalRules] 是否附上通用敘事守則，預設 true
+ * @param {string[]} [params.characterHints] 角色純敘事型專長的性格傾向描述
+ *   (見 content/characterBuilder.js 的 narrativeFeatHints)。刻意放在**文筆層**而不是
+ *   規則契約層：這些是「這個角色容易對什麼有反應」的傾向提示，不是判定規則，
+ *   放進規則契約層有機會被模型誤讀成「遇到這類情節就必須怎樣」的硬性指令。
  * @returns {string}
  */
 export function composeSystemInstruction({
@@ -195,6 +199,7 @@ export function composeSystemInstruction({
   styleId = DEFAULT_STYLE_ID,
   customStyle,
   includeUniversalRules = true,
+  characterHints = [],
 }) {
   if (!rulesContract) {
     throw new Error("composeSystemInstruction需要rulesContract(規則契約層，見promptContract.js)");
@@ -209,6 +214,12 @@ export function composeSystemInstruction({
   }
 
   const parts = [style];
+  if (characterHints.length > 0) {
+    parts.push(
+      `角色性格提示（只是這個角色的反應傾向，不是規則，也不強制玩家怎麼選）：\n` +
+        characterHints.map((h) => `- ${h}`).join("\n")
+    );
+  }
   if (includeUniversalRules) parts.push(UNIVERSAL_STYLE_RULES);
 
   // 規則契約放最後，並且明確宣告優先序 —— 順序本身就是防線的一部分，不要調換。
