@@ -431,6 +431,21 @@
     <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
     <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
         <div class="flex items-center gap-2">
+            <!-- 登入區：未登入顯示「以 Google 登入」，登入後顯示頭像與名字。
+                 沒設定好 Google 登入的部署會整塊隱藏（見 /api/auth/me 的 enabled 欄位），
+                 不要給玩家一顆按下去一定失敗的按鈕。 -->
+            <div id="auth-box" style="display:none" class="flex items-center gap-1.5">
+                <button id="auth-login-btn" onclick="startGoogleLogin()" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40">
+                    <i class="fab fa-google text-[11px]"></i><span class="hidden sm:inline">以 Google 登入</span>
+                </button>
+                <div id="auth-user" style="display:none" class="flex items-center gap-1.5">
+                    <img id="auth-avatar" alt="" class="w-5 h-5 rounded-full border hairline-border" referrerpolicy="no-referrer">
+                    <span id="auth-name" class="text-xs font-mono text-zinc-300 hidden sm:inline max-w-[8rem] truncate"></span>
+                    <button onclick="googleLogout()" title="登出" class="px-2 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-400 transition-all hover:-translate-y-px">
+                        <i class="fas fa-right-from-bracket text-[11px]"></i>
+                    </button>
+                </div>
+            </div>
             <button onclick="toggleTheme()" title="切換明暗主題" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
                 <i id="theme-toggle-icon" class="fas fa-moon text-emerald-300 text-[11px]"></i>
             </button>

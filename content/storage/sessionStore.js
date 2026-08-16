@@ -25,11 +25,15 @@ export const HISTORY_LIMIT = 8;
 const KEY_PREFIX = "session:";
 
 /** 建立一份全新的存檔內容。 */
-export function createSession({ id, character, sceneContext = "" }) {
+export function createSession({ id, character, sceneContext = "", ownerId = null }) {
   const now = new Date().toISOString();
   return {
     id,
     version: 1,
+    // 這份存檔屬於哪個登入帳號。null = 匿名存檔（沒登入時建立的）。
+    // 匿名存檔在玩家登入時會被「認領」成他的（見 content/auth/ownership.js），
+    // 這樣已經在玩的人登入之後不會覺得進度不見了。
+    ownerId,
     character,
     log: createEventLog(),
     history: [],
@@ -92,6 +96,15 @@ export function kvSessionStore(kv) {
       const res = await kv.list({ prefix: KEY_PREFIX, limit });
       return (res.keys ?? []).map((k) => k.name.slice(KEY_PREFIX.length));
     },
+    // 給 content/auth/ownership.js 存「帳號 -> 存檔ID清單」的索引用。
+    // 刻意做成通用的 raw 存取而不是加一堆 owner 專用方法：儲存層不需要知道
+    // 「帳號」這個概念，它只是一個 key-value；歸屬的規則留在 ownership.js。
+    async getRaw(key) {
+      return (await kv.get(key, "json")) ?? null;
+    },
+    async putRaw(key, value) {
+      await kv.put(key, JSON.stringify(value));
+    },
   };
 }
 
@@ -121,7 +134,14 @@ export function memorySessionStore(initial = new Map()) {
       map.delete(id);
     },
     async list(limit = 50) {
-      return [...map.keys()].slice(0, limit);
+      return [...map.keys()].filter((k) => !k.startsWith("owner:")).slice(0, limit);
+    },
+    async getRaw(key) {
+      const v = map.get(key);
+      return v ? JSON.parse(JSON.stringify(v)) : null;
+    },
+    async putRaw(key, value) {
+      map.set(key, JSON.parse(JSON.stringify(value)));
     },
   };
 }

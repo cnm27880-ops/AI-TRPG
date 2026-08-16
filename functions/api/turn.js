@@ -58,6 +58,8 @@ import {
 } from "../../content/scenario/progress.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
+import { getCurrentUser } from "../../content/auth/sessionToken.js";
+import { canAccessSession } from "../../content/auth/ownership.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 12;
@@ -165,6 +167,11 @@ export async function onRequestPost(context) {
   if (sessionId) {
     session = await store.get(sessionId);
     if (!session) {
+      return jsonError(`找不到存檔 ${sessionId}，請先呼叫 POST /api/session 建立`, 404);
+    }
+    // 存檔歸屬檢查：有主人的存檔只有本人能玩。沒有這一道的話，任何人只要拿到
+    // 別人的 sessionId 就能替別人推進劇情、消耗他的時間預算。
+    if (!canAccessSession(session, await getCurrentUser(context.request, env))) {
       return jsonError(`找不到存檔 ${sessionId}，請先呼叫 POST /api/session 建立`, 404);
     }
   }

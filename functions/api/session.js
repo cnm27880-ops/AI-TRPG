@@ -15,9 +15,21 @@ import {
 import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
+import { getCurrentUser } from "../../content/auth/sessionToken.js";
+import {
+  canAccessSession,
+  claimSession,
+  indexSessionForOwner,
+  listSessionsForOwner,
+  unindexSessionForOwner,
+} from "../../content/auth/ownership.js";
 
 export async function onRequestPost(context) {
-  const store = resolveSessionStore(context.env ?? {});
+  const env = context.env ?? {};
+  const store = resolveSessionStore(env);
+  // 有登入就把新存檔直接掛在這個帳號底下；沒登入就是匿名存檔(ownerId=null)，
+  // 之後玩家登入時會被自動認領(見 content/auth/ownership.js)。
+  const user = await getCurrentUser(context.request, env);
 
   let body;
   try {
@@ -58,24 +70,44 @@ export async function onRequestPost(context) {
     id: newSessionId(),
     character,
     sceneContext: sceneContext ?? openingScene ?? "",
+    ownerId: user?.sub ?? null,
   });
   session.scenario = { packId: pack.id, progress: scenarioProgress };
   await store.put(session);
+  if (user?.sub) await indexSessionForOwner(store, user.sub, session.id);
 
-  return json({ ok: true, persistent: store.persistent, storeKind: store.kind, session });
+  return json({ ok: true, persistent: store.persistent, storeKind: store.kind, session, user });
 }
 
 export async function onRequestGet(context) {
-  const store = resolveSessionStore(context.env ?? {});
+  const env = context.env ?? {};
+  const store = resolveSessionStore(env);
   const id = new URL(context.request.url).searchParams.get("id");
+  const user = await getCurrentUser(context.request, env);
 
   if (!id) {
-    return json({ ok: true, persistent: store.persistent, storeKind: store.kind, ids: await store.list() });
+    // 有登入就只列出這個帳號名下的存檔；沒登入維持原本「列出全部ID」的除錯用行為。
+    const ids = user?.sub ? await listSessionsForOwner(store, user.sub) : await store.list();
+    return json({ ok: true, persistent: store.persistent, storeKind: store.kind, ids, user });
   }
 
   const session = await store.get(id);
   if (!session) {
     return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  }
+  if (!canAccessSession(session, user)) {
+    // 刻意回 404 而不是 403：告訴對方「這個ID存在但你不能看」等於確認了它的存在。
+    return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  }
+
+  // 登入者手上拿著一份匿名存檔時，順手認領成他的。
+  // 這是使用者選定的行為：已經在玩的人登入之後，進度不會不見。
+  if (user?.sub && !session.ownerId) {
+    const claim = claimSession(session, user);
+    if (claim.claimed) {
+      await store.put(session);
+      await indexSessionForOwner(store, user.sub, session.id);
+    }
   }
   // downState / revival 一起回傳：玩家重整頁面回到一張昏迷或死亡的角色卡時，
   // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
@@ -84,16 +116,25 @@ export async function onRequestGet(context) {
     persistent: store.persistent,
     storeKind: store.kind,
     session,
+    user,
     downState: getDownState(session.character),
     revival: revivalQuote(session.character),
   });
 }
 
 export async function onRequestDelete(context) {
-  const store = resolveSessionStore(context.env ?? {});
+  const env = context.env ?? {};
+  const store = resolveSessionStore(env);
   const id = new URL(context.request.url).searchParams.get("id");
   if (!id) return json({ ok: false, error: "必須指定 id" }, 400);
 
+  const user = await getCurrentUser(context.request, env);
+  const session = await store.get(id);
+  if (session && !canAccessSession(session, user)) {
+    return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  }
+
+  if (session?.ownerId) await unindexSessionForOwner(store, session.ownerId, id);
   await store.delete(id);
   return json({ ok: true });
 }

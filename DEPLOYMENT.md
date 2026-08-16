@@ -119,3 +119,71 @@ npx wrangler pages dev
   `wrangler pages secret put` 這個指令)。
 - 自訂網域(如果你不想用`*.pages.dev`，需要在Cloudflare Dashboard另外設定，這步驟因人而異，
   請照Cloudflare官方文件操作)。
+
+## Google 登入（選配）
+
+登入是**選配的**：三個環境變數都沒設時，前端會自動把登入按鈕整塊藏起來，遊戲照樣以匿名模式運作。
+設定好之後，玩家可以用 Google 帳號登入，存檔會綁在帳號底下、跨裝置讀得到。
+
+### 1. 在 Google Cloud Console 建立 OAuth 用戶端
+
+1. 開 <https://console.cloud.google.com/apis/credentials>，建立（或選擇）一個專案
+2. 「設定同意畫面」→ 使用者類型選 **外部**，填好應用程式名稱與聯絡信箱
+   - 只會用到 `openid` / `email` / `profile` 三個範圍，都屬於非敏感範圍，不需要 Google 審核
+3. 「建立憑證」→ **OAuth 用戶端 ID** → 應用程式類型選 **網頁應用程式**
+4. 在「已授權的重新導向 URI」加入你的 callback 網址：
+
+   ```
+   https://你的網域/api/auth/callback
+   ```
+
+   > **這個網址必須一字不差。** 差一個結尾斜線、差 `http`/`https`、差 `www` 都會被 Google 直接拒絕，
+   > 而且錯誤訊息（`redirect_uri_mismatch`）不會告訴你差在哪裡。
+   > Cloudflare Pages 的 preview 部署每次都是新網域，如果要在 preview 上測登入，
+   > 就把那個 preview 網域也加進這份清單（Google 的白名單**不吃萬用字元**）。
+
+5. 建立完成後會拿到 **用戶端 ID** 與 **用戶端密鑰**
+
+### 2. 設定環境變數
+
+```bash
+# 兩個都是機密，一定要用 secret，不可以寫進 wrangler.toml 或任何會被 commit 的檔案
+npx wrangler pages secret put GOOGLE_CLIENT_ID --project-name=wxh-engine
+npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=wxh-engine
+
+# 簽發登入憑證用的密鑰，自己產生一段夠長的隨機字串
+openssl rand -base64 32
+npx wrangler pages secret put AUTH_SESSION_SECRET --project-name=wxh-engine
+```
+
+正式環境建議再設一個非機密的 `AUTH_REDIRECT_URI`（放 Dashboard 環境變數或 `[vars]` 即可）：
+
+```
+AUTH_REDIRECT_URI=https://你的網域/api/auth/callback
+```
+
+不設的話程式會從這次請求的網址推導。推導在多數情況下是對的，但只要前面有任何會改寫
+`Host` 標頭的東西，推出來的值就會跟 Google 登記的不一致而登入失敗——明確指定最保險。
+
+> **換掉 `AUTH_SESSION_SECRET` 會讓所有人被登出**（既有的登入票全部驗不過）。
+> 這也正是懷疑密鑰外洩時的處理方式。
+
+### 3. 存檔歸屬的行為
+
+| 情況 | 行為 |
+|---|---|
+| 沒登入 | 照舊能玩。存檔是「匿名存檔」，任何知道 session ID 的人都讀得到（ID 本身就是一串 UUID，等於不公開的鑰匙） |
+| 登入後 | 新建的存檔直接綁在帳號底下，只有本人讀得到 |
+| 登入時手上有匿名存檔 | **自動認領成你的**，已經在玩的人進度不會不見 |
+| 已經有主人的存檔 | 不會被別人認領走，其他帳號讀取一律回 404 |
+
+回 404 而不是 403 是刻意的：回 403 等於告訴對方「這個 ID 存在，只是你不能看」。
+
+### 4. 已知取捨
+
+登入狀態是一張 **HMAC 簽章的 cookie**，不是資料庫 session。這樣即使沒設定 KV binding，
+登入也能正常運作（見 `content/auth/sessionToken.js` 的檔頭說明）。
+
+代價是：**沒辦法在到期前主動撤銷某一張票**。玩家按登出只是清掉自己瀏覽器上的 cookie，
+那張票本身在 30 天到期前仍然有效。對單人遊戲來說這個取捨可以接受；
+之後若真的需要「把某個使用者踢出去」，作法是加一份 KV 撤銷清單，而不是整套換掉。

@@ -1343,8 +1343,84 @@ async function handleResumeFromModal() {
   }
 }
 
+// --- Google 登入 ---------------------------------------------------------
+// 前端這一側刻意做得很薄：登入票是 HttpOnly cookie，JavaScript 讀不到也不需要讀
+// （那正是它防 XSS 的方式）。這裡只負責「問後端我是誰」與「畫出來」。
+
+let currentUser = null;
+
+function startGoogleLogin() {
+  // 整頁導向而不是開彈出視窗：OAuth 流程要跨網域，彈出視窗常被瀏覽器擋，
+  // 而且行動裝置上的體驗更差。導回來時網址會帶 ?login=ok。
+  window.location.href = "/api/auth/login";
+}
+
+async function googleLogout() {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } catch (err) {
+    console.warn("[AUTH] 登出請求失敗", err);
+  }
+  // 不管後端回什麼都重整：cookie 若已清掉就會變成訪客，沒清掉也會重新問一次狀態。
+  window.location.href = "/";
+}
+
+async function refreshAuthState() {
+  const box = document.getElementById("auth-box");
+  try {
+    const res = await (await fetch("/api/auth/me")).json();
+    if (!res.enabled) {
+      // 這個部署沒設定 Google 登入：整塊藏起來，不要給一顆一定會失敗的按鈕。
+      if (box) box.style.display = "none";
+      return;
+    }
+    if (box) box.style.display = "flex";
+    currentUser = res.user;
+    renderAuthState(res.user);
+  } catch (err) {
+    console.warn("[AUTH] 查詢登入狀態失敗", err);
+    if (box) box.style.display = "none";
+  }
+}
+
+function renderAuthState(user) {
+  const loginBtn = document.getElementById("auth-login-btn");
+  const userBox = document.getElementById("auth-user");
+  if (!loginBtn || !userBox) return;
+
+  if (!user) {
+    loginBtn.style.display = "";
+    userBox.style.display = "none";
+    return;
+  }
+  loginBtn.style.display = "none";
+  userBox.style.display = "flex";
+  const avatar = document.getElementById("auth-avatar");
+  if (avatar) {
+    if (user.picture) { avatar.src = user.picture; avatar.style.display = ""; }
+    else avatar.style.display = "none";
+  }
+  const name = document.getElementById("auth-name");
+  if (name) name.textContent = user.name || user.email || "已登入";
+}
+
+/** 剛登入回來時，把網址上的 ?login=ok 洗掉，免得玩家重整又看到一次提示。 */
+function consumeLoginRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("login");
+  if (!status) return;
+  history.replaceState(null, "", window.location.pathname);
+  if (status === "ok") {
+    console.info("[AUTH] 登入成功");
+  } else if (status === "cancelled") {
+    console.info("[AUTH] 使用者取消了登入");
+  }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   showScreen("portal");
+  consumeLoginRedirect();
+  await refreshAuthState();
   await checkLocalSession();
 
   document.getElementById("cg-submit")?.addEventListener("click", startNewGame);
@@ -1433,3 +1509,5 @@ window.handleResumeFromModal = handleResumeFromModal;
 window.applyArchetype = applyArchetype;
 window.startCombat = startCombat;
 window.endCombat = endCombat;
+window.startGoogleLogin = startGoogleLogin;
+window.googleLogout = googleLogout;
