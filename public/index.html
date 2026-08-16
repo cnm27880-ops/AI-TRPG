@@ -551,6 +551,9 @@
             進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
         </p>
 
+        <!-- 剛登入回來時的一句話（見 app.js 的 consumeLoginRedirect） -->
+        <div id="portal-login-notice" style="display:none" class="w-full max-w-sm text-[11px] font-mono text-emerald-300 border border-emerald-500/40 bg-emerald-500/5 rounded p-2.5 text-left"></div>
+
         <!-- 檢測到存檔 -->
         <div id="portal-resume-box" style="display:none" class="w-full max-w-sm hud-float border border-emerald-500/40 text-left font-mono text-xs space-y-2.5 pulse-glow p-3.5">
             <div class="flex justify-between items-center text-zinc-300 text-[11px]">
@@ -562,6 +565,9 @@
             </button>
             <!-- 沒有設定 KV binding 時，這份存檔隨時會消失。玩家正要按下去的按鈕
                  很可能指向一份已經蒸發的存檔，所以警告就放在按鈕旁邊。 -->
+            <div id="resume-account-note" style="display:none" class="text-[10px] leading-snug text-emerald-300/90">
+                <i class="fas fa-cloud"></i> <span id="resume-account-text"></span>
+            </div>
             <div id="resume-persistence-note" style="display:none" class="text-[10px] leading-snug text-yellow-300/90 border border-yellow-500/40 bg-yellow-500/10 rounded p-2">
                 <i class="fas fa-triangle-exclamation"></i>
                 這個環境沒有設定存檔資料庫（KV），存檔只存在伺服器記憶體裡，<strong>隨時可能消失</strong>。設定方式見 DEPLOYMENT.md。
@@ -902,7 +908,17 @@
                 <button onclick="closeModal('sessionModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
             <div class="space-y-3 font-mono text-xs">
+                <!-- 我的存檔：登入之後才有東西。這是 Google 登入真正的用途——
+                     存檔綁在帳號上，換一台電腦、清掉瀏覽器資料都還找得回來。
+                     沒登入時顯示提示，而不是一塊空白。 -->
                 <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="text-zinc-300">我的存檔</label>
+                        <span id="session-list-status" class="text-[10px] text-zinc-500"></span>
+                    </div>
+                    <div id="session-list" class="space-y-1.5 max-h-56 overflow-y-auto"></div>
+                </div>
+                <div class="pt-2 hairline-t">
                     <label class="text-zinc-300 block mb-1">當前 Session ID</label>
                     <div class="flex gap-2">
                         <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 select-all font-mono" placeholder="尚未建立存檔">
@@ -1066,6 +1082,8 @@
             requestAnimationFrame(() => el?.classList.add('modal-open'));
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
+                // 每次打開都重新抓一次：玩家可能剛在別的分頁登入，也可能剛刪掉一份存檔。
+                refreshSessionList();
             }
             if (id === 'settingsModal') {
                 document.getElementById('setting-theme').value =

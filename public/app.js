@@ -1239,25 +1239,60 @@ function appendNarrationBlock(text) {
 // --- 首頁存檔 ---
 async function checkLocalSession() {
   const savedId = localStorage.getItem(SESSION_KEY);
-  if (!savedId) return;
+  const box = document.getElementById("portal-resume-box");
+  const accountNote = document.getElementById("resume-account-note");
+  const accountText = document.getElementById("resume-account-text");
+
+  // 登入的人先問帳號：存檔是綁在帳號上的，localStorage 只是「這台瀏覽器上次玩哪一份」。
+  // 換一台電腦、清過瀏覽器資料的玩家，localStorage 是空的但帳號裡的存檔還在，
+  // 這時候仍然要讓他在首頁直接看得到、點得到——那正是登入的意義。
+  if (currentUser) await refreshSessionList();
+
+  const fallback = currentUser ? mySessions[0] : null; // 清單已依最近更新排序
+  const targetId = savedId || fallback?.id;
+  if (!targetId) {
+    if (box) box.style.display = "none";
+    return;
+  }
 
   try {
-    const res = await (await fetch(`/api/session?id=${encodeURIComponent(savedId)}`)).json();
+    const res = await (await fetch(`/api/session?id=${encodeURIComponent(targetId)}`)).json();
     if (res.ok && res.session) {
-      document.getElementById("portal-resume-box").style.display = "block";
-      document.getElementById("resume-char-name").textContent = res.session.character?.concept?.name || "未命名輪迴者";
+      resumeTargetId = targetId;
+      if (box) box.style.display = "block";
+      document.getElementById("resume-char-name").textContent =
+        res.session.character?.concept?.name || "未命名輪迴者";
+
       // 存檔不是持久的時候，「繼續遊戲」這個框本身就是最該講這件事的地方——
       // 玩家正要按下去的按鈕，很可能指向一份已經蒸發的存檔。
       const note = document.getElementById("resume-persistence-note");
       if (note) note.style.display = res.persistent ? "none" : "block";
-    } else if (!res.ok) {
+
+      // 帳號裡還有別份存檔時講一聲，並指路到存檔管理——否則玩家只會看到最新的那一份，
+      // 以為其他角色都不見了。
+      if (accountNote && accountText) {
+        if (currentUser && mySessions.length > 1) {
+          accountText.textContent = `這個帳號底下還有 ${mySessions.length - 1} 份其他存檔，可到「存檔管理」切換。`;
+          accountNote.style.display = "block";
+        } else if (currentUser && res.persistent) {
+          accountText.textContent = "已綁定你的 Google 帳號，換裝置登入就找得回來。";
+          accountNote.style.display = "block";
+        } else {
+          accountNote.style.display = "none";
+        }
+      }
+    } else {
       // 存檔查不到不是壞事(可能只是舊ID)，但也不該完全靜音——留給F12看得到。
-      console.warn("[SESSION_LOOKUP] 本機記著的存檔ID讀不到：", savedId, res.error);
+      console.warn("[SESSION_LOOKUP] 記著的存檔ID讀不到：", targetId, res.error);
+      if (box) box.style.display = "none";
     }
   } catch (err) {
-    console.warn("[SESSION_LOOKUP] 查詢本機存檔時連線失敗", err);
+    console.warn("[SESSION_LOOKUP] 查詢存檔時連線失敗", err);
   }
 }
+
+/** 首頁「接續輪迴任務」實際要讀的那一份（可能來自帳號清單，不一定是 localStorage 那個）。 */
+let resumeTargetId = null;
 
 /**
  * 顯示／隱藏「存檔不是持久的」警告條。
@@ -1277,10 +1312,43 @@ function renderPersistenceWarning(persistent) {
   } else if (persistent === true) {
     bar.style.display = "none";
   }
+  renderSaveStatus(persistent);
+}
+
+/**
+ * 遊戲畫面右上角的存檔狀態徽章。
+ *
+ * [2026-08-16 修正] 這顆徽章原本是寫死在 HTML 裡的「已存檔」三個字——不管有沒有存檔、
+ * 有沒有設定 KV、這一回合有沒有寫回去，它永遠都說已存檔。那比沒有這顆徽章更糟：
+ * 它是一個看起來像狀態、實際上是裝飾的東西，而玩家會相信它。
+ * 現在它真的反映三種狀態，並在剛寫回存檔時閃一下，讓玩家知道剛才那一回合有被記下來。
+ */
+function renderSaveStatus(persistent) {
+  const el = document.getElementById("save-status");
+  if (!el) return;
+
+  let text = "未存檔";
+  let cls = "text-zinc-400";
+  if (currentSessionId && persistent === false) {
+    text = "記憶體暫存";
+    cls = "text-yellow-300";
+  } else if (currentSessionId) {
+    text = currentUser ? "已存檔 · 已綁定帳號" : "已存檔";
+    cls = "text-emerald-300";
+  }
+
+  const changed = el.dataset.saveState !== text;
+  el.dataset.saveState = text;
+  el.textContent = text;
+  el.className = `px-2 py-0.5 rounded bg-panel border hairline-border ${cls}`;
+  el.title = currentUser
+    ? "存檔已綁定你的 Google 帳號，換裝置登入後可以在「存檔管理」裡找到。"
+    : "存檔目前只跟這台瀏覽器綁在一起。登入 Google 之後才會綁到帳號。";
+  if (changed) flashElement(el);
 }
 
 async function resumeLocalSession() {
-  const savedId = localStorage.getItem(SESSION_KEY);
+  const savedId = resumeTargetId || localStorage.getItem(SESSION_KEY);
   if (!savedId) return;
   // [2026-08-16 修正] 這裡以前是 `if (savedId) await resumeSession(savedId)`，
   // 而 resumeSession() 內部用 `catch { return false }` 吞掉一切錯誤、呼叫端又不看回傳值。
@@ -1580,6 +1648,8 @@ async function handleResumeFromModal() {
 // （那正是它防 XSS 的方式）。這裡只負責「問後端我是誰」與「畫出來」。
 
 let currentUser = null;
+/** 這個部署到底有沒有設定 Google 登入（沒設定就不要給玩家一顆一定失敗的按鈕）。 */
+let authEnabled = false;
 
 function startGoogleLogin() {
   // 整頁導向而不是開彈出視窗：OAuth 流程要跨網域，彈出視窗常被瀏覽器擋，
@@ -1595,6 +1665,118 @@ async function googleLogout() {
   }
   // 不管後端回什麼都重整：cookie 若已清掉就會變成訪客，沒清掉也會重新問一次狀態。
   window.location.href = "/";
+}
+
+// ---------------------------------------------------------------------------
+// 「我的存檔」清單
+//
+// [2026-08-16 新增] Google 登入接上、KV binding 也接上之後，前端還缺最後一塊：
+// **登入了，然後呢**。在這之前登入只會讓右上角多一顆頭像，存檔仍然只能靠 localStorage
+// 記著的那一個 ID 找回來——換一台電腦、清一次瀏覽器資料，那份存在 KV 裡好好的存檔
+// 就再也點不到了。存檔綁在帳號上這件事，玩家要看得到才算數。
+// ---------------------------------------------------------------------------
+
+/** 上一次抓到的存檔清單，首頁與存檔管理視窗共用，不重複打API。 */
+let mySessions = [];
+
+async function refreshSessionList() {
+  const list = document.getElementById("session-list");
+  const status = document.getElementById("session-list-status");
+  if (!list) return;
+
+  if (!currentUser) {
+    // 沒登入不是錯誤，是一個可以修正的狀態——所以這裡給的是一個入口，不是一句抱怨。
+    // 但如果這個部署根本沒設定 Google 登入，就不能給一顆按下去一定失敗的按鈕。
+    list.innerHTML = authEnabled
+      ? `<div class="p-3 rounded border hairline-border border-dashed text-center space-y-2">
+          <div class="text-[11px] text-zinc-400 leading-snug">
+            存檔目前只跟這台瀏覽器綁在一起。登入之後，存檔會綁到你的 Google 帳號，
+            換裝置或清掉瀏覽器資料都找得回來。
+          </div>
+          <button onclick="startGoogleLogin()" class="px-3 py-1.5 rounded bg-panel hover:bg-zinc-800 border hairline-border text-[11px] text-zinc-200 transition-all">
+            <i class="fab fa-google text-[10px]"></i> 以 Google 登入
+          </button>
+        </div>`
+      : `<div class="p-3 rounded border hairline-border border-dashed text-[11px] text-zinc-400 leading-snug">
+          這個部署沒有設定 Google 登入，存檔只跟這台瀏覽器綁在一起。
+          用下面的 Session ID 手動保存，換裝置時貼回來就能繼續。
+        </div>`;
+    if (status) status.textContent = "";
+    return;
+  }
+
+  if (status) status.textContent = "讀取中…";
+  try {
+    const res = await (await fetch("/api/session")).json();
+    mySessions = res.sessions ?? [];
+    renderSessionList(mySessions);
+    if (status) status.textContent = `${mySessions.length} 份`;
+  } catch (err) {
+    console.error("[SESSION_LIST_FAILURE]", err);
+    list.innerHTML = `<div class="text-[11px] text-red-400">存檔清單讀取失敗：${escapeHtml(err.message)}</div>`;
+    if (status) status.textContent = "";
+  }
+}
+
+function renderSessionList(sessions) {
+  const list = document.getElementById("session-list");
+  if (!list) return;
+
+  if (!sessions.length) {
+    list.innerHTML = `<div class="text-[11px] text-zinc-400 p-2">這個帳號底下還沒有存檔。</div>`;
+    return;
+  }
+
+  list.innerHTML = sessions
+    .map((s) => {
+      const active = s.id === currentSessionId;
+      return `
+      <div class="flex items-center gap-2 p-2 rounded border ${active ? "border-emerald-500/50 bg-emerald-500/5" : "hairline-border bg-zinc-950"}">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="font-bold text-zinc-100 truncate">${escapeHtml(s.name)}</span>
+            ${s.dead ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-red-500/40 text-red-300">已死亡</span>` : ""}
+            ${active ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-emerald-500/40 text-emerald-300">進行中</span>` : ""}
+          </div>
+          <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turnCount} 筆紀錄</div>
+        </div>
+        <button data-load-session="${escapeHtml(s.id)}" class="shrink-0 px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/25 transition-all">讀取</button>
+        <button data-delete-session="${escapeHtml(s.id)}" title="刪除這份存檔" class="shrink-0 px-2 py-1 rounded border hairline-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-all">
+          <i class="fas fa-trash text-[10px]"></i>
+        </button>
+      </div>`;
+    })
+    .join("");
+}
+
+/** 存檔時間顯示成「幾分鐘前」這種人看得懂的相對時間，絕對時間放 title。 */
+function formatSaveTime(iso) {
+  if (!iso) return "時間未知";
+  const then = new Date(iso).getTime();
+  if (!Number.isFinite(then)) return "時間未知";
+  const minutes = Math.round((Date.now() - then) / 60000);
+  if (minutes < 1) return "剛剛";
+  if (minutes < 60) return `${minutes} 分鐘前`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} 小時前`;
+  return `${Math.round(hours / 24)} 天前`;
+}
+
+async function deleteSession(id) {
+  if (!confirm("確定要刪除這份存檔嗎？這個動作沒辦法復原。")) return;
+  try {
+    const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`, { method: "DELETE" })).json();
+    if (!res.ok) throw new Error(res.error || "刪除失敗");
+    if (id === currentSessionId) {
+      currentSessionId = null;
+      localStorage.removeItem(SESSION_KEY);
+    }
+    await refreshSessionList();
+    await checkLocalSession();
+  } catch (err) {
+    console.error("[SESSION_DELETE_FAILURE]", err);
+    alert(`刪除存檔失敗：${err.message}`);
+  }
 }
 
 async function refreshAuthState() {
@@ -1634,19 +1816,46 @@ function renderAuthState(user) {
   }
   const name = document.getElementById("auth-name");
   if (name) name.textContent = user.name || user.email || "已登入";
+
+  // 登入狀態一變，「我的存檔」就要跟著變。沒有這一步的話，玩家登入後打開存檔管理
+  // 還是會看到「請先登入」——因為那塊是上一次的狀態畫的。
+  refreshSessionList();
 }
 
-/** 剛登入回來時，把網址上的 ?login=ok 洗掉，免得玩家重整又看到一次提示。 */
+/**
+ * 剛登入回來時，把網址上的 ?login=ok 洗掉，免得玩家重整又看到一次提示。
+ *
+ * [2026-08-16 補上] 順便告訴玩家「剛才那份匿名存檔已經綁到你的帳號了」。
+ * 後端在讀取存檔時會自動認領匿名存檔（見 content/auth/ownership.js 的 claimSession），
+ * 這是一件對玩家有意義的好事——但在這之前它是完全靜音的，玩家不會知道自己的進度
+ * 從「只存在這台瀏覽器」變成了「跟著帳號走」。
+ */
 function consumeLoginRedirect() {
   const params = new URLSearchParams(window.location.search);
   const status = params.get("login");
   if (!status) return;
   history.replaceState(null, "", window.location.pathname);
+
   if (status === "ok") {
     console.info("[AUTH] 登入成功");
+    if (localStorage.getItem(SESSION_KEY)) {
+      pendingLoginNotice = "已登入。這台瀏覽器上的存檔已經綁定到你的 Google 帳號，換裝置登入後也找得回來。";
+    }
   } else if (status === "cancelled") {
     console.info("[AUTH] 使用者取消了登入");
   }
+}
+
+/** 登入回來要顯示給玩家的一句話（等首頁畫好之後才顯示，否則會被後續渲染蓋掉）。 */
+let pendingLoginNotice = null;
+
+function flushLoginNotice() {
+  if (!pendingLoginNotice) return;
+  const box = document.getElementById("portal-login-notice");
+  if (!box) return;
+  box.textContent = pendingLoginNotice;
+  box.style.display = "block";
+  pendingLoginNotice = null;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -1654,6 +1863,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   consumeLoginRedirect();
   await refreshAuthState();
   await checkLocalSession();
+  flushLoginNotice();
 
   // --- 建卡精靈 ---
   document.getElementById("cg-submit")?.addEventListener("click", advanceChargen);
@@ -1717,4 +1927,6 @@ window.handleResumeFromModal = handleResumeFromModal;
 window.startCombat = startCombat;
 window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
+// index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到
+window.refreshSessionList = refreshSessionList;
 window.googleLogout = googleLogout;
