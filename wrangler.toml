@@ -31,16 +31,7 @@ compatibility_flags = ["nodejs_compat"]
 [ai]
 binding = "AI"
 
-# 存檔用的 KV namespace —— 沒有這一段的話，遊戲**仍然可以跑**，但存檔只會存在記憶體裡，
-# 在 Cloudflare 上隨時會消失（每個 isolate 有自己的記憶體，而且 isolate 隨時會被回收）。
-# 這種模式下 API 回傳的 persistent 會是 false，前端會顯示警告。
-#
-# 建立方式（把下面的 id 換成指令印出來的那一串）：
-#   npx wrangler kv namespace create SAVES
-#   npx wrangler kv namespace create SAVES --preview
-#
-# 如果你還沒建立，就把下面三行整段註解掉，不要留一個假的 id——
-# 填錯的 id 會讓部署失敗，而且錯誤訊息不容易看懂。
-# [[kv_namespaces]]
-# binding = "SAVES"
-# id = "把 wrangler kv namespace create SAVES 印出來的id貼在這裡"
+# 存檔用的 KV namespace —— 已成功綁定正式 SAVES 資料庫
+[[kv_namespaces]]
+binding = "SAVES"
+id = "7eecaca1798940e5ba6a1b071455d1cc"
