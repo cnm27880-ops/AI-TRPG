@@ -104,6 +104,21 @@ export function buildDmMemo(character, session) {
   lines.push(`- 傷勢狀態：${hpDesc}`);
   lines.push(`- 持有XP：${xp} 點 (未花費的經驗/獎勵點數)`);
 
+  // [2026-08-16 新增] 角色的來歷。
+  //
+  // 這一格以前**完全沒有被送給AI過**：玩家在建卡時決定的背景故事寫進了
+  // character.concept.background，然後就停在那裡——整個 functions/ 底下沒有任何地方讀它。
+  // 玩家花時間拼出來的那個人，說書人從來不知道他是誰，於是敘事只能把每個角色都寫成同一個
+  // 「你」。建卡改成生平問答之後這段文字變得更長也更具體（六段小傳），不接上去更說不過去。
+  //
+  // 放在 DM 備忘錄而不是文筆層：來歷是**事實**（他做過什麼工作、出過什麼事），
+  // 敘事不可以跟它矛盾。性格傾向那類「他容易對什麼有反應」才走文筆層
+  // （見 content/narrativeStyle.js 的 characterHints 與分層說明）。
+  const background = character.concept?.background;
+  if (background) {
+    lines.push(`- 來歷（被拉進主神空間之前的人生，敘事不可與此矛盾）：${background}`);
+  }
+
   // 2. 全局數據與任務表 (對應：全局数据表、任务与事件表)
   if (session && session.scenario) {
     lines.push("--- [全局與任務表] ---");

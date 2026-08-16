@@ -42,6 +42,15 @@ export function buildNodeGuidance(node, stalledRounds = 0) {
 這一回合的敘事必須讓情境出現實質變化，往這個節點的關鍵事件靠近一步。`
       : "";
 
+  // 玩家在畫面上看得到 playerGoal 這一行字（見 public/app.js 的 updateScenarioHud），
+  // 所以AI的敘事**必須跟它對得上**。這是測玩回饋「我不理解現在具體要幹嘛」的直接修法：
+  // 光把目標寫在HUD上還不夠，敘事本身如果完全不提，玩家還是接不起來。
+  const goalBlock = node.playerGoal
+    ? `\n\n【玩家看得到的目標】畫面上正對玩家顯示這一行字：「${node.playerGoal}」。
+你的敘事必須跟這個目標對得上——這一回合至少要讓玩家知道「離這個目標還差什麼」或
+「下一步往哪個方向走會更接近它」。不可以整段只寫氣氛，讓玩家讀完還是不知道自己該幹嘛。`
+    : "";
+
   if (node.isFinale) {
     // 最終戰節點刻意**不**開放 nodeComplete 信號：這個節點只能透過玩家實際打贏
     // /api/combat/* 的戰鬥來結算(見 functions/api/combat/act.js)，不能靠敘事文字帶過，
@@ -52,7 +61,7 @@ ${node.canonSummary}
 
 請把敘事帶向與敵人正面對決、一觸即發的處境，但**不要**描寫戰鬥的過程或結果，
 也**不要**在輸出JSON裡加入 nodeComplete 欄位——這個節點只能由玩家實際在戰鬥系統裡
-打贏敵人才會結算，不是由你的敘事文字決定勝負。${stallWarning}`;
+打贏敵人才會結算，不是由你的敘事文字決定勝負。${goalBlock}${stallWarning}`;
   }
 
   return `【劇情節點：${node.title}】
@@ -66,7 +75,7 @@ ${DIVERGENCE_TIERS.map((t) => `  ${t.tier} = ${t.label}`).join("\n")}
 格式：{"divergenceTier": 分級數字}
 
 如果這個節點的關鍵事件這回合還沒發生(還在鋪陳、玩家還在猶豫、還沒到關鍵時刻)，
-"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。${stallWarning}`;
+"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。${goalBlock}${stallWarning}`;
 }
 
 /**

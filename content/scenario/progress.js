@@ -14,6 +14,7 @@
 import { createTimeBudget, spendTime, isExpired, timeStatus } from "./timeBudget.js";
 import { computeNodeReward, computeNodeDC, summarizeChapter, summarizeCampaign } from "./divergence.js";
 import { createThreatTrack, applyOutcomeToThreat, dischargeThreat, normalizeTrack } from "./threat.js";
+import { createUsageStreak, normalizeStreak, retreadPenalty, trackUsage } from "./repetition.js";
 
 /**
  * 建立一份全新副本進度。
@@ -36,6 +37,9 @@ export function initScenarioProgress(pack) {
     // 迫近度軌（見 threat.js）：判定成敗會累積在這裡，這是「成功和失敗有決定性差異」
     // 的載體——語氣指令留不到下一回合，但這個數字會。
     threat: createThreatTrack(0),
+    // 套路紀錄（見 repetition.js）：同一個「屬性＋技能」連續用會愈來愈難，
+    // 擋掉「把單一屬性技能點高就能一路按同一個選項通關」。
+    usageStreak: createUsageStreak(),
   };
 }
 
@@ -198,6 +202,25 @@ export function applyThreatOutcome(progress, outcome) {
 /** 讀出目前的迫近度軌（舊存檔會自動補一條全新的）。 */
 export function getThreatTrack(progress) {
   return normalizeTrack(progress?.threat);
+}
+
+/**
+ * 這個檢定組合「接下來」會吃到多少套路懲罰（見 repetition.js）。
+ * 純查詢、不改狀態——選項按鈕要在玩家按下去**之前**就顯示這個數字，
+ * 所以它必須能在不推進任何狀態的情況下被問到。
+ */
+export function peekRetread(progress, checkParams) {
+  return retreadPenalty(progress?.usageStreak, checkParams ?? {});
+}
+
+/** 把這一次真的擲出去的檢定記進套路紀錄。 */
+export function trackCheckUsage(progress, checkParams) {
+  return { ...progress, usageStreak: trackUsage(progress?.usageStreak, checkParams ?? {}) };
+}
+
+/** 讀出目前的套路紀錄（舊存檔會自動補一份空的）。 */
+export function getUsageStreak(progress) {
+  return normalizeStreak(progress?.usageStreak);
 }
 
 /** 開戰時呼叫：追兵變成正面衝突，迫近度回落（見 threat.js 的 dischargeThreat）。 */

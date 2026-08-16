@@ -376,6 +376,42 @@ test("端對端：匿名時建立的存檔，登入後第一次讀取就被認�
   assert.ok(list.body.ids.includes(id), "認領後要進到這個帳號的存檔索引");
 });
 
+test("存檔清單回傳的是摘要，前端才畫得出「我的存檔」", async () => {
+  const env = authEnv();
+  const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, alice)));
+  const id = created.body.session.id;
+
+  const list = await readRes(await sessionGet(await getReqAs(env, "https://x/api/session", alice)));
+  const summary = list.body.sessions.find((s) => s.id === id);
+
+  assert.ok(summary, "清單裡要找得到剛建立的存檔");
+  assert.equal(summary.name, DRAFT.concept.name, "要帶角色名字——只給一串UUID玩家認不出是哪一份");
+  assert.ok(summary.updatedAt, "要帶時間，玩家靠它分辨哪一份是最近在玩的");
+  assert.equal(typeof summary.turnCount, "number");
+  assert.equal(summary.dead, false);
+  // 摘要不該把整份存檔倒出來（清單一次可能有二十份，全帶等於每次開視窗都下載整個進度）
+  assert.equal("history" in summary, false);
+  assert.equal("character" in summary, false);
+});
+
+test("沒登入時列不出任何存檔（匿名存檔的ID本身就是鑰匙，不能公開整串）", async () => {
+  const env = authEnv();
+  // 先用匿名身分建一份存檔，確認它真的存在
+  const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, null)));
+  assert.equal(created.body.ok, true);
+
+  const list = await readRes(await sessionGet(await getReqAs(env, "https://x/api/session", null)));
+  assert.equal(list.body.ok, true);
+  assert.deepEqual(list.body.ids, [], "沒登入不該列出任何存檔ID");
+  assert.deepEqual(list.body.sessions, []);
+
+  // 但知道ID的人仍然讀得到自己那一份（匿名玩法不能被這個修正擋掉）
+  const read = await readRes(
+    await sessionGet(await getReqAs(env, `https://x/api/session?id=${created.body.session.id}`, null))
+  );
+  assert.equal(read.body.ok, true);
+});
+
 test("端對端：沒登入時一切照舊（匿名玩家仍然可以正常建立與讀取自己的存檔）", async () => {
   const env = authEnv();
   const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, null)));

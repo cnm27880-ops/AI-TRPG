@@ -14,7 +14,7 @@ import {
   memorySessionStore,
   resolveSessionStore,
 } from "../content/storage/sessionStore.js";
-import { buildCharacter, chargenRules } from "../content/characterBuilder.js";
+import { buildCharacter, chargenRules, ATTRIBUTE_BUDGET, SKILL_BUDGET } from "../content/characterBuilder.js";
 import { appendEvent, EVENT_TYPES } from "../core/eventLog.js";
 
 /** 假的 Cloudflare KV binding */
@@ -153,18 +153,8 @@ test("resolveSessionStore：有KV binding就用KV，沒有就退到記憶體版"
 
 // --- 建卡 ---
 
-test("chargenRules：把預算常數給前端，前端不用自己抄一份", () => {
-  const r = chargenRules();
-  assert.equal(r.attributes.freePoints, 6);
-  assert.equal(r.skills.freePoints, 8);
-  assert.equal(r.attributes.cap, 5);
-  assert.equal(r.skills.cap, 3);
-  assert.equal(r.attributes.startValue, 1);
-  assert.equal(r.skills.startValue, 0);
-  assert.equal(r.attributes.keys.length, 6);
-  assert.ok(r.archetypes && Object.keys(r.archetypes).length > 0, "要把身分模板一起給前端套用");
-});
-
+// chargenRules() 的內容改由 test/characterBuilder.test.js 負責（建卡改成生平問答之後，
+// 它回傳的主體是題目而不是預算常數）。這裡只保留「存檔相關」的測試，不重複測同一件事。
 test("buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎算", () => {
   const result = buildCharacter(validDraft());
   assert.equal(result.valid, true, `不該有錯誤：${result.errors.join("；")}`);

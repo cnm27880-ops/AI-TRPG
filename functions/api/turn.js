@@ -56,7 +56,10 @@ import {
   bumpNodeStall,
   getNodeStallRounds,
   applyThreatOutcome,
+  peekRetread,
+  trackCheckUsage,
 } from "../../content/scenario/progress.js";
+import { buildRetreadDirective, retreadLabel } from "../../content/scenario/repetition.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 import { buildThreatDirective, threatSummary } from "../../content/scenario/threat.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
@@ -278,11 +281,17 @@ export async function onRequestPost(context) {
       scenario: scenarioPack
         ? {
             activeNode: activeNode
-              ? { id: activeNode.id, title: activeNode.title, isFinale: Boolean(activeNode.isFinale) }
+              ? {
+                  id: activeNode.id,
+                  title: activeNode.title,
+                  goal: activeNode.playerGoal ?? null,
+                  isFinale: Boolean(activeNode.isFinale),
+                }
               : null,
             nodeCompleted: null,
             progress: getProgressSummary(scenarioPack, scenarioProgress),
             threat: threatSummary(scenarioProgress?.threat, scenarioPack.threatTrack),
+            briefing: scenarioPack.briefing ?? null,
           }
         : null,
       turnCount: session.log?.events?.length ?? 0,
@@ -316,6 +325,29 @@ export async function onRequestPost(context) {
     }
   }
   // 都沒有 = 開場模式，不擲骰
+
+  // ---------------------------------------------------------------------
+  // 套路遞減：同一個「屬性＋技能」連續用，DC 會愈來愈高（見 content/scenario/repetition.js）。
+  //
+  // 這是「把單一屬性技能點高就能一路按同一個選項通關」那個回饋的正解。懲罰在**擲骰之前**
+  // 加進DC，而且用的是伺服器自己的紀錄，不是前端傳來的數字——前端顯示的預告只是預告。
+  // ---------------------------------------------------------------------
+  let retread = null;
+  if (checkParams && scenarioProgress) {
+    retread = peekRetread(scenarioProgress, checkParams);
+    if (retread.dcPenalty > 0) {
+      checkParams = {
+        ...checkParams,
+        baseDc: checkParams.dc ?? 0,
+        dc: (checkParams.dc ?? 0) + retread.dcPenalty,
+        retread: { consecutive: retread.consecutive, dcPenalty: retread.dcPenalty },
+      };
+      warnings.push(
+        `同一套路連續第${retread.consecutive}次（${checkParams.attribute}${checkParams.skill ? "+" + checkParams.skill : ""}），本次DC+${retread.dcPenalty}`
+      );
+    }
+    scenarioProgress = trackCheckUsage(scenarioProgress, checkParams);
+  }
 
   if (checkParams) {
     try {
@@ -401,6 +433,10 @@ export async function onRequestPost(context) {
     // 迫近度指令：這一回合的判定已經把威脅推近/拉遠了，AI必須照著那個階段寫。
     threatDirective: scenarioProgress
       ? buildThreatDirective(scenarioProgress.threat, scenarioPack?.threatTrack, threatChange)
+      : null,
+    // 套路指令：DC已經被引擎調高了，敘事要把它寫成「世界學會了這一招」而不是玩家變弱。
+    retreadDirective: retread
+      ? buildRetreadDirective(retread, checkParams, scenarioPack?.threatTrack?.subject)
       : null,
   });
 
@@ -600,8 +636,17 @@ export async function onRequestPost(context) {
     const nextActiveNode = findActiveNode(scenarioPack, progress);
     scenarioResult = {
       activeNode: nextActiveNode
-        ? { id: nextActiveNode.id, title: nextActiveNode.title, isFinale: Boolean(nextActiveNode.isFinale) }
+        ? {
+            id: nextActiveNode.id,
+            title: nextActiveNode.title,
+            // 玩家看得到的目標。節點標題（「母親的特別指令」）對還沒玩到那裡的人
+            // 是一句謎語，光看標題不知道要幹嘛——測玩回饋正是卡在這裡。
+            goal: nextActiveNode.playerGoal ?? null,
+            isFinale: Boolean(nextActiveNode.isFinale),
+          }
         : null,
+      // 副本簡介：常駐顯示，讓玩家玩到第十回合還記得自己在哪艘船上、為什麼不能待著不動。
+      briefing: scenarioPack.briefing ?? null,
       nodeCompleted,
       progress: getProgressSummary(scenarioPack, progress),
       // 迫近度：前端拿它畫HUD，玩家看得到「這一格是我剛剛失敗推上來的」。
@@ -614,6 +659,10 @@ export async function onRequestPost(context) {
       ...(scenarioWarnings.length ? { warnings: scenarioWarnings } : {}),
     };
   }
+
+  // 選項標上「如果現在選它，會吃到多少套路懲罰」。必須在存檔與回應之前做，
+  // 因為玩家要在**按下去之前**就看得到代價——按完才發現DC變高，那是懲罰玩家不是設計。
+  options = annotateRetread(options, session?.scenario?.progress ?? scenarioProgress);
 
   // ---------------------------------------------------------------------
   // 第四段：寫回存檔。這是「AI下一回合還記得這件事」的關鍵。
@@ -676,10 +725,12 @@ function buildPrompt({
   nodeGuidance,
   dmMemo,
   threatDirective,
+  retreadDirective,
 }) {
   const optionsSpec = buildOptionsSpec(character);
   const threatBlock = threatDirective ? `\n\n${threatDirective}` : "";
-  const tail = `${threatBlock}${nodeGuidance ? `\n\n${nodeGuidance}` : ""}`;
+  const retreadBlock = retreadDirective ? `\n\n${retreadDirective}` : "";
+  const tail = `${threatBlock}${retreadBlock}${nodeGuidance ? `\n\n${nodeGuidance}` : ""}`;
   const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
 
   // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，
@@ -717,6 +768,29 @@ function buildPrompt({
 
   // [修改] 把狀態表格接在後面
   return `${turnPrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}${jsonReminder}`;
+}
+
+/**
+ * 幫每個選項標上「如果現在選它，會吃到多少套路懲罰」（見 content/scenario/repetition.js）。
+ *
+ * 只標有懲罰的那些，沒懲罰的選項原樣傳回——按鈕上多一個「DC+0」的標籤只是雜訊。
+ * 這份預告用的是伺服器自己的紀錄，實際擲骰時會再算一次，兩邊同一個函式，不會對不上。
+ */
+function annotateRetread(options, progress) {
+  if (!progress || !Array.isArray(options)) return options;
+  return options.map((opt) => {
+    const preview = peekRetread(progress, { attribute: opt.attribute, skill: opt.skill });
+    if (preview.dcPenalty <= 0) return opt;
+    return {
+      ...opt,
+      retread: {
+        consecutive: preview.consecutive,
+        dcPenalty: preview.dcPenalty,
+        label: retreadLabel(preview),
+      },
+      effectiveDc: (opt.dc ?? 0) + preview.dcPenalty,
+    };
+  });
 }
 
 function json(payload, status = 200) {

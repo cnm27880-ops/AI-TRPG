@@ -56,7 +56,6 @@ test("buildOptionsSpec：會列出角色真正練過的技能與等級(避免AI�
   const spec = buildOptionsSpec(demoCharacter());
   assert.match(spec, /射擊3/);
   assert.match(spec, /偵察2/);
-  assert.match(spec, /步槍/); // 已登記的專業
   assert.match(spec, new RegExp(String(OPTION_COUNT)));
   for (const id of DIFFICULTY_IDS) assert.ok(spec.includes(id), `難度分級 ${id} 沒有列進spec`);
 });
@@ -174,22 +173,21 @@ test("前端/AI直接塞一個dc數字進來時完全不予採用，DC一律從�
   assert.equal(r2.option.dc, difficultyToDc("困難"));
 });
 
-test("角色沒登記的專業不會被帶上，讓引擎照『無對應專業減半』規則處理", () => {
+// [2026-08-16 決策] 專業(specialization)在輕量化規則裡明確不做，完整理由見
+// test/checkIntent.test.js 的同一個決定。這則測試從「專業要正確帶上」改成
+// 「專業一律不帶上」——因為 core/check.js 從來沒有讀過這個欄位，
+// 舊行為等於在選項上放一個完全不影響結果的裝飾，還配一句「引擎會依規則減半」的假說明。
+test("專業欄位一律被丟棄，就算角色真的登記過（輕量化規則不實作專業）", () => {
   const character = demoCharacter();
-  const r = validateOption(
-    { label: "狙擊", attribute: "感知", skill: "射擊", specialization: "狙擊槍", difficulty: "普通" },
-    character
-  );
-  assert.equal(r.ok, true);
-  assert.equal(r.option.specialization, undefined);
-  assert.match(r.warnings.join(), /沒有登記/);
-
-  // 而角色真的有登記的專業要保留
-  const ok = validateOption(
-    { label: "狙擊", attribute: "感知", skill: "射擊", specialization: "步槍", difficulty: "普通" },
-    character
-  );
-  assert.equal(ok.option.specialization, "步槍");
+  for (const spec of ["狙擊槍", "步槍"]) {
+    const r = validateOption(
+      { label: "狙擊", attribute: "感知", skill: "射擊", specialization: spec, difficulty: "普通" },
+      character
+    );
+    assert.equal(r.ok, true);
+    assert.equal(r.option.specialization, undefined, `專業「${spec}」不該被帶進檢定參數`);
+    assert.equal(r.warnings.join().includes("減半"), false, "不該再出現那句不存在的減半規則說明");
+  }
 });
 
 test("缺label的選項要被捨棄(沒有文字就沒辦法顯示給玩家看)", () => {
