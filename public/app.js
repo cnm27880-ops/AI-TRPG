@@ -476,13 +476,17 @@ function stepTrait(delta) {
  * @returns {{ok: true, payload: object} | {ok: false, message: string}}
  */
 function buildLlmOverrides() {
-  const provider = localStorage.getItem("user_llm_provider") || "";
+  // 設定改成「一組設定 = 一筆有名字的設定檔」之後，這裡只讀目前啟用的那一筆。
+  // 金鑰跟著供應商一起存在同一筆裡，不會出現「換了供應商但金鑰還是上一家的」那種錯配。
+  const profile = readActiveProfile();
+  const provider = profile.provider || "";
   if (!provider) return { ok: true, payload: {} }; // 用伺服器預設，什麼都不帶
 
   const meta = PROVIDER_UI_META[provider] ?? {};
-  const apiKey = (localStorage.getItem("user_api_key") || "").trim();
-  const baseUrl = (localStorage.getItem("user_llm_base_url") || "").trim();
-  const model = (localStorage.getItem("user_llm_model") || "").trim();
+  const apiKey = (profile.apiKey || "").trim();
+  const baseUrl = (profile.baseUrl || "").trim();
+  const model = (profile.model || "").trim();
+  const maxTokens = Number(profile.maxTokens);
 
   if (meta.needsKey && !apiKey) {
     return { ok: false, message: `你選了「${meta.label}」，但沒有填 API Key。請到「系統與文筆設定」補上，或把供應商改回「（使用伺服器預設）」。` };
@@ -498,7 +502,33 @@ function buildLlmOverrides() {
   if (apiKey) payload.apiKey = apiKey;
   if (baseUrl) payload.baseUrl = baseUrl;
   if (model) payload.model = model;
+  if (Number.isFinite(maxTokens) && maxTokens > 0) payload.maxTokens = Math.floor(maxTokens);
   return { ok: true, payload };
+}
+
+/**
+ * 讀目前啟用的 API 設定檔。設定檔的寫入端在 public/index.html 的行內script
+ * （那裡是設定視窗的 UI 邏輯），這裡只負責讀。
+ * 讀不到或格式壞掉時回一個空設定＝「用伺服器預設」，不讓壞掉的 localStorage 卡住遊戲。
+ */
+function readActiveProfile() {
+  try {
+    const profiles = JSON.parse(localStorage.getItem("user_llm_profiles") || "null");
+    if (Array.isArray(profiles) && profiles.length) {
+      const activeId = localStorage.getItem("user_llm_active_profile");
+      return profiles.find((p) => p.id === activeId) || profiles[0];
+    }
+  } catch (err) {
+    console.warn("[PROFILES] 設定檔讀取失敗，本回合改用伺服器預設", err);
+  }
+  // 還沒開過設定視窗的舊使用者：沿用舊版的散裝 key，不要讓他們的設定突然失效
+  return {
+    provider: localStorage.getItem("user_llm_provider") || "",
+    apiKey: localStorage.getItem("user_api_key") || "",
+    baseUrl: localStorage.getItem("user_llm_base_url") || "",
+    model: localStorage.getItem("user_llm_model") || "",
+    maxTokens: "",
+  };
 }
 
 /** 上一次送出的回合參數，讓「重試」按鈕不用玩家重打一次自訂行動。 */
@@ -634,7 +664,15 @@ function renderTurnQuality(degraded) {
   const detail = allFallback
     ? "AI 這一輪沒有給出任何可用選項，底下四個全是與劇情無關的通用保底選項（每輪都會是同一組文字）。"
     : `AI 只給了 ${degraded.aiOptionCount} 個可用選項，其餘 ${fallbackCount} 個為通用保底選項。`;
-  const cause = degraded.parseFailed ? "成因：AI 的回覆不是合法 JSON。" : "";
+
+  // 「寫到一半被切斷」跟「格式寫錯」是兩件不同的事，解法也完全不同：
+  // 前者調高長度上限就好，後者要換模型。講同一句話只會讓人往錯的方向修。
+  let cause = "";
+  if (degraded.truncated) {
+    cause = "成因：AI 的回覆寫到一半被切斷（長度上限用完了）。請到「系統與文筆設定」把『單次回覆長度上限』調大——會思考的模型要 8192 以上，因為思考用掉的額度也算在裡面。";
+  } else if (degraded.parseFailed) {
+    cause = "成因：AI 的回覆不是合法 JSON。";
+  }
 
   appendFeedBlock(
     `<span class="text-yellow-300">SYSTEM.FALLBACK // 保底內容</span>`,

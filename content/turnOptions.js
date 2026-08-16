@@ -219,9 +219,31 @@ export function parseTurnResponse(text) {
  */
 export function extractNarrationFallback(text) {
   if (typeof text !== "string") return null;
-  const match = text.match(/"narration"\s*:\s*"((?:\\.|[^"\\])*)"/);
-  if (!match) return null;
-  return match[1]
+
+  // 1) 正常情況：narration 字串有頭有尾。
+  const closed = text.match(/"narration"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (closed) return unescapeJsonString(closed[1]);
+
+  // 2) [2026-08-16 修正] 輸出被切斷，narration 字串**沒有收尾引號**。
+  //
+  // 這是實際回報的畫面bug：玩家在說書人對話框裡看到裸奔的
+  //   { "narration": "昏紅的緊急照明燈光在B3隔離艙內…掛著一枚沾染暗紅血跡的士兵
+  // ——文字停在句子中間、沒有結尾引號，所以上面那條要求收尾引號的正則match不到，
+  // 回傳null，呼叫端只好把整段原文印出來，玩家就看到了程式碼。
+  //
+  // 被切斷的敘事本身**仍然是AI寫的、仍然可讀**，沒有理由不給玩家看。
+  // 這裡把「開頭到字串結束為止」抓出來，至少讓玩家讀到那段文字而不是JSON語法。
+  // 結尾的 \\? 是必要的：輸出剛好斷在一個反斜線上時（跳脫序列只寫了一半），
+  // 那個落單的反斜線既不符合 \\. 也不符合 [^"\\]，沒有這一格的話整條正則會match不到、
+  // 退回 null，玩家又會看到裸JSON——等於這個修正在最需要它的邊界上失效。
+  const truncated = text.match(/"narration"\s*:\s*"((?:\\.|[^"\\])*)\\?$/);
+  if (truncated) return unescapeJsonString(truncated[1]);
+
+  return null;
+}
+
+function unescapeJsonString(raw) {
+  return raw
     .replace(/\\n/g, "\n")
     .replace(/\\"/g, '"')
     .replace(/\\\\/g, "\\");

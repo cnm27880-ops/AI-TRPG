@@ -114,6 +114,7 @@ export async function onRequestPost(context) {
     apiKey: bodyApiKey,
     baseUrl: bodyBaseUrl,
     model: bodyModel,
+    maxTokens: bodyMaxTokens,
   } = body ?? {};
   const warnings = [];
 
@@ -308,6 +309,7 @@ export async function onRequestPost(context) {
 
   let text;
   let model;
+  let finishReason = null;
   try {
     const res = await callLlm({
       provider,
@@ -317,12 +319,14 @@ export async function onRequestPost(context) {
       apiKey: bodyApiKey || undefined,
       baseUrl: bodyBaseUrl || undefined,
       model: bodyModel || undefined,
+      maxTokens: bodyMaxTokens || undefined,
       // 結構化輸出：由供應商端保證回覆格式合法，而不是祈禱模型照著prompt裡的範例寫。
       // 供應商不支援時 callLlm 會自動忽略，行為跟沒傳一樣（見 providers.js 的 JSON_MODES）。
       responseSchema: TURN_RESPONSE_SCHEMA,
     });
     text = res.text;
     model = res.model;
+    finishReason = res.finishReason ?? null;
   } catch (err) {
     logLlmFailure(err, { provider, sessionId: session?.id });
     return jsonPartial(
@@ -345,11 +349,18 @@ export async function onRequestPost(context) {
   let options = [];
   // 這一輪的「內容來源」摘要。會原封不動回傳給前端，讓玩家/開發者一眼看出
   // 這一輪到底是AI生的還是引擎墊的，不用再靠肉眼比對選項文字有沒有重複。
+  // finish_reason = "length"(OpenAI相容) / "MAX_TOKENS"(Gemini) 代表模型是「寫到一半被切斷」，
+  // 不是「不會寫JSON」。這兩件事的處理方式完全不同(前者調高上限就好，後者要換模型或加schema)，
+  // 所以不能對玩家講同一句話——先前就是因為只說「不是合法JSON」，害我第一次診斷猜錯方向。
+  const truncated = isTruncated(finishReason);
+
   const degraded = {
     parseFailed: !parsed.ok,
     narrationSource: "ai",
     aiOptionCount: 0,
     fallbackOptionCount: 0,
+    truncated,
+    finishReason,
   };
 
   if (parsed.ok) {
@@ -374,7 +385,13 @@ export async function onRequestPost(context) {
       narration = text.split(/(?:^|\n)\s*(?:1\.|選項[一1])\s/)[0].trim();
       degraded.narrationSource = "ai-raw";
     }
-    warnings.push(`${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`);
+    warnings.push(
+      truncated
+        ? `AI的回覆在寫到一半時被切斷（finish_reason=${finishReason}），所以JSON不完整。` +
+            `這通常代表輸出長度上限太小——請調高 LLM_MAX_TOKENS，或在「系統與文筆設定」把「單次回覆長度上限」調大。` +
+            `（會思考的模型特別吃這個額度，因為思考的token也算在上限裡）`
+        : `${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`
+    );
     // 解析失敗時把AI原文的前段帶回前端。
     // [2026-08-16] 這一格是被實際經驗逼出來的：先前查這個bug時，回應裡只有「解析失敗」
     // 四個字，看不到模型到底寫了什麼，於是第一次的診斷猜錯了方向（以為是模型不會寫JSON，
@@ -612,4 +629,16 @@ function jsonPartial(extra, { session, checkParams, checkResult, outcome, warnin
 
 function jsonError(message, status) {
   return json({ ok: false, error: message }, status);
+}
+
+/**
+ * 這次的回覆是不是「寫到一半被切斷」。
+ *
+ * 各家的欄位值不一樣但意思相同：OpenAI相容是 finish_reason: "length"，
+ * Gemini 是 finishReason: "MAX_TOKENS"。兩者都代表「模型還想繼續寫，是我們不給它額度」。
+ */
+function isTruncated(finishReason) {
+  if (typeof finishReason !== "string") return false;
+  const normalized = finishReason.toLowerCase();
+  return normalized === "length" || normalized === "max_tokens";
 }

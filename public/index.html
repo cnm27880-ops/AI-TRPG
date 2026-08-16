@@ -51,7 +51,13 @@
         }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-void); color: var(--ink-100); }
         .bg-tech-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 24px 24px; }
-        .hairline-border { border: 1px solid rgba(255, 255, 255, 0.08); }
+        /* [2026-08-16 修正] hairline-border 只負責「顏色」，寬度交給 Tailwind 的 border / border-t 決定。
+           先前它是 `border: 1px solid ...` 的完整簡寫，於是 `border-t hairline-border`
+           （本意只想要一條上分隔線）會被簡寫補上四個邊，畫出一個跟版面對不齊的淺灰色空方框——
+           設定視窗「儲存設定」旁邊那個框就是這樣來的，而且同樣寫法在好幾個地方都出現過。
+           改成只設顏色之後，這個class就能跟 Tailwind 的邊框寬度工具正確組合，不會再自己多長邊出來。
+           單邊分隔線請直接用下面的 hairline-t / hairline-b / hairline-r。 */
+        .hairline-border { border-color: rgba(255, 255, 255, 0.08); }
         .hairline-b { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-t { border-top: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-r { border-right: 1px solid rgba(255, 255, 255, 0.08); }
@@ -313,8 +319,12 @@
         html[data-theme="light"] .text-white { color: #0f172a; }
         html[data-theme="light"] .text-zinc-200 { color: #1e293b; }
         html[data-theme="light"] .text-zinc-300 { color: #334155; }
-        html[data-theme="light"] .text-zinc-400 { color: #64748b; }
-        html[data-theme="light"] .text-zinc-500 { color: #94a3b8; }
+        /* [2026-08-16 對比度修正] 這兩級原本是 #64748b / #94a3b8，在白底上分別約 4.6:1 與 2.6:1。
+           後者用在設定視窗的說明小字、劇情HUD的進度文字上，實際是讀不清楚的（低於 WCAG AA 的 4.5:1）。
+           整體往下壓一級：#475569 約 7.4:1、#64748b 約 4.6:1，兩者都站得住。
+           placeholder 維持較淺是刻意的——它本來就該比實際輸入的文字弱一階。 */
+        html[data-theme="light"] .text-zinc-400 { color: #475569; }
+        html[data-theme="light"] .text-zinc-500 { color: #64748b; }
         html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #94a3b8; }
 
         html[data-theme="light"] .text-emerald-200,
@@ -333,6 +343,42 @@
         html[data-theme="light"] .border-emerald-500\/50,
         html[data-theme="light"] .border-emerald-500\/40,
         html[data-theme="light"] .border-emerald-500\/30 { border-color: rgba(37,99,235,.35); }
+
+        /* --- 警告色（黃）在淺色主題的處理 ---------------------------------
+           [2026-08-16] 淺色主題原本只把 emerald 換成藍，**完全沒有處理黃色**，
+           於是所有警告都維持深色主題的亮黃：yellow-300(#fde047) 落在白底上對比度約 1.2:1，
+           幾乎讀不到；而且保底標籤、未受訓提示、存檔警告條、劇情提示同時都是整塊亮黃，
+           整個版面變得很吵。
+
+           作法分兩層，跟使用者的要求一致（「部分提示字是黃色就好」）：
+             文字 → 改用琥珀色 #b45309，白底對比度約 5.9:1，過 WCAG AA
+             底色與邊框 → 幾乎去掉，換成近乎中性的淺灰面，只留一點點暖調
+           這樣「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
+        html[data-theme="light"] .text-yellow-200,
+        html[data-theme="light"] .text-yellow-200\/80,
+        html[data-theme="light"] .text-yellow-300,
+        html[data-theme="light"] .text-yellow-300\/80,
+        html[data-theme="light"] .text-yellow-300\/90,
+        html[data-theme="light"] .text-yellow-400 { color: #b45309; }
+
+        html[data-theme="light"] .bg-yellow-500\/5,
+        html[data-theme="light"] .bg-yellow-500\/10 { background-color: #fafaf9; }
+        html[data-theme="light"] .border-yellow-500\/30,
+        html[data-theme="light"] .border-yellow-500\/40 { border-color: rgba(180,83,9,.28); }
+
+        /* 橘（時間吃緊）比照辦理，否則同一條 HUD 上黃橘紅三色會一起出現 */
+        html[data-theme="light"] .text-orange-300 { color: #c2410c; }
+        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fafaf9; }
+        html[data-theme="light"] .border-orange-500\/40 { border-color: rgba(194,65,12,.28); }
+
+        /* 紅色系：yellow 同樣的理由，深色主題的亮紅在白底上偏刺眼且對比不足 */
+        html[data-theme="light"] .text-red-200,
+        html[data-theme="light"] .text-red-300,
+        html[data-theme="light"] .text-red-400 { color: #b91c1c; }
+        html[data-theme="light"] .bg-red-500\/5,
+        html[data-theme="light"] .bg-red-500\/10 { background-color: #fef7f7; }
+        html[data-theme="light"] .border-red-500\/40,
+        html[data-theme="light"] .border-red-500\/30 { border-color: rgba(185,28,28,.28); }
 
         html[data-theme="light"] .hud-box { background: #ffffff; border-color: rgba(15,23,42,.1); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
         html[data-theme="light"] .hud-float { background: rgba(255,255,255,0.9); border-right-color: rgba(15,23,42,.08); }
@@ -458,7 +504,7 @@
     <!-- 2. 建卡畫面 (Chargen Screen) -->
     <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-4xl mx-auto p-4 sm:p-6">
         <div class="hud-box hud-corners p-6 rounded-lg space-y-6">
-            <div class="flex items-center justify-between border-b hairline-border pb-3">
+            <div class="flex items-center justify-between hairline-b pb-3">
                 <div>
                     <div class="ribbon-banner ribbon-sm">Character Creation</div>
                     <h2 class="text-lg font-bold text-zinc-100 mt-2">輪迴者基因建卡</h2>
@@ -518,7 +564,7 @@
             <!-- 錯誤提示 -->
             <div id="cg-errors" class="space-y-1"></div>
 
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t hairline-border">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 hairline-t">
                 <span id="cg-derived" class="text-xs font-mono text-zinc-300"></span>
                 <button id="cg-submit" class="w-full sm:w-auto bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] rounded font-bold">
                     完成建卡並進入輪迴世界
@@ -724,7 +770,7 @@
                         <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-100 transition-all hover:-translate-y-px">複製</button>
                     </div>
                 </div>
-                <div class="pt-2 border-t hairline-border">
+                <div class="pt-2 hairline-t">
                     <label class="text-zinc-300 block mb-1">輸入 Session ID 讀取存檔</label>
                     <div class="flex gap-2">
                         <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition font-mono">
@@ -765,7 +811,23 @@
                         <option value="標準">標準（平衡基準線）</option>
                     </select>
                 </div>
-                <div class="pt-2 border-t hairline-border space-y-3">
+                <div class="pt-2 hairline-t space-y-3">
+                    <!-- API 設定檔：每一組「供應商＋金鑰＋Base URL＋模型」存成一筆有名字的設定，
+                         切換設定檔會一次帶入該筆的所有欄位（金鑰跟著供應商走，不會殘留上一家的）。
+                         全部只存在瀏覽器 localStorage，不會上傳。 -->
+                    <div>
+                        <label class="text-zinc-300 block mb-1">API 設定檔</label>
+                        <div class="flex gap-2">
+                            <select id="setting-profile" onchange="onProfileSwitch()" class="flex-1 min-w-0 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition"></select>
+                            <button onclick="newProfile()" title="新增一組設定檔" class="px-2.5 bg-zinc-800 hover:bg-zinc-700 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-plus text-[11px]"></i></button>
+                            <button onclick="deleteProfile()" title="刪除目前這組設定檔" class="px-2.5 bg-zinc-800 hover:bg-red-500/20 hover:border-red-500/50 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-trash text-[11px]"></i></button>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 mt-1">切換設定檔會一併帶入該組的金鑰、Base URL 與模型。所有設定檔只存在你的瀏覽器。</p>
+                    </div>
+                    <div>
+                        <label class="text-zinc-300 block mb-1">設定檔名稱</label>
+                        <input id="setting-profile-name" type="text" placeholder="例：SiliconFlow 免費版" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                    </div>
                     <div>
                         <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
                         <!-- 新增一家OpenAI相容的供應商 = 在這裡加一行 <option>，再到 app.js 的
@@ -797,9 +859,14 @@
                         <input id="setting-model" type="text" placeholder="留空＝用該供應商的預設模型" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                         <p id="setting-model-hint" class="text-[10px] text-zinc-500 mt-1"></p>
                     </div>
+                    <div id="setting-max-tokens-row">
+                        <label class="text-zinc-300 block mb-1">單次回覆長度上限（選填）</label>
+                        <input id="setting-max-tokens" type="number" min="256" step="256" placeholder="留空＝2048" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <p class="text-[10px] text-zinc-500 mt-1">敘事寫到一半就斷掉時把這個調大。<span class="text-zinc-400">會思考的模型（例如 Gemini 3 Flash Preview）要調到 8192 以上</span>——思考用掉的 token 也算在這個額度裡，太小的話模型還沒開始寫選項就被切斷。</p>
+                    </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 pt-3 border-t hairline-border">
+            <div class="flex justify-end gap-2 pt-3 hairline-t">
                 <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                     儲存設定
                 </button>
@@ -865,11 +932,8 @@
                 document.getElementById('setting-theme').value =
                     document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
                 document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
-                document.getElementById('setting-provider').value = localStorage.getItem('user_llm_provider') || '';
-                document.getElementById('setting-api-key').value = localStorage.getItem('user_api_key') || '';
-                document.getElementById('setting-base-url').value = localStorage.getItem('user_llm_base_url') || '';
-                document.getElementById('setting-model').value = localStorage.getItem('user_llm_model') || '';
-                onSettingProviderChange();
+                renderProfileSelect();
+                loadProfileIntoForm(getActiveProfile());
             }
         }
         /**
@@ -922,46 +986,173 @@
             const val = document.getElementById('modal-session-id').value;
             if (val) { navigator.clipboard.writeText(val); alert('Session ID 已複製！'); }
         }
+        // ===================================================================
+        // API 設定檔（localStorage）
+        //
+        // [2026-08-16] 先前每個欄位各存一個 localStorage key（user_api_key /
+        // user_llm_base_url / …），造成兩個問題：
+        //   1) 金鑰沒有跟著供應商走——換供應商時舊金鑰還留著，很容易把 A 家的金鑰送去 B 家
+        //   2) 想在幾組 API 之間切換，每次都要重打一整組欄位
+        // 改成「一組設定 = 一筆有名字的設定檔」，切換時整組欄位一起換掉。
+        //
+        // 全部只存在瀏覽器，不會上傳。金鑰仍然只在送出回合時隨該次請求帶給後端。
+        // ===================================================================
+        const PROFILES_KEY = 'user_llm_profiles';
+        const ACTIVE_PROFILE_KEY = 'user_llm_active_profile';
+
+        function blankProfile(name) {
+            return { id: 'p' + Date.now() + Math.random().toString(36).slice(2, 7),
+                     name: name || '新設定檔', provider: '', apiKey: '', baseUrl: '', model: '', maxTokens: '' };
+        }
+
+        function loadProfiles() {
+            try {
+                const raw = JSON.parse(localStorage.getItem(PROFILES_KEY) || 'null');
+                if (Array.isArray(raw) && raw.length) return raw;
+            } catch (err) {
+                console.warn('[PROFILES] 設定檔解析失敗，改用預設值', err);
+            }
+            // 從舊版的散裝 key 搬過來，讓既有使用者不會一升級就發現設定不見了
+            const legacyProvider = localStorage.getItem('user_llm_provider') || '';
+            const migrated = blankProfile(legacyProvider ? '（沿用舊設定）' : '預設');
+            migrated.provider = legacyProvider;
+            migrated.apiKey = localStorage.getItem('user_api_key') || '';
+            migrated.baseUrl = localStorage.getItem('user_llm_base_url') || '';
+            migrated.model = localStorage.getItem('user_llm_model') || '';
+            return [migrated];
+        }
+
+        function saveProfiles(profiles, activeId) {
+            localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+            if (activeId) localStorage.setItem(ACTIVE_PROFILE_KEY, activeId);
+        }
+
+        function getActiveProfile() {
+            const profiles = loadProfiles();
+            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY);
+            return profiles.find((p) => p.id === activeId) || profiles[0];
+        }
+
+        function renderProfileSelect() {
+            const sel = document.getElementById('setting-profile');
+            if (!sel) return;
+            const profiles = loadProfiles();
+            const active = getActiveProfile();
+            sel.innerHTML = profiles.map((p) =>
+                `<option value="${p.id}">${escapeAttr(p.name)}${p.provider ? '（' + escapeAttr(p.provider) + '）' : ''}</option>`
+            ).join('');
+            sel.value = active.id;
+        }
+
+        function escapeAttr(str) {
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function loadProfileIntoForm(profile) {
+            document.getElementById('setting-profile-name').value = profile.name || '';
+            document.getElementById('setting-provider').value = profile.provider || '';
+            document.getElementById('setting-api-key').value = profile.apiKey || '';
+            document.getElementById('setting-base-url').value = profile.baseUrl || '';
+            document.getElementById('setting-model').value = profile.model || '';
+            document.getElementById('setting-max-tokens').value = profile.maxTokens || '';
+            onSettingProviderChange();
+        }
+
+        /** 把畫面上目前的欄位收成一筆設定檔物件（不做驗證，驗證在 saveSettings）。 */
+        function readProfileFromForm(id) {
+            return {
+                id,
+                name: document.getElementById('setting-profile-name').value.trim() || '未命名設定檔',
+                provider: document.getElementById('setting-provider').value,
+                apiKey: document.getElementById('setting-api-key').value.trim(),
+                baseUrl: document.getElementById('setting-base-url').value.trim(),
+                model: document.getElementById('setting-model').value.trim(),
+                maxTokens: document.getElementById('setting-max-tokens').value.trim(),
+            };
+        }
+
+        /** 切換設定檔前先把目前畫面上的編輯存起來，否則玩家改到一半切走就白改了。 */
+        function onProfileSwitch() {
+            const sel = document.getElementById('setting-profile');
+            const profiles = loadProfiles();
+            const previousId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0]?.id;
+            const idx = profiles.findIndex((p) => p.id === previousId);
+            if (idx !== -1) profiles[idx] = readProfileFromForm(previousId);
+            saveProfiles(profiles, sel.value);
+            const next = profiles.find((p) => p.id === sel.value);
+            if (next) loadProfileIntoForm(next);
+            renderProfileSelect();
+        }
+
+        function newProfile() {
+            const profiles = loadProfiles();
+            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0]?.id;
+            const idx = profiles.findIndex((p) => p.id === activeId);
+            if (idx !== -1) profiles[idx] = readProfileFromForm(activeId);
+            const created = blankProfile('新設定檔 ' + (profiles.length + 1));
+            profiles.push(created);
+            saveProfiles(profiles, created.id);
+            renderProfileSelect();
+            loadProfileIntoForm(created);
+            document.getElementById('setting-profile-name').focus();
+        }
+
+        function deleteProfile() {
+            const profiles = loadProfiles();
+            if (profiles.length <= 1) {
+                alert('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。');
+                return;
+            }
+            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
+            const target = profiles.find((p) => p.id === activeId);
+            if (!confirm(`確定要刪除設定檔「${target?.name ?? ''}」嗎？這會一併刪掉它記著的金鑰。`)) return;
+            const remaining = profiles.filter((p) => p.id !== activeId);
+            saveProfiles(remaining, remaining[0].id);
+            renderProfileSelect();
+            loadProfileIntoForm(remaining[0]);
+        }
+
         function saveSettings() {
             // 主題在 onchange 當下就已經套用並存起來了(讓玩家可以即時看到效果再決定)，
             // 這裡再存一次是為了涵蓋「用鍵盤改了選項但沒觸發onchange」的情況。
             applyTheme(document.getElementById('setting-theme').value);
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
 
-            const provider = document.getElementById('setting-provider').value;
-            const fields = PROVIDER_FIELDS[provider];
-            const key = document.getElementById('setting-api-key').value.trim();
-            const baseUrl = document.getElementById('setting-base-url').value.trim();
-            const model = document.getElementById('setting-model').value.trim();
+            const profiles = loadProfiles();
+            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
+            const edited = readProfileFromForm(activeId);
+            const fields = PROVIDER_FIELDS[edited.provider];
 
-            // [2026-08-16 修正] 選了供應商卻沒填必要欄位時，在這裡就擋下來，不要讓
-            // 「半設定狀態」被存進 localStorage。舊行為是照存不誤，然後每一回合都送出一個
-            // 缺金鑰的請求：伺服器要嘛改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，
-            // 要嘛整回合失敗——而前端當時完全不顯示錯誤，玩家只會看到畫面沒反應。
-            if (fields?.key && !key) {
-                alert(`選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。`);
+            // [2026-08-16] 選了供應商卻沒填必要欄位時，在這裡就擋下來，不要讓「半設定狀態」
+            // 被存起來。舊行為是照存不誤，然後每一回合都送出一個缺金鑰的請求：伺服器要嘛
+            // 改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，要嘛整回合失敗。
+            if (fields?.key && !edited.apiKey) {
+                alert('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
                 return;
             }
-            if (fields?.baseUrl && !baseUrl) {
+            if (fields?.baseUrl && !edited.baseUrl) {
                 alert('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
                 return;
             }
-            if (fields?.model && !model) {
+            if (fields?.model && !edited.model) {
                 alert('這個供應商沒有預設模型，必須自己填模型名稱。');
                 return;
             }
 
-            localStorage.setItem('user_llm_provider', provider);
+            // 這個供應商用不到的欄位就不要留，避免換供應商之後殘留舊值被誤送出。
+            if (!edited.provider || !fields?.key) edited.apiKey = '';
+            if (!edited.provider || !fields?.baseUrl) edited.baseUrl = '';
+            if (!edited.provider) { edited.model = ''; edited.maxTokens = ''; }
 
-            // 用不到的欄位一律清掉，避免換供應商之後殘留舊值被誤送出。
-            const persist = (storageKey, value, keep) => {
-                if (keep && value) localStorage.setItem(storageKey, value);
-                else localStorage.removeItem(storageKey);
-            };
-            persist('user_api_key', key, provider && fields?.key);
-            persist('user_llm_base_url', baseUrl, provider && fields?.baseUrl);
-            persist('user_llm_model', model, Boolean(provider));
+            const idx = profiles.findIndex((p) => p.id === activeId);
+            if (idx === -1) profiles.push(edited); else profiles[idx] = edited;
+            saveProfiles(profiles, edited.id);
 
+            // 舊版的散裝 key 已經被設定檔取代，清掉免得日後有人誤以為它們還有作用
+            ['user_llm_provider', 'user_api_key', 'user_llm_base_url', 'user_llm_model']
+                .forEach((k) => localStorage.removeItem(k));
+
+            renderProfileSelect();
             closeModal('settingsModal');
             alert('設定已儲存！');
         }
