@@ -8,7 +8,11 @@
         // 在任何畫面繪製前就決定明暗主題，避免先閃一下錯的主題再跳回正確的(FOUC)。
         (function () {
             var saved = localStorage.getItem('user_theme');
-            document.documentElement.setAttribute('data-theme', saved === 'light' ? 'light' : 'dark');
+            var theme = saved === 'light' ? 'light' : 'dark';
+            var html = document.documentElement;
+            html.setAttribute('data-theme', theme);
+            html.classList.toggle('light', theme === 'light');
+            html.classList.toggle('dark', theme === 'dark');
         })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -330,21 +334,25 @@
            產生的單一類別選擇器高，可以在完全不動任何現有HTML class list的前提下
            切換色彩，不影響深色版本原本的任何一條規則。
            ============================================================ */
+        /* 淺色版刻意換掉主色：深色版的終端綠是為了「黑底發光」而挑的，
+           同一個綠色放到白底上會變成螢光筆塗過的刺眼色塊(對比不足又吵)。
+           淺色版改走「戰術檔案/機密文件」的鈷藍，紙感白底配深墨藍字，
+           對比夠、久看不累，警示色則用蓋印章般的深血紅。 */
         html[data-theme="light"] {
-            --bg-void: #f4f4f5;
+            --bg-void: #f4f4f6;
             --bg-panel: #ffffff;
             --bg-card: #ffffff;
-            --ink-100: #18181b;
-            --ink-400: #52525b;
-            --ink-500: #71717a;
-            --accent: #059669;
-            --accent-alt: #16a34a;
+            --ink-100: #0f172a;
+            --ink-400: #64748b;
+            --ink-500: #94a3b8;
+            --accent: #2563eb;
+            --accent-alt: #1d4ed8;
             --danger: #dc2626;
         }
         html[data-theme="light"] body { background-color: var(--bg-void); color: var(--ink-100); }
         html[data-theme="light"] body::before {
             background:
-                radial-gradient(ellipse 60% 40% at 12% -5%, rgba(5,150,105,0.07), transparent 60%),
+                radial-gradient(ellipse 60% 40% at 12% -5%, rgba(37,99,235,0.08), transparent 60%),
                 radial-gradient(ellipse 50% 35% at 105% 105%, rgba(220,38,38,0.045), transparent 60%);
         }
         html[data-theme="light"] .bg-tech-grid { background-image: radial-gradient(rgba(0,0,0,0.055) 1px, transparent 1px); }
@@ -369,48 +377,138 @@
         html[data-theme="light"] .bg-zinc-950\/90,
         html[data-theme="light"] .bg-zinc-950\/95 { background-color: rgba(255,255,255,0.92); }
 
-        /* 中性表面色：文字 */
-        html[data-theme="light"] .text-zinc-100 { color: #18181b; }
-        html[data-theme="light"] .text-zinc-200 { color: #27272a; }
-        html[data-theme="light"] .text-zinc-300 { color: #3f3f46; }
-        html[data-theme="light"] .text-zinc-400 { color: #52525b; }
-        html[data-theme="light"] .text-zinc-500 { color: #71717a; }
-        html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #a1a1aa; }
+        /* 中性表面色：文字(深墨藍黑，帶一點藍調才像印刷文件而不是純黑螢幕字) */
+        html[data-theme="light"] .text-zinc-100,
+        html[data-theme="light"] .text-white { color: #0f172a; }
+        html[data-theme="light"] .text-zinc-200 { color: #1e293b; }
+        html[data-theme="light"] .text-zinc-300 { color: #334155; }
+        html[data-theme="light"] .text-zinc-400 { color: #64748b; }
+        html[data-theme="light"] .text-zinc-500 { color: #94a3b8; }
+        html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #94a3b8; }
 
-        /* 強調色文字：原本是給深色底配的淺色調，白底上要改深一點才夠對比 */
+        /* 強調色文字：深色版的亮綠在白底對比不足，改成深鈷藍 */
         html[data-theme="light"] .text-emerald-200,
         html[data-theme="light"] .text-emerald-200\/85,
         html[data-theme="light"] .text-emerald-300,
-        html[data-theme="light"] .text-emerald-300\/90 { color: #047857; }
-        html[data-theme="light"] .text-emerald-400 { color: #059669; }
+        html[data-theme="light"] .text-emerald-300\/90 { color: #1d4ed8; }
+        html[data-theme="light"] .text-emerald-400,
+        html[data-theme="light"] .text-emerald-500 { color: #2563eb; }
         html[data-theme="light"] .text-red-300 { color: #b91c1c; }
         html[data-theme="light"] .text-red-400 { color: #dc2626; }
         html[data-theme="light"] .text-yellow-300 { color: #a16207; }
         html[data-theme="light"] .text-yellow-400 { color: #ca8a04; }
         html[data-theme="light"] .text-orange-300 { color: #c2410c; }
 
-        /* 自訂元件：戰術面板/浮層/磚塊，深色漸層換成淺色漸層 */
-        html[data-theme="light"] .hud-box { background: rgba(255,255,255,.78); border-color: rgba(0,0,0,.1); }
-        html[data-theme="light"] .hud-float {
-            background: linear-gradient(165deg, rgba(255,255,255,.85), rgba(244,244,245,.92));
-            box-shadow: -1px 0 0 rgba(5,150,105,.18), 0 0 40px -20px rgba(0,0,0,.15);
+        /* 強調色的底色與邊框：綠色系全部換成鈷藍系。
+           這些是「發光感」的來源，在白底上不改的話會整片螢光綠，非常刺眼。 */
+        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.05); }
+        html[data-theme="light"] .bg-emerald-500\/10,
+        html[data-theme="light"] .bg-emerald-500\/15 { background-color: rgba(37,99,235,.09); }
+        html[data-theme="light"] .bg-emerald-500\/20,
+        html[data-theme="light"] .bg-emerald-500\/30 { background-color: rgba(37,99,235,.14); }
+        html[data-theme="light"] .hover\:bg-emerald-500\/20:hover,
+        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.2); }
+        html[data-theme="light"] .bg-emerald-400,
+        html[data-theme="light"] .bg-emerald-500 { background-color: #2563eb; }
+        html[data-theme="light"] .border-emerald-500,
+        html[data-theme="light"] .border-emerald-500\/60,
+        html[data-theme="light"] .border-emerald-500\/50,
+        html[data-theme="light"] .border-emerald-500\/40,
+        html[data-theme="light"] .border-emerald-500\/30,
+        html[data-theme="light"] .border-emerald-500\/20 { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .hover\:border-emerald-500\/40:hover,
+        html[data-theme="light"] .focus\:border-emerald-500:focus { border-color: #2563eb; }
+        html[data-theme="light"] .from-emerald-500 { --tw-gradient-from: #2563eb var(--tw-gradient-from-position); --tw-gradient-to: rgba(37,99,235,0) var(--tw-gradient-to-position); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+        html[data-theme="light"] .to-emerald-400,
+        html[data-theme="light"] .to-emerald-500 { --tw-gradient-to: #3b82f6 var(--tw-gradient-to-position); }
+
+        /* 自訂元件：戰術面板/浮層/磚塊，深色漸層換成淺色紙感漸層 */
+        html[data-theme="light"] .hud-box { background: rgba(255,255,255,.82); border-color: rgba(0,0,0,.1); }
+        /* 四角定位標記：深色版是綠色/半透明白，在白底上一個太跳、一個直接看不見 */
+        html[data-theme="light"] .hud-box::before,
+        html[data-theme="light"] .hud-box::after { border-color: #2563eb; }
+        html[data-theme="light"] .hud-corners {
+            background-image:
+                linear-gradient(to right, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to left, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to right, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to top, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to left, rgba(15,23,42,.28) 1px, transparent 1px),
+                linear-gradient(to top, rgba(15,23,42,.28) 1px, transparent 1px);
         }
-        html[data-theme="light"] .stat-tile { background: linear-gradient(155deg, #ffffff, #f4f4f5); border-color: rgba(0,0,0,.1); }
-        html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(5,150,105,.12), rgba(255,255,255,.7) 60%); }
-        html[data-theme="light"] .scene-bar-tint { background: linear-gradient(90deg, #ffffff 0%, rgba(244,244,245,.95) 55%, rgba(244,244,245,.85) 100%); }
-        html[data-theme="light"] .scenario-hud-tint { background: linear-gradient(90deg, rgba(5,150,105,.1), rgba(244,244,245,.75), transparent); }
-        html[data-theme="light"] .folder-tab { background: rgba(0,0,0,.035); color: #52525b; }
-        html[data-theme="light"] .folder-tab:hover { color: #18181b; }
+        html[data-theme="light"] .hud-float {
+            background: linear-gradient(165deg, rgba(255,255,255,.9), rgba(241,243,247,.95));
+            box-shadow: -1px 0 0 rgba(37,99,235,.2), 0 0 40px -20px rgba(15,23,42,.18);
+        }
+        html[data-theme="light"] .stat-tile { background: linear-gradient(155deg, #ffffff, #f1f3f7); border-color: rgba(0,0,0,.1); }
+        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(37,99,235,.12), rgba(255,255,255,.7) 60%); }
+        html[data-theme="light"] .scene-bar-tint { background: linear-gradient(90deg, #ffffff 0%, rgba(241,243,247,.95) 55%, rgba(241,243,247,.85) 100%); }
+        html[data-theme="light"] .scenario-hud-tint { background: linear-gradient(90deg, rgba(37,99,235,.1), rgba(241,243,247,.75), transparent); }
+        html[data-theme="light"] .folder-tab { background: rgba(15,23,42,.05); color: #64748b; }
+        html[data-theme="light"] .folder-tab:hover { color: #0f172a; }
+        html[data-theme="light"] .folder-tab.active {
+            background: linear-gradient(180deg, #3b82f6, #2563eb);
+            color: #ffffff;
+            box-shadow: 0 -6px 16px -6px rgba(37,99,235,.55);
+        }
+        html[data-theme="light"] .ribbon-banner {
+            background: linear-gradient(135deg, #1e3a8a, #2563eb 50%, #1e3a8a);
+            box-shadow: 0 6px 20px -8px rgba(37,99,235,.55), inset 0 1px 0 rgba(255,255,255,.25);
+            color: #ffffff; text-shadow: 0 1px 0 rgba(0,0,0,.25);
+        }
+        html[data-theme="light"] .ribbon-banner.ribbon-danger {
+            background: linear-gradient(135deg, #7f1d1d, #dc2626 50%, #7f1d1d); color: #ffffff;
+        }
+        html[data-theme="light"] .menu-banner {
+            background: linear-gradient(120deg, #1e3a8a 0%, #2563eb 45%, #1e3a8a 100%);
+            box-shadow: 0 14px 32px -14px rgba(37,99,235,.5), inset 0 1px 0 rgba(255,255,255,.2);
+        }
+        html[data-theme="light"] .terminal-strip::before {
+            background: linear-gradient(90deg, transparent, rgba(37,99,235,.45), transparent);
+        }
+        html[data-theme="light"] .pulse-glow { animation: pulseGlowLight 2.6s ease-in-out infinite; }
+        @keyframes pulseGlowLight { 0%, 100% { box-shadow: 0 0 0 rgba(37,99,235,0); } 50% { box-shadow: 0 0 16px rgba(37,99,235,.4); } }
+        html[data-theme="light"] .archetype-card.active {
+            border-color: #2563eb !important;
+            background-color: rgba(37,99,235,.1) !important;
+        }
         html[data-theme="light"] .action-tile {
-            background: linear-gradient(160deg, #ffffff, #f4f4f5);
+            background: linear-gradient(160deg, #ffffff, #f1f3f7);
             border-color: rgba(0,0,0,.1);
         }
-        html[data-theme="light"] .action-tile:hover { background: linear-gradient(160deg, #ffffff, #ecfdf5); border-color: rgba(5,150,105,.5); }
-        html[data-theme="light"] .action-tile-icon { color: #059669; }
-        html[data-theme="light"] .action-tile-label { color: #18181b; }
-        html[data-theme="light"] .action-tile-sub { color: #52525b; }
-        html[data-theme="light"] .action-tile.primary { background: linear-gradient(160deg, rgba(5,150,105,.14), #ffffff); border-color: rgba(5,150,105,.5); }
-        html[data-theme="light"] .action-tile.primary .action-tile-icon { color: #047857; }
+        html[data-theme="light"] .action-tile:hover { background: linear-gradient(160deg, #ffffff, #eff6ff); border-color: rgba(37,99,235,.5); }
+        html[data-theme="light"] .action-tile-icon { color: #2563eb; }
+        html[data-theme="light"] .action-tile-label { color: #0f172a; }
+        html[data-theme="light"] .action-tile-sub { color: #64748b; }
+        html[data-theme="light"] .action-tile.primary { background: linear-gradient(160deg, rgba(37,99,235,.13), #ffffff); border-color: rgba(37,99,235,.5); }
+        html[data-theme="light"] .action-tile.primary .action-tile-icon { color: #1d4ed8; }
+        /* 段落標籤：深色版用的亮綠字(#6ee7b7)是為了在黑底發光，放到白底上等於用螢光筆
+           畫過去——字幾乎看不見。淺色版換成深鈷藍字配淡藍底，像文件上的分節標題。 */
+        html[data-theme="light"] .section-tag {
+            background: linear-gradient(90deg, rgba(37,99,235,.14), rgba(37,99,235,.02));
+            border-left-color: #2563eb;
+            color: #1d4ed8;
+        }
+        /* 選項卡與故事流：引導線與強調字同步換色 */
+        html[data-theme="light"] #story-feed { border-left-color: rgba(15,23,42,.12); }
+        html[data-theme="light"] .option-card:hover { border-color: rgba(37,99,235,.5); }
+        html[data-theme="light"] .backstory-card { color: #334155; }
+        /* 其餘散落的綠色裝飾線/角標/光暈 */
+        html[data-theme="light"] .panel-glow-top::before,
+        html[data-theme="light"] .sidebar-tab-btn::after {
+            background: linear-gradient(90deg, transparent, rgba(37,99,235,.5), transparent);
+        }
+        html[data-theme="light"] .action-tile::after {
+            background: linear-gradient(135deg, rgba(37,99,235,.5), transparent 60%);
+        }
+        html[data-theme="light"] .action-tile:hover {
+            box-shadow: 0 14px 28px -12px rgba(37,99,235,.35);
+        }
+        html[data-theme="light"] #dice-roll-overlay { background: rgba(241,243,247,.82); }
+        html[data-theme="light"] #dice-d20 { color: #0f172a; filter: drop-shadow(0 0 12px rgba(37,99,235,.45)); }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -514,6 +612,14 @@
                 <div id="archetype-container" class="grid grid-cols-1 sm:grid-cols-4 gap-2 text-xs font-mono">
                     <!-- 由 app.js 動態渲染 4 大身分卡 -->
                 </div>
+            </section>
+
+            <!-- 2.5 背景故事與專長（選定身分模板後才出現） -->
+            <section id="cg-identity-section" style="display:none" class="space-y-2 anim-fade-up">
+                <div class="section-tag">2.5 背景故事與專長</div>
+                <div id="cg-backstory-container" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                <div id="cg-customfield-container" class="space-y-1.5"></div>
+                <div id="cg-feats-container" class="space-y-1.5"></div>
             </section>
 
             <!-- 3. 六維屬性配點 -->
@@ -754,6 +860,13 @@
             </div>
             <div class="space-y-3 font-mono text-xs">
                 <div>
+                    <label class="text-zinc-300 block mb-1">介面色彩主題</label>
+                    <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <option value="dark">黑綠 · 賽博終端（Cyber Terminal）</option>
+                        <option value="light">米白 · 戰術檔案（Tactical Dossier）</option>
+                    </select>
+                </div>
+                <div>
                     <label class="text-zinc-300 block mb-1">說書人文筆風格</label>
                     <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
                         <option value="白描">白描（沉浸冷峻、動詞優先）</option>
@@ -789,13 +902,29 @@
     </div>
 
     <script>
-        /** 切換明暗主題並記住玩家的選擇；圖示顯示的是「目前」的主題(月亮=深色中、太陽=淺色中)。 */
-        function toggleTheme() {
-            const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-            const next = current === 'light' ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-theme', next);
+        /**
+         * 套用明暗主題並記住玩家的選擇。
+         *
+         * 頂欄的切換鈕與設定視窗裡的下拉選單都走這一個函式，兩邊才不會各記各的、
+         * 出現「下拉顯示淺色但畫面是深色」這種對不起來的狀態。
+         * class 與 data-theme 兩種標記都設：CSS 全部靠 data-theme，class 是留給
+         * 習慣用 html.light/.dark 選擇器的樣式(例如 Tailwind darkMode:'class')用的。
+         */
+        function applyTheme(theme) {
+            const next = theme === 'light' ? 'light' : 'dark';
+            const html = document.documentElement;
+            html.setAttribute('data-theme', next);
+            html.classList.toggle('light', next === 'light');
+            html.classList.toggle('dark', next === 'dark');
             localStorage.setItem('user_theme', next);
             updateThemeToggleIcon(next);
+            const select = document.getElementById('setting-theme');
+            if (select) select.value = next;
+        }
+        /** 頂欄切換鈕：圖示顯示的是「目前」的主題(月亮=深色中、太陽=淺色中)。 */
+        function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+            applyTheme(current === 'light' ? 'dark' : 'light');
         }
         function updateThemeToggleIcon(theme) {
             const icon = document.getElementById('theme-toggle-icon');
@@ -827,6 +956,8 @@
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
             }
             if (id === 'settingsModal') {
+                document.getElementById('setting-theme').value =
+                    document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
                 document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
                 document.getElementById('setting-provider').value = localStorage.getItem('user_llm_provider') || '';
                 document.getElementById('setting-api-key').value = localStorage.getItem('user_api_key') || '';
@@ -863,6 +994,9 @@
             if (val) { navigator.clipboard.writeText(val); alert('Session ID 已複製！'); }
         }
         function saveSettings() {
+            // 主題在 onchange 當下就已經套用並存起來了(讓玩家可以即時看到效果再決定)，
+            // 這裡再存一次是為了涵蓋「用鍵盤改了選項但沒觸發onchange」的情況。
+            applyTheme(document.getElementById('setting-theme').value);
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
 
             const provider = document.getElementById('setting-provider').value;
@@ -880,8 +1014,9 @@
             alert('設定已儲存！');
         }
 
-        // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，這裡只需要同步圖示。
-        updateThemeToggleIcon(document.documentElement.getAttribute('data-theme'));
+        // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，
+        // 這裡把class標記與圖示、下拉選單一次同步到同一個值。
+        applyTheme(document.documentElement.getAttribute('data-theme'));
     </script>
     <script src="./app.js"></script>
 </body>

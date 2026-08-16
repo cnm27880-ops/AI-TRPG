@@ -5,6 +5,7 @@ let currentOptions = [];
 let turnInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
+let lastChargenErrors = [];
 
 const SESSION_KEY = "ai-trpg-session-id";
 
@@ -36,6 +37,9 @@ const chargenDraft = {
   concept: { name: "", gender: "男", age: 24, background: "" },
   attributes: { 力量: 1, 敏捷: 1, 耐力: 1, 智力: 1, 感知: 1, 意志: 1 },
   skills: Object.fromEntries(SKILL_NAMES.map(s => [s, 0])),
+  archetypeId: null,
+  backstoryChoiceId: null,
+  customDetails: {},
 };
 
 function legendaryAttributeBonus(val) {
@@ -96,8 +100,101 @@ function applyArchetype(key) {
     chargenDraft.skills[k] = arch.skills[k] ?? 0;
   }
 
+  // 換模板等於換一整套背景/專長，先前選的背景與自訂欄位都不再適用
+  chargenDraft.archetypeId = key;
+  chargenDraft.backstoryChoiceId = null;
+  chargenDraft.customDetails = {};
+
   renderChargenAttributes();
   renderChargenSkills();
+  renderIdentitySection(arch);
+  validateChargen();
+}
+
+// --- 背景故事 / 自訂欄位 / 專長 ---
+function renderIdentitySection(arch) {
+  const section = document.getElementById("cg-identity-section");
+  if (!section) return;
+  section.style.display = "";
+
+  renderBackstoryOptions(arch);
+  renderCustomFields(arch);
+  renderFeats(arch);
+}
+
+function renderBackstoryOptions(arch) {
+  const container = document.getElementById("cg-backstory-container");
+  if (!container) return;
+
+  container.innerHTML = (arch.backstoryOptions ?? []).map((b, i) => {
+    const selected = chargenDraft.backstoryChoiceId === b.id;
+    return `
+      <button data-backstory="${escapeHtml(b.id)}"
+        class="backstory-card text-left p-3 rounded bg-zinc-950 border text-[11px] leading-relaxed transition-all ${
+          selected
+            ? "border-emerald-500 text-emerald-100 bg-emerald-500/10"
+            : "hairline-border text-zinc-400 hover:border-emerald-500/50"
+        }">
+        <div class="flex items-center gap-1.5 mb-1 font-bold ${selected ? "text-emerald-300" : "text-zinc-300"}">
+          <i class="fas ${selected ? "fa-circle-check" : "fa-circle"} text-[10px]"></i>
+          <span>背景 ${String.fromCharCode(65 + i)}</span>
+        </div>
+        ${escapeHtml(b.text)}
+      </button>`;
+  }).join("");
+}
+
+function renderCustomFields(arch) {
+  const container = document.getElementById("cg-customfield-container");
+  if (!container) return;
+
+  const backstory = (arch.backstoryOptions ?? []).find((b) => b.id === chargenDraft.backstoryChoiceId);
+  if (!backstory) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = (backstory.customizableFields ?? []).map((f) => `
+    <div class="flex flex-col gap-1">
+      <label class="text-[11px] font-mono text-zinc-400">${escapeHtml(f.label)}</label>
+      <input type="text" data-customfield="${escapeHtml(f.key)}" maxlength="40"
+        value="${escapeHtml(chargenDraft.customDetails[f.key] ?? "")}"
+        placeholder="${escapeHtml(f.placeholder ?? "")}"
+        class="bg-zinc-950 border hairline-border rounded px-2.5 py-1.5 text-xs font-mono text-zinc-200 focus:border-emerald-500/60 focus:outline-none" />
+    </div>`).join("");
+}
+
+function renderFeats(arch) {
+  const container = document.getElementById("cg-feats-container");
+  if (!container) return;
+
+  container.innerHTML = (arch.feats ?? []).map((f) => {
+    const isNarrative = f.effect?.type === "narrative";
+    // 敘事型專長刻意用不同配色與標籤：它不影響任何數值，玩家不該以為自己拿到了加成。
+    const badge = isNarrative
+      ? `<span class="shrink-0 px-1.5 py-0.5 rounded border border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] font-bold">純敘事/性格特質</span>`
+      : `<span class="shrink-0 px-1.5 py-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 text-[10px] font-bold">${escapeHtml(f.effect.skill)} +${f.effect.amount}</span>`;
+
+    return `
+      <div class="flex items-start gap-2 p-2.5 rounded bg-zinc-950 border ${isNarrative ? "border-violet-500/30" : "hairline-border"}">
+        <div class="flex-1 space-y-0.5">
+          <div class="text-xs font-bold ${isNarrative ? "text-violet-200" : "text-emerald-200"}">${escapeHtml(f.name)}</div>
+          <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(f.description)}</div>
+        </div>
+        ${badge}
+      </div>`;
+  }).join("");
+}
+
+function selectBackstory(id) {
+  const arch = chargenRules?.archetypes?.[chargenDraft.archetypeId];
+  if (!arch) return;
+  if (!(arch.backstoryOptions ?? []).some((b) => b.id === id)) return;
+
+  chargenDraft.backstoryChoiceId = id;
+  chargenDraft.customDetails = {};
+  renderBackstoryOptions(arch);
+  renderCustomFields(arch);
   validateChargen();
 }
 
@@ -152,6 +249,16 @@ async function validateChargen() {
     document.getElementById("cg-derived").textContent = `衍生數值：生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
   }
 
+  // 「還沒選背景故事」也會讓 valid=false，光看點數預算看不出原因，所以錯誤要列出來。
+  const errBox = document.getElementById("cg-errors");
+  if (errBox) {
+    const errors = data.errors ?? [];
+    errBox.innerHTML = errors
+      .map((msg) => `<div class="text-xs font-mono text-red-400">· ${escapeHtml(msg)}</div>`)
+      .join("");
+  }
+
+  lastChargenErrors = data.errors ?? [];
   return data.valid;
 }
 
@@ -166,7 +273,7 @@ async function startNewGame() {
 
   const isValid = await validateChargen();
   if (!isValid) {
-    alert("配點超支，請調整後再開始！");
+    alert(lastChargenErrors.length ? `建卡還沒完成：\n${lastChargenErrors.join("\n")}` : "建卡尚未完成，請檢查上方提示！");
     return;
   }
 
@@ -815,6 +922,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       validateChargen();
     });
   }
+
+  // 背景故事二選一
+  document.getElementById("cg-backstory-container")?.addEventListener("click", e => {
+    const btn = e.target.closest("[data-backstory]");
+    if (!btn) return;
+    selectBackstory(btn.dataset.backstory);
+  });
+
+  // 背景自訂欄位（選填，超過40字後端會截斷）
+  document.getElementById("cg-customfield-container")?.addEventListener("input", e => {
+    const input = e.target.closest("[data-customfield]");
+    if (!input) return;
+    chargenDraft.customDetails[input.dataset.customfield] = input.value;
+    validateChargen();
+  });
 
   // 特質 / 資源卡：滾輪與點擊切換
   const traitStage = document.getElementById("trait-carousel");
