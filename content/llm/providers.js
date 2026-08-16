@@ -22,6 +22,11 @@
 //     (正好就是本專案每回合敘事的形狀)官方的建議就是繼續用 generateContent。
 //     所以這裡刻意不急著遷移——遷移沒有好處，只有破壞既有測試的風險。
 //   - DeepSeek：https://api-docs.deepseek.com/ —— 官方明講相容OpenAI格式，Bearer認證。
+//   - NVIDIA NIM (build.nvidia.com)：https://build.nvidia.com/ —— OpenAI相容，免費申請金鑰即可用，
+//     過去有總量上限(個人1000/企業5000次)，但查證當下(2026-08-16)已取消，改成**只受RPM限制**
+//     (預設40 RPM，可申請調高到200 RPM)，不需要信用卡。這跟下面LLM_PROVIDERS.md解釋過的
+//     「來路不明的免金鑰代理」是兩回事——這是NVIDIA官方自己的服務、你自己申請的金鑰，
+//     跟Gemini/DeepSeek屬於同一類「正當的官方免費額度」，不是那種會無預警消失的第三方轉發。
 //   - OpenRouter：https://openrouter.ai/docs/api-reference/overview —— OpenAI相容。
 //     注意免費模型(`:free`結尾)的slug**每週都在變**，所以這裡故意不給預設模型，
 //     強制你自己去 https://openrouter.ai/models 挑一個當下真的存在的，避免寫死一個會失效的值。
@@ -60,6 +65,21 @@ export const PROVIDERS = {
     apiKeyEnv: "DEEPSEEK_API_KEY",
     docs: "https://api-docs.deepseek.com/",
     freeTier: "無常態免費額度，依官方計價（新帳號是否送額度請自行確認）",
+  },
+
+  // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
+  nvidia: {
+    label: "NVIDIA NIM（build.nvidia.com，免費無總量上限）",
+    protocol: PROTOCOLS.OPENAI_CHAT,
+    baseUrl: "https://integrate.api.nvidia.com/v1",
+    // 查證當下(2026-08-16)幾個適合「敘事+嚴格JSON輸出」的候選：
+    //   meta/llama-3.3-70b-instruct —— 推理/指令遵循較強，這裡選它當預設。
+    //   nvidia/mistral-nemotron —— 官方特別強調agentic/function-calling/指令遵循，也是好選擇。
+    // 要換用 LLM_MODEL 覆蓋即可，不用改這裡。
+    defaultModel: "meta/llama-3.3-70b-instruct",
+    apiKeyEnv: "NVIDIA_API_KEY",
+    docs: "https://build.nvidia.com/",
+    freeTier: "免費申請即可用，不需信用卡；過去有總量上限，查證當下已取消，僅受RPM限制(預設40，可申請調高)",
   },
 
   // --- OpenRouter（第三方聚合，一把金鑰打很多家模型） ---
@@ -153,6 +173,7 @@ export function pickProvider(env = {}) {
   if (env.LLM_PROVIDER) return env.LLM_PROVIDER;
   if (env.GEMINI_API_KEY) return "gemini";
   if (env.DEEPSEEK_API_KEY) return "deepseek";
+  if (env.NVIDIA_API_KEY) return "nvidia";
   if (env.OPENROUTER_API_KEY) return "openrouter";
   if (env.LLM_API_KEY && env.LLM_BASE_URL) return "custom";
   if (env.AI) return "workers-ai";

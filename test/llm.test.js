@@ -65,6 +65,7 @@ test("pickProvider：依環境自動挑選，明確指定的LLM_PROVIDER最優�
   assert.equal(pickProvider({ LLM_PROVIDER: "deepseek", GEMINI_API_KEY: "k" }), "deepseek");
   assert.equal(pickProvider({ GEMINI_API_KEY: "k" }), "gemini");
   assert.equal(pickProvider({ DEEPSEEK_API_KEY: "k" }), "deepseek");
+  assert.equal(pickProvider({ NVIDIA_API_KEY: "k" }), "nvidia");
   assert.equal(pickProvider({ OPENROUTER_API_KEY: "k" }), "openrouter");
   assert.equal(pickProvider({ LLM_API_KEY: "k", LLM_BASE_URL: "https://x/v1" }), "custom");
 });
@@ -103,6 +104,25 @@ test("DeepSeek：打到 /chat/completions，帶Bearer金鑰與system/user兩則�
     { role: "system", content: "你是說書人" },
     { role: "user", content: "玩家開槍" },
   ]);
+});
+
+test("NVIDIA NIM：打到 /chat/completions，帶Bearer金鑰，走OpenAI相容線路", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  const result = await callLlm({
+    provider: "nvidia",
+    env: { NVIDIA_API_KEY: "nv-key" },
+    systemInstruction: "你是說書人",
+    prompt: "玩家開槍",
+    fetchFn: ff,
+  });
+
+  assert.equal(result.text, "測試敘事文字");
+  assert.equal(result.provider, "nvidia");
+  assert.equal(result.model, PROVIDERS.nvidia.defaultModel);
+
+  const { url, options } = ff.calls[0];
+  assert.equal(url, "https://integrate.api.nvidia.com/v1/chat/completions");
+  assert.equal(options.headers.authorization, "Bearer nv-key");
 });
 
 test("OpenRouter：帶上官方建議的HTTP-Referer/X-Title，且未指定模型時要明確報錯", async () => {

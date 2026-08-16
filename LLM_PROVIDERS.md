@@ -9,12 +9,15 @@
 | 情況 | 建議 | 要不要申請金鑰 |
 |---|---|---|
 | 只想先把整條鏈路跑起來看看 | **Cloudflare Workers AI**（預設） | **不用**，靠 `wrangler.toml` 的 `[ai]` binding |
-| 要正式玩，想要中文敘事品質好一點 | **Gemini** 免費層 | 要，但免費 |
+| 想要免費、無總量上限、且不需要信用卡 | **NVIDIA NIM** | 要，但免費、免卡 |
+| 要正式玩，想要中文敘事品質好一點 | **Gemini** 免費層 | 要，2026-03-23後新申請的帳號可能需要先綁定Prepaid付款方式才能拿到金鑰(見下方說明) |
 | 想用中文推理能力強的模型 | **DeepSeek** | 要，付費 |
 | 想一把金鑰試很多模型 / 想用免費模型 | **OpenRouter** | 要，有免費模型 |
 | 你已經有慣用的第三方中轉接口 | **custom** | 依該服務 |
 
 **什麼都不設定的話，程式會自動用 Cloudflare Workers AI**，因為它是唯一不需要申請任何東西的選項。
+但它預設接的是最小的 `llama-3.1-8b-instruct` 這一檔，指令遵循能力偏弱（見下方說明），
+如果只是想要「免申請、又不要模型太笨」，**NVIDIA NIM** 現在是更好的免費選項。
 
 ## 關於「網路上的免費／公益 API」
 
@@ -32,10 +35,19 @@
 或者用 **Cloudflare Workers AI**——它用的是你自己Cloudflare帳號的免費額度，
 不需要額外申請金鑰，也不經過任何第三方。所以我把它設成預設。
 
-查證當下（2026-08-15）確認有免費額度的正當選項：
+查證當下（2026-08-16）確認有免費額度的正當選項：
 
-- **Cloudflare Workers AI** —— 每天 10,000 Neurons 免費（[定價頁](https://developers.cloudflare.com/workers-ai/platform/pricing/)）
-- **Google Gemini** —— 多個 flash 系列模型在免費層可用（[定價頁](https://ai.google.dev/gemini-api/docs/pricing)）
+- **Cloudflare Workers AI** —— 每天 10,000 Neurons 免費（[定價頁](https://developers.cloudflare.com/workers-ai/platform/pricing/)），
+  但預設接的 `llama-3.1-8b-instruct` 是最小檔，指令遵循能力較弱（實測：容易原地重複前幾回合的敘事、
+  也常常不理會「請在JSON裡加nodeComplete欄位」這類額外指示）。同帳號免費額度下也可以在 `LLM_MODEL`
+  換成 `@cf/openai/gpt-oss-20b`（更聰明，免費額度約可撐70次左右的敘事回合）。
+- **NVIDIA NIM (build.nvidia.com)** —— 免費申請金鑰即可用、**不需要信用卡**，過去有總量上限，
+  查證當下（2026-08-16）**已取消總量上限**，只受RPM限制（預設40 RPM，可申請調高到200 RPM）。
+  OpenAI相容格式，目前是這幾個選項裡「免費額度最寬鬆」的（[models頁](https://build.nvidia.com/models)）。
+- **Google Gemini** —— 多個 flash 系列模型在免費層可用（[定價頁](https://ai.google.dev/gemini-api/docs/pricing)），
+  但**2026-03-23起，新申請AI Studio帳號的使用者可能被要求先綁定Prepaid付款方式才能拿到金鑰**——
+  免費額度內使用仍是$0，但「申請金鑰前得先加卡」這件事對很多人來說已經不算純粹免申請的免費選項了，
+  舊帳號通常不受影響。
 - **OpenRouter** —— 有一批 `:free` 結尾的免費模型，但**slug每週在變**，要自己去 [models頁](https://openrouter.ai/models) 挑當下存在的
 
 ## 怎麼設定
@@ -46,12 +58,13 @@
 
 | 變數 | 用途 |
 |---|---|
-| `LLM_PROVIDER` | `gemini` / `deepseek` / `openrouter` / `workers-ai` / `custom`。不設就自動偵測 |
+| `LLM_PROVIDER` | `gemini` / `deepseek` / `nvidia` / `openrouter` / `workers-ai` / `custom`。不設就自動偵測 |
 | `LLM_MODEL` | 覆寫模型名稱 |
 | `LLM_BASE_URL` | 第三方中轉接口的網址（要含 `/v1`，不要含 `/chat/completions`） |
 | `LLM_API_KEY` | 通用金鑰欄位（`custom` 用這個） |
 | `GEMINI_API_KEY` | Gemini 金鑰 |
 | `DEEPSEEK_API_KEY` | DeepSeek 金鑰 |
+| `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) 金鑰 |
 | `OPENROUTER_API_KEY` | OpenRouter 金鑰 |
 | `NARRATIVE_STYLE` | 文筆設定檔名稱：`白描`（預設）/`標準`/`恐怖懸疑`/`冷硬寫實`/`電影感` |
 
@@ -107,6 +120,22 @@ Google 已把 Interactions API 列為 GA 並建議新專案採用，`generateCon
 - 模型：`deepseek-v4-flash`（預設）/ `deepseek-v4-pro`
 - 認證：`Authorization: Bearer <key>`
 - 文件：https://api-docs.deepseek.com/
+
+### NVIDIA NIM（官方，build.nvidia.com）
+
+- 端點：`https://integrate.api.nvidia.com/v1/chat/completions`（OpenAI相容）
+- 預設模型：`meta/llama-3.3-70b-instruct`（推理/指令遵循較強，也可以換 `nvidia/mistral-nemotron`，
+  官方特別強調它在agentic/function-calling/指令遵循上的表現）
+- 認證：`Authorization: Bearer <key>`
+- 免費申請，**不需要信用卡**；過去有總量上限（個人1000次/企業5000次），查證當下（2026-08-16）
+  已取消，改成只受RPM限制（預設40 RPM，可申請調高到200 RPM），對單人TRPG這種一次一個請求的
+  用量來說完全夠用
+- 文件：https://build.nvidia.com/
+
+```
+LLM_PROVIDER=nvidia
+NVIDIA_API_KEY=你的金鑰
+```
 
 ### OpenRouter（聚合）
 
