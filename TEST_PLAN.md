@@ -67,6 +67,13 @@
 | 七種攻擊方式都對得出自己的關鍵屬性＋技能 | 戰！戰！戰！.htm 各攻擊方式公式 | 🔧 ATTACK_CHECK_KEYS 與 ATTACK_TYPES 一一對應 | shopForms.test.js | ✅ 通過 |
 | 複數匹配鍵(「生理系屬性」)只命中指定的那幾個 | [設計] | 🔧 命中/不命中兩側都測，非法屬性仍要擋 | shopForms.test.js | ✅ 通過 |
 | scope 讓攻擊限定與檢定限定的加值不互相外溢 | [設計] | 🔧 三種 scope 各測兩條路徑 | shopForms.test.js | ✅ 通過 |
+| 存檔長出 wallet/forms 欄位，舊存檔讀取時就地補 | [設計] | 🔧 新存檔欄位齊全＋v1舊存檔補欄位且不覆蓋既有資料 | shopAccess.test.js | ✅ 通過 |
+| 支線/獎勵點數只能在主神空間花 | 核心規則部分.htm 第469行 | 📖 三種價格寫法逐一被擋 | shopAccess.test.js | ✅ 通過 |
+| 經驗兩地都能花，副本中要*2 | 同上，第469行原文 | 📖 加倍係數與不被擋兩件事都測 | shopAccess.test.js | ✅ 通過 |
+| 「現在在不在主神空間」由引擎算，不是AI說了算 | [設計] | 🔧 無副本/進行中/已通關/包查不到 四種情況 | shopAccess.test.js | ✅ 通過 |
+| 節點獎勵入的是獎勵點數，通關才結算XP | [設計]，修正 2026-08-17 前的語意錯位 | 🔧 走完整副本後錢包兩種貨幣都要有 | scenarioIntegration.test.js | ✅ 通過 |
+| 執行期貨架註冊表與 packs JSON 逐件一致 | [設計] | 🔧 deepEqual 比對，忘記同步就紅 | shopAccess.test.js | ✅ 通過 |
+| GET/POST /api/shop 的貨架、門禁與成交 | [設計] | 🔧 副本中被擋、回主神空間買成、寫回存檔、留事件日誌 | shopAccess.test.js | ✅ 通過 |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |

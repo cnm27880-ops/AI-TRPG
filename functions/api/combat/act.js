@@ -14,6 +14,7 @@ import { resolvePlayerAttack, resolveEnemyAttack, isCombatOver } from "../../../
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
+import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../../content/auth/ownership.js";
@@ -132,8 +133,9 @@ export async function onRequestPost(context) {
         scenarioWarnings.push(`打贏了最終戰，但節點結算被引擎擋下：${result.error}`);
       }
       if (result.ok) {
-        session.character.xp.earned += result.reward;
-        session.scenario = { packId: pack.id, progress: result.progress };
+        // 最終戰的獎勵跟一般節點一樣是獎勵點數，不是XP(見 content/scenario/settlement.js)
+        session.wallet = creditNodeReward(session.wallet, result.reward, result.node.title).wallet;
+        let progress = result.progress;
         const ts = new Date().toISOString();
         appendEvent(
           session.log,
@@ -143,10 +145,27 @@ export async function onRequestPost(context) {
         );
         appendEvent(
           session.log,
-          EVENT_TYPES.XP_GRANT,
+          EVENT_TYPES.POINTS_GRANT,
           { total: result.reward, reason: `擊敗最終戰「${result.node.title}」` },
           { timestamp: ts }
         );
+
+        // 最終戰打完通常就是通關，所以結算也要在這條路徑上跑一次——
+        // 不然玩家打贏之後如果沒有再送出任何一輪敘事，XP 就永遠不會入帳。
+        const settlement = settleScenario(pack, progress, session.character, session.wallet);
+        if (settlement.settled) {
+          session.wallet = settlement.wallet;
+          progress = settlement.progress;
+          appendEvent(
+            session.log,
+            EVENT_TYPES.XP_GRANT,
+            { total: settlement.xp, reason: `副本「${pack.briefing?.title ?? pack.id}」通關結算`, breakdown: settlement.breakdown },
+            { timestamp: ts }
+          );
+          scenarioWarnings.push(`副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`);
+        }
+
+        session.scenario = { packId: pack.id, progress };
         scenarioResult = { nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward } };
       }
     }

@@ -1919,12 +1919,190 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// 主神商店
+//
+// 這一段刻意什麼都不算。價格、買不買得起、為什麼買不到、副本中XP要不要加倍——
+// 全部由 GET/POST /api/shop 回傳，前端只負責畫出來。本專案第4條最高原則
+// (數值系統一律要有嚴格公式) 對前端一樣適用：前端算出來的數字沒有測試守著，
+// 而且會跟伺服器的答案不一致，那比不顯示更糟。
+// ---------------------------------------------------------------------------
+
+let shopState = null;
+let shopCategory = "全部";
+let shopBusy = false;
+
+async function openShop() {
+  if (!currentSessionId) return;
+  openModal("shopModal");
+  document.getElementById("shop-shelf").innerHTML =
+    `<div class="text-xs font-mono text-zinc-500 p-4 text-center">載入貨架中…</div>`;
+  await refreshShop();
+}
+
+async function refreshShop() {
+  if (!currentSessionId) return;
+  try {
+    const res = await (await fetch(`/api/shop?sessionId=${encodeURIComponent(currentSessionId)}`)).json();
+    if (!res.ok) {
+      document.getElementById("shop-shelf").innerHTML =
+        `<div class="text-xs font-mono text-red-400 p-4">貨架載入失敗：${escapeHtml(res.error || "未知錯誤")}</div>`;
+      return;
+    }
+    shopState = res;
+    renderShop();
+  } catch (err) {
+    document.getElementById("shop-shelf").innerHTML =
+      `<div class="text-xs font-mono text-red-400 p-4">無法連線到商店：${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function renderShop() {
+  if (!shopState) return;
+  const inHub = shopState.access.location === "主神空間";
+
+  const accessEl = document.getElementById("shop-access");
+  accessEl.className =
+    "px-4 py-2 text-[11px] font-mono shrink-0 flex items-start gap-2 hairline-b " +
+    (inHub ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200");
+  accessEl.innerHTML =
+    `<i class="fas ${inHub ? "fa-door-open" : "fa-triangle-exclamation"} mt-0.5 shrink-0"></i>` +
+    `<span>${escapeHtml(shopState.access.description)}</span>`;
+
+  const w = shopState.wallet;
+  const tokenText = Object.entries(w.tokens ?? {})
+    .filter(([, n]) => n > 0)
+    .map(([tier, n]) => `${tier}×${n}`)
+    .join(" ") || "無";
+  document.getElementById("shop-wallet-tokens").textContent = tokenText;
+  document.getElementById("shop-wallet-points").textContent = w.points ?? 0;
+  document.getElementById("shop-wallet-xp").textContent = w.xp ?? 0;
+
+  const totals = Object.values(shopState.summary ?? {}).reduce(
+    (acc, c) => ({ 上架: acc.上架 + c.上架, 掛名: acc.掛名 + c.掛名 }),
+    { 上架: 0, 掛名: 0 }
+  );
+  document.getElementById("shop-summary").textContent = `上架 ${totals.上架} · 掛名 ${totals.掛名}`;
+
+  const categories = ["全部", ...new Set(shopState.shelf.map((s) => s.good.category))];
+  document.getElementById("shop-tabs").innerHTML = categories
+    .map((c) => {
+      const active = c === shopCategory;
+      return `<button data-shop-cat="${escapeHtml(c)}" class="px-2.5 py-1 rounded border transition-colors ${
+        active
+          ? "bg-amber-500/20 border-amber-500/50 text-amber-200 font-bold"
+          : "bg-panel hairline-border text-zinc-400 hover:text-zinc-200"
+      }">${escapeHtml(c)}</button>`;
+    })
+    .join("");
+
+  const items = shopState.shelf.filter((s) => shopCategory === "全部" || s.good.category === shopCategory);
+  document.getElementById("shop-shelf").innerHTML = items.map(shopItemHtml).join("");
+}
+
+function shopItemHtml(item) {
+  const good = item.good;
+  const pending = item.status === "掛名";
+  // 掛名商品的樣式刻意跟「買不起」不一樣：買不起是玩家的問題，掛名是我們還沒做完，
+  // 兩者混在一起會讓玩家以為自己再存一點錢就買得到。
+  const border = pending
+    ? "border-zinc-700/60 bg-zinc-950/40"
+    : item.purchasable
+    ? "border-emerald-500/30 bg-emerald-500/[0.04]"
+    : "hairline-border bg-panel";
+
+  const blockers = (item.blockers ?? [])
+    .map(
+      (b) =>
+        `<div class="text-[10px] text-zinc-500 leading-snug"><span class="text-zinc-400 font-semibold">${escapeHtml(
+          b.code
+        )}</span> · ${escapeHtml(b.message)}</div>`
+    )
+    .join("");
+
+  const higher = (item.higherRanks ?? []).length
+    ? `<div class="text-[10px] text-zinc-600 mt-1">後續級數：${item.higherRanks
+        .map((h) => escapeHtml(`${h.rank} ${h.name}`))
+        .join(" · ")}</div>`
+    : "";
+
+  const button = pending
+    ? `<span class="px-2.5 py-1 rounded border border-zinc-700 text-zinc-600 text-[10px] font-mono shrink-0">掛名</span>`
+    : `<button data-shop-buy="${escapeHtml(good.goodId)}" ${item.purchasable ? "" : "disabled"}
+        class="px-2.5 py-1 rounded text-[10px] font-mono font-bold shrink-0 transition-all ${
+          item.purchasable
+            ? "bg-amber-500/20 border border-amber-500/50 text-amber-200 hover:bg-amber-500/30 hover:-translate-y-px"
+            : "border hairline-border text-zinc-600 cursor-not-allowed"
+        }">兌換</button>`;
+
+  return `
+    <div class="rounded-lg border ${border} p-3 flex gap-3 items-start">
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-[10px] font-mono text-zinc-500">[${escapeHtml(good.category)}]</span>
+          <span class="text-xs font-bold text-zinc-100">${escapeHtml(good.name)}</span>
+          ${good.rank ? `<span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">${escapeHtml(good.rank)}級</span>` : ""}
+        </div>
+        <div class="text-[11px] font-mono text-amber-300/90 mt-0.5">${escapeHtml(item.price)}</div>
+        ${pending && good.pendingReason ? `<div class="text-[10px] text-zinc-500 mt-1 leading-snug">還缺什麼：${escapeHtml(good.pendingReason)}</div>` : ""}
+        ${blockers}
+        ${higher}
+      </div>
+      ${button}
+    </div>`;
+}
+
+async function buyGood(goodId) {
+  if (!currentSessionId || shopBusy) return;
+  shopBusy = true;
+  const toast = document.getElementById("shop-toast");
+  try {
+    const res = await (await fetch("/api/shop", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, goodId }),
+    })).json();
+
+    toast.style.display = "block";
+    if (!res.ok) {
+      toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+      toast.textContent = `買不成：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`;
+      return;
+    }
+    shopState = res;
+    renderShop();
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-emerald-300 bg-emerald-500/10";
+    toast.textContent = `已兌換「${res.receipt.name}」，付出 ${res.receipt.pricePaid}`;
+    // 買到的東西會改角色卡（屬性/技能/生命上限），側邊欄要跟著更新
+    if (res.character) adoptCharacter(res.character);
+  } catch (err) {
+    toast.style.display = "block";
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+    toast.textContent = `連線失敗：${err.message}`;
+  } finally {
+    shopBusy = false;
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const cat = e.target.closest("[data-shop-cat]");
+  if (cat) {
+    shopCategory = cat.getAttribute("data-shop-cat");
+    renderShop();
+    return;
+  }
+  const buy = e.target.closest("[data-shop-buy]");
+  if (buy && !buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
+});
+
 window.showScreen = showScreen;
 window.startNewChargen = startNewChargen;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
 window.startCombat = startCombat;
+window.openShop = openShop;
 window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到

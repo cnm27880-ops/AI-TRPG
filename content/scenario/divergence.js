@@ -19,7 +19,7 @@ export const DIVERGENCE_TIERS = [
   { tier: 4, label: "完全脫離原劇情", rewardMultiplier: 2.5, dcModifier: 6 },
 ];
 
-const MAX_TIER = DIVERGENCE_TIERS.length - 1;
+export const MAX_TIER = DIVERGENCE_TIERS.length - 1;
 
 function tierInfo(tier) {
   const t = DIVERGENCE_TIERS[tier];
