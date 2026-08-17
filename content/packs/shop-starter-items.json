@@ -1,0 +1,250 @@
+{
+  "id": "shop-starter.物品",
+  "type": "商品",
+  "version": "1.0.0",
+  "sourceRef": "rules-2.35.txt 第286737行起(無支線武器.htm)、第287206行起(D級武器/武器.htm)",
+  "note": "第一批『型錄條目 → 簡化規則商品』的轉換成果，全部是書中真實條目，不是自編。挑選標準是『武器基本屬性寫得明確、可以直接餵給 core/combat/attackTypes.js』。每一條的 droppedTraits 都寫明了哪個原文特性沒被轉換、理由對應 content/shop/effects.js 的 UNSUPPORTED_MECHANICS。",
+  "skillMappingNote": "書中前提使用的是原始22技能(白刃/掩飾/運動/調查…)，本專案是十技能。這批用到的對映：白刃→格鬥、運動→體魄、調查→偵察、掩飾→交涉、學識→秘識。這是轉換時的人工判斷，不是書上的欄位，原文前提保留在各條目的 originalPrerequisite。",
+  "entries": [
+    {
+      "name": "特別定制的太陽傘",
+      "goodId": "item.特別定制的太陽傘",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": null,
+      "price": "200",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "特別定制的太陽傘",
+          "attackType": "白刃",
+          "weaponDamage": 3,
+          "severity": "L",
+          "ranged": false
+        }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "太陽傘：撐開時體積變為5並獲得【格擋】特性，此時無法用於攻擊",
+          "reason": "格擋"
+        },
+        { "trait": "體積3", "reason": "體積" }
+      ],
+      "narrative": "斯卡雷特家族特別定制的太陽傘，用於讓她們得以在白天出去賞花。",
+      "sourceRef": "rules-2.35.txt 第286740行(無支線武器.htm)：價格200，分類特殊武器(傘)，武器傷害3L"
+    },
+    {
+      "name": "圓月扇刃",
+      "goodId": "item.圓月扇刃",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": null,
+      "price": "200",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "圓月扇刃",
+          "attackType": "白刃",
+          "weaponDamage": 3,
+          "severity": "L",
+          "ranged": false
+        }
+      ],
+      "droppedTraits": [
+        { "trait": "武器特殊屬性【格擋】", "reason": "格擋" },
+        {
+          "trait": "回還：每回合一次，如果你的一次攻擊沒有獲得任何成功數，你獲得重擲此攻擊的機會",
+          "reason": "重擲"
+        },
+        { "trait": "扇子只有在展開時才具有武器基礎屬性(閉合體積2/展開4)", "reason": "體積" }
+      ],
+      "narrative": "如同圓月一般寒氣奪人、有著完美圓形曲線的武器，仔細看依然是如同扇子的紋路。",
+      "sourceRef": "rules-2.35.txt 第286755行(無支線武器.htm)：價格200，分類扇子，武器傷害3L"
+    },
+    {
+      "name": "處女座",
+      "goodId": "item.處女座",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": null,
+      "price": "200",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "處女座",
+          "attackType": "白刃",
+          "weaponDamage": 4,
+          "severity": "L",
+          "ranged": false
+        },
+        { "kind": "檢定加骰", "skill": "交涉", "amount": 2 }
+      ],
+      "droppedTraits": [
+        { "trait": "破甲2", "reason": "破甲" },
+        {
+          "trait": "女性：本武器女士才可以佩戴，若男性佩戴則所有社交檢定-2附加成功；華貴加值同樣只在佩戴者為女士時生效",
+          "reason": "情境條件"
+        }
+      ],
+      "conversionNote": "書上的『華貴：所有社交檢定+2DP表現加值』帶有『佩戴者為女士』的條件。簡化規則沒有性別欄位，而讓AI臨場判斷條件成不成立是被禁止的，所以這裡把+2DP轉成無條件常態生效，並把性別條款(含男性的-2附加成功懲罰)整條記進 droppedTraits。這是本批唯一一條『刻意放寬』的轉換，不是漏抄。",
+      "narrative": "一把女士細劍，從內到外透露出一種華麗的感覺。",
+      "sourceRef": "rules-2.35.txt 第286772行(無支線武器.htm)：價格200分，分類突刺劍，武器傷害4L破甲2"
+    },
+    {
+      "name": "手杖劍",
+      "goodId": "item.手杖劍",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": null,
+      "price": "200",
+      "consumable": false,
+      "prerequisites": { "skills": { "格鬥": 3, "交涉": 2 } },
+      "originalPrerequisite": "需求白刃等級3，需求掩飾等級2",
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "手杖劍(拔劍)",
+          "attackType": "白刃",
+          "weaponDamage": 4,
+          "severity": "L",
+          "ranged": false
+        },
+        {
+          "kind": "武器",
+          "label": "手杖劍(偽裝鞘)",
+          "attackType": "白刃",
+          "weaponDamage": 0,
+          "severity": "B",
+          "ranged": false
+        },
+        { "kind": "檢定加骰", "skill": "交涉", "amount": 2 }
+      ],
+      "droppedTraits": [
+        { "trait": "破甲1", "reason": "破甲" },
+        {
+          "trait": "偽裝鞘：可以以一個迅捷動作從手杖中拔出劍",
+          "reason": "動作經濟細節"
+        },
+        {
+          "trait": "功能性偽裝：收入鞘中時，無支線等級的安檢裝置無法識別內置的武器",
+          "reason": "情境條件"
+        },
+        {
+          "trait": "社會性偽裝的加值『與看到過本武器真面目的角色社交時無效』這條例外",
+          "reason": "情境條件"
+        }
+      ],
+      "narrative": "一桿彰顯紳士優雅風度的手杖，裡面配置了防身用的刺劍。購買時也可以要求把手杖型偽裝鞘替換成女式洋傘或扁擔等常見物品。",
+      "sourceRef": "rules-2.35.txt 第286791行(無支線武器.htm)：價格200，武器傷害4L破甲1，社會性偽裝社交檢定+2DP器械加值"
+    },
+    {
+      "name": "黑曜石制匕首",
+      "goodId": "item.黑曜石制匕首",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": "D",
+      "lineageId": "item.黑曜石制匕首",
+      "startsAtRank": true,
+      "price": "D+500",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "黑曜石制匕首",
+          "attackType": "白刃",
+          "weaponDamage": 1,
+          "severity": "L",
+          "ranged": false
+        },
+        {
+          "kind": "敘事",
+          "text": "持有者可以進行一個持續1小時的儀式(智力+秘識檢定，DC4)，活剝一個無助狀態對象的皮並披在身上，取得對方的外貌。成功則維持成功數×1天，失敗則被剝皮目標承受3點惡性傷害。"
+        }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "剝皮儀式的完整判定與後果(DC4的智力+神秘學檢定、3點不可避免惡性傷害、外貌持續時間)",
+          "reason": "情境條件"
+        }
+      ],
+      "conversionNote": "儀式的數值部分不是不能算(智力+秘識 DC4 正好是 core/check.js 吃得下的參數)，但它需要一個『對無助目標執行儀式』的流程觸發點，而遊戲迴圈裡沒有那個觸發點。所以這裡轉成敘事效果並保留完整數字，等之後有『情境動作』系統時再接成真的判定。",
+      "narrative": "一把純黑曜石製成的原始刀具，製作粗糙、年代久遠，極其鋒利且完全不需要保養。",
+      "sourceRef": "rules-2.35.txt 第287209行(D級武器/武器.htm)：本質魔幻，價格D+500，分類匕首，體積1，武器傷害1L"
+    },
+    {
+      "name": "生命短杖",
+      "goodId": "item.生命短杖",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": "D",
+      "lineageId": "item.生命短杖",
+      "startsAtRank": true,
+      "price": "D+500",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "生命短杖",
+          "attackType": "白刃",
+          "weaponDamage": 2,
+          "severity": "L",
+          "ranged": false
+        },
+        { "kind": "治療", "severity": "L", "amount": 4 }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "生命恢復：持有者每經過10輪，自動將1點嚴重傷害恢復完好",
+          "reason": "自然恢復"
+        },
+        {
+          "trait": "爆發回復的替代選項(改為回復1點惡性傷害)與『接下來5天生命恢復失效』的冷卻",
+          "reason": "暫時性增益"
+        }
+      ],
+      "conversionNote": "『爆發回復』的兩個選項(4點嚴重 或 1點惡性)在簡化規則裡只留下前者當一次性治療效果——本引擎沒有冷卻計時器，如果兩個選項都留下、又沒有冷卻，玩家可以無限回血。留4點L是兩者中較保守的一邊(惡性傷害才是致命的那一軌)。",
+      "narrative": "一根木質的兩指寬、兩根筷子長的木棍，看起來像小型擀麵杖，實際上比鋼鐵還硬。某位法師模仿薩滿治療圖騰時的失敗品。",
+      "sourceRef": "rules-2.35.txt 第287278行(D級武器/武器.htm)：本質魔幻，價格D+500，分類短棍，武器傷害2L，爆發回復立即將4點嚴重傷害或1點惡性傷害回復完好"
+    },
+    {
+      "name": "鳳翅鎦金镋",
+      "goodId": "item.鳳翅鎦金镋",
+      "category": "物品",
+      "resourceType": "物品",
+      "rank": "D",
+      "lineageId": "item.鳳翅鎦金镋",
+      "startsAtRank": true,
+      "price": "D+500",
+      "consumable": false,
+      "prerequisites": { "attributes": { "力量": 5 }, "skills": { "格鬥": 4 } },
+      "originalPrerequisite": "需求力量5，需求白刃技能4",
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "鳳翅鎦金镋",
+          "attackType": "白刃",
+          "weaponDamage": 8,
+          "severity": "L",
+          "ranged": false
+        }
+      ],
+      "droppedTraits": [
+        { "trait": "破甲2", "reason": "破甲" },
+        { "trait": "武器特殊屬性【威猛】【長柄武器】", "reason": "加值類型" },
+        {
+          "trait": "鳳翅：目標體積小於你的體積與本武器體積之和時，攻擊檢定獲得4DP器械加值",
+          "reason": "體積"
+        },
+        {
+          "trait": "提振士氣：處於其他友方單位的模糊範圍內時，這些友方單位的下次攻擊獲得2DP器械加值",
+          "reason": "隊友"
+        }
+      ],
+      "narrative": "隋朝大將天寶將軍宇文成都的武器，威猛罕匹。",
+      "sourceRef": "rules-2.35.txt 第287254行(D級武器/武器.htm)：本質魔幻，價格D+500，分類戟，體積5，武器傷害8L破甲2"
+    }
+  ]
+}

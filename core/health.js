@@ -97,6 +97,34 @@ export function tickWorsening(hpState) {
   return { ...state, ...evaluateStatus(state) };
 }
 
+/**
+ * 治療：把指定傷勢軌上的 N 點傷害轉回「完好」。逐點運算，回傳新的狀態(不修改傳入物件)。
+ *
+ * [規則書] 語意出自「特殊兌換」(主神修復.htm)，rules-2.35.txt 第17600~17615行：主神空間的修復
+ * 是按傷勢種類分開計價的(沖擊/嚴重免費、惡性每點200分)，而型錄裡的治療類道具也是同樣寫法，
+ * 例如「生命短杖」的爆發回復是「立即將4點嚴重傷害或者1點惡性傷害**回復完好**」
+ * (第287280行附近)。所以治療不是 applyDamage 的反向層疊，而是單一軌直接回到 intact，
+ * 不會發生「A 退回 L」這種中間態——書上沒有那個機制。
+ *
+ * [2026-08-17 新增的理由] 這個引擎原本只有 shortRest()(一次1點B)這一條恢復路徑，
+ * 而主神商店的療傷服務與治療類商品都需要「指定軌、指定點數」的治療。沒有這個函式，
+ * 那些商品就只能是有名無實的敘事文字，那是本專案明令禁止的那種假功能。
+ *
+ * @param {"B"|"L"|"A"} type 要治療的傷勢軌
+ * @returns {{max:number,intact:number,B:number,L:number,A:number,dead:boolean,unconscious:boolean,worsening:boolean}}
+ */
+export function healDamage(hpState, amount, type) {
+  if (!CONVERSION_ORDER[type]) {
+    throw new Error(`未知傷勢類型: ${type}，只接受 B / L / A`);
+  }
+  if (amount < 0) throw new Error("治療點數不能是負數");
+  const state = { ...hpState };
+  const healed = Math.min(amount, state[type]);
+  state[type] -= healed;
+  state.intact += healed;
+  return { ...state, ...evaluateStatus(state), healed };
+}
+
 /** 自然恢復:短休息(至少15分鐘)恢復1點B->完好 */
 export function shortRest(hpState) {
   const state = { ...hpState };
