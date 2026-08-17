@@ -1196,6 +1196,59 @@ function appendFeedBlock(title, content, extraClass = "") {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// ---------------------------------------------------------------------------
+// 休息
+//
+// 哪一種休息、恢復多少、要不要扣時間預算，全部由 POST /api/rest 依地點決定
+// （主神空間完全恢復；副本中打坐並消耗3回合）。前端一如往常什麼都不算——
+// 這是本專案第4條最高原則對前端的同一條要求。
+// ---------------------------------------------------------------------------
+
+let restBusy = false;
+
+async function doRest() {
+  if (!currentSessionId || restBusy) return;
+  if (currentCombat?.active) {
+    appendFeedBlock("休息", "戰鬥中沒辦法休息。", "text-yellow-300");
+    return;
+  }
+  restBusy = true;
+  const btn = document.getElementById("rest-btn");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await (await fetch("/api/rest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+
+    if (!res.ok) {
+      const why = (res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因";
+      appendFeedBlock("休息", escapeHtml(`休息不成：${why}`), "text-yellow-300");
+      return;
+    }
+    appendFeedBlock(
+      res.location === "主神空間" ? "休息（主神空間）" : "打坐（副本中）",
+      escapeHtml(res.summary),
+      "text-sky-300"
+    );
+    if (res.timeBudget) {
+      appendFeedBlock(
+        "時間預算",
+        escapeHtml(`已用 ${res.timeBudget.spentRounds}/${res.timeBudget.totalRounds} 回合（${res.timeBudget.status}）`),
+        "text-zinc-400"
+      );
+    }
+    // 恢復會改角色卡的生命、意志力與能量池，側邊欄要跟著更新
+    if (res.character) adoptCharacter(res.character);
+  } catch (err) {
+    appendFeedBlock("休息", escapeHtml(`連線失敗：${err.message}`), "text-red-300");
+  } finally {
+    restBusy = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -2303,6 +2356,7 @@ window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
 window.startCombat = startCombat;
 window.openShop = openShop;
+window.doRest = doRest;
 window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到

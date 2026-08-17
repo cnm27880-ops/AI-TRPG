@@ -74,6 +74,16 @@ export function attemptRevival(character, wallet, availableFunds) {
 
 /**
  * 復活後的效果清空規則(書中原文)：非永久buff/debuff全部移除，永久效果保留。
+ *
+ * ⚠️ [2026-08-17] **這個函式不是那條規則目前的執行點。** 它收的
+ * `{temporary, permanent}` 形狀是一個從來沒有實作出來的效果系統，所以它到現在
+ * 都是零呼叫端（只有測試用它）。真正會被清掉的「非永久效果」是**型態**
+ * （變身／開眼／爆發，`content/shop/forms.js`），而那一條規則的執行點在
+ * `functions/api/revive.js`，用 `endScene()` 清。
+ *
+ * 留著它是因為它寫的是規則本身；但**不要以為呼叫它就等於執行了那條規則**，
+ * 也不要新增效果種類時只往這裡加而忘了 revive.js。
+ *
  * @param {{ temporary?: object[], permanent?: object[] }} effects
  */
 export function clearTemporaryEffectsOnRevival(effects) {

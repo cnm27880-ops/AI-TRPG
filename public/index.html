@@ -767,6 +767,11 @@
                     <button id="shop-open-btn" onclick="openShop()" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
                         <i class="fas fa-store text-[10px]"></i> 主神商店
                     </button>
+                    <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
+                         主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
+                    <button id="rest-btn" onclick="doRest()" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
+                        <i class="fas fa-mug-hot text-[10px]"></i> 休息
+                    </button>
                     <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
                     <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300">已存檔</span>
                 </div>

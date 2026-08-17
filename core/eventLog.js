@@ -19,6 +19,8 @@ export const EVENT_TYPES = Object.freeze({
   POINTS_GRANT: "points_grant",
   // 型態的啟動/結束(變身、開眼、爆發)。到期也走這一個，理由寫在 reason 欄位。
   FORM: "form",
+  // 休息(主神空間的完全恢復／副本中的打坐)。副本中的那一種會另外記一筆 TIME_SPENT。
+  REST: "rest",
 });
 
 const VALID_TYPES = new Set(Object.values(EVENT_TYPES));

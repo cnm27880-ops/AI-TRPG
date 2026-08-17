@@ -15,6 +15,7 @@ import { getDownState, revivalQuote, reviveCharacter } from "../../content/downS
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
+import { endScene } from "../../content/shop/forms.js";
 
 export async function onRequestGet(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -82,6 +83,17 @@ export async function onRequestPost(context) {
 
   // 復活後那場戰鬥不該還留著：玩家是在戰鬥裡被打死的，戰鬥已經分出勝負了。
   if (session.combat) session.combat.active = false;
+
+  // 書中原文的復活規則：非永久 buff/debuff 全部移除，永久效果保留。
+  // [2026-08-17] 這條規則在此之前**沒有執行點**——`clearTemporaryEffectsOnRevival()`
+  // 收的是一個從來沒實作出來的效果形狀，所以它一直是零呼叫端。真正會留下來的
+  // 非永久效果是「型態」(變身/開眼/爆發)，而型態在同一天變成了跨戰鬥、跨重整的
+  // 持久狀態——不清的話，玩家倒下復活之後還維持著變身，那顯然不對。
+  const revivedForms = endScene(session.forms, "復活：非永久效果全部移除(書中原文)");
+  session.forms = revivedForms.formsState;
+  if (session.combat?.forms) {
+    session.combat.forms = endScene(session.combat.forms, "復活").formsState;
+  }
 
   await store.put(session);
 
