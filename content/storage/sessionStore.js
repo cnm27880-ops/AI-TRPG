@@ -73,7 +73,9 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     // 副本節點完成給獎勵點數，副本通關給XP。
     wallet: createWallet(),
     // 進行中的型態(變身/開眼/爆發)。戰鬥中的型態另外存在 combat.forms 裡，
-    // 這一份是戰鬥外的，見 content/shop/forms.js。
+    // 這一份是戰鬥外的，見 content/shop/forms.js。開戰時由 combat/start.js 帶進 combat.forms、
+    // 收兵時由 combat/act.js 帶回來。到期條件是「離開啟動時所在的地點」——
+    // 場景的定義見 content/shop/access.js 的 sceneKeyOf()。
     forms: createFormsState(),
     createdAt: now,
     updatedAt: now,

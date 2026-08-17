@@ -1196,6 +1196,59 @@ function appendFeedBlock(title, content, extraClass = "") {
   feed.scrollTop = feed.scrollHeight;
 }
 
+// ---------------------------------------------------------------------------
+// 休息
+//
+// 哪一種休息、恢復多少、要不要扣時間預算，全部由 POST /api/rest 依地點決定
+// （主神空間完全恢復；副本中打坐並消耗3回合）。前端一如往常什麼都不算——
+// 這是本專案第4條最高原則對前端的同一條要求。
+// ---------------------------------------------------------------------------
+
+let restBusy = false;
+
+async function doRest() {
+  if (!currentSessionId || restBusy) return;
+  if (currentCombat?.active) {
+    appendFeedBlock("休息", "戰鬥中沒辦法休息。", "text-yellow-300");
+    return;
+  }
+  restBusy = true;
+  const btn = document.getElementById("rest-btn");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await (await fetch("/api/rest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+
+    if (!res.ok) {
+      const why = (res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因";
+      appendFeedBlock("休息", escapeHtml(`休息不成：${why}`), "text-yellow-300");
+      return;
+    }
+    appendFeedBlock(
+      res.location === "主神空間" ? "休息（主神空間）" : "打坐（副本中）",
+      escapeHtml(res.summary),
+      "text-sky-300"
+    );
+    if (res.timeBudget) {
+      appendFeedBlock(
+        "時間預算",
+        escapeHtml(`已用 ${res.timeBudget.spentRounds}/${res.timeBudget.totalRounds} 回合（${res.timeBudget.status}）`),
+        "text-zinc-400"
+      );
+    }
+    // 恢復會改角色卡的生命、意志力與能量池，側邊欄要跟著更新
+    if (res.character) adoptCharacter(res.character);
+  } catch (err) {
+    appendFeedBlock("休息", escapeHtml(`連線失敗：${err.message}`), "text-red-300");
+  } finally {
+    restBusy = false;
+    if (btn) btn.disabled = false;
+  }
+}
+
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -1391,6 +1444,7 @@ async function resumeSession(id) {
   // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
   if (res.session.combat?.active) {
     currentCombat = res.session.combat;
+    currentCombatOptions = null; // 續戰的存檔沒帶 options，等下一次行動回來再填
     enterCombatView();
     document.getElementById("combat-log").innerHTML = "";
     (currentCombat.log || []).forEach((entry) => appendCombatLog({
@@ -1409,6 +1463,8 @@ async function resumeSession(id) {
 
 // --- 戰鬥（單敵人 MVP，見 content/combat/encounterState.js） ---
 let currentCombat = null;
+// 這一輪按得下去的東西(武器＋型態)，由 /api/combat/start 與 act 回傳，前端不自己算。
+let currentCombatOptions = null;
 let combatInFlight = false;
 
 const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
@@ -1452,6 +1508,7 @@ async function startCombat() {
     }
 
     currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
     document.getElementById("combat-log").innerHTML = "";
     enterCombatView();
 
@@ -1490,7 +1547,8 @@ function renderCombat() {
   document.getElementById("combat-turn-indicator").textContent = c.active ? turnLabel : "戰鬥結束";
 
   const actionsEnabled = c.active && c.order[c.turnIndex] === "player" && !combatInFlight;
-  document.querySelectorAll("[data-combat-attack]").forEach((btn) => {
+  renderCombatActions(actionsEnabled);
+  document.querySelectorAll("[data-combat-attack],[data-combat-form]").forEach((btn) => {
     btn.disabled = !actionsEnabled;
     btn.classList.toggle("opacity-40", !actionsEnabled);
   });
@@ -1535,6 +1593,79 @@ function appendCombatLog(entry) {
   log.scrollTop = log.scrollHeight;
 }
 
+/**
+ * 戰鬥行動按鈕。**整排都是伺服器算出來的**（`options` 由 /api/combat/start 與 act 回傳）。
+ *
+ * [2026-08-17] 在這之前，index.html 裡是寫死的兩顆按鈕（徒手、手槍），於是：
+ * 買到的武器在戰鬥裡按不到（引擎其實吃得下），身上的型態也變不了身
+ * （`resolveFormActivation()` 當時沒有任何呼叫端）。兩件事是同一個病：引擎做得到、
+ * 沒有人問它。現在按鈕從 `combatOptions()` 長出來，買什麼就按得到什麼。
+ */
+function renderCombatActions(enabled) {
+  const box = document.getElementById("combat-actions");
+  if (!box) return;
+  const opts = currentCombatOptions;
+  // 還沒拿到 options（舊存檔續戰、或伺服器版本較舊）就保留原本畫面，不要把按鈕清空
+  if (!opts) return;
+
+  const weaponBtn = (w) => `
+    <button data-combat-attack="${escapeHtml(w.key)}" class="action-tile !p-2.5 !flex-row justify-center">
+      <i class="fas ${w.ranged ? "fa-crosshairs" : "fa-hand-fist"} action-tile-icon !text-base"></i>
+      <span class="flex flex-col items-start leading-tight">
+        <span class="action-tile-label">${escapeHtml(w.label)}${w.fromForm ? "（型態）" : ""}</span>
+        <span class="action-tile-sub">${escapeHtml(w.attackType)}${w.weaponDamage ? ` · 傷害${w.weaponDamage}` : ""}</span>
+      </span>
+    </button>`;
+
+  const formBtn = (f) => `
+    <button data-combat-form="${escapeHtml(f.formId)}" ${f.active ? "disabled" : ""}
+      class="action-tile !p-2.5 !flex-row justify-center ${f.active ? "opacity-50" : "!border-violet-500/50"}">
+      <i class="fas fa-wand-magic-sparkles action-tile-icon !text-base ${f.active ? "" : "!text-violet-300"}"></i>
+      <span class="flex flex-col items-start leading-tight">
+        <span class="action-tile-label">${escapeHtml(f.label)}${f.active ? "（進行中）" : ""}</span>
+        <span class="action-tile-sub">${escapeHtml(costText(f.activation))}</span>
+      </span>
+    </button>`;
+
+  box.innerHTML = [...opts.weapons.map(weaponBtn), ...opts.forms.map(formBtn)].join("");
+  box.querySelectorAll("button").forEach((b) => {
+    if (!enabled) b.disabled = true;
+  });
+}
+
+/** 戰鬥中啟動型態。跟攻擊走同一個端點，差在 action="型態"——它不推進行動順位。 */
+async function combatActivateForm(formId) {
+  if (!currentCombat?.active || combatInFlight) return;
+  if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
+  combatInFlight = true;
+  renderCombat();
+  try {
+    const res = await (await fetch("/api/combat/act", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, formId, action: "型態" }),
+    })).json();
+
+    if (!res.ok) {
+      appendCombatSystemLine(
+        `變身失敗：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`,
+        "text-yellow-300"
+      );
+      if (res.options) currentCombatOptions = res.options;
+      return;
+    }
+    currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
+    if (res.character) adoptCharacter(res.character);
+    appendCombatSystemLine(`${res.form.label} 啟動`, "text-violet-300");
+  } catch (err) {
+    appendCombatSystemLine(`變身失敗（連線失敗）：${err.message}`);
+  } finally {
+    combatInFlight = false;
+    renderCombat();
+  }
+}
+
 async function combatAttack(weaponKey) {
   if (!currentCombat?.active || combatInFlight) return;
   if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
@@ -1570,6 +1701,7 @@ async function combatAttack(weaponKey) {
     }
 
     currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
     if (res.character) adoptCharacter(res.character);
     if (res.scenario?.nodeCompleted) {
       const n = res.scenario.nodeCompleted;
@@ -1893,6 +2025,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 戰鬥行動按鈕
   document.getElementById("combat-actions")?.addEventListener("click", (e) => {
+    const form = e.target.closest("[data-combat-form]");
+    if (form && !form.disabled) {
+      combatActivateForm(form.dataset.combatForm);
+      return;
+    }
     const btn = e.target.closest("[data-combat-attack]");
     if (!btn || btn.disabled) return;
     combatAttack(btn.dataset.combatAttack);
@@ -1952,6 +2089,9 @@ async function refreshShop() {
     }
     shopState = res;
     renderShop();
+    // 型態的即時狀態(哪些正在進行中、有沒有因為換地點而到期)只有 /api/forms 知道，
+    // /api/shop 給的那一份只有「身上有哪些型態」。
+    await refreshForms();
   } catch (err) {
     document.getElementById("shop-shelf").innerHTML =
       `<div class="text-xs font-mono text-red-400 p-4">無法連線到商店：${escapeHtml(err.message)}</div>`;
@@ -1999,6 +2139,117 @@ function renderShop() {
 
   const items = shopState.shelf.filter((s) => shopCategory === "全部" || s.good.category === shopCategory);
   document.getElementById("shop-shelf").innerHTML = items.map(shopItemHtml).join("");
+
+  renderForms();
+}
+
+// ---------------------------------------------------------------------------
+// 型態（變身／開眼／爆發）
+//
+// 跟貨架一樣：能不能啟動、要付多少代價、什麼時候到期，全部由 /api/forms 算好回傳，
+// 前端只畫。到期條件是「離開當下所在的地點」——那把鑰匙由伺服器從存檔算出來，
+// 前端連問都不用問。
+// ---------------------------------------------------------------------------
+
+let formsState = null;
+let formsBusy = false;
+
+function costText(activation) {
+  const parts = [];
+  if (activation?.action) parts.push(`${activation.action}動作`);
+  if (activation?.willpower) parts.push(`意志力${activation.willpower}`);
+  if (activation?.pool) parts.push(`${activation.pool.name}${activation.pool.amount}`);
+  return parts.join(" + ") || "無代價";
+}
+
+function renderForms() {
+  const box = document.getElementById("shop-forms");
+  if (!box) return;
+  const forms = formsState?.forms ?? shopState?.forms ?? [];
+  if (!forms.length) {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+
+  // 戰鬥中不讓這裡動：戰鬥中的變身要在戰鬥畫面做，那裡才扣得到動作額度。
+  const inCombat = Boolean(formsState?.inCombat ?? shopState?.access?.inCombat);
+  const note = inCombat
+    ? `<span class="text-amber-300/80">戰鬥中——變身請在戰鬥畫面操作（那裡才扣得到動作額度）</span>`
+    : `<span class="text-zinc-500">持續一個場景的型態，會在你離開現在這個地點時結束</span>`;
+
+  box.innerHTML =
+    `<div class="text-[11px] font-mono flex items-center gap-2"><span class="text-zinc-400">型態</span>${note}</div>` +
+    forms
+      .map((f) => {
+        const label = `${escapeHtml(f.sourceName)}·${escapeHtml(f.label)}`;
+        const button = inCombat
+          ? `<span class="px-2 py-0.5 rounded border border-zinc-700 text-zinc-600 text-[10px] font-mono shrink-0">戰鬥中</span>`
+          : `<button data-form-toggle="${escapeHtml(f.formId)}" data-form-action="${f.active ? "收功" : "啟動"}"
+              class="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 transition-all ${
+                f.active
+                  ? "bg-zinc-700/40 border border-zinc-600 text-zinc-300 hover:bg-zinc-700/60"
+                  : "bg-violet-500/20 border border-violet-500/50 text-violet-200 hover:bg-violet-500/30"
+              }">${f.active ? "收功" : "啟動"}</button>`;
+        return `
+          <div class="flex items-center gap-2 text-[11px] font-mono">
+            <span class="${f.active ? "text-violet-200 font-bold" : "text-zinc-300"}">${label}</span>
+            ${f.active ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200">進行中</span>` : ""}
+            <span class="text-[10px] text-zinc-500">${escapeHtml(costText(f.activation))}</span>
+            <span class="ml-auto"></span>
+            ${button}
+          </div>`;
+      })
+      .join("");
+}
+
+async function refreshForms() {
+  if (!currentSessionId) return;
+  try {
+    const res = await (await fetch(`/api/forms?sessionId=${encodeURIComponent(currentSessionId)}`)).json();
+    if (res.ok) {
+      formsState = res;
+      renderForms();
+    }
+  } catch {
+    // 型態面板讀不到不該讓整個商店壞掉——貨架是主體，這一區是附加的。
+  }
+}
+
+async function toggleForm(formId, action) {
+  if (!currentSessionId || formsBusy) return;
+  formsBusy = true;
+  const toast = document.getElementById("shop-toast");
+  try {
+    const res = await (await fetch("/api/forms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, formId, action }),
+    })).json();
+
+    toast.style.display = "block";
+    if (!res.ok) {
+      toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+      toast.textContent = `${action}不成：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`;
+      if (res.forms) { formsState = res; renderForms(); }
+      return;
+    }
+    formsState = res;
+    renderForms();
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-violet-300 bg-violet-500/10";
+    toast.textContent =
+      action === "啟動"
+        ? `「${res.form?.label ?? ""}」啟動，持續到你離開這個地點`
+        : `已收功${res.ended?.length ? `：${res.ended.join("、")}` : ""}`;
+    // 啟動會扣意志力與能量池，側邊欄要跟著更新
+    if (res.character) adoptCharacter(res.character);
+  } catch (err) {
+    toast.style.display = "block";
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+    toast.textContent = `連線失敗：${err.message}`;
+  } finally {
+    formsBusy = false;
+  }
 }
 
 function shopItemHtml(item) {
@@ -2094,6 +2345,8 @@ document.addEventListener("click", (e) => {
   }
   const buy = e.target.closest("[data-shop-buy]");
   if (buy && !buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
+  const form = e.target.closest("[data-form-toggle]");
+  if (form) toggleForm(form.getAttribute("data-form-toggle"), form.getAttribute("data-form-action"));
 });
 
 window.showScreen = showScreen;
@@ -2103,6 +2356,7 @@ window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
 window.startCombat = startCombat;
 window.openShop = openShop;
+window.doRest = doRest;
 window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到

@@ -81,6 +81,16 @@ npx wrangler pages deploy public
 
 ### 步驟6：驗證API真的接上了(重要，不要跳過)
 
+> **⚠️ 先確認你打的是哪一個網址。** 2026-08-17 有一輪回報「Pages Functions 沒有被服務，
+> `/api/shop` 與 `/api/session` 在 preview 與正式站都回 404，只有 `/` 回 200」，並據此
+> 懷疑 Pages 專案設定壞了。**那個結論是錯的**：實際的 Pages 專案網域是
+> `ai-trpg-evd.pages.dev`，而測試時打的是 `ai-trpg.pages.dev`——一個不屬於這個專案的網域。
+> 打對網址之後，`/api/shop` 與 `/api/forms` 都正常回應（沒有 sessionId 時回 400
+> 「需要 sessionId」，那正是函式有在跑的證據）。
+>
+> **正確的網址以每次部署後 PR 上 Cloudflare 機器人留言的 Preview URL 為準**，
+> 不要從專案名稱推測。一個 404 有兩種可能——函式沒部署，或你根本打錯站。
+
 部署完打開瀏覽器或用curl測試一下 `/api/check` 端點是否正常運作，例如：
 
 ```powershell

@@ -767,6 +767,11 @@
                     <button id="shop-open-btn" onclick="openShop()" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
                         <i class="fas fa-store text-[10px]"></i> 主神商店
                     </button>
+                    <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
+                         主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
+                    <button id="rest-btn" onclick="doRest()" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
+                        <i class="fas fa-mug-hot text-[10px]"></i> 休息
+                    </button>
                     <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
                     <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300">已存檔</span>
                 </div>
@@ -966,6 +971,11 @@
                 <span class="px-2 py-0.5 rounded bg-panel border hairline-border">經驗 <span id="shop-wallet-xp" class="text-emerald-300 font-bold">0</span></span>
                 <span id="shop-summary" class="ml-auto text-zinc-500"></span>
             </div>
+
+            <!-- 型態（變身／開眼／爆發）。買了血統或瞳術才會出現。
+                 這一區的按鈕打的是 /api/forms，不是 /api/shop——啟動要扣意志力與能量池，
+                 而且「持續一個場景」的到期條件是離開當下所在的地點（見 content/shop/access.js 的 sceneKeyOf）。 -->
+            <div id="shop-forms" style="display:none" class="px-4 py-2.5 shrink-0 hairline-b bg-zinc-950/40 space-y-1.5"></div>
 
             <!-- 分類頁籤 -->
             <div id="shop-tabs" class="px-4 py-2 flex flex-wrap gap-1.5 text-[11px] font-mono shrink-0 hairline-b"></div>

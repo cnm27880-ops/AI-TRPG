@@ -23,7 +23,8 @@ import {
   attackModifiersFor,
 } from "../content/shop/effects.js";
 import { validateGood, purchase, evaluatePurchase } from "../content/shop/catalog.js";
-import { baseCapacity, openPool, spendEnergy } from "../core/energyPools.js";
+import { baseCapacity, openPool, spendEnergy, POOL_DEFS, REJECTED_POOLS } from "../core/energyPools.js";
+import { ATTRIBUTES } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import {
   createFormsState,
@@ -34,6 +35,9 @@ import {
   deactivateForm,
   tickFormsOnRound,
   endScene,
+  endCombat,
+  expireOnSceneChange,
+  formsForScene,
   activeGrantSources,
   describeActiveForms,
 } from "../content/shop/forms.js";
@@ -43,6 +47,7 @@ import {
   resolveFormActivation,
   playerWeapons,
   playerCombatProfile,
+  combatOptions,
 } from "../content/combat/encounterState.js";
 
 function hero() {
@@ -375,22 +380,43 @@ test("戰鬥中變身會花掉移動動作，同一輪不能變身兩次", () =>
   assert.ok(second.blockers.some((b) => b.code === "已在進行中"));
 });
 
-test("戰鬥結束時型態一起結束(場景結束)，並留下紀錄", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
+/**
+ * 打完一場架：把敵人設成一擊必倒，然後打他一下。
+ * alreadyActive=true 代表型態是戰鬥外就開好帶進來的，這裡不用再啟動一次。
+ */
+function 一擊結束戰鬥(combat, character, formId, { alreadyActive = false } = {}) {
   combat.order = ["player", "enemy"];
   combat.turnIndex = 0;
   combat.enemy.hpState = { ...combat.enemy.hpState, max: 1, intact: 1, B: 0, L: 0, A: 0 };
-
-  const activation = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(combat.forms.active.length, 1);
-
-  resolvePlayerAttack(combat, activation.character, "unarmed", {
+  let attacker = character;
+  if (!alreadyActive) {
+    const activation = resolveFormActivation(combat, character, formId);
+    assert.equal(activation.ok, true, JSON.stringify(activation.blockers));
+    attacker = activation.character;
+  }
+  assert.equal(combat.forms.active.length, 1, "型態要先真的在進行中");
+  resolvePlayerAttack(combat, attacker, "unarmed", {
     rollFn: () => ({ successes: 20, rolls: [], isFortuneDie: false, fumble: false }),
   });
   assert.equal(combat.active, false, "敵人應該倒下");
-  assert.deepEqual(combat.forms.active, [], "戰鬥結束＝場景結束，型態要收掉");
+}
+
+test("戰鬥結束收掉以「輪」計時的型態(戰鬥外沒有輪可以數)", () => {
+  const c = withAbility(hero(), [爆發]);
+  const combat = createEncounter(c);
+  一擊結束戰鬥(combat, c, formIdOf("test.血統", "爆發"));
+  assert.deepEqual(combat.forms.active, [], "以輪計時的型態留到戰鬥外就永遠不會到期");
   assert.ok(combat.log.some((l) => l.event === "型態到期"));
+});
+
+test("戰鬥結束**不會**收掉以「場景」計時的型態——打一場架不會改變你站在哪裡", () => {
+  // [使用者決定 2026-08-17] 場景＝當下所在的地點。這則測試守的就是那句話：
+  // 先前這裡的規則是「戰鬥結束＝場景結束」，在場景有定義之後那是錯的。
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  一擊結束戰鬥(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(combat.forms.active.length, 1, "變身要撐得過一場戰鬥");
+  assert.equal(combat.forms.active[0].label, "進化形態");
 });
 
 test("舊存檔的 combat 沒有 forms 欄位時不會炸(型態是後來才加的)", () => {
@@ -741,4 +767,308 @@ test("劍氣用完就變不出劍了(能量池是真的會見底的)", async () 
   const r = activateForm(drained, createFormsState(), formIdOf("school.青蓮劍歌總決.D", "劍氣化碧"), { round: 1 });
   assert.equal(r.ok, false);
   assert.equal(r.blockers[0].code, "能量不足");
+});
+
+// ---------------------------------------------------------------------------
+// 能量池第二輪(2026-08-17)：查克拉與內力兩條鏈
+//
+// 第一條鏈(劍氣)證明的是「機制接得起來」。這一組證明的是另一件事——**機制做好之後，
+// 追新的池子只剩抄兩個屬性名的成本**：下面兩條鏈沒有為它們新增任何一行引擎程式碼，
+// 查克拉鏈甚至連新效果種類都沒用到，它整條都是既有詞彙表拼出來的。
+//
+// 順便，這裡出現了第一個「同一個池子有兩個獨立來源」的實例(忍者與寫輪眼都開查克拉)，
+// 於是 REOPEN_BONUSES 的 +5 第一次有了真實的消費端，而不是只在單元測試裡被驗算。
+// ---------------------------------------------------------------------------
+
+/** 一個滿足忍者技能前提的角色(運動/隱藏/神秘學/白刃/肉搏/求生 → 體魄/潛行/秘識/格鬥/求生)。 */
+function 忍者學徒() {
+  const c = hero();
+  c.skills = { ...c.skills, 體魄: 1, 潛行: 1, 秘識: 1, 格鬥: 2, 求生: 3 };
+  return c;
+}
+
+async function 池子來源包() {
+  return (await import("../content/packs/shop-starter-pools.json", { with: { type: "json" } })).default;
+}
+
+test("內力也登錄了關鍵屬性，而且跟查克拉是同一組(書上說兩者運作方式幾乎一致)", () => {
+  const attrs = { 感知: 4, 耐力: 2, 敏捷: 3 };
+  assert.equal(baseCapacity("內力", attrs), 6, "內力＝感知+耐力");
+  assert.equal(baseCapacity("查克拉", attrs), 6, "查克拉＝耐力+感知，同一組屬性");
+});
+
+test("查過但收不了的池子留在 REJECTED_POOLS，每一筆都說得出行號與『為什麼不可能』", () => {
+  const 六維 = new Set(ATTRIBUTES.map((a) => a.key));
+  assert.ok(Object.keys(REJECTED_POOLS).length > 0, "查證過的否定結論要留下來，不然下一個人會再查一次");
+  for (const [name, def] of Object.entries(REJECTED_POOLS)) {
+    assert.ok(!POOL_DEFS[name], `「${name}」不可以同時出現在 POOL_DEFS 與 REJECTED_POOLS`);
+    assert.match(def.sourceRef, /rules-2\.35\.txt 第\d+行/, `「${name}」的 sourceRef 沒有行號`);
+    assert.ok(
+      def.keyAttributes.some((a) => !六維.has(a)),
+      `「${name}」被否決的理由必須是「關鍵屬性不在六維裡」——如果兩個都在六維裡，那它應該被收下`
+    );
+  }
+});
+
+test("REJECTED_POOLS 指名擋住的商品，確實還掛在掛名狀態(否決清單不是寫爽的)", async () => {
+  const cybernetic = (await import("../content/packs/shop-starter-cybernetic.json", { with: { type: "json" } })).default;
+  const all = cybernetic.entries;
+  for (const def of Object.values(REJECTED_POOLS)) {
+    for (const goodId of def.blocks ?? []) {
+      const good = all.find((g) => g.goodId === goodId);
+      assert.ok(good, `REJECTED_POOLS 指到一件不存在的商品：${goodId}`);
+      assert.equal(good.status, "掛名", `${good.name} 的池子被否決了，它不該是上架狀態`);
+    }
+  }
+});
+
+test("忍者的技能前提真的擋得住(六項原文前提對映成五項十技能)", async () => {
+  const pack = await 池子來源包();
+  const 忍者 = pack.entries.find((e) => e.goodId === "title.忍者.D");
+  assert.equal(validateGood(忍者).valid, true, validateGood(忍者).errors.join("\n"));
+
+  const wallet = createWallet({ tokens: { D: 3 }, points: 3000 });
+  const 素人 = evaluatePurchase(hero(), wallet, 忍者); // hero 只有格鬥與求生
+  assert.equal(素人.ok, false);
+  assert.equal(素人.blockers.filter((b) => b.code === "前提不足").length, 3, "缺體魄/潛行/秘識三項");
+
+  assert.equal(evaluatePurchase(忍者學徒(), wallet, 忍者).ok, true);
+});
+
+test("整條鏈：忍者 → 查克拉池 → 寫輪眼(第二個來源，上限+5) → 洞察眼開眼", async () => {
+  const pack = await 池子來源包();
+  const dojutsu = (await import("../content/packs/shop-starter-dojutsu.json", { with: { type: "json" } })).default;
+  const 忍者 = pack.entries.find((e) => e.goodId === "title.忍者.D");
+  const 寫輪眼 = dojutsu.entries.find((e) => e.goodId === "dojutsu.寫輪眼.D");
+
+  assert.equal(寫輪眼.status, "上架", "寫輪眼應該已經不是掛名");
+
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const step1 = purchase(忍者學徒(), wallet, 忍者);
+  assert.equal(step1.ok, true, JSON.stringify(step1.blockers));
+  assert.equal(step1.character.derived.energyPools.查克拉.max, 6, "耐力3+感知3");
+  assert.equal(combatProfileFrom(step1.character).initiativeBonus, 3, "神速：先攻+3");
+
+  // 第二個**獨立來源**開同一個池子 → 書上的重複開啟補償 +5
+  const step2 = purchase(step1.character, step1.wallet, 寫輪眼);
+  assert.equal(step2.ok, true, JSON.stringify(step2.blockers));
+  const 池 = step2.character.derived.energyPools.查克拉;
+  assert.equal(池.max, 11, "忍者與寫輪眼是兩個不同來源，第一次重複開啟 +5");
+  assert.equal(池.current, 6, "上限變大不等於補滿");
+  assert.deepEqual(池.sources, ["title.忍者.D", "dojutsu.寫輪眼.D"]);
+
+  const character = step2.character;
+  const formId = formIdOf(寫輪眼.goodId, "洞察眼");
+
+  // 開眼前：攻擊與防御都沒有加值
+  assert.equal(attackModifiersFor(character, "肉搏").dp, 0);
+  assert.equal(combatProfileFrom(character).equipmentDefense, 0);
+
+  // 開眼要花一個標準動作＋1點查克拉
+  const budget = createActionBudget();
+  const on = activateForm(character, createFormsState(), formId, { round: 1, budget });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  assert.equal(on.character.derived.energyPools.查克拉.current, 5, "支付1點查克拉");
+  assert.equal(on.budget.standardAvailable, false, "標準動作被用掉了");
+
+  const extraSources = activeGrantSources(on.formsState);
+  assert.equal(attackModifiersFor(character, "肉搏", { extraSources }).dp, 2, "開眼期間攻擊+2DP");
+  assert.equal(attackModifiersFor(character, "炮", { extraSources }).dp, 2, "書上沒有限定攻擊方式");
+  assert.equal(
+    checkModifiersFor(character, { attribute: "感知", skill: "偵察" }, { extraSources }).dp,
+    0,
+    "scope 是「攻擊」，一般檢定吃不到"
+  );
+  assert.equal(combatProfileFrom(character, { extraSources }).equipmentDefense, 2, "開眼期間防御+2");
+
+  // 持續一個場景：場景結束就收乾淨
+  const ended = endScene(on.formsState);
+  assert.equal(isFormActive(ended.formsState, formId), false);
+  assert.equal(combatProfileFrom(character, { extraSources: activeGrantSources(ended.formsState) }).equipmentDefense, 0);
+});
+
+test("查克拉見底時開不了眼(洞察眼跟劍氣化碧受同一條約定管)", async () => {
+  const dojutsu = (await import("../content/packs/shop-starter-dojutsu.json", { with: { type: "json" } })).default;
+  const 寫輪眼 = dojutsu.entries.find((e) => e.goodId === "dojutsu.寫輪眼.D");
+  const bought = purchase(hero(), createWallet({ tokens: { D: 2 }, points: 2000 }), 寫輪眼);
+  assert.equal(bought.ok, true, JSON.stringify(bought.blockers));
+
+  const drained = {
+    ...bought.character,
+    derived: {
+      ...bought.character.derived,
+      energyPools: { 查克拉: { ...bought.character.derived.energyPools.查克拉, current: 0 } },
+    },
+  };
+  const r = activateForm(drained, createFormsState(), formIdOf(寫輪眼.goodId, "洞察眼"), { round: 1 });
+  assert.equal(r.ok, false);
+  assert.equal(r.blockers[0].code, "能量不足");
+});
+
+test("內力鏈：內力心法開池，葵花寶典是第二個來源——書上寫的+5就是通則算出來的+5", async () => {
+  const pack = await 池子來源包();
+  const technique = (await import("../content/packs/shop-starter-technique.json", { with: { type: "json" } })).default;
+  const 內力心法 = pack.entries.find((e) => e.goodId === "technique.內力心法.D");
+  const 葵花寶典 = technique.entries.find((e) => e.goodId === "technique.葵花寶典.1");
+
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const step1 = purchase(hero(), wallet, 內力心法);
+  assert.equal(step1.ok, true, JSON.stringify(step1.blockers));
+  assert.equal(step1.character.derived.energyPools.內力.max, 6, "感知3+耐力3");
+
+  // 葵花寶典原文：「獲得D級內力…若已擁有內力則使內力上限提高5點」。
+  // 那個 5 沒有寫在商品資料裡任何一個欄位，是 REOPEN_BONUSES[0] 算出來的。
+  const step2 = purchase(step1.character, step1.wallet, 葵花寶典);
+  assert.equal(step2.ok, true, JSON.stringify(step2.blockers));
+  assert.equal(step2.character.derived.energyPools.內力.max, 11, "書上的+5＝通則的第一次重複開啟補償");
+
+  // 反過來也成立：只買葵花寶典的人，內力池是基礎上限
+  const 單買 = purchase(hero(), wallet, 葵花寶典);
+  assert.equal(單買.character.derived.energyPools.內力.max, 6);
+});
+
+// ---------------------------------------------------------------------------
+// 戰鬥外的型態：場景 ＝ 當下所在的地點（使用者決定 2026-08-17）
+//
+// 這一組守的是「session.forms 不再是一個沒有消費端的欄位」。在此之前存檔裡有這個欄位、
+// 商店頁也列得出可啟動的型態，但戰鬥外沒有任何東西啟動得了它、也沒有任何東西讓它到期——
+// 而一個不會到期的「持續一個場景」就是永久加值，正是 forms.js 整個設計在避開的事。
+// ---------------------------------------------------------------------------
+
+test("戰鬥外啟動場景型態會記下當下的地點", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const on = activateForm(c, createFormsState(), formIdOf("test.血統", "進化形態"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  assert.equal(on.formsState.active[0].sceneKey, "恐怖片中:p1:n1");
+});
+
+test("換地點 → 場景型態到期；留在原地 → 繼續有效", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const formId = formIdOf("test.血統", "進化形態");
+  const on = activateForm(c, createFormsState(), formId, { sceneKey: "恐怖片中:p1:n1" });
+
+  // 還在同一個地點：加值照樣查得到
+  const same = formsForScene(on.formsState, "恐怖片中:p1:n1");
+  assert.deepEqual(same.expired, []);
+  assert.equal(combatProfileFrom(c, { extraSources: same.extraSources }).equipmentDefense, 3);
+
+  // 推進到下一個節點：到期，加值跟著不見
+  const moved = formsForScene(on.formsState, "恐怖片中:p1:n2");
+  assert.equal(moved.expired.length, 1);
+  assert.equal(isFormActive(moved.formsState, formId), false);
+  assert.equal(combatProfileFrom(c, { extraSources: moved.extraSources }).equipmentDefense, 0);
+  assert.match(moved.formsState.log.at(-1).reason, /離開了啟動時所在的地點/);
+});
+
+test("回到主神空間也是一次換場(副本裡開的眼會關掉)", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const on = activateForm(c, createFormsState(), formIdOf("test.血統", "進化形態"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(formsForScene(on.formsState, "主神空間").expired.length, 1);
+});
+
+test("以「輪」計時的型態不歸換場管(它由戰鬥的輪時鐘收)", () => {
+  // 戰鬥外啟動不了以輪計時的型態：沒有輪可以數，activateForm 會擋下來。
+  const c = withAbility(hero(), [爆發]);
+  const outOfCombat = activateForm(c, createFormsState(), formIdOf("test.血統", "爆發"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(outOfCombat.ok, false);
+  assert.equal(outOfCombat.blockers[0].code, "缺少輪數");
+
+  // 戰鬥中啟動的那一份，換場檢查不該碰它(免得同一個型態被兩個時鐘各收一次)
+  const inCombat = activateForm(c, createFormsState(), formIdOf("test.血統", "爆發"), { round: 1 });
+  assert.equal(inCombat.ok, true);
+  assert.deepEqual(formsForScene(inCombat.formsState, "任何地點").expired, []);
+});
+
+test("endCombat 只收輪型態，場景型態撐得過收兵", () => {
+  const c = withAbility(hero(), [進化形態, 爆發]);
+  let state = createFormsState();
+  state = activateForm(c, state, formIdOf("test.血統", "進化形態"), { sceneKey: "恐怖片中:p1:n1" }).formsState;
+  const withBoth = activateForm(c, state, formIdOf("test.血統", "爆發"), { round: 1, sceneKey: "恐怖片中:p1:n1" });
+  assert.equal(withBoth.formsState.active.length, 2);
+
+  const after = endCombat(withBoth.formsState);
+  assert.equal(after.expired.length, 1);
+  assert.equal(after.expired[0].label, "爆發");
+  assert.equal(after.formsState.active.length, 1);
+  assert.equal(after.formsState.active[0].label, "進化形態", "變身撐得過一場戰鬥");
+});
+
+test("一整條戰鬥外的路徑：變身 → 打一場架 → 收兵仍在 → 換節點才結束", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const formId = formIdOf("test.血統", "進化形態");
+
+  // 1) 戰鬥外變身
+  const on = activateForm(c, createFormsState(), formId, { sceneKey: "恐怖片中:p1:n1" });
+  assert.equal(on.ok, true);
+
+  // 2) 帶著它開戰(這是 combat/start.js 現在做的事)
+  const combat = createEncounter(on.character, undefined, { forms: on.formsState });
+  assert.equal(combat.forms.active.length, 1, "開戰時型態要跟著進去");
+  assert.equal(playerCombatProfile(combat, on.character).equipmentDefense, 3, "戰鬥中吃得到加值");
+
+  // 3) 打完收兵(finalizeIfOver → endCombat)，型態還在
+  一擊結束戰鬥(combat, on.character, formIdOf("test.血統", "進化形態"), { alreadyActive: true });
+  assert.equal(combat.forms.active.length, 1, "收兵不該讓變身消失");
+
+  // 4) 推進節點才真的結束
+  const moved = formsForScene(combat.forms, "恐怖片中:p1:n2");
+  assert.equal(moved.expired.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// 戰鬥行動選單：引擎算、UI 畫（2026-08-17）
+//
+// 補的是兩個「引擎做得到、沒有人問它」的洞：戰鬥畫面的按鈕先前是 index.html 裡寫死的
+// 兩顆(徒手、手槍)，於是買到的武器按不到、身上的型態也變不了身
+// (resolveFormActivation() 當時是零呼叫端)。
+// ---------------------------------------------------------------------------
+
+test("combatOptions 把買到的武器也列進行動選單(不只寫死的兩顆)", () => {
+  const c = withAbility(hero(), [
+    { kind: "武器", label: "測試長劍", attackType: "白刃", weaponDamage: 4, severity: "L" },
+  ]);
+  const combat = createEncounter(c);
+  const { weapons } = combatOptions(combat, c);
+  assert.ok(weapons.some((w) => w.key === "unarmed"), "佔位武器還在");
+  const bought = weapons.find((w) => w.label === "測試長劍");
+  assert.ok(bought, "買到的武器要出現在行動選單裡");
+  assert.equal(bought.attackType, "白刃");
+  assert.equal(bought.weaponDamage, 4);
+});
+
+test("combatOptions 列出身上的型態，並標出哪些已經在進行中", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  const before = combatOptions(combat, c).forms;
+  assert.equal(before.length, 1);
+  assert.equal(before[0].label, "進化形態");
+  assert.equal(before[0].active, false);
+
+  combat.order = ["player", "enemy"];
+  combat.turnIndex = 0;
+  const activated = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
+
+  const after = combatOptions(combat, activated.character);
+  assert.equal(after.forms[0].active, true, "已經在進行中的型態要標出來，不然玩家會一直按");
+  // 型態授予的天生武器也要跟著出現在武器表裡
+  assert.ok(after.weapons.some((w) => w.fromForm), "型態給的天生武器要標成 fromForm");
+});
+
+test("戰鬥中啟動型態不推進行動順位(書上這類啟動花的是動作，不是整個回合)", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  combat.order = ["player", "enemy"];
+  combat.turnIndex = 0;
+  const before = combat.turnIndex;
+  const r = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(r.ok, true);
+  assert.equal(combat.turnIndex, before, "變身完還是玩家的回合，他本輪還可以出手");
+  assert.equal(combat.player.budget.moveAvailable, false, "但移動動作被用掉了");
 });

@@ -24,10 +24,11 @@ import { computeDerivedStats } from "../../core/derivedStats.js";
 import { combatProfileFrom, weaponsFrom, attackModifiersFor } from "../shop/effects.js";
 import {
   createFormsState,
+  formsOf,
   activateForm,
   activeGrantSources,
   tickFormsOnRound,
-  endScene,
+  endCombat,
 } from "../shop/forms.js";
 import { PLACEHOLDER_WEAPONS, buildAttackParams, PLACEHOLDER_ENEMY } from "./placeholderEncounters.js";
 
@@ -54,6 +55,40 @@ export function playerCombatProfile(combat, character) {
     skillCorrection: Math.max(character.skills?.格鬥 ?? 0, character.skills?.體魄 ?? 0),
     extraSources: activeGrantSources(combat.forms),
   });
+}
+
+/**
+ * [設計 2026-08-17] **這一輪玩家按得下去的東西**，由引擎算好給 UI 畫。
+ *
+ * 為什麼是引擎算：本專案第4條最高原則對前端一樣適用。在這個函式出現之前，戰鬥畫面的
+ * 行動按鈕是 index.html 裡**寫死的兩顆**（徒手、手槍），於是有兩個後果：
+ *
+ * 1. **買到的武器在戰鬥裡按不到。** 引擎其實吃得下（`resolvePlayerAttack()` 內部就是查
+ *    `playerWeapons()`），但 UI 從來沒問過那張表——買了審判眼的龍骨炮也只能徒手打。
+ * 2. **戰鬥中變不了身。** `resolveFormActivation()` 在 2026-08-17 之前**沒有任何正式呼叫端**，
+ *    血統/瞳術那一整類商品的價值在戰鬥裡完全按不下去。
+ *
+ * 兩件事是同一個病：引擎做得到、沒有人問它。所以這裡一次把兩張表都給出去。
+ */
+export function combatOptions(combat, character) {
+  const weapons = Object.entries(playerWeapons(combat, character)).map(([key, w]) => ({
+    key,
+    label: w.label ?? key,
+    attackType: w.attackType,
+    weaponDamage: w.weaponDamage,
+    ranged: w.ranged ?? false,
+    // 型態授予的天生武器，型態一結束就會從這張表消失，UI 標一下讓玩家知道它是暫時的
+    fromForm: (combat.forms?.active ?? []).some((f) => key.startsWith(`${f.formId}`)),
+  }));
+  const forms = formsOf(character).map((f) => ({
+    formId: f.formId,
+    label: f.effect.label,
+    sourceName: f.sourceName,
+    activation: f.effect.activation,
+    duration: f.effect.duration,
+    active: (combat.forms?.active ?? []).some((a) => a.formId === f.formId),
+  }));
+  return { weapons, forms };
 }
 
 /**
@@ -147,9 +182,11 @@ function finalizeIfOver(combat) {
   if (status.over) {
     combat.active = false;
     combat.winner = status.winner;
-    // 戰鬥結束＝場景結束：以「場景」計時的型態到這裡為止，以「輪」計時的也一起收掉
-    // (戰鬥輪不會再前進了，留著它就永遠不會到期)。
-    const ended = endScene(combat.forms, "戰鬥結束");
+    // [修正 2026-08-17] 戰鬥結束**不等於**場景結束。使用者把場景定義成「當下所在的地點」，
+    // 而打一場架不會改變你站在哪裡——所以只收以「輪」計時的型態(戰鬥外沒有輪可以數)，
+    // 以「場景」計時的跟著 combat.forms 一起被呼叫端帶回 session.forms，
+    // 直到玩家離開這個地點才由 expireOnSceneChange() 收掉。
+    const ended = endCombat(combat.forms);
     combat.forms = ended.formsState;
     for (const form of ended.expired) {
       combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });
