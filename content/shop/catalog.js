@@ -153,6 +153,23 @@ export function validateGood(good) {
       });
     }
   }
+  // 平衡偏差是選填的，但一旦填了就要填齊——「有偏差」三個字對重新平衡的人沒有用。
+  if (good.balanceNote != null) {
+    const note = good.balanceNote;
+    if (!BALANCE_DIRECTIONS.includes(note.direction)) {
+      errors.push(
+        `${where} 的 balanceNote.direction「${note.direction}」不合法，合法值：${BALANCE_DIRECTIONS.join("/")}`
+      );
+    }
+    for (const field of ["what", "why", "ifRebalancing"]) {
+      if (!note[field]) {
+        errors.push(
+          `${where} 的 balanceNote 缺少「${field}」——一筆平衡偏差要說得出` +
+            `「差在哪(what)、為什麼補不了(why)、重新平衡時該看什麼(ifRebalancing)」`
+        );
+      }
+    }
+  }
   if (!good.sourceRef) {
     errors.push(`${where} 缺少 sourceRef——每個商品都要能回頭核對 rules-2.35.txt 的行號`);
   }
@@ -428,6 +445,38 @@ export function buildStorefront(character, wallet, goods, options = {}) {
       blockers,
     };
   });
+}
+
+/**
+ * 平衡偏差的方向。**這三個值講的都是「跟書上比」，不是「跟其他商品比」。**
+ *   比書上強 —— 原文的某個**限制**沒有被轉出來（丟掉一條代價＝白送好處）
+ *   比書上弱 —— 原文的某個好處沒有被轉出來，而且轉不出來是永久的
+ *   放寬範圍 —— 效果本身照抄，但生效範圍變大了（最常見：子項專業→整個技能）
+ */
+export const BALANCE_DIRECTIONS = Object.freeze(["比書上強", "比書上弱", "放寬範圍"]);
+
+/**
+ * [設計 2026-08-17] **平衡偏差登記簿。**
+ *
+ * `droppedTraits` 記的是「哪一條特性沒轉出來」，`conversionNote` 記的是「為什麼」。
+ * 但這兩個都回答不了一個問題：**這次簡化到底讓這件商品變強了還是變弱了？**
+ *
+ * 這個問題本來散在各條目的 `conversionNote` 散文裡（有五件，用字各不相同：
+ * 「刻意放寬」「明顯的放寬」「比書上強」…），要靠關鍵字去撈才找得齊。使用者說
+ * 「不良狀態全部刪除，之後我自己看資源要怎麼平衡」——那個「之後」需要的正是一張齊全的清單，
+ * 而不是五段散文。
+ *
+ * **為什麼是結構化欄位而不是只寫在文件裡**：文件會跟資料走鐘，欄位不會——
+ * `test/shopPacks.test.js` 守著「每一筆的四個欄位都要填、direction 必須合法」，
+ * 而 CONVERSION_RULES.md 第14節那張表是從這裡抄出來的。
+ *
+ * 最重要的一筆是**寫輪眼**：它是目前唯一一件「丟掉的是限制、不是好處」的商品。
+ */
+export function listBalanceDeviations(goods) {
+  return goods
+    .filter((g) => g.balanceNote)
+    .map((g) => ({ goodId: g.goodId, name: g.name, ...g.balanceNote }))
+    .sort((a, b) => BALANCE_DIRECTIONS.indexOf(a.direction) - BALANCE_DIRECTIONS.indexOf(b.direction));
 }
 
 /**

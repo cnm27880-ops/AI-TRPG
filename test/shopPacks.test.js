@@ -12,7 +12,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { validatePackStructure, mergePacks } from "../content/loader.js";
 import { UNSUPPORTED_MECHANICS } from "../content/shop/effects.js";
-import { validateGood, auditGoodPricing, RANK_ORDER } from "../content/shop/catalog.js";
+import {
+  validateGood,
+  auditGoodPricing,
+  RANK_ORDER,
+  listBalanceDeviations,
+  BALANCE_DIRECTIONS,
+} from "../content/shop/catalog.js";
 import { parsePrice } from "../content/shop/wallet.js";
 import { featCost } from "../core/xp.js";
 import { emptyCharacter } from "../core/schema.js";
@@ -472,5 +478,55 @@ test("貨架上的每一個型態都啟動得起來，而且啟動後真的改�
     // 場景結束後要收乾淨
     const ended = endScene(activated.formsState);
     assert.deepEqual(ended.formsState.active, [], `「${effect.label}」在場景結束後沒有被收掉`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 平衡偏差登記簿（2026-08-17）
+//
+// `droppedTraits` 說得出「哪一條沒轉出來」，`conversionNote` 說得出「為什麼」，
+// 但兩個都回答不了「這次簡化讓這件商品變強了還是變弱了」。使用者決定不良狀態整套不做、
+// 之後自己重新平衡資源——那個「之後」需要的是一張齊全的清單，不是散在五段散文裡的關鍵字。
+// ---------------------------------------------------------------------------
+
+test("平衡偏差：每一筆都說得出「差在哪／為什麼補不了／重新平衡時該看什麼」", () => {
+  const deviations = listBalanceDeviations(allGoods);
+  assert.ok(deviations.length >= 5, `登記簿只有 ${deviations.length} 筆，掃到的偏差應該不只這些`);
+  for (const d of deviations) {
+    assert.ok(BALANCE_DIRECTIONS.includes(d.direction), `${d.name} 的 direction 不合法`);
+    // 「同上」「見上面」這種偷懶的寫法對重新平衡的人沒有用，所以要求寫得出具體長度
+    for (const field of ["what", "why", "ifRebalancing"]) {
+      assert.ok(d[field].length > 20, `${d.name} 的 balanceNote.${field} 太短，說不出具體內容`);
+    }
+  }
+});
+
+test("平衡偏差：寫輪眼是目前唯一一件「丟掉的是限制而不是好處」的商品", () => {
+  // 這一則測試守的是一個事實，不是一個數字：如果將來又有一件商品被標成「比書上強」，
+  // 這裡會紅，而紅的時候應該去確認那是不是真的、以及要不要一起處理，不是直接改掉數字。
+  const stronger = listBalanceDeviations(allGoods).filter((d) => d.direction === "比書上強");
+  assert.deepEqual(
+    stronger.map((d) => d.goodId),
+    ["dojutsu.寫輪眼.D"],
+    "多出來的「比書上強」要先確認是真的，再決定要不要放進這個清單"
+  );
+  assert.match(stronger[0].what, /內耗/, "寫輪眼的偏差就是內耗點數整條沒轉");
+  assert.match(stronger[0].why, /不良狀態|永久/, "理由要指到「不良狀態永久不實作」這個決定");
+});
+
+test("平衡偏差：conversionNote 裡講到放寬/變強的商品，都要有結構化的 balanceNote", () => {
+  // 這一則防的是「下一個人只在散文裡寫一句『這是一次放寬』就走了」——
+  // 那正是這個登記簿出現之前的狀態，五筆偏差要靠關鍵字才撈得到。
+  const 有登記 = new Set(listBalanceDeviations(allGoods).map((d) => d.goodId));
+  for (const good of allGoods) {
+    const prose = `${good.conversionNote ?? ""}`;
+    if (!/放寬|比書上強/.test(prose)) continue;
+    // 「不算放寬」是明確否認，不需要登記
+    if (/不算放寬/.test(prose)) continue;
+    assert.ok(
+      有登記.has(good.goodId),
+      `${good.name} 的 conversionNote 講到放寬/變強，卻沒有結構化的 balanceNote——` +
+        `散文撈不齊，重新平衡的人會漏掉它`
+    );
   }
 });
