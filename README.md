@@ -49,7 +49,7 @@ content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約
     sessionStore.js [設計] 存檔層(Cloudflare KV，無binding時退到記憶體版並標記persistent:false)。
                      存檔含 角色卡/事件日誌/最近幾輪敘事/場景，AI的記憶就是從這裡讀的
   turnOptions.js  [規則書授權+設計] 回合選項系統。AI為每個選項挑「屬性+技能」組合
-                   (規則書第3819~3849行明文把這件事指派給ST)，難度只能從五級量表挑，
+                   (規則書第686~686行明文把這件事指派給ST)，難度只能從五級量表挑，
                    引擎逐項查驗後才採用——技能名不在規則書技能表裡就不算數
   llm/
     providers.js  [設計] LLM供應商註冊表(Gemini/DeepSeek/OpenRouter/Workers AI/任意OpenAI相容中轉)
@@ -99,6 +99,11 @@ TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的�
 ARCHITECTURE.md       給接手者看的架構總覽與決策紀錄(見上)
 RULES_DIGEST.md       規則精要單頁參考：實際數值/公式速查表，不用翻 rules-2.35.txt 全文；
                        文末附「想找模組去哪查」快速索引
+CONVERSION_RULES.md   **要把型錄條目變成商店商品的人，先讀這份**。上半部是轉換規則(硬性/判斷
+                       兩種強度)，下半部是「目前的簡化規則總表」分門別類，告訴你哪些機制存在、
+                       哪些不存在，所以哪些原文特性接得上、哪些一定要丟掉
+RULES_TRIM.md         rules-2.35.txt 的精簡紀錄：哪些頁面因為「已經簡化完成」而被刪掉、
+                       刪掉的內容現在住在哪、以及**行號怎麼對**(重要，動到行號引用前先讀)
 DEPLOYMENT.md         Cloudflare Pages部署步驟(給你自己看的操作手冊，不是給接手AI看的架構文件)
 GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
 LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰的Workers AI/第三方中轉)

@@ -15,6 +15,11 @@ const KNOWN_TYPES = new Set([
   "專長",
   "副本", // scenario pack，見 content/scenario/
   "契約", // contract pack(主神商店奴隸/員工契約)，見 content/contracts/，數值目前留白
+  // shop pack(主神商店貨架)，見 content/shop/。跟上面那些 type 的關係要講清楚：
+  // 上面是「型錄長什麼樣」的原文存檔(entries 的特性是自由文字)，「商品」是「商店賣什麼」
+  // ——同一批原文經過 content/shop/effects.js 的詞彙表轉換之後的結果。兩者刻意分開，
+  // 因為轉換是有損的，型錄那份必須保留原文才能回頭核對。
+  "商品",
 ]);
 
 /**

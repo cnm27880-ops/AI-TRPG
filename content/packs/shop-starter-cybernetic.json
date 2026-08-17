@@ -1,0 +1,102 @@
+{
+  "id": "shop-starter.改造",
+  "type": "商品",
+  "version": "1.0.0",
+  "sourceRef": "rules-2.35.txt 第9945行起(撰寫規則.htm 改造模板)、第93660行(假面騎士EVOL)、第98629行(紅馬尾戰士)、第100122行(最蔡之人)",
+  "note": "改造貨架。原文來源是 content/packs/d-tier-samples-cybernetic.json。轉換規則見 CONVERSION_RULES.md。",
+  "pricingNote": "[已知落差，保留原數字不覆蓋] 三個條目的D級價格書中原文都寫 D+1000，但改造模板(CYBERNETIC_TEMPLATE)規定D級應為500。這是書中舊資源沒跟上模板更新的現象，跟金剛狼血統同性質。auditGoodPricing() 會如實回報這個落差，我們不自行改成500。",
+  "findingNote": "改造轉出2件，比血統好，原因是改造的特性裡有『防御強化』『技能提升』這種**常態被動**的寫法——被動加值是簡化規則接得住的形狀，主動變身則不是。這條觀察對之後挑條目很有用：先找有常態被動的條目。",
+  "entries": [
+    {
+      "name": "假面騎士EVOL-D級：危險等級：一",
+      "goodId": "cybernetic.假面騎士EVOL.D",
+      "lineageId": "cybernetic.假面騎士EVOL",
+      "rank": "D",
+      "status": "上架",
+      "category": "模板能力",
+      "resourceType": "改造",
+      "exclusiveGroup": "改造",
+      "price": "D+1000",
+      "consumable": false,
+      "effects": [{ "kind": "防御", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "攻擊強化：每輪開始可以自由動作消耗1點意志力，本輪所有基於生理系屬性的攻擊檢定增加改造支線等級*2點增強加值",
+          "reason": "暫時性增益"
+        },
+        {
+          "trait": "速度強化：基礎移動速度獲得改造支線等級*3米的提升",
+          "reason": "移動速度"
+        },
+        { "trait": "加值轉換：本改造帶來的加值為增強加值", "reason": "加值類型" }
+      ],
+      "conversionNote": "唯一轉得出來的是『防御強化：基礎防禦提升改造支線等級/點』——D級等級值為1，所以是防御+1，而且它是**常態被動**，不需要動作也不花意志力，這正是它轉得過來的原因。接到 core/combat/defense.js 的 equipmentDefense。",
+      "higherRanks": [{ "rank": "C", "name": "危險等級：三" }],
+      "higherRanksNote": "C級之後的級數名稱尚未清查，只確認到C級。",
+      "sourceRef": "rules-2.35.txt 第93660行(假面騎士EVOL)：D級危險等級：一，價格D+1000"
+    },
+    {
+      "name": "最蔡之人-D級：偶像練習生",
+      "goodId": "cybernetic.最蔡之人.D",
+      "lineageId": "cybernetic.最蔡之人",
+      "rank": "D",
+      "status": "上架",
+      "category": "模板能力",
+      "resourceType": "改造",
+      "exclusiveGroup": "改造",
+      "price": "D+1000",
+      "consumable": false,
+      "effects": [
+        { "kind": "技能", "skill": "體魄", "amount": 1 },
+        {
+          "kind": "武器",
+          "label": "召喚籃球",
+          "attackType": "投擲_輕",
+          "weaponDamage": 2,
+          "severity": "L",
+          "ranged": true,
+          "weaponRange": 10
+        }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "漫畫般美少年.GIF（雙特性）：以標準動作對能感知你的目標進行風度+表達檢定，目標意志豁免，承受失敗數的噁心點數(或魅惑點數)",
+          "reason": "不良狀態"
+        },
+        {
+          "trait": "籃球的『投擲攻擊檢定可用風度代替敏捷』",
+          "reason": "core/combat/attackTypes.js 的投擲_輕公式關鍵屬性寫死為敏捷，而且風度不在六維裡"
+        },
+        { "trait": "加值轉換：本級改造提供的屬性加值為增強加值", "reason": "加值類型" }
+      ],
+      "conversionNote": "『籃球（雙特性）』拆成兩半：『運動技能提升1級（最高5級）』→ 原始的運動技能對映到十技能的體魄，轉成技能+1；『每輪自由動作打響指召喚一顆籃球（武器傷害2L，鈍擊，輕投擲武器，基礎射程10米）』→ 轉成一件常駐武器。書上召喚籃球需要一個自由動作，簡化規則的動作經濟裡自由動作本來就不限次數，所以視為隨時可用，不算放寬。",
+      "higherRanks": [
+        { "rank": "C", "name": "偶像男團愛抖露" },
+        { "rank": "B", "name": "IKUN們的精神支柱" },
+        { "rank": "A", "name": "最蔡之人" }
+      ],
+      "sourceRef": "rules-2.35.txt 第100122行(最蔡之人)：D級偶像練習生，價格D+1000"
+    },
+    {
+      "name": "紅馬尾戰士-D級",
+      "goodId": "cybernetic.紅馬尾戰士.D",
+      "lineageId": "cybernetic.紅馬尾戰士",
+      "rank": "D",
+      "status": "掛名",
+      "category": "模板能力",
+      "resourceType": "改造",
+      "exclusiveGroup": "改造",
+      "price": "D+1000",
+      "consumable": false,
+      "effects": [],
+      "pendingReason": "兩個核心特性(空想具現、爆炎聖劍)都掛在『消耗1點屬性力並以移動動作變身』這個前提上，而屬性力是一個專屬能量池——引擎既沒有能量池資料結構(character.derived.energyPools 永遠是空物件)，也沒有暫時性增益容器。另外它的加值大量落在風度/決心這兩個六維裡沒有的屬性上。",
+      "originalTraits": [
+        "空想具現（四特性）：消耗1點屬性力並以移動動作變身，生成空想裝甲Tail Gear(輕甲，盔甲防禦4/4，特殊屬性【認主】【防彈】)，附帶唯想願景、雙馬尾的女神、Tail Gear等子效果",
+        "爆炎聖劍（四特性）：變身時獲得專屬武器爆炎聖劍(重劍，武器傷害3L，特殊屬性【魔法】【威猛】【雙手】【認主】)，白刃攻擊可用風度代替力量，命中額外造成1點火焰嚴重傷害",
+        "裝備位占據（負特性）：空想裝甲會占據除護符和戒指以外的全部裝備位",
+        "人類限定（負特性）：強化前提為人類或近人血統，且無法與任何非人血統強化共存"
+      ],
+      "sourceRef": "rules-2.35.txt 第98629行(紅馬尾戰士)：D級，價格D+1000"
+    }
+  ]
+}

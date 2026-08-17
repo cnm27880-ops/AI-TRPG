@@ -1,0 +1,271 @@
+// [設計] 商品效果詞彙表 —— 「簡化規則適用的商品」到底能做什麼的封閉清單。
+//
+// 這是整個主神商店架構的核心限制，也是本專案第4條最高原則(「數值系統一律要有嚴格公式，
+// 不交給AI臨場發揮」)在型錄轉換上的具體落實：
+//
+//   規則書的資源型錄有 500+ 頁，每個條目的「特性」是一段自由文字，寫的是完整版規則的語言
+//   （高速、破甲、格擋加值、洞察加值、專業、能量池、技能樹、豁免、劇痛點數、體積、
+//   友方單位…）。本專案的規則已經被大幅簡化過(六維十技能、單一防御DC、單一護甲值、
+//   沒有專業、沒有不良狀態、單人無隊友)，那些詞彙在這個引擎裡**沒有對應的欄位可以寫**。
+//
+//   所以轉換不是「把文字搬進JSON」，而是：**每個特性都必須落到下面這張表的其中一種效果，
+//   落不進去的就明確記成 droppedTraits，寫清楚為什麼落不進去。** 不允許出現第三種下場
+//   ——尤其不允許「寫進JSON、看起來有效、實際上沒有任何程式碼會讀它」，那正是這個專案
+//   在 ARCHITECTURE.md「專業(specialization)系統：決定不做」那則決策記錄裡拆掉的東西。
+//
+// 條件式效果的紅線：
+//   書上大量效果帶有情境條件（「位於酒館時」「對沒有盔甲的目標」「每天一次」）。引擎無法
+//   判斷這些條件是否成立，如果照收，就等於讓 AI 在敘事時決定加值有沒有生效——那是被禁止的。
+//   因此 EFFECT_KINDS 裡的檢定類效果**只接受 attribute/skill 這種引擎自己看得懂的匹配鍵**，
+//   一律常態生效。任何需要臨場判斷的條件，只有兩條路：降級成 `敘事`(明確標記無數值效果)，
+//   或進 droppedTraits。
+
+import { ATTRIBUTES, SKILLS } from "../../core/schema.js";
+import { healDamage } from "../../core/health.js";
+import { applyAffectionDelta } from "../affection.js";
+
+const ATTRIBUTE_KEYS = new Set(ATTRIBUTES.map((a) => a.key));
+const SKILL_KEYS = new Set(Object.values(SKILLS).flat());
+
+/**
+ * 效果種類 → 這個效果最後被寫進引擎的哪一個欄位。
+ * `target` 欄位不是註解，是給接手者的接線圖：要新增效果種類，必須先指出它接到哪。
+ */
+export const EFFECT_KINDS = Object.freeze({
+  屬性: { target: "character.attributes[attribute]", fields: ["attribute", "amount"], permanent: true },
+  技能: { target: "character.skills[skill]", fields: ["skill", "amount"], permanent: true },
+  生命上限: { target: "character.derived.hp.max", fields: ["amount"], permanent: true },
+  意志上限: { target: "character.derived.willpower.max", fields: ["amount"], permanent: true },
+  先攻: { target: "combatProfile.initiativeBonus", fields: ["amount"], permanent: true },
+  防御: { target: "combatProfile.equipmentDefense → core/combat/defense.js", fields: ["amount"], permanent: true },
+  護甲: { target: "combatProfile.armor → core/combat/armor.js", fields: ["amount"], permanent: true },
+  檢定加骰: {
+    target: "core/check.js 的 otherDpModifier(經 checkModifiersFor 查表)",
+    fields: ["amount"],
+    matcher: true,
+  },
+  附加成功: {
+    target: "core/check.js 的 otherBonusSuccesses(經 checkModifiersFor 查表)",
+    fields: ["amount"],
+    matcher: true,
+  },
+  武器: {
+    target: "背包 → content/combat/placeholderEncounters.js 的武器形狀 → core/combat/attackTypes.js",
+    fields: ["label", "attackType", "weaponDamage"],
+  },
+  治療: { target: "core/health.js 的傷勢軌(使用時才套用，不是購買時)", fields: ["severity", "amount"] },
+  好感度: { target: "content/affection.js 的好感度點數", fields: ["amount"] },
+  敘事: { target: "(無數值效果)只送進AI敘事的背景資訊", fields: ["text"] },
+});
+
+/** 本引擎沒有實作、因此不可能被轉換成效果的規則書機制。轉換時用來把「為什麼被丟掉」講清楚。 */
+export const UNSUPPORTED_MECHANICS = Object.freeze({
+  高速: "簡化規則沒有高速(命中修正)這個軸，見 RULES_DIGEST 第9節",
+  破甲: "護甲已簡化為單一Armor值減法，沒有破甲/穿透的中間層",
+  格擋: "四層防御(基礎/閃避/洞察/格擋)已於2026-08-15合併成單一防御DC",
+  加值類型: "書中的內在/修行/器械/士氣/招式/洞察加值疊加規則整套沒有實作，一律當作直接相加",
+  專業: "專業系統已明確決定不做，見 ARCHITECTURE.md「專業(specialization)系統：決定不做」",
+  能量池: "沒有能量池資料結構(character.derived.energyPools 目前永遠是空物件)",
+  技能樹: "沒有技能樹，型錄的「開啟X級技能樹」在這裡沒有東西可以開",
+  豁免: "沒有強韌/反射/意志豁免的獨立判定，全部走 core/check.js 的一般檢定",
+  不良狀態: "暈眩/流血/劇痛/惡心/疲乏/燃燒點數等狀態軌全部沒有實作(刻意排除)",
+  體積: "體積只在生命值上限公式裡當常數5，沒有物品佔位/武器體積限制",
+  隊友: "單人遊戲，沒有友方單位可以當目標(見 ARCHITECTURE.md 的 requiresAlly 提醒)",
+  動作經濟細節: "行動經濟有實作，但「降低一級動作」「與移動結合」這類改寫還沒有接線",
+  情境條件: "引擎無法判斷『在酒館時』『每天一次』這類條件，照收等於讓AI決定加值有沒有生效",
+  移動速度: "沒有以公尺計的移動距離資料，戰鬥是抽象回合制",
+  距離視野: "沒有視距/照明/敏感範圍的實際運算(derivedStats 有算出數字但沒有消費端)",
+  重擲: "沒有重擲機制，core/dice.js 的加骰是骰面觸發的，不是玩家可以宣告的",
+  暫時性增益: "沒有場景/回合計時的buff容器，商品只能給常態效果或一次性效果",
+  自然恢復: "core/health.js 只有 shortRest(一次1點B)，沒有以時間為單位的自然恢復速率",
+  傷勢惡化: "tickWorsening() 存在但整個遊戲迴圈裡沒有任何呼叫端，所以『免疫惡化』會是免疫一件不會發生的事",
+  進階戰鬥動作: "全力一擊/衝鋒/擒抱/摔絆等進階動作刻意排除，見 RULES_DIGEST 第9節的已知排除",
+});
+
+function fail(errors, msg) {
+  errors.push(msg);
+}
+
+/** 驗證單一效果的結構。回傳錯誤陣列(空陣列=合法)。 */
+export function validateEffect(effect, where = "effect") {
+  const errors = [];
+  if (!effect || typeof effect !== "object") {
+    return [`${where} 不是物件`];
+  }
+  const spec = EFFECT_KINDS[effect.kind];
+  if (!spec) {
+    return [`${where} 的 kind「${effect.kind}」不在詞彙表中，合法值：${Object.keys(EFFECT_KINDS).join("/")}`];
+  }
+  for (const field of spec.fields) {
+    if (effect[field] == null) fail(errors, `${where}(${effect.kind}) 缺少必要欄位「${field}」`);
+  }
+  if (effect.attribute != null && !ATTRIBUTE_KEYS.has(effect.attribute)) {
+    fail(errors, `${where} 的屬性「${effect.attribute}」不是六維之一：${[...ATTRIBUTE_KEYS].join("/")}`);
+  }
+  if (effect.skill != null && !SKILL_KEYS.has(effect.skill)) {
+    fail(errors, `${where} 的技能「${effect.skill}」不是十技能之一：${[...SKILL_KEYS].join("/")}`);
+  }
+  if (spec.matcher && effect.attribute == null && effect.skill == null) {
+    fail(
+      errors,
+      `${where}(${effect.kind}) 必須指定 attribute 或 skill 至少一項當匹配鍵——` +
+        `沒有匹配鍵的檢定加值等於「所有檢定都加」或「靠AI判斷何時生效」，兩者都不允許`
+    );
+  }
+  if (effect.amount != null && !Number.isInteger(effect.amount)) {
+    fail(errors, `${where} 的 amount 必須是整數(簡化規則沒有小數加值)`);
+  }
+  if (effect.kind === "治療" && !["B", "L", "A"].includes(effect.severity)) {
+    fail(errors, `${where}(治療) 的 severity 必須是 B/L/A 之一`);
+  }
+  if (effect.kind === "武器" && effect.severity != null && !["B", "L"].includes(effect.severity)) {
+    fail(errors, `${where}(武器) 的 severity 只支援 B/L(惡性傷害武器不在簡化規則的武器資料形狀裡)`);
+  }
+  return errors;
+}
+
+/**
+ * 一個效果是不是「買下去當場就永久改角色卡」的類型。
+ * 其餘的(檢定加骰/附加成功/武器/治療/好感度/敘事)都是持有期間查表生效，不改角色卡本身，
+ * 這樣洗點(退貨)才不需要反推歷史。
+ */
+export function isPermanentStatEffect(effect) {
+  return EFFECT_KINDS[effect.kind]?.permanent === true;
+}
+
+/**
+ * 把永久型效果套用到角色卡上，回傳新的角色卡(不改動傳入物件)。
+ * 非永久型效果會被忽略——它們由 checkModifiersFor()/combatProfileFrom()/背包在使用當下查表。
+ */
+export function applyPermanentEffects(character, effects = []) {
+  const next = {
+    ...character,
+    attributes: { ...character.attributes },
+    skills: { ...character.skills },
+    derived: {
+      ...character.derived,
+      hp: { ...character.derived.hp },
+      willpower: { ...character.derived.willpower },
+    },
+  };
+  for (const effect of effects) {
+    if (!isPermanentStatEffect(effect)) continue;
+    switch (effect.kind) {
+      case "屬性":
+        next.attributes[effect.attribute] = (next.attributes[effect.attribute] ?? 0) + effect.amount;
+        break;
+      case "技能":
+        next.skills[effect.skill] = (next.skills[effect.skill] ?? 0) + effect.amount;
+        break;
+      case "生命上限":
+        // 上限提高時，多出來的那幾點以「完好」入帳(不是免費治療，是身體變大了)。
+        next.derived.hp.max += effect.amount;
+        next.derived.hp.intact += effect.amount;
+        break;
+      case "意志上限":
+        next.derived.willpower.max += effect.amount;
+        next.derived.willpower.current += effect.amount;
+        break;
+      case "先攻":
+      case "防御":
+      case "護甲":
+        // 這三個永久效果不寫在角色卡上，而是每次戰鬥由 combatProfileFrom() 從持有物重算，
+        // 這樣賣掉/洗點時不用回推。標記為 permanent 是為了跟「條件式檢定加值」區分：
+        // 它們是常態生效的，不需要匹配鍵。
+        break;
+      default:
+        break;
+    }
+  }
+  return next;
+}
+
+/**
+ * 查詢「這次檢定」該吃到多少加骰與附加成功。
+ * 由 content/checkIntent.js / content/turnOptions.js 在組 performCheck() 參數時呼叫。
+ *
+ * 匹配規則刻意寫得很嚴：效果有寫 attribute 就必須跟這次檢定的屬性一致，有寫 skill 就必須
+ * 跟技能一致，兩個都寫就都要一致。沒有模糊比對，沒有「相關檢定」這種需要判斷的字眼。
+ * @param {{ abilities?: object[] }} character
+ * @param {{ attribute?: string, skill?: string }} check
+ */
+export function checkModifiersFor(character, { attribute, skill } = {}) {
+  let dp = 0;
+  let bonusSuccesses = 0;
+  const sources = [];
+  for (const owned of character.abilities ?? []) {
+    for (const effect of owned.effects ?? []) {
+      if (effect.kind !== "檢定加骰" && effect.kind !== "附加成功") continue;
+      if (effect.attribute != null && effect.attribute !== attribute) continue;
+      if (effect.skill != null && effect.skill !== skill) continue;
+      if (effect.kind === "檢定加骰") dp += effect.amount;
+      else bonusSuccesses += effect.amount;
+      sources.push(`${owned.name}(${effect.kind}${effect.amount >= 0 ? "+" : ""}${effect.amount})`);
+    }
+  }
+  return { dp, bonusSuccesses, sources };
+}
+
+/**
+ * 從持有物重算戰鬥用檔案(core/character.js 的 emptyCombatProfile 形狀 + initiativeBonus)。
+ * skillCorrection 仍由呼叫端算(它是 max(格鬥,體魄) 技能等級，不是商品給的)。
+ */
+export function combatProfileFrom(character, { skillCorrection = 0 } = {}) {
+  let equipmentDefense = 0;
+  let armor = 0;
+  let initiativeBonus = 0;
+  for (const owned of character.abilities ?? []) {
+    for (const effect of owned.effects ?? []) {
+      if (effect.kind === "防御") equipmentDefense += effect.amount;
+      else if (effect.kind === "護甲") armor += effect.amount;
+      else if (effect.kind === "先攻") initiativeBonus += effect.amount;
+    }
+  }
+  return { skillCorrection, equipmentDefense, armor, initiativeBonus };
+}
+
+/**
+ * 使用一件消耗品(或一次療傷服務)的即時效果。
+ * 跟 applyPermanentEffects 分開的理由：治療與好感度是「使用當下發生一次」的事件，
+ * 不是持有期間常態生效的加值，混在一起會讓「買了藥水放著沒喝」也自動回血。
+ *
+ * @param {{ hp: object, affectionPoints?: number }} state
+ * @returns {{ hp: object, affectionPoints: number, applied: string[] }}
+ */
+export function applyInstantEffects(state, effects = []) {
+  let hp = state.hp;
+  let affectionPoints = state.affectionPoints ?? 0;
+  const applied = [];
+  for (const effect of effects) {
+    if (effect.kind === "治療") {
+      const before = hp[effect.severity] ?? 0;
+      hp = healDamage(hp, effect.amount, effect.severity);
+      applied.push(`治療${effect.severity}傷 ${Math.min(effect.amount, before)}點`);
+    } else if (effect.kind === "好感度") {
+      affectionPoints = applyAffectionDelta(affectionPoints, effect.amount).points;
+      applied.push(`好感度 ${effect.amount >= 0 ? "+" : ""}${effect.amount}`);
+    }
+  }
+  return { hp, affectionPoints, applied };
+}
+
+/** 從持有物撈出所有武器，形狀直接對齊 content/combat/placeholderEncounters.js 的武器物件。 */
+export function weaponsFrom(character) {
+  const weapons = [];
+  for (const owned of character.abilities ?? []) {
+    for (const effect of owned.effects ?? []) {
+      if (effect.kind !== "武器") continue;
+      weapons.push({
+        key: `${owned.goodId}:${effect.label}`,
+        label: effect.label,
+        attackType: effect.attackType,
+        weaponDamage: effect.weaponDamage,
+        severity: effect.severity ?? "B",
+        ranged: effect.ranged ?? false,
+        ...(effect.weaponRange != null ? { weaponRange: effect.weaponRange } : {}),
+        sourceGood: owned.name,
+      });
+    }
+  }
+  return weapons;
+}

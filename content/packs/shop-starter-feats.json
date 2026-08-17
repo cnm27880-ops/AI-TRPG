@@ -1,0 +1,295 @@
+{
+  "id": "shop-starter.專長",
+  "type": "商品",
+  "version": "1.0.0",
+  "sourceRef": "rules-2.35.txt 第715行起(專長概述1.htm)、第2203行起(生理系專長1.htm)、第2519行起(心智系專長.htm)、第2789行起(社交系專長.htm)",
+  "note": "個人專長的轉換成果。專長跟其他資源最大的不同是**它用XP買，不用支線/分數**——第723行：『要學習一個專長，必須為專長所需的每個專長點數投入3點XP』，一個1~5級的專長總共 3+6+9+12+15=45XP。這裡逐級寫死的價格必須跟 core/xp.js 的 featCost(level) 一致(有測試鎖定)。",
+  "levelModelNote": "每一個專長等級是一件獨立商品，效果**逐級累加**而不是取代。書上大量寫成『獲得等同于本專長等級的專長加值』，換算成累加模型就是每一級各給 +1。所以買到3級時，1/2/3 級商品各給的 +1 相加剛好等於書上的『+3』。這個換算是本轉換的統一解讀，寫在這裡一次，不在每條重複。",
+  "sequenceNote": "規則書第723行要求專長必須逐級按順序學習，所以**中間級數不能跳過、也不能不上架**——若某一級在簡化規則裡完全轉不出數值效果，它仍然要以原價上架，只是效果只剩敘事。這比『把它藏起來』誠實，也才不會讓上面那一級永遠買不到。這種等級的 effects 只有一個 kind:\"敘事\"，並在 droppedTraits 裡寫明整級被丟掉的理由。",
+  "skillMappingNote": "原始22技能→本專案十技能的對映，這批用到：調查→偵察、感受→偵察、電腦→技藝、野外求生→求生、追蹤→求生。注意『調查』與『感受』都併進『偵察』，於是警覺與洞察人心的低階效果在本引擎裡會變成同一件事——那是簡化成十技能之後必然出現的重疊，不是抄錯。",
+  "examinedButRejected": [
+    {
+      "feat": "健步如飛(1~3)",
+      "sourceRef": "rules-2.35.txt 第2297行",
+      "reason": "三級全滅：1級『基礎移動速度增加5米』→移動速度；2級『沖鋒攻擊+3DP』→進階戰鬥動作；3級『以迅捷動作進行移動』→動作經濟細節。沒有任何一級做得出事情，整個專長不上架(不是『上架成敘事級』——那是給有後續等級要接的中間級用的，這個專長沒有可接的後續)。"
+    },
+    {
+      "feat": "鋼鐵胃袋(1)",
+      "sourceRef": "rules-2.35.txt 第2217行",
+      "reason": "唯一的數值效果是『對抗惡心點數/饑渴的檢定+2DP』，兩者都是不良狀態軌，本引擎沒有實作。硬轉成『耐力檢定+2』等於自己發明一條規則。"
+    },
+    {
+      "feat": "貓眼(2)",
+      "sourceRef": "rules-2.35.txt 第2226行",
+      "reason": "效果全是昏暗視覺/視覺敏感範圍/模糊視距 → 距離視野。derivedStats.js 有算 sensoryRangeMeters()，但沒有任何消費端會讀它。"
+    },
+    {
+      "feat": "快速自愈(1~3)",
+      "sourceRef": "rules-2.35.txt 第2239行",
+      "reason": "1級『傷勢不會惡化』→傷勢惡化(core/health.js 的 tickWorsening() 整個遊戲迴圈沒有任何呼叫端，免疫一件不會發生的事就是假功能)；2級『自然恢復速度提升1倍』→自然恢復；3級『不會因為沒有完好生命值而昏迷』其實接得到 evaluateStatus() 的 unconscious，但它被卡在1、2級後面，而1、2級轉不出來。這條列在這裡，是因為它是最值得優先補的一個——只要之後把 tickWorsening 接進戰鬥迴圈，1級就活了。"
+    }
+  ],
+  "entries": [
+    {
+      "name": "方向感(1級)",
+      "goodId": "feat.方向感.1",
+      "lineageId": "feat.方向感",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 2 } },
+      "originalPrerequisite": "需求感知2",
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "求生", "amount": 2 }],
+      "droppedTraits": [],
+      "conversionNote": "書上寫『求生（追蹤）相關檢定+2DP專長加值』。這是少數不隨等級縮放的固定值(本專長只有1級)，所以照抄+2。括號裡的『追蹤』是原始22技能的專業，簡化規則沒有專業，加值範圍因此從『求生的追蹤專業』放寬到整個求生技能。",
+      "sourceRef": "rules-2.35.txt 第2206行(生理系專長1.htm)：方向感（1），前提需求感知2，求生（追蹤）相關檢定獲得2DP專長加值"
+    },
+    {
+      "name": "荒野求生(1級)：求生專家",
+      "goodId": "feat.荒野求生.1",
+      "lineageId": "feat.荒野求生",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "skills": { "求生": 3 } },
+      "originalPrerequisite": "需求求生技能3級",
+      "effects": [{ "kind": "檢定加骰", "skill": "求生", "amount": 1 }],
+      "droppedTraits": [],
+      "sourceRef": "rules-2.35.txt 第2256行(生理系專長1.htm)：荒野求生（1~3），1級求生專家，求生（野外求生）相關檢定獲得等同于本專長等級的專長加值"
+    },
+    {
+      "name": "荒野求生(2級)：荒野生存",
+      "goodId": "feat.荒野求生.2",
+      "lineageId": "feat.荒野求生",
+      "featLevel": 2,
+      "category": "專長",
+      "price": "6XP",
+      "consumable": false,
+      "prerequisites": { "skills": { "求生": 3 } },
+      "effects": [{ "kind": "檢定加骰", "skill": "求生", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "2級本身的效果：每天一次，求生（野外求生）檢定若不滿意可以重投，但必須接受重投結果",
+          "reason": "重擲"
+        }
+      ],
+      "conversionNote": "這一級唯一轉得出來的是等級縮放帶來的 +1(1級的『等同于本專長等級』從1變成2)。2級自己寫的重投效果整條丟掉。",
+      "sourceRef": "rules-2.35.txt 第2256行(生理系專長1.htm)：荒野求生（1~3），2級荒野生存"
+    },
+    {
+      "name": "荒野求生(3級)：貝爺",
+      "goodId": "feat.荒野求生.3",
+      "lineageId": "feat.荒野求生",
+      "featLevel": 3,
+      "category": "專長",
+      "price": "9XP",
+      "consumable": false,
+      "prerequisites": { "skills": { "求生": 3 } },
+      "effects": [
+        { "kind": "檢定加骰", "skill": "求生", "amount": 1 },
+        { "kind": "附加成功", "skill": "求生", "amount": 1 }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "人物所有由求生技能的專業所獲得的專業加值提升至3點",
+          "reason": "專業"
+        }
+      ],
+      "conversionNote": "『求生（野外求生）相關檢定上獲得1個附加成功』直接轉得過來，是本批唯一一個純粹的附加成功效果。買齊1~3級後求生檢定共 +3DP 與 +1 附加成功，跟書上的『等級3專長加值+1附加成功』一致。",
+      "sourceRef": "rules-2.35.txt 第2256行(生理系專長1.htm)：荒野求生（1~3），3級貝爺，求生（野外求生）相關檢定上獲得1個附加成功"
+    },
+    {
+      "name": "精通先攻(1級)",
+      "goodId": "feat.精通先攻.1",
+      "lineageId": "feat.精通先攻",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "敏捷": 2 } },
+      "originalPrerequisite": "需求敏捷2",
+      "featAttributeCaps": ["敏捷"],
+      "effects": [{ "kind": "先攻", "amount": 1 }],
+      "droppedTraits": [],
+      "conversionNote": "先攻值是 core/derivedStats.js 的 initiativeScore(敏捷+感知)。這個加值由 combatProfileFrom() 的 initiativeBonus 累加，戰鬥開始時加進 core/combat/turnOrder.js 的 rollInitiative() 參數。",
+      "sourceRef": "rules-2.35.txt 第2318行(生理系專長1.htm)：精通先攻（1~3），1級人物的先攻值提升等同于專長等級*1點"
+    },
+    {
+      "name": "精通先攻(2級)",
+      "goodId": "feat.精通先攻.2",
+      "lineageId": "feat.精通先攻",
+      "featLevel": 2,
+      "category": "專長",
+      "price": "6XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "敏捷": 2 } },
+      "featAttributeCaps": ["敏捷"],
+      "effects": [{ "kind": "先攻", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "2級本身的效果：當其他單位的先攻權與你相同時，由你先行動",
+          "reason": "core/combat/turnOrder.js 的同分處理是『沉著→敏捷→回報需要玩家/隨機決定』，沒有『某個角色永遠贏同分』的旗標可掛，而沉著本身也不在六維裡"
+        }
+      ],
+      "sourceRef": "rules-2.35.txt 第2318行(生理系專長1.htm)：精通先攻（1~3），2級同先攻權時由你先行動"
+    },
+    {
+      "name": "精通先攻(3級)",
+      "goodId": "feat.精通先攻.3",
+      "lineageId": "feat.精通先攻",
+      "featLevel": 3,
+      "category": "專長",
+      "price": "9XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "敏捷": 3 } },
+      "featAttributeCaps": ["敏捷"],
+      "effects": [
+        { "kind": "先攻", "amount": 3 },
+        { "kind": "防御", "amount": 3 }
+      ],
+      "droppedTraits": [],
+      "conversionNote": "先攻的 +3 = 等級縮放的 +1(2→3級) 加上這一級自己寫的『再提升2點』。買齊1~3級共 +5 先攻，跟書上一致(等級加值3 + 再提升2)。『基礎防御提升3點』接到 core/combat/defense.js 的 equipmentDefense——四層防御已於2026-08-15合併成單一DC，所以基礎防御的加值與裝備防御在這裡是同一個欄位。",
+      "sourceRef": "rules-2.35.txt 第2318行(生理系專長1.htm)：精通先攻（1~3），3級人物的先攻值再提升2點，同時人物的基礎防御提升3點"
+    },
+    {
+      "name": "警覺(1級)",
+      "goodId": "feat.警覺.1",
+      "lineageId": "feat.警覺",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 2 } },
+      "originalPrerequisite": "需求感知3，調查技能2級",
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "偵察", "amount": 1 }],
+      "droppedTraits": [],
+      "sourceRef": "rules-2.35.txt 第2339行(生理系專長1.htm)：警覺（1~3），1級調查技能相關檢定獲得等同于本專長等級的專長加值"
+    },
+    {
+      "name": "警覺(2級)",
+      "goodId": "feat.警覺.2",
+      "lineageId": "feat.警覺",
+      "featLevel": 2,
+      "category": "專長",
+      "price": "6XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 2 } },
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "偵察", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "2級本身的效果：措手不及時可以保留最大等于本專長等級的基礎防御",
+          "reason": "不良狀態"
+        }
+      ],
+      "sourceRef": "rules-2.35.txt 第2339行(生理系專長1.htm)：警覺（1~3），2級措手不及時保留基礎防御"
+    },
+    {
+      "name": "警覺(3級)",
+      "goodId": "feat.警覺.3",
+      "lineageId": "feat.警覺",
+      "featLevel": 3,
+      "category": "專長",
+      "price": "9XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 2 } },
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "偵察", "amount": 1 }],
+      "droppedTraits": [
+        { "trait": "3級本身的效果：獲得D級免疫措手不及的能力", "reason": "不良狀態" }
+      ],
+      "sourceRef": "rules-2.35.txt 第2339行(生理系專長1.htm)：警覺（1~3），3級獲得D級免疫措手不及"
+    },
+    {
+      "name": "程序猿(1級)",
+      "goodId": "feat.程序猿.1",
+      "lineageId": "feat.程序猿",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "智力": 2 }, "skills": { "技藝": 2 } },
+      "originalPrerequisite": "需求智力2，電腦技能2級",
+      "featAttributeCaps": ["智力"],
+      "effects": [{ "kind": "檢定加骰", "skill": "技藝", "amount": 1 }],
+      "droppedTraits": [],
+      "conversionNote": "原始的『電腦』技能對映到十技能的『技藝』(涵蓋終端駭入/拆彈爆破/機械維修改裝)。這是一次明顯的放寬：加值從只吃駭客判定，變成整個技藝技能都吃得到。",
+      "sourceRef": "rules-2.35.txt 第2588行(心智系專長.htm)：程序猿（1~2），1級人物在進行電腦技能相關檢定時獲得等同于本專長等級的專長加值"
+    },
+    {
+      "name": "程序猿(2級)",
+      "goodId": "feat.程序猿.2",
+      "lineageId": "feat.程序猿",
+      "featLevel": 2,
+      "category": "專長",
+      "price": "6XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "智力": 2 }, "skills": { "技藝": 2 } },
+      "featAttributeCaps": ["智力"],
+      "effects": [{ "kind": "檢定加骰", "skill": "技藝", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "2級本身的效果：使用意志力的基礎用法為檢定增加DP時，額外獲得3DP完美加值",
+          "reason": "意志力的『基礎用法』(花意志力換DP)在本引擎沒有實作，character.derived.willpower 只有數字沒有消費端"
+        }
+      ],
+      "sourceRef": "rules-2.35.txt 第2588行(心智系專長.htm)：程序猿（1~2），2級意志力基礎用法額外3DP完美加值"
+    },
+    {
+      "name": "洞察人心(1級)",
+      "goodId": "feat.洞察人心.1",
+      "lineageId": "feat.洞察人心",
+      "featLevel": 1,
+      "category": "專長",
+      "price": "3XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 3 } },
+      "originalPrerequisite": "需求感知3，感受技能3級",
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "偵察", "amount": 1 }],
+      "droppedTraits": [],
+      "sourceRef": "rules-2.35.txt 第2792行(社交系專長.htm)：洞察人心（1~3），1級人物在進行感受技能相關檢定時獲得等同于本專長等級的專長加值"
+    },
+    {
+      "name": "洞察人心(2級)",
+      "goodId": "feat.洞察人心.2",
+      "lineageId": "feat.洞察人心",
+      "featLevel": 2,
+      "category": "專長",
+      "price": "6XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 3 } },
+      "featAttributeCaps": ["感知"],
+      "effects": [{ "kind": "檢定加骰", "skill": "偵察", "amount": 1 }],
+      "droppedTraits": [
+        {
+          "trait": "2級本身的效果：每天一次，感受（察言觀色）檢定若不滿意可以重投",
+          "reason": "重擲"
+        }
+      ],
+      "sourceRef": "rules-2.35.txt 第2792行(社交系專長.htm)：洞察人心（1~3），2級每天一次可重投察言觀色檢定"
+    },
+    {
+      "name": "洞察人心(3級)",
+      "goodId": "feat.洞察人心.3",
+      "lineageId": "feat.洞察人心",
+      "featLevel": 3,
+      "category": "專長",
+      "price": "9XP",
+      "consumable": false,
+      "prerequisites": { "attributes": { "感知": 3 }, "skills": { "偵察": 3 } },
+      "featAttributeCaps": ["感知"],
+      "effects": [
+        { "kind": "檢定加骰", "skill": "偵察", "amount": 1 },
+        { "kind": "防御", "amount": 3 }
+      ],
+      "droppedTraits": [],
+      "conversionNote": "『防御上獲得3點洞察加值』——洞察防御是舊四層防御之一，2026-08-15 併進單一防御DC 之後，它跟精通先攻3級的『基礎防御+3』落在同一個 equipmentDefense 欄位，處理方式必須一致，所以這裡照樣轉成 防御+3。",
+      "sourceRef": "rules-2.35.txt 第2792行(社交系專長.htm)：洞察人心（1~3），3級人物在防御上獲得3點洞察加值"
+    }
+  ]
+}
