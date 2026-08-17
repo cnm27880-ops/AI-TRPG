@@ -23,6 +23,7 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { buildTurnPrompt, SYSTEM_INSTRUCTION } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { composeSystemInstruction, DEFAULT_STYLE_ID } from "../../content/narrativeStyle.js";
@@ -90,7 +91,9 @@ export async function onRequestPost(context) {
   }
 
   // --- 規則層：先把數字算出來。這一段完全不碰AI，AI失敗也不影響它的正確性。 ---
-  const resolvedParams = checkParams ?? inferCheckParams(playerAction, { character });
+  const baseParams = checkParams ?? inferCheckParams(playerAction, { character });
+  // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數，不然買了等於沒買。
+  const { params: resolvedParams } = applyCheckModifiers(character, baseParams);
 
   let checkResult;
   try {

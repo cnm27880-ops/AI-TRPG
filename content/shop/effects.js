@@ -19,6 +19,14 @@
 //   因此 EFFECT_KINDS 裡的檢定類效果**只接受 attribute/skill 這種引擎自己看得懂的匹配鍵**，
 //   一律常態生效。任何需要臨場判斷的條件，只有兩條路：降級成 `敘事`(明確標記無數值效果)，
 //   或進 droppedTraits。
+//
+// [決策記錄 2026-08-17] 「型態」是這條紅線唯一的例外，而且它不是把紅線放寬，是換了一個
+//   守門員。變身/爆發類效果（血統整類的價值幾乎都在這裡）帶的條件是「變身期間」，而
+//   「有沒有在變身」這件事在 content/shop/forms.js 裡是一個**引擎自己持有、自己倒數、
+//   自己到期**的狀態，不是 AI 敘事時的判斷。條件的裁判從 AI 換成程式碼，紅線的理由就不成立了。
+//   因此型態內部的 grants 允許省略匹配鍵（「變身期間所有檢定+1」是書上原文，引擎算得出來），
+//   但代價是型態必須付出啟動成本（意志力/動作）並且會過期——沒有成本或沒有期限的型態
+//   等於把加值白送，那才是真正的放寬。這兩件事由 validateEffect() 擋住。
 
 import { ATTRIBUTES, SKILLS } from "../../core/schema.js";
 import { healDamage } from "../../core/health.js";
@@ -56,7 +64,43 @@ export const EFFECT_KINDS = Object.freeze({
   治療: { target: "core/health.js 的傷勢軌(使用時才套用，不是購買時)", fields: ["severity", "amount"] },
   好感度: { target: "content/affection.js 的好感度點數", fields: ["amount"] },
   敘事: { target: "(無數值效果)只送進AI敘事的背景資訊", fields: ["text"] },
+  型態: {
+    target:
+      "content/shop/forms.js 的 activeForms → 期間內把 grants 併進上面同一張效果表" +
+      "(戰鬥中的消費端是 content/combat/encounterState.js)",
+    fields: ["label", "activation", "duration", "grants"],
+  },
 });
+
+/** 型態可以授予的效果種類。刻意比整張詞彙表窄，理由見 validateFormEffect()。 */
+export const GRANTABLE_EFFECT_KINDS = Object.freeze([
+  "防御",
+  "護甲",
+  "先攻",
+  "檢定加骰",
+  "附加成功",
+  "武器",
+  "敘事",
+]);
+
+/**
+ * 型態的持續時間單位。只有兩個，而且兩個都對應到引擎裡**已經在前進**的計數器：
+ *   輪   —— content/combat/encounterState.js 的 combat.round(advanceTurn() 每輪 +1)
+ *   場景 —— 一場戰鬥遭遇結束，或呼叫端明確宣告場景結束(endScene())
+ * 不提供「10分鐘」「每天」這種單位，因為引擎沒有在走的時鐘去倒數它們——
+ * 加一個沒有人會遞減的計時器，等於加一個永不過期的型態。
+ */
+export const FORM_DURATION_UNITS = Object.freeze(["輪", "場景"]);
+
+/** 型態的啟動動作，對齊 core/combat/actionEconomy.js 的動作等級名稱。 */
+export const FORM_ACTIVATION_ACTIONS = Object.freeze([
+  "自由",
+  "迅捷",
+  "移動",
+  "標準",
+  "整輪",
+  "全回合",
+]);
 
 /** 本引擎沒有實作、因此不可能被轉換成效果的規則書機制。轉換時用來把「為什麼被丟掉」講清楚。 */
 export const UNSUPPORTED_MECHANICS = Object.freeze({
@@ -76,7 +120,10 @@ export const UNSUPPORTED_MECHANICS = Object.freeze({
   移動速度: "沒有以公尺計的移動距離資料，戰鬥是抽象回合制",
   距離視野: "沒有視距/照明/敏感範圍的實際運算(derivedStats 有算出數字但沒有消費端)",
   重擲: "沒有重擲機制，core/dice.js 的加骰是骰面觸發的，不是玩家可以宣告的",
-  暫時性增益: "沒有場景/回合計時的buff容器，商品只能給常態效果或一次性效果",
+  長期計時:
+    "引擎只有兩個會前進的時鐘：戰鬥輪與場景(見 forms.js 的 FORM_DURATION_UNITS)。" +
+    "『10分鐘』『每天一次』『接下來5天』這種以真實時間計的期限與冷卻沒有東西可以倒數",
+  傷害類型: "傷害不分類型(物理/能量/精神/火焰…全部一樣)，所以【防彈】【魔法】這種對特定類型的抗性或加成沒有欄位可寫",
   自然恢復: "core/health.js 只有 shortRest(一次1點B)，沒有以時間為單位的自然恢復速率",
   傷勢惡化: "tickWorsening() 存在但整個遊戲迴圈裡沒有任何呼叫端，所以『免疫惡化』會是免疫一件不會發生的事",
   進階戰鬥動作: "全力一擊/衝鋒/擒抱/摔絆等進階動作刻意排除，見 RULES_DIGEST 第9節的已知排除",
@@ -86,8 +133,98 @@ function fail(errors, msg) {
   errors.push(msg);
 }
 
-/** 驗證單一效果的結構。回傳錯誤陣列(空陣列=合法)。 */
-export function validateEffect(effect, where = "effect") {
+/**
+ * 驗證一個「型態」效果本身(它的啟動成本、期限與 grants)。
+ *
+ * 三條硬性限制，每一條都是為了讓型態不會變成「免費的永久加值」：
+ *
+ * 1. **必須有啟動成本**(意志力至少1點，或一個動作等級)。書上的變身無一例外都要付代價，
+ *    沒有代價的型態就沒有理由不永遠開著，那就該直接寫成常態效果。
+ * 2. **必須有期限**，而且單位只能是引擎真的在遞減的那兩個(見 FORM_DURATION_UNITS)。
+ * 3. **grants 只能是查詢型效果**(GRANTABLE_EFFECT_KINDS)。屬性/技能/生命上限/意志上限
+ *    是購買當下就寫進角色卡的，型態結束時沒有辦法乾淨地收回來(要收回就得反推歷史，
+ *    那正是 isPermanentStatEffect() 註解裡刻意避開的東西)；治療/好感度是「發生一次」的
+ *    事件，放進一個會反覆開關的容器裡會變成無限回血。剩下的六種都是每次用到才查表的，
+ *    型態一結束，下一次查表就自然查不到了。
+ */
+function validateFormEffect(effect, where, errors) {
+  const activation = effect.activation;
+  if (activation != null) {
+    if (typeof activation !== "object") {
+      fail(errors, `${where}(型態) 的 activation 必須是物件`);
+    } else {
+      const wp = activation.willpower ?? 0;
+      if (!Number.isInteger(wp) || wp < 0) {
+        fail(errors, `${where}(型態) 的 activation.willpower 必須是非負整數`);
+      }
+      if (activation.action != null && !FORM_ACTIVATION_ACTIONS.includes(activation.action)) {
+        fail(
+          errors,
+          `${where}(型態) 的 activation.action「${activation.action}」不是動作等級之一：` +
+            FORM_ACTIVATION_ACTIONS.join("/")
+        );
+      }
+      if (wp === 0 && activation.action == null) {
+        fail(
+          errors,
+          `${where}(型態) 沒有任何啟動成本(意志力與動作都沒有)——` +
+            `沒有代價的型態沒有理由不永遠開著，那應該直接寫成常態效果，不要用型態包一層`
+        );
+      }
+    }
+  }
+
+  const duration = effect.duration;
+  if (duration != null) {
+    if (typeof duration !== "object") {
+      fail(errors, `${where}(型態) 的 duration 必須是物件`);
+    } else if (!FORM_DURATION_UNITS.includes(duration.unit)) {
+      fail(
+        errors,
+        `${where}(型態) 的 duration.unit「${duration.unit}」不合法，合法值：${FORM_DURATION_UNITS.join("/")}` +
+          `——只有這兩個單位對應得到引擎裡真的在前進的計數器`
+      );
+    } else if (duration.unit === "輪") {
+      if (!Number.isInteger(duration.rounds) || duration.rounds <= 0) {
+        fail(errors, `${where}(型態) 以「輪」計時，duration.rounds 必須是正整數`);
+      }
+    }
+  }
+
+  if (effect.grants != null) {
+    if (!Array.isArray(effect.grants)) {
+      fail(errors, `${where}(型態) 的 grants 必須是陣列`);
+    } else if (effect.grants.length === 0) {
+      fail(errors, `${where}(型態) 的 grants 是空陣列——一個什麼都不給的型態不該存在`);
+    } else {
+      effect.grants.forEach((grant, i) => {
+        const gw = `${where}(型態) grants[${i}]`;
+        if (grant?.kind === "型態") {
+          fail(errors, `${gw} 又是一個型態——型態不可以巢狀(變身中再變身沒有定義，也沒有消費端)`);
+          return;
+        }
+        if (grant?.kind != null && EFFECT_KINDS[grant.kind] && !GRANTABLE_EFFECT_KINDS.includes(grant.kind)) {
+          fail(
+            errors,
+            `${gw} 的 kind「${grant.kind}」不能由型態授予，可授予的只有：${GRANTABLE_EFFECT_KINDS.join("/")}` +
+              `——「${grant.kind}」是購買當下寫進角色卡或當場發生一次的效果，型態結束時收不回來`
+          );
+          return;
+        }
+        errors.push(...validateEffect(grant, gw, { insideForm: true }));
+      });
+    }
+  }
+}
+
+/**
+ * 驗證單一效果的結構。回傳錯誤陣列(空陣列=合法)。
+ * @param {object} effect
+ * @param {string} where 錯誤訊息用的位置描述
+ * @param {{ insideForm?: boolean }} [opts] insideForm：這個效果是某個「型態」的 grants 之一。
+ *   型態內部的檢定類效果可以省略匹配鍵，理由見本檔案開頭 2026-08-17 的決策記錄。
+ */
+export function validateEffect(effect, where = "effect", { insideForm = false } = {}) {
   const errors = [];
   if (!effect || typeof effect !== "object") {
     return [`${where} 不是物件`];
@@ -105,12 +242,17 @@ export function validateEffect(effect, where = "effect") {
   if (effect.skill != null && !SKILL_KEYS.has(effect.skill)) {
     fail(errors, `${where} 的技能「${effect.skill}」不是十技能之一：${[...SKILL_KEYS].join("/")}`);
   }
-  if (spec.matcher && effect.attribute == null && effect.skill == null) {
+  // 型態內部不要求匹配鍵：那裡的「何時生效」由 forms.js 的啟動狀態決定，不是由 AI 決定。
+  if (spec.matcher && !insideForm && effect.attribute == null && effect.skill == null) {
     fail(
       errors,
       `${where}(${effect.kind}) 必須指定 attribute 或 skill 至少一項當匹配鍵——` +
-        `沒有匹配鍵的檢定加值等於「所有檢定都加」或「靠AI判斷何時生效」，兩者都不允許`
+        `沒有匹配鍵的檢定加值等於「所有檢定都加」或「靠AI判斷何時生效」，兩者都不允許` +
+        `(唯一的例外是寫在型態的 grants 裡，那時候生效範圍由型態的開關決定)`
     );
+  }
+  if (effect.kind === "型態") {
+    validateFormEffect(effect, where, errors);
   }
   if (effect.amount != null && !Number.isInteger(effect.amount)) {
     fail(errors, `${where} 的 amount 必須是整數(簡化規則沒有小數加值)`);
@@ -181,19 +323,34 @@ export function applyPermanentEffects(character, effects = []) {
 }
 
 /**
+ * 一次檢定/一次戰鬥要看的效果來源清單 = 角色持有的商品 ＋ 目前正在進行中的型態。
+ *
+ * 型態的 grants 之所以能用「跟持有商品一模一樣的形狀」併進來，是因為它們本來就是同一張
+ * 詞彙表的效果，差別只在**現在算不算數**。這個函式是那個「算不算數」的唯一接縫：
+ * 上面的三個查表函式都經過它，所以型態一到期，下一次查表自然就查不到了，
+ * 不需要任何人記得去回收加值。extraSources 由 content/shop/forms.js 的
+ * activeGrantSources() 產生。
+ */
+function effectSources(character, extraSources = []) {
+  return [...(character.abilities ?? []), ...extraSources];
+}
+
+/**
  * 查詢「這次檢定」該吃到多少加骰與附加成功。
  * 由 content/checkIntent.js / content/turnOptions.js 在組 performCheck() 參數時呼叫。
  *
  * 匹配規則刻意寫得很嚴：效果有寫 attribute 就必須跟這次檢定的屬性一致，有寫 skill 就必須
  * 跟技能一致，兩個都寫就都要一致。沒有模糊比對，沒有「相關檢定」這種需要判斷的字眼。
+ * 型態授予的加骰可以兩個都沒寫(那是「變身期間所有檢定」)，於是對任何檢定都成立。
  * @param {{ abilities?: object[] }} character
  * @param {{ attribute?: string, skill?: string }} check
+ * @param {{ extraSources?: object[] }} [opts]
  */
-export function checkModifiersFor(character, { attribute, skill } = {}) {
+export function checkModifiersFor(character, { attribute, skill } = {}, { extraSources = [] } = {}) {
   let dp = 0;
   let bonusSuccesses = 0;
   const sources = [];
-  for (const owned of character.abilities ?? []) {
+  for (const owned of effectSources(character, extraSources)) {
     for (const effect of owned.effects ?? []) {
       if (effect.kind !== "檢定加骰" && effect.kind !== "附加成功") continue;
       if (effect.attribute != null && effect.attribute !== attribute) continue;
@@ -207,14 +364,43 @@ export function checkModifiersFor(character, { attribute, skill } = {}) {
 }
 
 /**
+ * 把持有商品(與進行中型態)的檢定加值併進一組 performCheck() 參數。
+ *
+ * [決策記錄 2026-08-17] 在這個函式出現之前，checkModifiersFor() 的唯一呼叫端是測試——
+ * 也就是說整個「專長」貨架(8件商品的價值幾乎都是檢定加值)買了以後在真實遊戲裡完全不生效。
+ * 那正是 CONVERSION_RULES.md 第1節在講的「看起來有效、實際上沒有程式碼會讀它」，
+ * 只是這次漏掉的不是欄位，是最後一段接線。三個 API 進入點(check/turn/narrate)現在都經過這裡。
+ *
+ * 刻意用「加上去」而不是「覆蓋」：呼叫端傳進來的 otherDpModifier 是情境調整(套路遞減之類)，
+ * 商品加值是另一回事，兩者要並存。
+ */
+export function applyCheckModifiers(character, params, { extraSources = [] } = {}) {
+  if (!params) return { params, modifiers: null };
+  const modifiers = checkModifiersFor(
+    character,
+    { attribute: params.attribute, skill: params.skill },
+    { extraSources }
+  );
+  if (modifiers.dp === 0 && modifiers.bonusSuccesses === 0) return { params, modifiers: null };
+  return {
+    params: {
+      ...params,
+      otherDpModifier: (params.otherDpModifier ?? 0) + modifiers.dp,
+      otherBonusSuccesses: (params.otherBonusSuccesses ?? 0) + modifiers.bonusSuccesses,
+    },
+    modifiers,
+  };
+}
+
+/**
  * 從持有物重算戰鬥用檔案(core/character.js 的 emptyCombatProfile 形狀 + initiativeBonus)。
  * skillCorrection 仍由呼叫端算(它是 max(格鬥,體魄) 技能等級，不是商品給的)。
  */
-export function combatProfileFrom(character, { skillCorrection = 0 } = {}) {
+export function combatProfileFrom(character, { skillCorrection = 0, extraSources = [] } = {}) {
   let equipmentDefense = 0;
   let armor = 0;
   let initiativeBonus = 0;
-  for (const owned of character.abilities ?? []) {
+  for (const owned of effectSources(character, extraSources)) {
     for (const effect of owned.effects ?? []) {
       if (effect.kind === "防御") equipmentDefense += effect.amount;
       else if (effect.kind === "護甲") armor += effect.amount;
@@ -250,9 +436,9 @@ export function applyInstantEffects(state, effects = []) {
 }
 
 /** 從持有物撈出所有武器，形狀直接對齊 content/combat/placeholderEncounters.js 的武器物件。 */
-export function weaponsFrom(character) {
+export function weaponsFrom(character, { extraSources = [] } = {}) {
   const weapons = [];
-  for (const owned of character.abilities ?? []) {
+  for (const owned of effectSources(character, extraSources)) {
     for (const effect of owned.effects ?? []) {
       if (effect.kind !== "武器") continue;
       weapons.push({

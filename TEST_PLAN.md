@@ -57,6 +57,12 @@
 | 掛名商品看得到買不了，且說得出缺哪個機制 | [專案規格] | 🔧 結構性測試(付得起也擋下) | shopPacks.test.js | ✅ 通過 |
 | 上架商品一定給得出至少一個數值效果 | CONVERSION_RULES.md 第7節【硬性】 | 🔧 資料驗證 | shopPacks.test.js | ✅ 通過 |
 | 已知定價落差保留原數字(改造/技藝/法術) | 書中原文 vs templates.js | 📖 逐條比對＋稽核回報 | shopPacks.test.js | ✅ 通過 |
+| 型態(暫時性增益容器)：成本/期限/grants 三道驗證 | CONVERSION_RULES.md 第2a節【硬性】 | 🔧 結構性測試(無成本/無期限/塞永久效果/巢狀全部擋下) | shopForms.test.js | ✅ 通過 |
+| 型態啟動真的扣意志力(意志力的第一個消費端) | 型錄原文「支付1點意志力」 | 🔧 扣款＋餘額不足擋下＋失敗不扣款 | shopForms.test.js | ✅ 通過 |
+| 型態的兩個時鐘都真的走(輪數倒數／場景結束) | [設計]，只吃引擎真的在前進的計數器 | 🔧 開啟後引擎輸出變了、到期後變回來 | shopForms.test.js | ✅ 通過 |
+| 型態接到真實戰鬥迴圈(防御DC變高、天生武器打得出去) | [設計] | 🔧 走 encounterState 的完整攻防 | shopForms.test.js | ✅ 通過 |
+| 貨架上每一個型態都啟動得起來且真的改變引擎輸出 | CONVERSION_RULES.md 第2a節 | 🔧 掃過所有商品包的型態 | shopPacks.test.js | ✅ 通過 |
+| 商品的檢定加值真的進到 API 判定結果 | [設計]，補 2026-08-17 前的斷線 | 🔧 POST /api/check 前後骰池比對 | shopForms.test.js | ✅ 通過(在此之前三個API進入點都沒呼叫 checkModifiersFor) |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |

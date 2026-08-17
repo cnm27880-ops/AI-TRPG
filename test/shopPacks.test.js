@@ -19,6 +19,7 @@ import { emptyCharacter } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from "../content/shop/catalog.js";
 import { weaponsFrom, checkModifiersFor, combatProfileFrom } from "../content/shop/effects.js";
+import { createFormsState, formIdOf, activateForm, activeGrantSources, endScene } from "../content/shop/forms.js";
 
 const PACK_FILES = [
   "shop-starter-items.json",
@@ -392,4 +393,47 @@ test("模板能力五類排他在真實商品資料上也成立(買了血統就�
   // 改造是另一個排他分類，血統買了不影響改造
   const EVOL = allGoods.find((g) => g.goodId === "cybernetic.假面騎士EVOL.D");
   assert.equal(evaluatePurchase(bought.character, bought.wallet, EVOL).ok, true, "血統與改造是不同的排他分類");
+});
+
+test("貨架上的每一個型態都啟動得起來，而且啟動後真的改變某個引擎函式的輸出", () => {
+  const forms = allGoods.flatMap((good) =>
+    (good.effects ?? [])
+      .filter((e) => e.kind === "型態")
+      .map((effect) => ({ good, effect }))
+  );
+  assert.ok(forms.length > 0, "貨架上應該至少有一個型態(2026-08-17 起有 Orphnoch 與帝國子民)");
+
+  for (const { good, effect } of forms) {
+    // 買到手上(型態一定屬於某件商品，不會憑空存在)
+    const owner = { ...emptyCharacter("型態測試"), abilities: [{ goodId: good.goodId, name: good.name, effects: good.effects }] };
+    owner.derived.willpower = { max: 5, current: 5, temp: 0 };
+
+    const formId = formIdOf(good.goodId, effect.label);
+    const activated = activateForm(owner, createFormsState(), formId, { round: 1 });
+    assert.equal(activated.ok, true, `「${good.name}」的型態「${effect.label}」啟動失敗：${JSON.stringify(activated.blockers)}`);
+
+    // 啟動一定要付出代價：意志力或動作，至少一樣
+    const paidWillpower = activated.character.derived.willpower.current < owner.derived.willpower.current;
+    assert.ok(
+      paidWillpower || effect.activation?.action != null,
+      `「${effect.label}」啟動不需要任何代價，那它不該是型態`
+    );
+
+    // 而且啟動之後，三個查表函式至少有一個的輸出變了——不然這個型態什麼也沒做
+    const extraSources = activeGrantSources(activated.formsState);
+    const profileChanged =
+      JSON.stringify(combatProfileFrom(owner)) !== JSON.stringify(combatProfileFrom(owner, { extraSources }));
+    const weaponsChanged = weaponsFrom(owner, { extraSources }).length > weaponsFrom(owner).length;
+    const checkChanged = ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
+      (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
+    );
+    assert.ok(
+      profileChanged || weaponsChanged || checkChanged,
+      `「${effect.label}」啟動之後沒有任何引擎函式的輸出改變——那它就是一個謊言`
+    );
+
+    // 場景結束後要收乾淨
+    const ended = endScene(activated.formsState);
+    assert.deepEqual(ended.formsState.active, [], `「${effect.label}」在場景結束後沒有被收掉`);
+  }
 });

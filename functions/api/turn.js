@@ -27,6 +27,7 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { narrativeFeatHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
@@ -350,6 +351,13 @@ export async function onRequestPost(context) {
   }
 
   if (checkParams) {
+    // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數。擺在套路遞減之後，
+    // 因為那個是加在 DC 上的、這個是加在骰池上的，兩者互不覆蓋。
+    const modified = applyCheckModifiers(character, checkParams);
+    checkParams = modified.params;
+    if (modified.modifiers) {
+      warnings.push(`持有能力加值：${modified.modifiers.sources.join("、")}`);
+    }
     try {
       checkResult = performCheck(character, checkParams);
     } catch (err) {

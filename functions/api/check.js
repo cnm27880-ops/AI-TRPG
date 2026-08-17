@@ -16,6 +16,7 @@
 
 import { performCheck } from "../../core/check.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import { applyCheckModifiers } from "../../content/shop/effects.js";
 
 export async function onRequestPost(context) {
   let body;
@@ -37,11 +38,13 @@ export async function onRequestPost(context) {
   }
 
   // params 優先；只給 playerAction 時由引擎層推導該擲什麼檢定，前端不做這個規則決定。
-  const resolvedParams = params ?? inferCheckParams(playerAction, { character });
+  const baseParams = params ?? inferCheckParams(playerAction, { character });
+  // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數，不然買了等於沒買。
+  const { params: resolvedParams, modifiers } = applyCheckModifiers(character, baseParams);
 
   try {
     const result = performCheck(character, resolvedParams);
-    return new Response(JSON.stringify({ ok: true, params: resolvedParams, result }), {
+    return new Response(JSON.stringify({ ok: true, params: resolvedParams, result, abilityModifiers: modifiers }), {
       headers: { "content-type": "application/json; charset=utf-8" },
     });
   } catch (err) {
