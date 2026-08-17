@@ -23,7 +23,8 @@ import {
   attackModifiersFor,
 } from "../content/shop/effects.js";
 import { validateGood, purchase, evaluatePurchase } from "../content/shop/catalog.js";
-import { baseCapacity, openPool, spendEnergy } from "../core/energyPools.js";
+import { baseCapacity, openPool, spendEnergy, POOL_DEFS, REJECTED_POOLS } from "../core/energyPools.js";
+import { ATTRIBUTES } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import {
   createFormsState,
@@ -741,4 +742,162 @@ test("劍氣用完就變不出劍了(能量池是真的會見底的)", async () 
   const r = activateForm(drained, createFormsState(), formIdOf("school.青蓮劍歌總決.D", "劍氣化碧"), { round: 1 });
   assert.equal(r.ok, false);
   assert.equal(r.blockers[0].code, "能量不足");
+});
+
+// ---------------------------------------------------------------------------
+// 能量池第二輪(2026-08-17)：查克拉與內力兩條鏈
+//
+// 第一條鏈(劍氣)證明的是「機制接得起來」。這一組證明的是另一件事——**機制做好之後，
+// 追新的池子只剩抄兩個屬性名的成本**：下面兩條鏈沒有為它們新增任何一行引擎程式碼，
+// 查克拉鏈甚至連新效果種類都沒用到，它整條都是既有詞彙表拼出來的。
+//
+// 順便，這裡出現了第一個「同一個池子有兩個獨立來源」的實例(忍者與寫輪眼都開查克拉)，
+// 於是 REOPEN_BONUSES 的 +5 第一次有了真實的消費端，而不是只在單元測試裡被驗算。
+// ---------------------------------------------------------------------------
+
+/** 一個滿足忍者技能前提的角色(運動/隱藏/神秘學/白刃/肉搏/求生 → 體魄/潛行/秘識/格鬥/求生)。 */
+function 忍者學徒() {
+  const c = hero();
+  c.skills = { ...c.skills, 體魄: 1, 潛行: 1, 秘識: 1, 格鬥: 2, 求生: 3 };
+  return c;
+}
+
+async function 池子來源包() {
+  return (await import("../content/packs/shop-starter-pools.json", { with: { type: "json" } })).default;
+}
+
+test("內力也登錄了關鍵屬性，而且跟查克拉是同一組(書上說兩者運作方式幾乎一致)", () => {
+  const attrs = { 感知: 4, 耐力: 2, 敏捷: 3 };
+  assert.equal(baseCapacity("內力", attrs), 6, "內力＝感知+耐力");
+  assert.equal(baseCapacity("查克拉", attrs), 6, "查克拉＝耐力+感知，同一組屬性");
+});
+
+test("查過但收不了的池子留在 REJECTED_POOLS，每一筆都說得出行號與『為什麼不可能』", () => {
+  const 六維 = new Set(ATTRIBUTES.map((a) => a.key));
+  assert.ok(Object.keys(REJECTED_POOLS).length > 0, "查證過的否定結論要留下來，不然下一個人會再查一次");
+  for (const [name, def] of Object.entries(REJECTED_POOLS)) {
+    assert.ok(!POOL_DEFS[name], `「${name}」不可以同時出現在 POOL_DEFS 與 REJECTED_POOLS`);
+    assert.match(def.sourceRef, /rules-2\.35\.txt 第\d+行/, `「${name}」的 sourceRef 沒有行號`);
+    assert.ok(
+      def.keyAttributes.some((a) => !六維.has(a)),
+      `「${name}」被否決的理由必須是「關鍵屬性不在六維裡」——如果兩個都在六維裡，那它應該被收下`
+    );
+  }
+});
+
+test("REJECTED_POOLS 指名擋住的商品，確實還掛在掛名狀態(否決清單不是寫爽的)", async () => {
+  const cybernetic = (await import("../content/packs/shop-starter-cybernetic.json", { with: { type: "json" } })).default;
+  const all = cybernetic.entries;
+  for (const def of Object.values(REJECTED_POOLS)) {
+    for (const goodId of def.blocks ?? []) {
+      const good = all.find((g) => g.goodId === goodId);
+      assert.ok(good, `REJECTED_POOLS 指到一件不存在的商品：${goodId}`);
+      assert.equal(good.status, "掛名", `${good.name} 的池子被否決了，它不該是上架狀態`);
+    }
+  }
+});
+
+test("忍者的技能前提真的擋得住(六項原文前提對映成五項十技能)", async () => {
+  const pack = await 池子來源包();
+  const 忍者 = pack.entries.find((e) => e.goodId === "title.忍者.D");
+  assert.equal(validateGood(忍者).valid, true, validateGood(忍者).errors.join("\n"));
+
+  const wallet = createWallet({ tokens: { D: 3 }, points: 3000 });
+  const 素人 = evaluatePurchase(hero(), wallet, 忍者); // hero 只有格鬥與求生
+  assert.equal(素人.ok, false);
+  assert.equal(素人.blockers.filter((b) => b.code === "前提不足").length, 3, "缺體魄/潛行/秘識三項");
+
+  assert.equal(evaluatePurchase(忍者學徒(), wallet, 忍者).ok, true);
+});
+
+test("整條鏈：忍者 → 查克拉池 → 寫輪眼(第二個來源，上限+5) → 洞察眼開眼", async () => {
+  const pack = await 池子來源包();
+  const dojutsu = (await import("../content/packs/shop-starter-dojutsu.json", { with: { type: "json" } })).default;
+  const 忍者 = pack.entries.find((e) => e.goodId === "title.忍者.D");
+  const 寫輪眼 = dojutsu.entries.find((e) => e.goodId === "dojutsu.寫輪眼.D");
+
+  assert.equal(寫輪眼.status, "上架", "寫輪眼應該已經不是掛名");
+
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const step1 = purchase(忍者學徒(), wallet, 忍者);
+  assert.equal(step1.ok, true, JSON.stringify(step1.blockers));
+  assert.equal(step1.character.derived.energyPools.查克拉.max, 6, "耐力3+感知3");
+  assert.equal(combatProfileFrom(step1.character).initiativeBonus, 3, "神速：先攻+3");
+
+  // 第二個**獨立來源**開同一個池子 → 書上的重複開啟補償 +5
+  const step2 = purchase(step1.character, step1.wallet, 寫輪眼);
+  assert.equal(step2.ok, true, JSON.stringify(step2.blockers));
+  const 池 = step2.character.derived.energyPools.查克拉;
+  assert.equal(池.max, 11, "忍者與寫輪眼是兩個不同來源，第一次重複開啟 +5");
+  assert.equal(池.current, 6, "上限變大不等於補滿");
+  assert.deepEqual(池.sources, ["title.忍者.D", "dojutsu.寫輪眼.D"]);
+
+  const character = step2.character;
+  const formId = formIdOf(寫輪眼.goodId, "洞察眼");
+
+  // 開眼前：攻擊與防御都沒有加值
+  assert.equal(attackModifiersFor(character, "肉搏").dp, 0);
+  assert.equal(combatProfileFrom(character).equipmentDefense, 0);
+
+  // 開眼要花一個標準動作＋1點查克拉
+  const budget = createActionBudget();
+  const on = activateForm(character, createFormsState(), formId, { round: 1, budget });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  assert.equal(on.character.derived.energyPools.查克拉.current, 5, "支付1點查克拉");
+  assert.equal(on.budget.standardAvailable, false, "標準動作被用掉了");
+
+  const extraSources = activeGrantSources(on.formsState);
+  assert.equal(attackModifiersFor(character, "肉搏", { extraSources }).dp, 2, "開眼期間攻擊+2DP");
+  assert.equal(attackModifiersFor(character, "炮", { extraSources }).dp, 2, "書上沒有限定攻擊方式");
+  assert.equal(
+    checkModifiersFor(character, { attribute: "感知", skill: "偵察" }, { extraSources }).dp,
+    0,
+    "scope 是「攻擊」，一般檢定吃不到"
+  );
+  assert.equal(combatProfileFrom(character, { extraSources }).equipmentDefense, 2, "開眼期間防御+2");
+
+  // 持續一個場景：場景結束就收乾淨
+  const ended = endScene(on.formsState);
+  assert.equal(isFormActive(ended.formsState, formId), false);
+  assert.equal(combatProfileFrom(character, { extraSources: activeGrantSources(ended.formsState) }).equipmentDefense, 0);
+});
+
+test("查克拉見底時開不了眼(洞察眼跟劍氣化碧受同一條約定管)", async () => {
+  const dojutsu = (await import("../content/packs/shop-starter-dojutsu.json", { with: { type: "json" } })).default;
+  const 寫輪眼 = dojutsu.entries.find((e) => e.goodId === "dojutsu.寫輪眼.D");
+  const bought = purchase(hero(), createWallet({ tokens: { D: 2 }, points: 2000 }), 寫輪眼);
+  assert.equal(bought.ok, true, JSON.stringify(bought.blockers));
+
+  const drained = {
+    ...bought.character,
+    derived: {
+      ...bought.character.derived,
+      energyPools: { 查克拉: { ...bought.character.derived.energyPools.查克拉, current: 0 } },
+    },
+  };
+  const r = activateForm(drained, createFormsState(), formIdOf(寫輪眼.goodId, "洞察眼"), { round: 1 });
+  assert.equal(r.ok, false);
+  assert.equal(r.blockers[0].code, "能量不足");
+});
+
+test("內力鏈：內力心法開池，葵花寶典是第二個來源——書上寫的+5就是通則算出來的+5", async () => {
+  const pack = await 池子來源包();
+  const technique = (await import("../content/packs/shop-starter-technique.json", { with: { type: "json" } })).default;
+  const 內力心法 = pack.entries.find((e) => e.goodId === "technique.內力心法.D");
+  const 葵花寶典 = technique.entries.find((e) => e.goodId === "technique.葵花寶典.1");
+
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const step1 = purchase(hero(), wallet, 內力心法);
+  assert.equal(step1.ok, true, JSON.stringify(step1.blockers));
+  assert.equal(step1.character.derived.energyPools.內力.max, 6, "感知3+耐力3");
+
+  // 葵花寶典原文：「獲得D級內力…若已擁有內力則使內力上限提高5點」。
+  // 那個 5 沒有寫在商品資料裡任何一個欄位，是 REOPEN_BONUSES[0] 算出來的。
+  const step2 = purchase(step1.character, step1.wallet, 葵花寶典);
+  assert.equal(step2.ok, true, JSON.stringify(step2.blockers));
+  assert.equal(step2.character.derived.energyPools.內力.max, 11, "書上的+5＝通則的第一次重複開啟補償");
+
+  // 反過來也成立：只買葵花寶典的人，內力池是基礎上限
+  const 單買 = purchase(hero(), wallet, 葵花寶典);
+  assert.equal(單買.character.derived.energyPools.內力.max, 6);
 });
