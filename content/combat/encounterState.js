@@ -21,7 +21,7 @@ import { resolveCombatAction } from "../../core/combat/resolveCombatAction.js";
 import { emptyCombatProfile } from "../../core/character.js";
 import { createHpState } from "../../core/health.js";
 import { computeDerivedStats } from "../../core/derivedStats.js";
-import { combatProfileFrom, weaponsFrom } from "../shop/effects.js";
+import { combatProfileFrom, weaponsFrom, attackModifiersFor } from "../shop/effects.js";
 import {
   createFormsState,
   activateForm,
@@ -204,10 +204,17 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
   }
 
   const attackParams = buildAttackParams(weapon.attackType, character, weapon);
+  // 商品/型態給的攻擊加值。在這行出現之前，玩家買到的檢定加值只影響敘事迴圈的檢定，
+  // 戰鬥攻擊完全吃不到——同一個「+2DP」在兩種場合行為不一致。
+  const attackMods = attackModifiersFor(character, weapon.attackType, {
+    extraSources: activeGrantSources(combat.forms),
+  });
 
   const result = resolveCombatAction({
     attackType: weapon.attackType,
     attackParams,
+    attackDpModifier: attackMods.dp,
+    attackBonusSuccesses: attackMods.bonusSuccesses,
     distance: 0,
     weaponRange: weapon.weaponRange ?? Infinity,
     defenderAttributes: combat.enemy.attributes,

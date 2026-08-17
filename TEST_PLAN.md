@@ -63,6 +63,10 @@
 | 型態接到真實戰鬥迴圈(防御DC變高、天生武器打得出去) | [設計] | 🔧 走 encounterState 的完整攻防 | shopForms.test.js | ✅ 通過 |
 | 貨架上每一個型態都啟動得起來且真的改變引擎輸出 | CONVERSION_RULES.md 第2a節 | 🔧 掃過所有商品包的型態 | shopPacks.test.js | ✅ 通過 |
 | 商品的檢定加值真的進到 API 判定結果 | [設計]，補 2026-08-17 前的斷線 | 🔧 POST /api/check 前後骰池比對 | shopForms.test.js | ✅ 通過(在此之前三個API進入點都沒呼叫 checkModifiersFor) |
+| 商品的攻擊加值真的進到戰鬥骰池 | [設計]，補 2026-08-17 前的斷線 | 🔧 同一組固定骰、比對兩次攻擊的骰池大小 | shopForms.test.js | ✅ 通過(在此之前攻擊路徑完全不查效果表) |
+| 七種攻擊方式都對得出自己的關鍵屬性＋技能 | 戰！戰！戰！.htm 各攻擊方式公式 | 🔧 ATTACK_CHECK_KEYS 與 ATTACK_TYPES 一一對應 | shopForms.test.js | ✅ 通過 |
+| 複數匹配鍵(「生理系屬性」)只命中指定的那幾個 | [設計] | 🔧 命中/不命中兩側都測，非法屬性仍要擋 | shopForms.test.js | ✅ 通過 |
+| scope 讓攻擊限定與檢定限定的加值不互相外溢 | [設計] | 🔧 三種 scope 各測兩條路徑 | shopForms.test.js | ✅ 通過 |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |

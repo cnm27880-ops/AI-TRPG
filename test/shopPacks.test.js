@@ -18,7 +18,8 @@ import { featCost } from "../core/xp.js";
 import { emptyCharacter } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from "../content/shop/catalog.js";
-import { weaponsFrom, checkModifiersFor, combatProfileFrom } from "../content/shop/effects.js";
+import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor } from "../content/shop/effects.js";
+import { ATTACK_CHECK_KEYS } from "../core/combat/attackTypes.js";
 import { createFormsState, formIdOf, activateForm, activeGrantSources, endScene } from "../content/shop/forms.js";
 
 const PACK_FILES = [
@@ -427,8 +428,14 @@ test("貨架上的每一個型態都啟動得起來，而且啟動後真的改�
     const checkChanged = ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
       (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
     );
+    // 攻擊路徑是獨立的一條(scope:"攻擊" 的效果只在這裡生效)，所以也要問一次
+    const attackChanged = Object.keys(ATTACK_CHECK_KEYS).some((attackType) => {
+      const before = attackModifiersFor(owner, attackType);
+      const after = attackModifiersFor(owner, attackType, { extraSources });
+      return after.dp !== before.dp || after.bonusSuccesses !== before.bonusSuccesses;
+    });
     assert.ok(
-      profileChanged || weaponsChanged || checkChanged,
+      profileChanged || weaponsChanged || checkChanged || attackChanged,
       `「${effect.label}」啟動之後沒有任何引擎函式的輸出改變——那它就是一個謊言`
     );
 

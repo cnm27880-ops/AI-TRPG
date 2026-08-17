@@ -12,6 +12,7 @@ import { emptyCharacter } from "../core/schema.js";
 import { computeDerivedStats } from "../core/derivedStats.js";
 import { performCheck } from "../core/check.js";
 import { computeDefenseDC } from "../core/combat/defense.js";
+import { ATTACK_TYPES, ATTACK_CHECK_KEYS, attackCheckKeys } from "../core/combat/attackTypes.js";
 import { createActionBudget, useMove } from "../core/combat/actionEconomy.js";
 import {
   validateEffect,
@@ -19,6 +20,7 @@ import {
   combatProfileFrom,
   weaponsFrom,
   applyCheckModifiers,
+  attackModifiersFor,
 } from "../content/shop/effects.js";
 import { validateGood, purchase } from "../content/shop/catalog.js";
 import { createWallet } from "../content/shop/wallet.js";
@@ -505,4 +507,113 @@ test("POST /api/check：買了加求生的專長之後，同一個檢定的骰�
   assert.equal(after.ok, true);
   assert.equal(after.result.dp - before.result.dp, 2, "專長的加值要真的進到骰池");
   assert.match(after.abilityModifiers.sources.join(), /測試血統/);
+});
+
+// ---------------------------------------------------------------------------
+// 攻擊路徑也查效果表 ＋ 複數匹配鍵 ＋ scope
+//
+// 補的是另一個「同一個加值兩種行為」的洞：商品的檢定加值先前只影響敘事迴圈的檢定，
+// 戰鬥攻擊完全吃不到，因為攻擊走的是 resolveCombatAction()/attackTypes.js。
+// ---------------------------------------------------------------------------
+
+test("ATTACK_CHECK_KEYS：七種攻擊方式都指得出自己算的是哪一組屬性＋技能", () => {
+  const attackTypes = Object.keys(ATTACK_TYPES);
+  for (const type of attackTypes) {
+    const keys = attackCheckKeys(type);
+    assert.ok(keys.attribute && keys.skill, `${type} 沒有對應的屬性/技能`);
+  }
+  assert.equal(Object.keys(ATTACK_CHECK_KEYS).length, attackTypes.length, "兩張表必須一一對應");
+  assert.deepEqual(attackCheckKeys("肉搏"), { attribute: "力量", skill: "格鬥" });
+  assert.deepEqual(attackCheckKeys("炮"), { attribute: "智力", skill: "射擊" });
+});
+
+test("attackModifiersFor：匹配規則跟一般檢定完全一樣，只是鍵來自攻擊方式", () => {
+  const c = withAbility(hero(), [{ kind: "檢定加骰", skill: "格鬥", amount: 2 }]);
+  assert.equal(attackModifiersFor(c, "肉搏").dp, 2, "肉搏算格鬥，應該吃得到");
+  assert.equal(attackModifiersFor(c, "槍械").dp, 0, "槍械算射擊，不該吃到格鬥的加值");
+});
+
+test("複數匹配鍵：「生理系屬性」寫得出來，而且只命中那三個", () => {
+  const 生理系 = { kind: "檢定加骰", amount: 2, attributes: ["力量", "敏捷", "耐力"] };
+  assert.deepEqual(validateEffect(生理系), []);
+  const c = withAbility(hero(), [生理系]);
+  assert.equal(checkModifiersFor(c, { attribute: "力量" }).dp, 2);
+  assert.equal(checkModifiersFor(c, { attribute: "敏捷" }).dp, 2);
+  assert.equal(checkModifiersFor(c, { attribute: "智力" }).dp, 0, "心智系不該吃到");
+
+  // 複數鍵裡出現不存在的屬性一樣要被擋
+  assert.match(
+    validateEffect({ kind: "檢定加骰", amount: 1, attributes: ["力量", "決心"] })[0],
+    /不是六維之一/
+  );
+});
+
+test("scope：攻擊限定的加值不會外溢到一般檢定，反之亦然", () => {
+  const 攻擊限定 = withAbility(hero(), [{ kind: "檢定加骰", amount: 2, scope: "攻擊", attribute: "力量" }]);
+  assert.equal(attackModifiersFor(攻擊限定, "肉搏").dp, 2);
+  assert.equal(checkModifiersFor(攻擊限定, { attribute: "力量" }).dp, 0, "攻擊限定不該加在搬箱子上");
+
+  const 檢定限定 = withAbility(hero(), [{ kind: "檢定加骰", amount: 2, scope: "檢定", attribute: "力量" }]);
+  assert.equal(checkModifiersFor(檢定限定, { attribute: "力量" }).dp, 2);
+  assert.equal(attackModifiersFor(檢定限定, "肉搏").dp, 0);
+
+  // 沒寫 scope = 全部，兩邊都算(既有商品的行為不變)
+  const 全部 = withAbility(hero(), [{ kind: "檢定加骰", amount: 2, attribute: "力量" }]);
+  assert.equal(attackModifiersFor(全部, "肉搏").dp, 2);
+  assert.equal(checkModifiersFor(全部, { attribute: "力量" }).dp, 2);
+
+  assert.match(validateEffect({ kind: "檢定加骰", amount: 1, attribute: "力量", scope: "隨便" })[0], /scope/);
+  assert.match(validateEffect({ kind: "防御", amount: 1, scope: "攻擊" })[0], /不該有 scope/);
+});
+
+test("攻擊加值真的進到戰鬥的骰池裡(不是只有查表函式知道)", () => {
+  const plain = hero();
+  const buffed = withAbility(plain, [{ kind: "檢定加骰", amount: 3, scope: "攻擊", skill: "格鬥" }]);
+
+  // 用同一個固定骰子函式打兩次，只有骰池大小不同
+  const seen = [];
+  const rollFn = (dp) => {
+    seen.push(dp);
+    return { successes: 5, rolls: [], isFortuneDie: false, fumble: false };
+  };
+
+  for (const character of [plain, buffed]) {
+    const combat = createEncounter(character);
+    combat.order = ["player", "enemy"];
+    combat.turnIndex = 0;
+    resolvePlayerAttack(combat, character, "unarmed", { rollFn });
+  }
+
+  assert.equal(seen[1] - seen[0], 3, "買了加格鬥的商品，肉搏攻擊的骰池就該大3");
+});
+
+test("EVOL 的『攻擊強化』撿回來之後，開了才有、只加在攻擊上、一輪後失效", async () => {
+  const pack = (await import("../content/packs/shop-starter-cybernetic.json", { with: { type: "json" } })).default;
+  const good = pack.entries.find((e) => e.goodId === "cybernetic.假面騎士EVOL.D");
+  assert.equal(validateGood(good).valid, true, validateGood(good).errors.join("\n"));
+  assert.ok(
+    !(good.droppedTraits ?? []).some((d) => d.trait.startsWith("攻擊強化")),
+    "攻擊強化不該還留在 droppedTraits"
+  );
+
+  const owner = { ...hero(), abilities: [{ goodId: good.goodId, name: good.name, effects: good.effects }] };
+  const formId = formIdOf(good.goodId, "攻擊強化");
+
+  assert.equal(attackModifiersFor(owner, "肉搏").dp, 0, "沒開之前不該有加值");
+
+  const on = activateForm(owner, createFormsState(), formId, { round: 1 });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  const extraSources = activeGrantSources(on.formsState);
+
+  assert.equal(attackModifiersFor(owner, "肉搏", { extraSources }).dp, 2, "力量系攻擊 +2");
+  assert.equal(attackModifiersFor(owner, "炮", { extraSources }).dp, 0, "炮走智力，不是生理系");
+  assert.equal(
+    checkModifiersFor(owner, { attribute: "力量", skill: "格鬥" }, { extraSources }).dp,
+    0,
+    "只加在攻擊上，不加在一般力量檢定上"
+  );
+
+  // 持續1輪：第2輪開始就沒了
+  const ticked = tickFormsOnRound(on.formsState, 2);
+  assert.equal(attackModifiersFor(owner, "肉搏", { extraSources: activeGrantSources(ticked.formsState) }).dp, 0);
 });

@@ -29,6 +29,7 @@
 //   等於把加值白送，那才是真正的放寬。這兩件事由 validateEffect() 擋住。
 
 import { ATTRIBUTES, SKILLS } from "../../core/schema.js";
+import { attackCheckKeys } from "../../core/combat/attackTypes.js";
 import { healDamage } from "../../core/health.js";
 import { applyAffectionDelta } from "../affection.js";
 
@@ -48,12 +49,16 @@ export const EFFECT_KINDS = Object.freeze({
   防御: { target: "combatProfile.equipmentDefense → core/combat/defense.js", fields: ["amount"], permanent: true },
   護甲: { target: "combatProfile.armor → core/combat/armor.js", fields: ["amount"], permanent: true },
   檢定加骰: {
-    target: "core/check.js 的 otherDpModifier(經 checkModifiersFor 查表)",
+    target:
+      "core/check.js 的 otherDpModifier(經 checkModifiersFor 查表)、" +
+      "core/combat/resolveCombatAction.js 的 attackDpModifier(經 attackModifiersFor 查表)",
     fields: ["amount"],
     matcher: true,
   },
   附加成功: {
-    target: "core/check.js 的 otherBonusSuccesses(經 checkModifiersFor 查表)",
+    target:
+      "core/check.js 的 otherBonusSuccesses(經 checkModifiersFor 查表)、" +
+      "core/combat/attack.js 的 attackBonusSuccesses(經 attackModifiersFor 查表)",
     fields: ["amount"],
     matcher: true,
   },
@@ -71,6 +76,19 @@ export const EFFECT_KINDS = Object.freeze({
     fields: ["label", "activation", "duration", "grants"],
   },
 });
+
+/**
+ * 檢定類效果的生效範圍。**三個值都是引擎自己分得出來的**，不需要任何臨場判斷：
+ *   檢定 —— 只有 core/check.js 的一般檢定算數(走 checkModifiersFor)
+ *   攻擊 —— 只有戰鬥攻擊算數(走 attackModifiersFor)
+ *   全部 —— 兩邊都算(預設)
+ *
+ * [決策記錄 2026-08-17] 為什麼需要這個欄位：型錄裡「攻擊檢定+X」跟「XX技能檢定+X」是
+ * 兩種不同的東西，先前引擎兩邊都表達不了——一般檢定與攻擊根本是兩條互不相干的程式路徑，
+ * 商品效果只接在其中一條上。把兩條都接上之後，如果沒有 scope，一個「攻擊+2」的效果
+ * 就會連帶讓所有力量檢定都+2，那是憑空放大。scope 讓範圍精確，而且判斷者是程式碼。
+ */
+export const EFFECT_SCOPES = Object.freeze(["檢定", "攻擊", "全部"]);
 
 /** 型態可以授予的效果種類。刻意比整張詞彙表窄，理由見 validateFormEffect()。 */
 export const GRANTABLE_EFFECT_KINDS = Object.freeze([
@@ -131,6 +149,43 @@ export const UNSUPPORTED_MECHANICS = Object.freeze({
 
 function fail(errors, msg) {
   errors.push(msg);
+}
+
+/**
+ * 匹配鍵可以寫成單數(attribute/skill)或複數(attributes/skills)。
+ *
+ * [決策記錄 2026-08-17] 複數形式是為了「生理系屬性」「心智系技能」這種書上極常見的**範圍**：
+ * 先前一個效果只能指一個屬性，於是「所有基於生理系屬性的攻擊檢定+2」只能整條丟掉
+ * (假面騎士EVOL 的攻擊強化就是這樣被丟掉的)。複數不是放寬匹配，是把「一組具名的鍵」
+ * 一次寫齊——每一個鍵仍然要是六維十技能之一，仍然完全不需要臨場判斷。
+ */
+function matchAttributes(effect) {
+  if (Array.isArray(effect.attributes)) return effect.attributes;
+  return effect.attribute != null ? [effect.attribute] : [];
+}
+
+function matchSkills(effect) {
+  if (Array.isArray(effect.skills)) return effect.skills;
+  return effect.skill != null ? [effect.skill] : [];
+}
+
+function hasMatcher(effect) {
+  return matchAttributes(effect).length > 0 || matchSkills(effect).length > 0;
+}
+
+/**
+ * 這個效果適不適用於「屬性=X、技能=Y、範圍=scope」的這一次擲骰。
+ * 規則跟先前一樣嚴：有寫屬性就必須命中其中一個，有寫技能就必須命中其中一個，
+ * 兩邊都寫就兩邊都要命中。沒有模糊比對。
+ */
+function effectApplies(effect, { attribute, skill, scope }) {
+  const effectScope = effect.scope ?? "全部";
+  if (effectScope !== "全部" && effectScope !== scope) return false;
+  const attributes = matchAttributes(effect);
+  if (attributes.length > 0 && !attributes.includes(attribute)) return false;
+  const skills = matchSkills(effect);
+  if (skills.length > 0 && !skills.includes(skill)) return false;
+  return true;
 }
 
 /**
@@ -236,14 +291,30 @@ export function validateEffect(effect, where = "effect", { insideForm = false } 
   for (const field of spec.fields) {
     if (effect[field] == null) fail(errors, `${where}(${effect.kind}) 缺少必要欄位「${field}」`);
   }
-  if (effect.attribute != null && !ATTRIBUTE_KEYS.has(effect.attribute)) {
-    fail(errors, `${where} 的屬性「${effect.attribute}」不是六維之一：${[...ATTRIBUTE_KEYS].join("/")}`);
+  for (const attribute of matchAttributes(effect)) {
+    if (!ATTRIBUTE_KEYS.has(attribute)) {
+      fail(errors, `${where} 的屬性「${attribute}」不是六維之一：${[...ATTRIBUTE_KEYS].join("/")}`);
+    }
   }
-  if (effect.skill != null && !SKILL_KEYS.has(effect.skill)) {
-    fail(errors, `${where} 的技能「${effect.skill}」不是十技能之一：${[...SKILL_KEYS].join("/")}`);
+  for (const skill of matchSkills(effect)) {
+    if (!SKILL_KEYS.has(skill)) {
+      fail(errors, `${where} 的技能「${skill}」不是十技能之一：${[...SKILL_KEYS].join("/")}`);
+    }
+  }
+  if (effect.attributes != null && !Array.isArray(effect.attributes)) {
+    fail(errors, `${where} 的 attributes 必須是陣列(單一屬性請用 attribute)`);
+  }
+  if (effect.skills != null && !Array.isArray(effect.skills)) {
+    fail(errors, `${where} 的 skills 必須是陣列(單一技能請用 skill)`);
+  }
+  if (effect.scope != null && !EFFECT_SCOPES.includes(effect.scope)) {
+    fail(errors, `${where} 的 scope「${effect.scope}」不合法，合法值：${EFFECT_SCOPES.join("/")}`);
+  }
+  if (effect.scope != null && !spec.matcher) {
+    fail(errors, `${where}(${effect.kind}) 不是檢定類效果，不該有 scope`);
   }
   // 型態內部不要求匹配鍵：那裡的「何時生效」由 forms.js 的啟動狀態決定，不是由 AI 決定。
-  if (spec.matcher && !insideForm && effect.attribute == null && effect.skill == null) {
+  if (spec.matcher && !insideForm && !hasMatcher(effect)) {
     fail(
       errors,
       `${where}(${effect.kind}) 必須指定 attribute 或 skill 至少一項當匹配鍵——` +
@@ -347,20 +418,43 @@ function effectSources(character, extraSources = []) {
  * @param {{ extraSources?: object[] }} [opts]
  */
 export function checkModifiersFor(character, { attribute, skill } = {}, { extraSources = [] } = {}) {
+  return gatherModifiers(character, { attribute, skill, scope: "檢定" }, extraSources);
+}
+
+/** checkModifiersFor 與 attackModifiersFor 共用的那一段。 */
+function gatherModifiers(character, { attribute, skill, scope }, extraSources) {
   let dp = 0;
   let bonusSuccesses = 0;
   const sources = [];
   for (const owned of effectSources(character, extraSources)) {
     for (const effect of owned.effects ?? []) {
       if (effect.kind !== "檢定加骰" && effect.kind !== "附加成功") continue;
-      if (effect.attribute != null && effect.attribute !== attribute) continue;
-      if (effect.skill != null && effect.skill !== skill) continue;
+      if (!effectApplies(effect, { attribute, skill, scope })) continue;
       if (effect.kind === "檢定加骰") dp += effect.amount;
       else bonusSuccesses += effect.amount;
       sources.push(`${owned.name}(${effect.kind}${effect.amount >= 0 ? "+" : ""}${effect.amount})`);
     }
   }
   return { dp, bonusSuccesses, sources };
+}
+
+/**
+ * 查詢「這次戰鬥攻擊」該吃到多少加骰與附加成功。
+ *
+ * [決策記錄 2026-08-17] 在這個函式出現之前，商品的檢定加值**只影響敘事迴圈的檢定，
+ * 完全不影響戰鬥攻擊**——因為攻擊走的是 resolveCombatAction()/attackTypes.js，
+ * 那條路徑從來沒有查過效果表。同一個「+2DP」的加值在兩種場合行為不一致，
+ * 而玩家不會知道；這比完全不生效更糟，因為它看起來是有效的。
+ *
+ * 匹配用的屬性/技能來自 core/combat/attackTypes.js 的 ATTACK_CHECK_KEYS，
+ * 也就是那種攻擊方式的公式裡本來就在用的那兩個欄位——不是另外發明的對應關係。
+ * @param {object} character
+ * @param {string} attackType core/combat/attackTypes.js 的 key
+ * @param {{ extraSources?: object[] }} [opts]
+ */
+export function attackModifiersFor(character, attackType, { extraSources = [] } = {}) {
+  const { attribute, skill } = attackCheckKeys(attackType);
+  return gatherModifiers(character, { attribute, skill, scope: "攻擊" }, extraSources);
 }
 
 /**

@@ -24,6 +24,10 @@ import { emptyCombatProfile } from "../character.js";
  * @param {string} params.attackType core/combat/attackTypes.js 的 key
  * @param {object} params.attackParams 傳給 attackTypes 的 dp() 的欄位
  *   (例如肉搏要傳 {strength, unarmedSkill, weaponDamage})
+ * @param {number} [params.attackDpModifier] 攻擊骰池的加減(商品/型態給的檢定加骰，
+ *   由 content/shop/effects.js 的 attackModifiersFor() 算好傳進來)。跟 attackParams 分開
+ *   是刻意的：attackParams 是**公式的輸入**，改它等於改寫攻擊公式(CONVERSION_RULES.md
+ *   第5節明令禁止)；這個參數是公式算完之後的外部調整，兩者不該混在一起。
  * @param {number} [params.attackBonusSuccesses] 攻擊方的附加成功(呼叫端自己算好傳進來)
  * @param {number} [params.distance] 距離(遠程攻擊用)
  * @param {number} [params.weaponRange] 武器射程(遠程攻擊用)
@@ -37,6 +41,7 @@ import { emptyCombatProfile } from "../character.js";
 export function resolveCombatAction({
   attackType,
   attackParams,
+  attackDpModifier = 0,
   attackBonusSuccesses = 0,
   distance = 0,
   weaponRange = Infinity,
@@ -50,7 +55,7 @@ export function resolveCombatAction({
   const profile = getAttackType(attackType);
   const combatProfile = { ...emptyCombatProfile(), ...defenderCombatProfile };
 
-  const attackDP = profile.dp(attackParams);
+  const attackDP = profile.dp(attackParams) + attackDpModifier;
   const rangeDPPenalty = profile.ranged ? rangePenalty(distance, weaponRange) : 0;
 
   const defenseDC = computeDefenseDC({
