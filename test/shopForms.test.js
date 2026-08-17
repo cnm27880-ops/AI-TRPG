@@ -40,10 +40,13 @@ import {
   formsForScene,
   activeGrantSources,
   describeActiveForms,
+  variablePaymentRange,
+  payUpkeep,
 } from "../content/shop/forms.js";
 import {
   createEncounter,
   resolvePlayerAttack,
+  resolveEnemyAttack,
   resolveFormActivation,
   playerWeapons,
   playerCombatProfile,
@@ -1071,4 +1074,258 @@ test("戰鬥中啟動型態不推進行動順位(書上這類啟動花的是動�
   assert.equal(r.ok, true);
   assert.equal(combat.turnIndex, before, "變身完還是玩家的回合，他本輪還可以出手");
   assert.equal(combat.player.budget.moveAvailable, false, "但移動動作被用掉了");
+});
+
+// ---------------------------------------------------------------------------
+// 可變量型態與維持成本（2026-08-17 第九輪）
+//
+// 兩個缺口是同一個容器的兩面，測試的重點也一樣：**不是「函式回傳了正確的值」，
+// 而是「玩家的決定與引擎的收費真的改變了戰鬥」**。
+//   - 可變量：付3點跟付1點，攻擊骰池要真的差2顆。付了幾點要能從池子看出來。
+//   - 維持成本：撐得下去要每輪真的扣，撐不下去要當場結束，而不是撐到時鐘走完。
+// ---------------------------------------------------------------------------
+
+/** 可變量＋二選一：對應混元劍經第一層的「劍氣」(rules-2.35.txt 第240996行)。 */
+const 劍氣 = {
+  kind: "型態",
+  label: "劍氣",
+  activation: {
+    action: "自由",
+    poolVariable: { name: "劍氣", min: 1, maxFromAttributes: ["敏捷", "感知"], maxRule: "取低" },
+  },
+  duration: { unit: "輪", rounds: 1 },
+  modes: [
+    { key: "攻", label: "灌注兵刃", grants: [{ kind: "檢定加骰", amountPerPoint: 1, scope: "攻擊", skill: "格鬥" }] },
+    { key: "防", label: "護體", grants: [{ kind: "防御", amountPerPoint: 1 }] },
+  ],
+};
+
+/** 維持成本：對應葵花寶典第一重的「鬼魅身」(rules-2.35.txt 第207198行)。 */
+const 鬼魅身 = {
+  kind: "型態",
+  label: "鬼魅身",
+  activation: { action: "迅捷", pool: { name: "內力", amount: 1 } },
+  upkeep: { action: "自由", pool: { name: "內力", amount: 1 } },
+  duration: { unit: "輪", untilUpkeepFails: true },
+  grants: [{ kind: "防御", amount: 3 }],
+};
+
+function withPool(character, poolName, { current = null } = {}) {
+  const c = { ...character, derived: { ...character.derived } };
+  c.derived.energyPools = openPool({}, poolName, c.attributes, "測試來源");
+  if (current != null) c.derived.energyPools[poolName] = { ...c.derived.energyPools[poolName], current };
+  return c;
+}
+
+test("可變量型態驗證：合法的寫法通過，缺了上限規則的擋下來", () => {
+  assert.deepEqual(validateEffect(劍氣), []);
+
+  const 沒有上限 = {
+    ...劍氣,
+    activation: { action: "自由", poolVariable: { name: "劍氣", min: 1 } },
+  };
+  assert.match(validateEffect(沒有上限).join("；"), /max 或 maxFromAttributes/);
+
+  const 兩個屬性沒說取哪個 = {
+    ...劍氣,
+    activation: { action: "自由", poolVariable: { name: "劍氣", maxFromAttributes: ["敏捷", "感知"] } },
+  };
+  assert.match(validateEffect(兩個屬性沒說取哪個).join("；"), /maxRule/);
+});
+
+test("可變量型態驗證：amountPerPoint 只能寫在真的有可變量支付的型態裡", () => {
+  const 固定成本卻想放大 = {
+    kind: "型態",
+    label: "假可變量",
+    activation: { action: "自由", willpower: 1 },
+    duration: { unit: "輪", rounds: 1 },
+    grants: [{ kind: "防御", amountPerPoint: 1 }],
+  };
+  assert.match(validateEffect(固定成本卻想放大).join("；"), /沒有 poolVariable/);
+});
+
+test("型態驗證：grants 與 modes 必須恰好二選一，modes 至少要有兩個選項", () => {
+  assert.match(validateEffect({ ...劍氣, grants: [{ kind: "防御", amount: 1 }] }).join("；"), /只能寫 grants 或 modes/);
+  const 只有一個選項 = { ...劍氣, modes: [劍氣.modes[0]] };
+  assert.match(validateEffect(只有一個選項).join("；"), /至少要有兩個選項/);
+});
+
+test("可變量型態：支付上限是「敏捷或感知取低」，由角色卡算出來", () => {
+  const c = hero(); // 敏捷3、感知3
+  assert.deepEqual(variablePaymentRange(劍氣, c), { poolName: "劍氣", min: 1, max: 3 });
+
+  const 敏捷差的人 = { ...c, attributes: { ...c.attributes, 敏捷: 1 } };
+  assert.equal(variablePaymentRange(劍氣, 敏捷差的人).max, 1, "取低＝取兩個關鍵屬性中比較小的那個");
+});
+
+test("可變量型態：沒報支付點數不會偷偷用最小值，超出上限也擋下來", () => {
+  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
+  const formId = formIdOf("test.血統", "劍氣");
+
+  const 沒報數 = activateForm(c, createFormsState(), formId, { round: 1, mode: "攻" });
+  assert.equal(沒報數.ok, false);
+  assert.ok(沒報數.blockers.some((b) => b.code === "缺少支付點數"));
+
+  const 超出 = activateForm(c, createFormsState(), formId, { round: 1, mode: "攻", amount: 4 });
+  assert.equal(超出.ok, false);
+  assert.ok(超出.blockers.some((b) => b.code === "支付點數超出範圍"));
+});
+
+test("可變量型態：付幾點就扣幾點，攻擊骰池就多幾顆(付3點跟付1點真的差2顆)", () => {
+  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
+  const formId = formIdOf("test.血統", "劍氣");
+  const before = attackModifiersFor(c, "白刃").dp;
+
+  const 付1點 = activateForm(c, createFormsState(), formId, { round: 1, mode: "攻", amount: 1 });
+  assert.equal(付1點.ok, true, JSON.stringify(付1點.blockers));
+  const 付3點 = activateForm(c, createFormsState(), formId, { round: 1, mode: "攻", amount: 3 });
+  assert.equal(付3點.ok, true, JSON.stringify(付3點.blockers));
+
+  const dp1 = attackModifiersFor(c, "白刃", { extraSources: activeGrantSources(付1點.formsState) }).dp;
+  const dp3 = attackModifiersFor(c, "白刃", { extraSources: activeGrantSources(付3點.formsState) }).dp;
+  assert.equal(dp1, before + 1);
+  assert.equal(dp3, before + 3, "加值等額於支付量，這是書上原文的『獲得等額的環境加值』");
+
+  // 錢是真的付掉的
+  const pool = c.derived.energyPools.劍氣;
+  assert.equal(付3點.character.derived.energyPools.劍氣.current, pool.current - 3);
+});
+
+test("可變量型態：二選一選「防」的時候，加的是防御而不是攻擊", () => {
+  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
+  const formId = formIdOf("test.血統", "劍氣");
+  const 防 = activateForm(c, createFormsState(), formId, { round: 1, mode: "防", amount: 2 });
+  assert.equal(防.ok, true, JSON.stringify(防.blockers));
+
+  const extraSources = activeGrantSources(防.formsState);
+  assert.equal(combatProfileFrom(c, { extraSources }).equipmentDefense, 2);
+  assert.equal(attackModifiersFor(c, "白刃", { extraSources }).dp, attackModifiersFor(c, "白刃").dp, "選了防就不該加攻");
+
+  const 沒選 = activateForm(c, createFormsState(), formId, { round: 1, amount: 2 });
+  assert.equal(沒選.ok, false);
+  assert.ok(沒選.blockers.some((b) => b.code === "缺少型態選項"));
+});
+
+test("可變量型態：付幾點、選哪一種，都要看得見(不然同一個型態強度不同卻長得一樣)", () => {
+  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
+  const r = activateForm(c, createFormsState(), formIdOf("test.血統", "劍氣"), { round: 1, mode: "攻", amount: 2 });
+  const line = describeActiveForms(r.formsState, { round: 1 })[0];
+  assert.match(line, /灌注兵刃/);
+  assert.match(line, /支付2點/);
+});
+
+test("維持成本驗證：upkeep 只能掛在「輪」上，untilUpkeepFails 一定要有 upkeep", () => {
+  assert.deepEqual(validateEffect(鬼魅身), []);
+
+  const 掛在場景上 = { ...鬼魅身, duration: { unit: "場景" } };
+  assert.match(validateEffect(掛在場景上).join("；"), /duration.unit 就必須是「輪」/);
+
+  const 沒有維持成本卻說靠維持活著 = { ...鬼魅身, upkeep: undefined, duration: { unit: "輪", untilUpkeepFails: true } };
+  assert.match(validateEffect(沒有維持成本卻說靠維持活著).join("；"), /沒有 upkeep/);
+});
+
+test("維持成本型態：靠維持活著的型態不會被時鐘收走(它沒有 expiresAfterRound)", () => {
+  const c = withPool(withAbility(hero(), [鬼魅身]), "內力");
+  const r = activateForm(c, createFormsState(), formIdOf("test.血統", "鬼魅身"), { round: 1 });
+  assert.equal(r.ok, true, JSON.stringify(r.blockers));
+  assert.equal(r.form.expiresAfterRound, null);
+
+  // 沒有這一條的話 `round > null` 會是 true，型態會在下一輪無聲消失
+  const ticked = tickFormsOnRound(r.formsState, 2);
+  assert.deepEqual(ticked.expired, [], "維持型態的到期由 payUpkeep 判定，不是時鐘");
+});
+
+test("維持成本型態：付得出來就每輪真的扣，付不出來就當場結束", () => {
+  // 內力池只留2點：啟動扣1點，之後只夠再維持1輪
+  const c = withPool(withAbility(hero(), [鬼魅身]), "內力", { current: 2 });
+  const activated = activateForm(c, createFormsState(), formIdOf("test.血統", "鬼魅身"), { round: 1 });
+  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
+  assert.equal(activated.character.derived.energyPools.內力.current, 1);
+
+  const round2 = payUpkeep(activated.formsState, activated.character, 2, createActionBudget());
+  assert.deepEqual(round2.ended, [], "還付得出來就繼續");
+  assert.equal(round2.character.derived.energyPools.內力.current, 0, "維持成本是真的從池子裡扣的");
+  assert.deepEqual(
+    round2.budget.usedFreeActionKeys,
+    [`維持型態:${formIdOf("test.血統", "鬼魅身")}`],
+    "書上的『每輪需以一個自由動作支付』——那個自由動作要真的從這一輪的額度裡花掉"
+  );
+
+  const round3 = payUpkeep(round2.formsState, round2.character, 3, createActionBudget());
+  assert.equal(round3.ended.length, 1, "付不出來就結束，不是撐到時鐘走完");
+  assert.match(round3.ended[0].endReason, /內力不足/);
+  assert.deepEqual(round3.formsState.active, [], "結束的型態要離開進行中清單");
+  assert.equal(round3.character.derived.energyPools.內力.current, 0, "扣不起就整筆不扣，不會扣成負數");
+});
+
+test("維持成本型態：一個斷氣不影響另一個(各付各的)", () => {
+  const c0 = withPool(withAbility(hero(), [鬼魅身]), "內力", { current: 1 });
+  const c = { ...c0, derived: { ...c0.derived, willpower: { max: 5, current: 5, temp: 0 } } };
+  const 專注 = {
+    ...鬼魅身,
+    label: "另一個維持型態",
+    activation: { action: "迅捷", willpower: 1 },
+    upkeep: { willpower: 1 },
+  };
+  const owner = withAbility(c, [鬼魅身, 專注]);
+  let state = createFormsState();
+  const a = activateForm(owner, state, formIdOf("test.血統", "鬼魅身"), { round: 1 });
+  assert.equal(a.ok, true, JSON.stringify(a.blockers));
+  const b = activateForm(a.character, a.formsState, formIdOf("test.血統", "另一個維持型態"), { round: 1 });
+  assert.equal(b.ok, true, JSON.stringify(b.blockers));
+
+  // 內力見底(啟動就用光了)，意志力還有——只有前者該斷
+  const next = payUpkeep(b.formsState, b.character, 2, createActionBudget());
+  assert.deepEqual(next.ended.map((f) => f.label), ["鬼魅身"]);
+  assert.deepEqual(next.formsState.active.map((f) => f.label), ["另一個維持型態"]);
+  assert.equal(next.character.derived.willpower.current, 3, "另一個照常收1點意志力");
+});
+
+test("維持成本型態：戰鬥推進到下一輪時真的會收錢，收不到就在戰鬥紀錄裡結束", () => {
+  // 這一則是整條線的驗收：不是「payUpkeep 算得對」，而是「打一場架真的會被收錢」。
+  const c = withPool(withAbility(hero(), [鬼魅身]), "內力", { current: 2 });
+  const combat = createEncounter(c);
+  combat.order = ["player", "enemy"];
+  combat.turnIndex = 0;
+
+  const activated = resolveFormActivation(combat, c, formIdOf("test.血統", "鬼魅身"));
+  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
+  let character = activated.character;
+  assert.equal(combatProfileFrom(character, { extraSources: activeGrantSources(combat.forms) }).equipmentDefense, 3);
+
+  // 玩家打一拳→敵人打一拳→回到玩家，就跨過了一輪
+  const 玩家出手 = resolvePlayerAttack(combat, character, "unarmed", { rollFn: () => 1 });
+  character = 玩家出手.character;
+  const 敵人出手 = resolveEnemyAttack(combat, character, { rollFn: () => 1 });
+  character = 敵人出手.character;
+
+  assert.equal(combat.round, 2, "跨到第2輪");
+  assert.equal(character.derived.energyPools.內力.current, 0, "第2輪的維持成本被收走了");
+  assert.ok(combat.log.some((e) => e.event === "型態維持"), "收了錢要留下紀錄");
+
+  // 再跨一輪就付不出來了
+  const 第二拳 = resolvePlayerAttack(combat, character, "unarmed", { rollFn: () => 1 });
+  character = 第二拳.character;
+  const 敵人第二拳 = resolveEnemyAttack(combat, character, { rollFn: () => 1 });
+  character = 敵人第二拳.character;
+
+  assert.equal(combat.round, 3);
+  assert.deepEqual(combat.forms.active, [], "付不出維持成本，鬼魅身在戰鬥中斷氣");
+  assert.equal(
+    combatProfileFrom(character, { extraSources: activeGrantSources(combat.forms) }).equipmentDefense,
+    0,
+    "斷氣之後防御加值要跟著消失——這才是「型態真的結束了」"
+  );
+  assert.ok(
+    combat.log.some((e) => e.event === "型態到期" && /內力不足/.test(e.reason ?? "")),
+    "斷氣的理由要寫進戰鬥紀錄，不然玩家只會看到防御莫名其妙變低"
+  );
+});
+
+test("combatOptions 把「這次要決定什麼」一起交給前端(支付範圍與二選一的選項)", () => {
+  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
+  const combat = createEncounter(c);
+  const form = combatOptions(combat, c).forms[0];
+  assert.deepEqual(form.variable, { poolName: "劍氣", min: 1, max: 3 });
+  assert.deepEqual(form.modes.map((m) => m.key), ["攻", "防"]);
 });

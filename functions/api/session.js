@@ -15,6 +15,7 @@ import {
 import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
+import { combatOptions } from "../../content/combat/encounterState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import {
   canAccessSession,
@@ -134,6 +135,12 @@ export async function onRequestGet(context) {
     user,
     downState: getDownState(session.character),
     revival: revivalQuote(session.character),
+    // [2026-08-17 第九輪] 續戰時的行動列。**這是同一個洞的第二半**：上一輪把戰鬥行動列
+    // 從「index.html 裡寫死的兩顆按鈕」改成引擎算的 combatOptions()，但只接了
+    // /api/combat/start 與 act 兩條回應——**重整頁面回到一場進行中的戰鬥時沒有人算它**，
+    // 前端只好退回那兩顆寫死的按鈕，於是買到的武器與身上的型態在續戰時全部按不到。
+    // 症狀跟上一輪修掉的完全一樣，只是躲在另一條路徑上。
+    combatOptions: session.combat?.active ? combatOptions(session.combat, session.character) : null,
   });
 }
 

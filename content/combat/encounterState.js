@@ -28,6 +28,8 @@ import {
   activateForm,
   activeGrantSources,
   tickFormsOnRound,
+  payUpkeep,
+  variablePaymentRange,
   endCombat,
 } from "../shop/forms.js";
 import { PLACEHOLDER_WEAPONS, buildAttackParams, PLACEHOLDER_ENEMY } from "./placeholderEncounters.js";
@@ -86,6 +88,11 @@ export function combatOptions(combat, character) {
     sourceName: f.sourceName,
     activation: f.effect.activation,
     duration: f.effect.duration,
+    upkeep: f.effect.upkeep ?? null,
+    // 玩家在啟動當下要做的兩個決定，範圍由引擎算好給 UI 畫(前端不自己算上限——
+    // 「最多不超過敏捷或感知取低」是規則，不是介面細節)。
+    variable: variablePaymentRange(f.effect, character),
+    modes: (f.effect.modes ?? []).map((m) => ({ key: m.key, label: m.label })),
     active: (combat.forms?.active ?? []).some((a) => a.formId === f.formId),
   }));
   return { weapons, forms };
@@ -160,21 +167,51 @@ export function isCombatOver(combat) {
   return { over: false, winner: null };
 }
 
-function advanceTurn(combat) {
+/**
+ * 推進行動順位。回到第一個人＝新的一輪，於是這裡是引擎唯一會週期性回頭處理型態的地方：
+ * 先讓時鐘走完的型態到期，再向還活著的型態收維持成本。
+ *
+ * @param {object} combat 直接被修改
+ * @param {object} character 角色卡(不修改)
+ * @returns {object} 扣完維持成本的角色卡——**呼叫端有義務把它存回去**，
+ *   跟 resolveFormActivation() 回傳 character 是同一個約定。沒有存回去的話，
+ *   維持成本會每輪都「扣了但沒扣」，型態就變成免費的。
+ */
+function advanceTurn(combat, character) {
   const nextIndex = (combat.turnIndex + 1) % combat.order.length;
   combat.turnIndex = nextIndex;
-  if (nextIndex === 0) {
-    combat.round += 1;
-    combat.player.budget = createActionBudget();
-    combat.enemy.budget = createActionBudget();
-    // 型態的唯一「輪」時鐘就在這裡。新的一輪開始時才結算到期，所以「持續1輪」的型態
-    // 在啟動的那一輪內完整有效，下一輪開始才消失。
-    const ticked = tickFormsOnRound(combat.forms, combat.round);
-    combat.forms = ticked.formsState;
-    for (const form of ticked.expired) {
-      combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });
-    }
+  if (nextIndex !== 0) return character;
+
+  combat.round += 1;
+  combat.player.budget = createActionBudget();
+  combat.enemy.budget = createActionBudget();
+  // 型態的唯一「輪」時鐘就在這裡。新的一輪開始時才結算到期，所以「持續1輪」的型態
+  // 在啟動的那一輪內完整有效，下一輪開始才消失。
+  const ticked = tickFormsOnRound(combat.forms, combat.round);
+  combat.forms = ticked.formsState;
+  for (const form of ticked.expired) {
+    combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });
   }
+
+  // 維持成本(書上的「每輪需以一個自由動作支付1點內力維持此效果」)。
+  // 動作額度用剛重置的這一輪的——維持動作是真的要從這一輪的額度裡花掉的，
+  // 不是一個只寫在資料裡的裝飾。
+  const upkeep = payUpkeep(combat.forms, character, combat.round, combat.player.budget);
+  combat.forms = upkeep.formsState;
+  combat.player.budget = upkeep.budget;
+  for (const p of upkeep.paid) {
+    combat.log.push({ actor: "player", event: "型態維持", label: p.label, round: combat.round });
+  }
+  for (const form of upkeep.ended) {
+    combat.log.push({
+      actor: "player",
+      event: "型態到期",
+      label: form.label,
+      round: combat.round,
+      reason: form.endReason,
+    });
+  }
+  return upkeep.character;
 }
 
 function finalizeIfOver(combat) {
@@ -203,13 +240,15 @@ function finalizeIfOver(combat) {
  *   character 是扣完意志力的新角色卡，呼叫端有義務存回去(這個模組不改角色卡本身，
  *   跟 resolveEnemyAttack() 回傳 newHpState 的約定一致)。
  */
-export function resolveFormActivation(combat, character, formId) {
+export function resolveFormActivation(combat, character, formId, { amount = null, mode = null } = {}) {
   if (!combat.active) throw new Error("戰鬥已經結束");
   if (combat.order[combat.turnIndex] !== "player") throw new Error("現在不是玩家的行動順位");
 
   const result = activateForm(character, combat.forms, formId, {
     round: combat.round,
     budget: combat.player.budget,
+    amount,
+    mode,
   });
   if (!result.ok) return { ok: false, blockers: result.blockers, combat };
 
@@ -269,9 +308,10 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
   combat.log.push({ actor: "player", weaponKey, ...summarizeResult(result) });
 
   const status = finalizeIfOver(combat);
-  if (!status.over) advanceTurn(combat);
+  // 回傳的 character 可能因為維持成本而變(見 advanceTurn)，呼叫端要存回去。
+  const nextCharacter = status.over ? character : advanceTurn(combat, character);
 
-  return { result, combat };
+  return { result, combat, character: nextCharacter };
 }
 
 /**
@@ -315,23 +355,29 @@ export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
   combat.log.push({ actor: "enemy", weaponKey: weapon.key, ...summarizeResult(result) });
 
   const status = finalizeIfOver(combat);
-  if (!status.over) advanceTurn(combat);
+  const nextCharacter = status.over ? character : advanceTurn(combat, character);
 
-  return { result, combat };
+  return { result, combat, character: nextCharacter };
 }
 
 /**
  * 若敵人贏得先攻、搶在玩家之前行動，開戰當下就要先把敵人的開場攻擊解決掉，
  * 不然玩家永遠等不到自己的行動順位（/api/combat/act 只接受玩家發起）。
  * 只有兩個參戰單位時最多執行一次，但寫成迴圈以防未來擴充成多參戰單位。
- * @returns {object[]} 這次連帶解決掉的敵人攻擊結果列表（可能是空陣列）
+ *
+ * [2026-08-17 第九輪] 回傳形狀從「結果陣列」改成 `{ results, character }`：迴圈裡每一次
+ * 敵人攻擊都可能跨過一輪的界線，而跨過界線就要收維持成本。回傳陣列的話那筆扣款無處可去。
+ * @returns {{ results: object[], character: object }}
  */
 export function resolveLeadingEnemyTurns(combat, character, { rollFn } = {}) {
   const results = [];
+  let current = character;
   while (combat.active && combat.order[combat.turnIndex] === "enemy") {
-    results.push(resolveEnemyAttack(combat, character, { rollFn }).result);
+    const attack = resolveEnemyAttack(combat, current, { rollFn });
+    current = attack.character;
+    results.push(attack.result);
   }
-  return results;
+  return { results, character: current };
 }
 
 function summarizeResult(result) {

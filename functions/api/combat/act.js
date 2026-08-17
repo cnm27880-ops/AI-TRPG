@@ -39,7 +39,10 @@ export async function onRequestPost(context) {
   // 「型態」是 2026-08-17 補的：在此之前 encounterState.js 的 resolveFormActivation()
   // **沒有任何正式呼叫端**——引擎做得出戰鬥中變身，但沒有任何 API 叫得動它，
   // 於是血統/瞳術那一類商品在戰鬥裡完全按不下去。
-  const { sessionId, weaponKey = "unarmed", action = "攻擊", formId } = body ?? {};
+  // amount／mode 是 2026-08-17 第九輪補的：可變量型態要玩家報一個支付點數
+  // (「支付最多不超過自身敏捷或感知取低/點劍氣」)，二選一的型態要玩家選一種。
+  // 兩個都只在 action==="型態" 時有意義，範圍與合法值由引擎驗(見 forms.js 的 activateForm)。
+  const { sessionId, weaponKey = "unarmed", action = "攻擊", formId, amount = null, mode = null } = body ?? {};
   if (!["攻擊", "型態"].includes(action)) {
     return json({ ok: false, error: `action 只能是「攻擊」或「型態」，收到「${action}」` }, 400);
   }
@@ -65,7 +68,7 @@ export async function onRequestPost(context) {
   // 變身/開眼：花掉動作額度與意志力/能量池，但**不推進行動順位**——書上這類啟動花的是
   // 移動或標準動作，玩家本輪還可以出手，所以這裡直接回傳，不跑敵人回合。
   if (action === "型態") {
-    const activation = resolveFormActivation(combat, session.character, formId);
+    const activation = resolveFormActivation(combat, session.character, formId, { amount, mode });
     if (!activation.ok) {
       // 變不成不是錯誤，是遊戲狀態(意志力不夠、動作用掉了、已經在進行中)，
       // 跟 /api/shop 買不成同一個約定：回 200 並把理由一次列齊。
@@ -76,7 +79,15 @@ export async function onRequestPost(context) {
     appendEvent(
       session.log,
       EVENT_TYPES.FORM,
-      { event: "啟動", formId, label: activation.form.label, round: combat.round, where: "戰鬥中" },
+      {
+        event: "啟動",
+        formId,
+        label: activation.form.label,
+        round: combat.round,
+        where: "戰鬥中",
+        paid: activation.form.paid ?? null,
+        mode: activation.form.mode?.key ?? null,
+      },
       { timestamp: new Date().toISOString() }
     );
     await store.put(session);
@@ -90,9 +101,16 @@ export async function onRequestPost(context) {
     });
   }
 
+  // 維持成本會在跨輪的時候扣掉能量池/意志力，扣完的角色卡由攻擊函式回傳——
+  // 沒有接住它的話，維持成本會每輪都「扣了但沒扣」，型態就變成免費的。
+  // 這一段記下的 logMark 是為了把這次跨輪發生的型態事件挑出來回給前端(見 formEvents)。
+  const logMark = combat.log.length;
+
   let playerAttack;
   try {
-    playerAttack = resolvePlayerAttack(combat, session.character, weaponKey).result;
+    const attack = resolvePlayerAttack(combat, session.character, weaponKey);
+    playerAttack = attack.result;
+    session.character = attack.character;
   } catch (err) {
     return json({ ok: false, error: err.message }, 400);
   }
@@ -106,7 +124,9 @@ export async function onRequestPost(context) {
 
   let enemyAttack = null;
   if (combat.active && combat.order[combat.turnIndex] === "enemy") {
-    enemyAttack = resolveEnemyAttack(combat, session.character).result;
+    const attack = resolveEnemyAttack(combat, session.character);
+    enemyAttack = attack.result;
+    session.character = attack.character;
     session.character.derived.hp = { ...combat.player.hpState };
 
     appendEvent(session.log, EVENT_TYPES.COMBAT_ACTION, {
@@ -230,6 +250,13 @@ export async function onRequestPost(context) {
     options: combatOptions(combat, session.character),
     playerAttack,
     enemyAttack,
+    // 這次行動跨輪時發生的型態事件(付了維持成本、或付不出來而斷氣)。
+    // 不回給前端的話，玩家會看到防御突然變低卻沒有任何訊息——那正是本專案一再抓到的
+    // 「引擎做了事但畫面上不存在」，只是這次是反過來：引擎收走了東西。
+    formEvents: combat.log
+      .slice(logMark)
+      .filter((e) => e.event === "型態維持" || e.event === "型態到期")
+      .map((e) => ({ event: e.event, label: e.label, round: e.round, reason: e.reason ?? null })),
     combatOver,
     character: session.character,
     scenario: scenarioResult,

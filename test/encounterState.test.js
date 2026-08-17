@@ -96,11 +96,14 @@ test("resolveLeadingEnemyTurns：敵人贏得先攻時，開戰當下就先把�
   combat.order = ["enemy", "player"];
   combat.turnIndex = 0;
 
-  const results = resolveLeadingEnemyTurns(combat, character, { rollFn: fixedRoll(6) });
+  // [2026-08-17 第九輪] 回傳形狀改成 { results, character }：跨輪要收維持成本，
+  // 扣完的角色卡得有地方回去(見 encounterState.js 的 advanceTurn)。
+  const { results, character: after } = resolveLeadingEnemyTurns(combat, character, { rollFn: fixedRoll(6) });
 
   assert.equal(results.length, 1);
   assert.equal(results[0].hit, true);
   assert.equal(combat.order[combat.turnIndex], "player"); // 解決完後輪到玩家
+  assert.ok(after, "角色卡要跟著回傳，呼叫端才存得回去");
 });
 
 test("resolveLeadingEnemyTurns：玩家先攻時什麼都不做，回傳空陣列", () => {
@@ -109,9 +112,10 @@ test("resolveLeadingEnemyTurns：玩家先攻時什麼都不做，回傳空陣�
   combat.order = ["player", "enemy"];
   combat.turnIndex = 0;
 
-  const results = resolveLeadingEnemyTurns(combat, character);
+  const { results, character: after } = resolveLeadingEnemyTurns(combat, character);
 
   assert.deepEqual(results, []);
+  assert.equal(after, character, "什麼都沒發生時角色卡原封不動回傳同一份");
   assert.equal(combat.order[combat.turnIndex], "player");
 });
 

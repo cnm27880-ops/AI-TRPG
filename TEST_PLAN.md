@@ -81,6 +81,13 @@
 | 型態持續時間可掛在屬性上(感知值*1輪) | 型錄原文 | 🔧 到期輪數隨屬性變動 | shopForms.test.js | ✅ 通過 |
 | 整條池子鏈：混元劍經→劍氣池→青蓮劍歌總決→變出6L的劍 | 型錄真實條目 | 🔧 端到端，含前提擋下 | shopForms.test.js | ✅ 通過 |
 | prerequisites.goods（必須先擁有某件商品）真的擋得住 | 型錄原文的資源前提 | 🔧 沒買前提時被擋 | shopForms.test.js | ✅ 通過 |
+| 可變量型態：付幾點就加幾點，上限由「敏捷或感知取低」算出 | 型錄原文第240996行（混元劍經·劍氣） | 📖 書中公式 + 🔧 付1點與付3點的攻擊骰池真的差2顆、超出範圍擋下 | shopForms.test.js | ✅ 通過 |
+| 可變量型態：沒報支付點數不預設成最小值 | [設計]，一次手滑不該變成一次真的花錢 | 🔧 缺少支付點數／缺少型態選項兩個 blocker | shopForms.test.js, formsApi.test.js | ✅ 通過 |
+| 二選一型態（「由你自己選擇」）選攻不加防、選防不加攻 | 型錄原文第240996行 | 🔧 兩種 mode 各驗一條路徑，貨架掃描時每個 mode 都啟動一次 | shopForms.test.js, shopPacks.test.js | ✅ 通過 |
+| 維持成本型態：付得出就每輪真的扣，付不出當場結束 | 型錄原文第207198行（葵花寶典·鬼魅身） | 🔧 走完整戰鬥迴圈：第2輪扣款、第3輪斷氣且防御加值跟著消失 | shopForms.test.js | ✅ 通過 |
+| 維持成本只能掛在「輪」上，untilUpkeepFails 必須有 upkeep | CONVERSION_RULES.md 第2b節【硬性】 | 🔧 掛在場景上／沒有 upkeep 都要擋下 | shopForms.test.js | ✅ 通過 |
+| API 層：擋下來的型態請求一定要回 ok:false | [設計]，端對端實測抓到的bug（formsPayload 帶著 ok:true 蓋掉 ok:false） | 🔧 打真的 handler，斷言 ok:false 且沒有偷扣資源 | formsApi.test.js | ✅ 通過 |
+| API 層：維持成本斷氣時回應說得出是哪一個型態、為什麼 | [設計]，引擎收走東西時畫面上要有紀錄 | 🔧 formEvents 帶著 label 與 reason | formsApi.test.js | ✅ 通過 |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |
