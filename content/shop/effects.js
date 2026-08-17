@@ -30,6 +30,7 @@
 
 import { ATTRIBUTES, SKILLS } from "../../core/schema.js";
 import { attackCheckKeys } from "../../core/combat/attackTypes.js";
+import { POOL_DEFS, openPool } from "../../core/energyPools.js";
 import { healDamage } from "../../core/health.js";
 import { applyAffectionDelta } from "../affection.js";
 
@@ -69,6 +70,11 @@ export const EFFECT_KINDS = Object.freeze({
   治療: { target: "core/health.js 的傷勢軌(使用時才套用，不是購買時)", fields: ["severity", "amount"] },
   好感度: { target: "content/affection.js 的好感度點數", fields: ["amount"] },
   敘事: { target: "(無數值效果)只送進AI敘事的背景資訊", fields: ["text"] },
+  能量池: {
+    target: "character.derived.energyPools → core/energyPools.js(購買當下開池，上限＝關鍵屬性之和)",
+    fields: ["pool"],
+    permanent: true,
+  },
   型態: {
     target:
       "content/shop/forms.js 的 activeForms → 期間內把 grants 併進上面同一張效果表" +
@@ -219,7 +225,19 @@ function validateFormEffect(effect, where, errors) {
             FORM_ACTIVATION_ACTIONS.join("/")
         );
       }
-      if (wp === 0 && activation.action == null) {
+      if (activation.pool != null) {
+        if (!POOL_DEFS[activation.pool.name]) {
+          fail(
+            errors,
+            `${where}(型態) 的 activation.pool.name「${activation.pool.name}」還沒有登錄關鍵屬性，` +
+              `合法值：${Object.keys(POOL_DEFS).join("/")}`
+          );
+        }
+        if (!Number.isInteger(activation.pool.amount) || activation.pool.amount <= 0) {
+          fail(errors, `${where}(型態) 的 activation.pool.amount 必須是正整數`);
+        }
+      }
+      if (wp === 0 && activation.action == null && activation.pool == null) {
         fail(
           errors,
           `${where}(型態) 沒有任何啟動成本(意志力與動作都沒有)——` +
@@ -240,8 +258,21 @@ function validateFormEffect(effect, where, errors) {
           `——只有這兩個單位對應得到引擎裡真的在前進的計數器`
       );
     } else if (duration.unit === "輪") {
-      if (!Number.isInteger(duration.rounds) || duration.rounds <= 0) {
-        fail(errors, `${where}(型態) 以「輪」計時，duration.rounds 必須是正整數`);
+      // 輪數可以寫死，也可以掛在一個屬性上——書上大量寫成「持續你的感知值*1輪」，
+      // 那是引擎算得出來的數字(不是 AI 判斷)，所以兩種寫法都收，但只能二選一。
+      const hasFixed = duration.rounds != null;
+      const hasScaled = duration.roundsFromAttribute != null;
+      if (hasFixed && hasScaled) {
+        fail(errors, `${where}(型態) 的 duration 不能同時寫 rounds 與 roundsFromAttribute，二選一`);
+      } else if (hasScaled) {
+        if (!ATTRIBUTE_KEYS.has(duration.roundsFromAttribute)) {
+          fail(
+            errors,
+            `${where}(型態) 的 duration.roundsFromAttribute「${duration.roundsFromAttribute}」不是六維之一`
+          );
+        }
+      } else if (!Number.isInteger(duration.rounds) || duration.rounds <= 0) {
+        fail(errors, `${where}(型態) 以「輪」計時，duration.rounds 必須是正整數(或改用 roundsFromAttribute)`);
       }
     }
   }
@@ -322,6 +353,15 @@ export function validateEffect(effect, where = "effect", { insideForm = false } 
         `(唯一的例外是寫在型態的 grants 裡，那時候生效範圍由型態的開關決定)`
     );
   }
+  if (effect.kind === "能量池" && effect.pool != null && !POOL_DEFS[effect.pool]) {
+    fail(
+      errors,
+      `${where}(能量池) 的「${effect.pool}」還沒有登錄關鍵屬性，` +
+        `合法值：${Object.keys(POOL_DEFS).join("/")}。` +
+        `新增池子要先在 core/energyPools.js 的 POOL_DEFS 補上關鍵屬性與行號出處——` +
+        `沒有關鍵屬性就算不出上限，那個池子會是一個永遠是0的容器`
+    );
+  }
   if (effect.kind === "型態") {
     validateFormEffect(effect, where, errors);
   }
@@ -359,6 +399,7 @@ export function applyPermanentEffects(character, effects = []) {
       ...character.derived,
       hp: { ...character.derived.hp },
       willpower: { ...character.derived.willpower },
+      energyPools: { ...(character.derived.energyPools ?? {}) },
     },
   };
   for (const effect of effects) {
@@ -378,6 +419,15 @@ export function applyPermanentEffects(character, effects = []) {
       case "意志上限":
         next.derived.willpower.max += effect.amount;
         next.derived.willpower.current += effect.amount;
+        break;
+      case "能量池":
+        // 開池要知道是「哪個資源開的」，因為書上的重複開啟補償要求來源必須完全不同。
+        next.derived.energyPools = openPool(
+          next.derived.energyPools ?? {},
+          effect.pool,
+          next.attributes,
+          effect.source ?? "未具名來源"
+        );
         break;
       case "先攻":
       case "防御":

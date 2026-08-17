@@ -22,7 +22,8 @@ import {
   applyCheckModifiers,
   attackModifiersFor,
 } from "../content/shop/effects.js";
-import { validateGood, purchase } from "../content/shop/catalog.js";
+import { validateGood, purchase, evaluatePurchase } from "../content/shop/catalog.js";
+import { baseCapacity, openPool, spendEnergy } from "../core/energyPools.js";
 import { createWallet } from "../content/shop/wallet.js";
 import {
   createFormsState,
@@ -616,4 +617,128 @@ test("EVOL 的『攻擊強化』撿回來之後，開了才有、只加在攻擊
   // 持續1輪：第2輪開始就沒了
   const ticked = tickFormsOnRound(on.formsState, 2);
   assert.equal(attackModifiersFor(owner, "肉搏", { extraSources: activeGrantSources(ticked.formsState) }).dp, 0);
+});
+
+// ---------------------------------------------------------------------------
+// 能量池：追池子來源之後，青蓮劍歌總決那一整條鏈真的接得起來
+//
+// 這一組是使用者選的『A：往上追池子的來源』的驗收。鏈是這樣的：
+//   買混元劍經 → 開劍氣池(上限＝敏捷+感知) → 買青蓮劍歌總決 → 支付1點劍氣變出劍
+// 任何一環斷掉，最後那把劍就變不出來。
+// ---------------------------------------------------------------------------
+
+test("能量池上限＝關鍵屬性之和(書上原文的公式)", () => {
+  const attrs = { 敏捷: 3, 感知: 4, 耐力: 2, 力量: 1, 智力: 1, 意志: 1 };
+  assert.equal(baseCapacity("劍氣", attrs), 7, "劍氣＝敏捷+感知");
+  assert.equal(baseCapacity("查克拉", attrs), 6, "查克拉＝耐力+感知");
+  assert.throws(() => baseCapacity("不存在的池", attrs), /沒有登錄的能量池/);
+});
+
+test("重複開啟同一個池子的補償是 +5/+3/+1/+1，而且同一個來源不算重複", () => {
+  const attrs = { 敏捷: 3, 感知: 3 };
+  let pools = openPool({}, "劍氣", attrs, "來源A");
+  assert.equal(pools.劍氣.max, 6);
+
+  pools = openPool(pools, "劍氣", attrs, "來源A");
+  assert.equal(pools.劍氣.max, 6, "同一個來源開兩次不算重複開啟");
+
+  pools = openPool(pools, "劍氣", attrs, "來源B");
+  assert.equal(pools.劍氣.max, 11, "第一次重複 +5");
+  pools = openPool(pools, "劍氣", attrs, "來源C");
+  assert.equal(pools.劍氣.max, 14, "第二次重複 +3");
+  pools = openPool(pools, "劍氣", attrs, "來源D");
+  assert.equal(pools.劍氣.max, 15, "第三次 +1");
+});
+
+test("上限變大時多出來的是空的，不是免費補滿(容器變大，內容物沒變)", () => {
+  const attrs = { 敏捷: 3, 感知: 3 };
+  let pools = openPool({}, "劍氣", attrs, "來源A");
+  pools = spendEnergy(pools, "劍氣", 4).pools;
+  assert.equal(pools.劍氣.current, 2);
+  pools = openPool(pools, "劍氣", attrs, "來源B");
+  assert.equal(pools.劍氣.max, 11);
+  assert.equal(pools.劍氣.current, 2, "開新來源不該順便回血");
+});
+
+test("能量不夠就整筆不成立，不扣一半", () => {
+  const pools = openPool({}, "劍氣", { 敏捷: 1, 感知: 1 }, "x");
+  const fail = spendEnergy(pools, "劍氣", 5);
+  assert.equal(fail.ok, false);
+  assert.equal(fail.shortfall, 3);
+  assert.equal(fail.pools.劍氣.current, 2, "失敗時不能動到池子");
+});
+
+test("買混元劍經真的會在角色卡上開出劍氣池", async () => {
+  const pack = (await import("../content/packs/shop-starter-pools.json", { with: { type: "json" } })).default;
+  const good = pack.entries.find((e) => e.goodId === "pool.混元劍經.1");
+  assert.equal(validateGood(good).valid, true, validateGood(good).errors.join("\n"));
+
+  const buyer = hero(); // 敏捷3 感知3
+  const bought = purchase(buyer, createWallet({ tokens: { D: 2 }, points: 2000 }), good);
+  assert.equal(bought.ok, true, JSON.stringify(bought.blockers));
+  assert.equal(bought.character.derived.energyPools.劍氣.max, 6, "敏捷3+感知3");
+  assert.equal(bought.character.derived.energyPools.劍氣.current, 6);
+});
+
+test("整條鏈：混元劍經 → 劍氣池 → 青蓮劍歌總決 → 支付1點劍氣變出6L的劍", async () => {
+  const pools = (await import("../content/packs/shop-starter-pools.json", { with: { type: "json" } })).default;
+  const school = (await import("../content/packs/shop-starter-school.json", { with: { type: "json" } })).default;
+  const 混元劍經 = pools.entries.find((e) => e.goodId === "pool.混元劍經.1");
+  const 青蓮 = school.entries.find((e) => e.name.includes("青蓮劍歌"));
+
+  assert.equal(青蓮.status, "上架", "青蓮劍歌總決應該已經不是掛名");
+
+  // 沒有先買混元劍經 → 前提擋下
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const blocked = evaluatePurchase(hero(), wallet, 青蓮);
+  assert.equal(blocked.ok, false);
+  assert.ok(
+    blocked.blockers.some((b) => b.message.includes("混元劍經")),
+    "前提要真的擋得住，不能只寫在註解裡"
+  );
+
+  // 買混元劍經 → 再買青蓮
+  const step1 = purchase(hero(), wallet, 混元劍經);
+  assert.equal(step1.ok, true, JSON.stringify(step1.blockers));
+  const step2 = purchase(step1.character, step1.wallet, 青蓮);
+  assert.equal(step2.ok, true, JSON.stringify(step2.blockers));
+
+  const character = step2.character;
+  const formId = formIdOf(青蓮.goodId, "劍氣化碧");
+
+  // 變身前沒有劍
+  assert.deepEqual(weaponsFrom(character), []);
+
+  const on = activateForm(character, createFormsState(), formId, { round: 1 });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  assert.equal(on.character.derived.energyPools.劍氣.current, 5, "支付1點劍氣");
+
+  const weapons = weaponsFrom(character, { extraSources: activeGrantSources(on.formsState) });
+  assert.equal(weapons.length, 1);
+  assert.equal(weapons[0].weaponDamage, 6, "書上寫武器傷害6L");
+  assert.equal(weapons[0].severity, "L");
+
+  // 持續感知值*1輪 = 3輪(hero 的感知是3)：第4輪才過期
+  assert.equal(on.form.expiresAfterRound, 3);
+  assert.equal(isFormActive(tickFormsOnRound(on.formsState, 3).formsState, formId), true);
+  assert.equal(isFormActive(tickFormsOnRound(on.formsState, 4).formsState, formId), false);
+});
+
+test("劍氣用完就變不出劍了(能量池是真的會見底的)", async () => {
+  const pools = (await import("../content/packs/shop-starter-pools.json", { with: { type: "json" } })).default;
+  const school = (await import("../content/packs/shop-starter-school.json", { with: { type: "json" } })).default;
+  const wallet = createWallet({ tokens: { D: 5 }, points: 9000 });
+  const step1 = purchase(hero(), wallet, pools.entries.find((e) => e.goodId === "pool.混元劍經.1"));
+  const step2 = purchase(step1.character, step1.wallet, school.entries.find((e) => e.name.includes("青蓮劍歌")));
+
+  const drained = {
+    ...step2.character,
+    derived: {
+      ...step2.character.derived,
+      energyPools: { ...step2.character.derived.energyPools, 劍氣: { ...step2.character.derived.energyPools.劍氣, current: 0 } },
+    },
+  };
+  const r = activateForm(drained, createFormsState(), formIdOf("school.青蓮劍歌總決.D", "劍氣化碧"), { round: 1 });
+  assert.equal(r.ok, false);
+  assert.equal(r.blockers[0].code, "能量不足");
 });

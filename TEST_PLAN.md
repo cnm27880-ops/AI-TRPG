@@ -74,6 +74,13 @@
 | 節點獎勵入的是獎勵點數，通關才結算XP | [設計]，修正 2026-08-17 前的語意錯位 | 🔧 走完整副本後錢包兩種貨幣都要有 | scenarioIntegration.test.js | ✅ 通過 |
 | 執行期貨架註冊表與 packs JSON 逐件一致 | [設計] | 🔧 deepEqual 比對，忘記同步就紅 | shopAccess.test.js | ✅ 通過 |
 | GET/POST /api/shop 的貨架、門禁與成交 | [設計] | 🔧 副本中被擋、回主神空間買成、寫回存檔、留事件日誌 | shopAccess.test.js | ✅ 通過 |
+| 能量池上限＝關鍵屬性之和 | 生命.htm「能量池」段落(**該頁曾被本專案 trim 誤刪，已取回**) | 📖 書中公式＋兩個已登錄池子逐一比對 | shopForms.test.js | ✅ 通過 |
+| 重複開啟同池的補償 +5/+3/+1/+1，同來源不算重複 | 同上，書中原文 | 📖 逐次比對四段補償 | shopForms.test.js | ✅ 通過 |
+| 能量不足整筆不成立，且失敗不動池子 | [設計]，與 wallet 的 canAfford 同一約定 | 🔧 差額回報＋失敗後池子不變 | shopForms.test.js | ✅ 通過 |
+| 型態可以吃能量池當啟動成本 | 型錄原文「支付1點劍氣」 | 🔧 扣池子＋不足時擋下 | shopForms.test.js | ✅ 通過 |
+| 型態持續時間可掛在屬性上(感知值*1輪) | 型錄原文 | 🔧 到期輪數隨屬性變動 | shopForms.test.js | ✅ 通過 |
+| 整條池子鏈：混元劍經→劍氣池→青蓮劍歌總決→變出6L的劍 | 型錄真實條目 | 🔧 端到端，含前提擋下 | shopForms.test.js | ✅ 通過 |
+| prerequisites.goods（必須先擁有某件商品）真的擋得住 | 型錄原文的資源前提 | 🔧 沒買前提時被擋 | shopForms.test.js | ✅ 通過 |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |

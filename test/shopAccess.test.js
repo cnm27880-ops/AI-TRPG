@@ -170,7 +170,7 @@ test("執行期的貨架註冊表跟 content/packs 的 JSON 逐件一致(忘記�
   const { readFileSync } = await import("node:fs");
   const files = [
     "items", "feats", "bloodline", "cybernetic", "dojutsu",
-    "title", "school", "technique", "spell",
+    "title", "school", "technique", "spell", "pools",
   ];
   const fromJson = files.flatMap(
     (f) => JSON.parse(readFileSync(new URL(`../content/packs/shop-starter-${f}.json`, import.meta.url))).entries

@@ -21,6 +21,7 @@ import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from
 import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor } from "../content/shop/effects.js";
 import { ATTACK_CHECK_KEYS } from "../core/combat/attackTypes.js";
 import { createFormsState, formIdOf, activateForm, activeGrantSources, endScene } from "../content/shop/forms.js";
+import { POOL_DEFS, openPool } from "../core/energyPools.js";
 
 const PACK_FILES = [
   "shop-starter-items.json",
@@ -32,6 +33,7 @@ const PACK_FILES = [
   "shop-starter-school.json",
   "shop-starter-technique.json",
   "shop-starter-spell.json",
+  "shop-starter-pools.json",
 ];
 const packs = PACK_FILES.map((f) =>
   JSON.parse(readFileSync(new URL(`../content/packs/${f}`, import.meta.url)))
@@ -242,16 +244,37 @@ test("角色卡上沒有前提時，需要前提的商品確實買不到(手杖�
 
 // ---------- 使用者要求的貨架規格(2026-08-17) ----------
 
-test("七個模板化資源分類，每一類的貨架上都剛好有3件商品", () => {
+test("七個模板化資源分類，每一類的起始貨架都有3件商品(能量池來源另計)", () => {
+  // [2026-08-17 放寬] 原本這裡鎖的是「剛好3件」。使用者決定『A：往上追池子的來源』之後，
+  // 商店多收了一類東西：**開啟能量池的資源**(shop-starter-pools.json)。它們不是為了湊
+  // 貨架而收的，是因為七類裡的條目全部只是能量池的消費者，沒有池子就轉不出來。
+  // 所以判定改成「每類至少3件起始商品」，而池子來源包裡的條目不計入該類的起始數量。
   const 分類 = ["血統", "改造", "瞳術", "稱號", "流派", "技藝", "法術"];
+  const poolSourceIds = new Set(
+    packs.find((p) => p.id === "shop-starter.能量池來源").entries.map((e) => e.goodId)
+  );
   const counts = {};
   for (const good of allGoods) {
+    if (poolSourceIds.has(good.goodId)) continue;
     if (good.resourceType && 分類.includes(good.resourceType)) {
       counts[good.resourceType] = (counts[good.resourceType] ?? 0) + 1;
     }
   }
   for (const type of 分類) {
-    assert.equal(counts[type], 3, `${type} 分類的商品數是 ${counts[type]}，應該是 3`);
+    assert.equal(counts[type], 3, `${type} 分類的起始商品數是 ${counts[type]}，應該是 3`);
+  }
+});
+
+test("能量池來源包裡的條目，每一件都真的開得出一個登錄過關鍵屬性的池子", () => {
+  const poolPack = packs.find((p) => p.id === "shop-starter.能量池來源");
+  assert.ok(poolPack.entries.length > 0);
+  for (const good of poolPack.entries) {
+    const opens = good.effects.filter((e) => e.kind === "能量池");
+    assert.ok(opens.length > 0, `${good.name} 在能量池來源包裡，卻沒有開任何池子`);
+    for (const effect of opens) {
+      assert.ok(POOL_DEFS[effect.pool], `${good.name} 開的「${effect.pool}」沒有登錄關鍵屬性`);
+      assert.ok(effect.source, `${good.name} 的能量池效果要寫 source(重複開啟補償要求來源不同)`);
+    }
   }
 });
 
@@ -408,6 +431,13 @@ test("貨架上的每一個型態都啟動得起來，而且啟動後真的改�
     // 買到手上(型態一定屬於某件商品，不會憑空存在)
     const owner = { ...emptyCharacter("型態測試"), abilities: [{ goodId: good.goodId, name: good.name, effects: good.effects }] };
     owner.derived.willpower = { max: 5, current: 5, temp: 0 };
+    owner.attributes = { 力量: 3, 敏捷: 3, 耐力: 3, 智力: 3, 感知: 3, 意志: 3 };
+    // 吃能量池的型態要先有池子。這裡直接把它需要的池子開好——這則測試問的是
+    // 「型態啟動之後引擎輸出有沒有變」，不是「玩家買不買得起前提」(那是 evaluatePurchase 的事)。
+    const needsPool = effect.activation?.pool?.name;
+    if (needsPool) {
+      owner.derived.energyPools = openPool({}, needsPool, owner.attributes, "測試");
+    }
 
     const formId = formIdOf(good.goodId, effect.label);
     const activated = activateForm(owner, createFormsState(), formId, { round: 1 });

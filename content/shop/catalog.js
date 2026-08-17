@@ -275,6 +275,15 @@ export function evaluatePurchase(character, wallet, good, options = {}) {
     const have = character.skills?.[skill] ?? 0;
     if (have < need) blockers.push({ code: "前提不足", message: `需要${skill}技能${need}級，目前${have}級` });
   }
+  // 「必須先擁有某件商品」——2026-08-17 追能量池來源時加的。書上大量條目的前提是
+  // 另一個資源(青蓮劍歌總決的前提是混元劍經第一層)，那種前提在此之前只能寫在註解裡，
+  // 擋不住任何人。現在它是一個真的擋得住的欄位。
+  for (const requiredId of good.prerequisites?.goods ?? []) {
+    if (!ownedList(character).some((o) => o.goodId === requiredId)) {
+      const name = requiredId;
+      blockers.push({ code: "前提不足", message: `需要先擁有「${name}」` });
+    }
+  }
 
   // 3) 重複購買(消耗品除外)
   if (!good.consumable && ownedList(character).some((o) => o.goodId === good.goodId)) {

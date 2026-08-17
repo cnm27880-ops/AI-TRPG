@@ -25,6 +25,7 @@
 //    「每場景一次」表達掉了：一個持續整個場景的型態，本來就不可能在同一個場景裡啟動第二次。
 
 import { useFree, useSwift, useMove, useStandard, useFullRound, useFullTurn } from "../../core/combat/actionEconomy.js";
+import { spendEnergy } from "../../core/energyPools.js";
 
 /** 空的型態狀態。跟錢包一樣是獨立物件，還沒有進角色卡(見 ARCHITECTURE.md 的待辦)。 */
 export function createFormsState() {
@@ -51,6 +52,18 @@ export function formsOf(character) {
     }
   }
   return out;
+}
+
+/**
+ * 這個型態實際持續幾輪。書上大量寫成「持續你的感知值*1輪」，那是角色卡上的數字，
+ * 引擎算得出來，所以 duration 可以掛在一個屬性上而不是寫死。至少1輪——
+ * 屬性為0時如果算出0輪，這個型態會在啟動的同一輪就過期，那等於買了不能用。
+ */
+export function durationRounds(duration, character) {
+  if (duration?.roundsFromAttribute) {
+    return Math.max(1, character?.attributes?.[duration.roundsFromAttribute] ?? 0);
+  }
+  return duration?.rounds ?? 1;
 }
 
 export function isFormActive(formsState, formId) {
@@ -122,6 +135,20 @@ export function activateForm(character, formsState, formId, { round = null, budg
     }
   }
 
+  // 能量池(劍氣/查克拉/…)。跟意志力同一個約定：扣不起就整筆不成立，不扣一半。
+  // 這是 2026-08-17 第二次補機制加上的——在那之前 activation 只吃意志力，
+  // 於是所有「消耗1點劍氣變身」的條目都轉不出來。
+  const poolCost = effect.activation?.pool;
+  let nextPools = character.derived?.energyPools ?? {};
+  if (poolCost) {
+    const spent = spendEnergy(nextPools, poolCost.name, poolCost.amount);
+    if (!spent.ok) {
+      blockers.push({ code: "能量不足", message: `啟動「${effect.label}」${spent.reason}` });
+    } else {
+      nextPools = spent.pools;
+    }
+  }
+
   // 動作額度。呼叫端沒有給 budget 就代表「現在不在戰鬥裡，動作額度不適用」——
   // 這是刻意的：敘事迴圈裡沒有回合制的動作額度，強迫它有一個等於憑空發明規則。
   let nextBudget = budget;
@@ -153,19 +180,21 @@ export function activateForm(character, formsState, formId, { round = null, budg
     unit,
     activatedAtRound: round,
     // 以輪計時的型態：啟動當輪算第1輪，所以第 round+rounds-1 輪結束後失效。
-    expiresAfterRound: unit === "輪" ? round + effect.duration.rounds - 1 : null,
+    expiresAfterRound: unit === "輪" ? round + durationRounds(effect.duration, character) - 1 : null,
   };
 
-  const nextCharacter =
-    costWillpower > 0
-      ? {
-          ...character,
-          derived: {
-            ...character.derived,
-            willpower: { ...willpower, current: willpower.current - costWillpower },
-          },
-        }
-      : character;
+  const changesCharacter = costWillpower > 0 || poolCost != null;
+  const nextCharacter = changesCharacter
+    ? {
+        ...character,
+        derived: {
+          ...character.derived,
+          willpower:
+            costWillpower > 0 ? { ...willpower, current: willpower.current - costWillpower } : character.derived.willpower,
+          energyPools: nextPools,
+        },
+      }
+    : character;
 
   return {
     ok: true,
@@ -173,7 +202,10 @@ export function activateForm(character, formsState, formId, { round = null, budg
     character: nextCharacter,
     formsState: {
       active: [...(formsState.active ?? []), entry],
-      log: [...(formsState.log ?? []), { event: "啟動", formId, round, willpowerSpent: costWillpower }],
+      log: [
+        ...(formsState.log ?? []),
+        { event: "啟動", formId, round, willpowerSpent: costWillpower, poolSpent: poolCost ?? null },
+      ],
     },
     budget: nextBudget,
     form: entry,
