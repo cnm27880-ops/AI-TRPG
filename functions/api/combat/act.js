@@ -10,7 +10,13 @@
 // session.character.derived.hp，讓角色面板跟戰鬥面板看到的血量隨時一致。
 
 import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
-import { resolvePlayerAttack, resolveEnemyAttack, isCombatOver } from "../../../content/combat/encounterState.js";
+import {
+  resolvePlayerAttack,
+  resolveEnemyAttack,
+  isCombatOver,
+  resolveFormActivation,
+  combatOptions,
+} from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
@@ -29,7 +35,14 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { sessionId, weaponKey = "unarmed" } = body ?? {};
+  // action 預設是「攻擊」，讓既有的呼叫端(只傳 weaponKey)行為完全不變。
+  // 「型態」是 2026-08-17 補的：在此之前 encounterState.js 的 resolveFormActivation()
+  // **沒有任何正式呼叫端**——引擎做得出戰鬥中變身，但沒有任何 API 叫得動它，
+  // 於是血統/瞳術那一類商品在戰鬥裡完全按不下去。
+  const { sessionId, weaponKey = "unarmed", action = "攻擊", formId } = body ?? {};
+  if (!["攻擊", "型態"].includes(action)) {
+    return json({ ok: false, error: `action 只能是「攻擊」或「型態」，收到「${action}」` }, 400);
+  }
   if (!sessionId) return json({ ok: false, error: "body必須包含 sessionId" }, 400);
 
   const session = await store.get(sessionId);
@@ -47,6 +60,34 @@ export async function onRequestPost(context) {
   }
   if (combat.order[combat.turnIndex] !== "player") {
     return json({ ok: false, error: "現在不是玩家的行動順位" }, 409);
+  }
+
+  // 變身/開眼：花掉動作額度與意志力/能量池，但**不推進行動順位**——書上這類啟動花的是
+  // 移動或標準動作，玩家本輪還可以出手，所以這裡直接回傳，不跑敵人回合。
+  if (action === "型態") {
+    const activation = resolveFormActivation(combat, session.character, formId);
+    if (!activation.ok) {
+      // 變不成不是錯誤，是遊戲狀態(意志力不夠、動作用掉了、已經在進行中)，
+      // 跟 /api/shop 買不成同一個約定：回 200 並把理由一次列齊。
+      return json({ ok: false, blockers: activation.blockers, combat, options: combatOptions(combat, session.character) });
+    }
+    session.character = activation.character;
+    session.combat = combat;
+    appendEvent(
+      session.log,
+      EVENT_TYPES.FORM,
+      { event: "啟動", formId, label: activation.form.label, round: combat.round, where: "戰鬥中" },
+      { timestamp: new Date().toISOString() }
+    );
+    await store.put(session);
+    return json({
+      ok: true,
+      persistent: store.persistent,
+      combat,
+      form: activation.form,
+      character: session.character,
+      options: combatOptions(combat, session.character),
+    });
   }
 
   let playerAttack;
@@ -186,6 +227,7 @@ export async function onRequestPost(context) {
     ok: true,
     persistent: store.persistent,
     combat,
+    options: combatOptions(combat, session.character),
     playerAttack,
     enemyAttack,
     combatOver,

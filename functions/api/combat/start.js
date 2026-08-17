@@ -8,7 +8,7 @@
 // 角色卡一律以存檔為準（跟 /api/turn 同一個原則），不接受前端直接塞一張角色卡進來開戰。
 
 import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
-import { createEncounter, resolveLeadingEnemyTurns } from "../../../content/combat/encounterState.js";
+import { createEncounter, resolveLeadingEnemyTurns, combatOptions } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import {
@@ -122,7 +122,15 @@ export async function onRequestPost(context) {
   }
   await store.put(session);
 
-  return json({ ok: true, persistent: store.persistent, combat, openingEnemyAttacks, character: session.character });
+  return json({
+    ok: true,
+    persistent: store.persistent,
+    combat,
+    openingEnemyAttacks,
+    character: session.character,
+    // 這一輪按得下去的東西由引擎算(買到的武器＋身上的型態)，前端只負責畫。
+    options: combatOptions(combat, session.character),
+  });
 }
 
 function json(payload, status = 200) {

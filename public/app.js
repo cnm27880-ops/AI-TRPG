@@ -1391,6 +1391,7 @@ async function resumeSession(id) {
   // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
   if (res.session.combat?.active) {
     currentCombat = res.session.combat;
+    currentCombatOptions = null; // 續戰的存檔沒帶 options，等下一次行動回來再填
     enterCombatView();
     document.getElementById("combat-log").innerHTML = "";
     (currentCombat.log || []).forEach((entry) => appendCombatLog({
@@ -1409,6 +1410,8 @@ async function resumeSession(id) {
 
 // --- 戰鬥（單敵人 MVP，見 content/combat/encounterState.js） ---
 let currentCombat = null;
+// 這一輪按得下去的東西(武器＋型態)，由 /api/combat/start 與 act 回傳，前端不自己算。
+let currentCombatOptions = null;
 let combatInFlight = false;
 
 const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
@@ -1452,6 +1455,7 @@ async function startCombat() {
     }
 
     currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
     document.getElementById("combat-log").innerHTML = "";
     enterCombatView();
 
@@ -1490,7 +1494,8 @@ function renderCombat() {
   document.getElementById("combat-turn-indicator").textContent = c.active ? turnLabel : "戰鬥結束";
 
   const actionsEnabled = c.active && c.order[c.turnIndex] === "player" && !combatInFlight;
-  document.querySelectorAll("[data-combat-attack]").forEach((btn) => {
+  renderCombatActions(actionsEnabled);
+  document.querySelectorAll("[data-combat-attack],[data-combat-form]").forEach((btn) => {
     btn.disabled = !actionsEnabled;
     btn.classList.toggle("opacity-40", !actionsEnabled);
   });
@@ -1535,6 +1540,79 @@ function appendCombatLog(entry) {
   log.scrollTop = log.scrollHeight;
 }
 
+/**
+ * 戰鬥行動按鈕。**整排都是伺服器算出來的**（`options` 由 /api/combat/start 與 act 回傳）。
+ *
+ * [2026-08-17] 在這之前，index.html 裡是寫死的兩顆按鈕（徒手、手槍），於是：
+ * 買到的武器在戰鬥裡按不到（引擎其實吃得下），身上的型態也變不了身
+ * （`resolveFormActivation()` 當時沒有任何呼叫端）。兩件事是同一個病：引擎做得到、
+ * 沒有人問它。現在按鈕從 `combatOptions()` 長出來，買什麼就按得到什麼。
+ */
+function renderCombatActions(enabled) {
+  const box = document.getElementById("combat-actions");
+  if (!box) return;
+  const opts = currentCombatOptions;
+  // 還沒拿到 options（舊存檔續戰、或伺服器版本較舊）就保留原本畫面，不要把按鈕清空
+  if (!opts) return;
+
+  const weaponBtn = (w) => `
+    <button data-combat-attack="${escapeHtml(w.key)}" class="action-tile !p-2.5 !flex-row justify-center">
+      <i class="fas ${w.ranged ? "fa-crosshairs" : "fa-hand-fist"} action-tile-icon !text-base"></i>
+      <span class="flex flex-col items-start leading-tight">
+        <span class="action-tile-label">${escapeHtml(w.label)}${w.fromForm ? "（型態）" : ""}</span>
+        <span class="action-tile-sub">${escapeHtml(w.attackType)}${w.weaponDamage ? ` · 傷害${w.weaponDamage}` : ""}</span>
+      </span>
+    </button>`;
+
+  const formBtn = (f) => `
+    <button data-combat-form="${escapeHtml(f.formId)}" ${f.active ? "disabled" : ""}
+      class="action-tile !p-2.5 !flex-row justify-center ${f.active ? "opacity-50" : "!border-violet-500/50"}">
+      <i class="fas fa-wand-magic-sparkles action-tile-icon !text-base ${f.active ? "" : "!text-violet-300"}"></i>
+      <span class="flex flex-col items-start leading-tight">
+        <span class="action-tile-label">${escapeHtml(f.label)}${f.active ? "（進行中）" : ""}</span>
+        <span class="action-tile-sub">${escapeHtml(costText(f.activation))}</span>
+      </span>
+    </button>`;
+
+  box.innerHTML = [...opts.weapons.map(weaponBtn), ...opts.forms.map(formBtn)].join("");
+  box.querySelectorAll("button").forEach((b) => {
+    if (!enabled) b.disabled = true;
+  });
+}
+
+/** 戰鬥中啟動型態。跟攻擊走同一個端點，差在 action="型態"——它不推進行動順位。 */
+async function combatActivateForm(formId) {
+  if (!currentCombat?.active || combatInFlight) return;
+  if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
+  combatInFlight = true;
+  renderCombat();
+  try {
+    const res = await (await fetch("/api/combat/act", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, formId, action: "型態" }),
+    })).json();
+
+    if (!res.ok) {
+      appendCombatSystemLine(
+        `變身失敗：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`,
+        "text-yellow-300"
+      );
+      if (res.options) currentCombatOptions = res.options;
+      return;
+    }
+    currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
+    if (res.character) adoptCharacter(res.character);
+    appendCombatSystemLine(`${res.form.label} 啟動`, "text-violet-300");
+  } catch (err) {
+    appendCombatSystemLine(`變身失敗（連線失敗）：${err.message}`);
+  } finally {
+    combatInFlight = false;
+    renderCombat();
+  }
+}
+
 async function combatAttack(weaponKey) {
   if (!currentCombat?.active || combatInFlight) return;
   if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
@@ -1570,6 +1648,7 @@ async function combatAttack(weaponKey) {
     }
 
     currentCombat = res.combat;
+    currentCombatOptions = res.options ?? currentCombatOptions;
     if (res.character) adoptCharacter(res.character);
     if (res.scenario?.nodeCompleted) {
       const n = res.scenario.nodeCompleted;
@@ -1893,6 +1972,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // 戰鬥行動按鈕
   document.getElementById("combat-actions")?.addEventListener("click", (e) => {
+    const form = e.target.closest("[data-combat-form]");
+    if (form && !form.disabled) {
+      combatActivateForm(form.dataset.combatForm);
+      return;
+    }
     const btn = e.target.closest("[data-combat-attack]");
     if (!btn || btn.disabled) return;
     combatAttack(btn.dataset.combatAttack);

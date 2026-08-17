@@ -47,6 +47,7 @@ import {
   resolveFormActivation,
   playerWeapons,
   playerCombatProfile,
+  combatOptions,
 } from "../content/combat/encounterState.js";
 
 function hero() {
@@ -1018,4 +1019,56 @@ test("一整條戰鬥外的路徑：變身 → 打一場架 → 收兵仍在 →
   // 4) 推進節點才真的結束
   const moved = formsForScene(combat.forms, "恐怖片中:p1:n2");
   assert.equal(moved.expired.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// 戰鬥行動選單：引擎算、UI 畫（2026-08-17）
+//
+// 補的是兩個「引擎做得到、沒有人問它」的洞：戰鬥畫面的按鈕先前是 index.html 裡寫死的
+// 兩顆(徒手、手槍)，於是買到的武器按不到、身上的型態也變不了身
+// (resolveFormActivation() 當時是零呼叫端)。
+// ---------------------------------------------------------------------------
+
+test("combatOptions 把買到的武器也列進行動選單(不只寫死的兩顆)", () => {
+  const c = withAbility(hero(), [
+    { kind: "武器", label: "測試長劍", attackType: "白刃", weaponDamage: 4, severity: "L" },
+  ]);
+  const combat = createEncounter(c);
+  const { weapons } = combatOptions(combat, c);
+  assert.ok(weapons.some((w) => w.key === "unarmed"), "佔位武器還在");
+  const bought = weapons.find((w) => w.label === "測試長劍");
+  assert.ok(bought, "買到的武器要出現在行動選單裡");
+  assert.equal(bought.attackType, "白刃");
+  assert.equal(bought.weaponDamage, 4);
+});
+
+test("combatOptions 列出身上的型態，並標出哪些已經在進行中", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  const before = combatOptions(combat, c).forms;
+  assert.equal(before.length, 1);
+  assert.equal(before[0].label, "進化形態");
+  assert.equal(before[0].active, false);
+
+  combat.order = ["player", "enemy"];
+  combat.turnIndex = 0;
+  const activated = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
+
+  const after = combatOptions(combat, activated.character);
+  assert.equal(after.forms[0].active, true, "已經在進行中的型態要標出來，不然玩家會一直按");
+  // 型態授予的天生武器也要跟著出現在武器表裡
+  assert.ok(after.weapons.some((w) => w.fromForm), "型態給的天生武器要標成 fromForm");
+});
+
+test("戰鬥中啟動型態不推進行動順位(書上這類啟動花的是動作，不是整個回合)", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  combat.order = ["player", "enemy"];
+  combat.turnIndex = 0;
+  const before = combat.turnIndex;
+  const r = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(r.ok, true);
+  assert.equal(combat.turnIndex, before, "變身完還是玩家的回合，他本輪還可以出手");
+  assert.equal(combat.player.budget.moveAvailable, false, "但移動動作被用掉了");
 });
