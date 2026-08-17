@@ -21,14 +21,49 @@ import { resolveCombatAction } from "../../core/combat/resolveCombatAction.js";
 import { emptyCombatProfile } from "../../core/character.js";
 import { createHpState } from "../../core/health.js";
 import { computeDerivedStats } from "../../core/derivedStats.js";
+import { combatProfileFrom, weaponsFrom, attackModifiersFor } from "../shop/effects.js";
+import {
+  createFormsState,
+  activateForm,
+  activeGrantSources,
+  tickFormsOnRound,
+  endScene,
+} from "../shop/forms.js";
 import { PLACEHOLDER_WEAPONS, buildAttackParams, PLACEHOLDER_ENEMY } from "./placeholderEncounters.js";
+
+/**
+ * 玩家這一刻能用的武器表 = 佔位武器 ＋ 商店買到的武器 ＋ 進行中型態授予的天生武器。
+ * 後者兩項來自 content/shop/effects.js 的 weaponsFrom()，型態一到期，天生武器就跟著
+ * 從這張表裡消失(不需要有人記得收回)。
+ */
+export function playerWeapons(combat, character) {
+  const table = { ...PLACEHOLDER_WEAPONS };
+  for (const weapon of weaponsFrom(character, { extraSources: activeGrantSources(combat.forms) })) {
+    table[weapon.key] = weapon;
+  }
+  return table;
+}
+
+/**
+ * 玩家的防御/護甲檔案。改用 combatProfileFrom() 之後，商品與型態給的
+ * 防御/護甲/先攻才會真的進到命中判定裡——在此之前這裡是寫死的 emptyCombatProfile()，
+ * 也就是說買了防具也不會變難打(見 ARCHITECTURE.md 2026-08-17 的接線決策記錄)。
+ */
+export function playerCombatProfile(combat, character) {
+  return combatProfileFrom(character, {
+    skillCorrection: Math.max(character.skills?.格鬥 ?? 0, character.skills?.體魄 ?? 0),
+    extraSources: activeGrantSources(combat.forms),
+  });
+}
 
 /**
  * 建立一場新的戰鬥遭遇。雙方各擲一次先攻，決定行動順序。
  * @param {object} character 玩家角色卡（core/schema.js 形狀，需要 attributes/skills/derived.hp）
  * @param {object} [enemyTemplate] 預設用 PLACEHOLDER_ENEMY
+ * @param {{ forms?: object }} [opts] forms：content/shop/forms.js 的型態狀態。
+ *   帶進來的話，戰鬥中的變身會扣它、也會由它到期；不帶就是一份空的。
  */
-export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY) {
+export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY, { forms } = {}) {
   // 開戰當下就先驗武器，不要等到敵人第一次揮拳才炸——那時候戰鬥已經寫進存檔了，
   // 玩家會卡在一場永遠打不下去的戰鬥裡（見 /api/combat/act 的錯誤處理）。
   if (!PLACEHOLDER_WEAPONS[enemyTemplate.weaponKey]) {
@@ -41,7 +76,13 @@ export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY) {
 
   const enemyDerived = computeDerivedStats(enemyTemplate.attributes, { size: enemyTemplate.size ?? 5 });
 
-  const playerInitiative = rollInitiative(character.derived.initiative);
+  const formsState = forms ?? createFormsState();
+  // 商品/型態給的先攻加值要進開戰的那一擲。型態在開戰當下通常還沒啟動(變身本身要花動作)，
+  // 但持有物的先攻加值一定算數，先前這裡完全沒有讀它。
+  const { initiativeBonus } = combatProfileFrom(character, {
+    extraSources: activeGrantSources(formsState),
+  });
+  const playerInitiative = rollInitiative(character.derived.initiative + initiativeBonus);
   const enemyInitiative = rollInitiative(enemyDerived.initiative);
 
   const { order, needsManualTieBreak } = determineTurnOrder([
@@ -56,6 +97,7 @@ export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY) {
     order,
     winner: null,
     initiative: { player: playerInitiative, enemy: enemyInitiative, needsManualTieBreak },
+    forms: formsState,
     player: {
       hpState: { ...character.derived.hp },
       budget: createActionBudget(),
@@ -90,6 +132,13 @@ function advanceTurn(combat) {
     combat.round += 1;
     combat.player.budget = createActionBudget();
     combat.enemy.budget = createActionBudget();
+    // 型態的唯一「輪」時鐘就在這裡。新的一輪開始時才結算到期，所以「持續1輪」的型態
+    // 在啟動的那一輪內完整有效，下一輪開始才消失。
+    const ticked = tickFormsOnRound(combat.forms, combat.round);
+    combat.forms = ticked.formsState;
+    for (const form of ticked.expired) {
+      combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });
+    }
   }
 }
 
@@ -98,8 +147,44 @@ function finalizeIfOver(combat) {
   if (status.over) {
     combat.active = false;
     combat.winner = status.winner;
+    // 戰鬥結束＝場景結束：以「場景」計時的型態到這裡為止，以「輪」計時的也一起收掉
+    // (戰鬥輪不會再前進了，留著它就永遠不會到期)。
+    const ended = endScene(combat.forms, "戰鬥結束");
+    combat.forms = ended.formsState;
+    for (const form of ended.expired) {
+      combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });
+    }
   }
   return status;
+}
+
+/**
+ * 在戰鬥中啟動一個型態(變身/開眼/爆發)。這是玩家的一個行動，會扣意志力與動作額度。
+ * 不推進行動順位——書上這類啟動花的是移動/自由動作，玩家本輪還可以出手攻擊。
+ *
+ * @returns {{ ok: boolean, blockers?: object[], combat: object, character?: object }}
+ *   character 是扣完意志力的新角色卡，呼叫端有義務存回去(這個模組不改角色卡本身，
+ *   跟 resolveEnemyAttack() 回傳 newHpState 的約定一致)。
+ */
+export function resolveFormActivation(combat, character, formId) {
+  if (!combat.active) throw new Error("戰鬥已經結束");
+  if (combat.order[combat.turnIndex] !== "player") throw new Error("現在不是玩家的行動順位");
+
+  const result = activateForm(character, combat.forms, formId, {
+    round: combat.round,
+    budget: combat.player.budget,
+  });
+  if (!result.ok) return { ok: false, blockers: result.blockers, combat };
+
+  combat.forms = result.formsState;
+  combat.player.budget = result.budget;
+  combat.log.push({
+    actor: "player",
+    event: "型態啟動",
+    label: result.form.label,
+    round: combat.round,
+  });
+  return { ok: true, combat, character: result.character, form: result.form };
 }
 
 /**
@@ -112,18 +197,24 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
   if (!combat.active) throw new Error("戰鬥已經結束");
   if (combat.order[combat.turnIndex] !== "player") throw new Error("現在不是玩家的行動順位");
 
-  const weapon = PLACEHOLDER_WEAPONS[weaponKey];
+  const available = playerWeapons(combat, character);
+  const weapon = available[weaponKey];
   if (!weapon) {
-    throw new Error(
-      `不合法的武器：${weaponKey}（可用的有：${Object.keys(PLACEHOLDER_WEAPONS).join("/")}）`
-    );
+    throw new Error(`不合法的武器：${weaponKey}（可用的有：${Object.keys(available).join("/")}）`);
   }
 
   const attackParams = buildAttackParams(weapon.attackType, character, weapon);
+  // 商品/型態給的攻擊加值。在這行出現之前，玩家買到的檢定加值只影響敘事迴圈的檢定，
+  // 戰鬥攻擊完全吃不到——同一個「+2DP」在兩種場合行為不一致。
+  const attackMods = attackModifiersFor(character, weapon.attackType, {
+    extraSources: activeGrantSources(combat.forms),
+  });
 
   const result = resolveCombatAction({
     attackType: weapon.attackType,
     attackParams,
+    attackDpModifier: attackMods.dp,
+    attackBonusSuccesses: attackMods.bonusSuccesses,
     distance: 0,
     weaponRange: weapon.weaponRange ?? Infinity,
     defenderAttributes: combat.enemy.attributes,
@@ -177,11 +268,7 @@ export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
     distance: 0,
     weaponRange: weapon.weaponRange ?? Infinity,
     defenderAttributes: character.attributes,
-    defenderCombatProfile: {
-      ...emptyCombatProfile(),
-      skillCorrection: Math.max(character.skills?.格鬥 ?? 0, character.skills?.體魄 ?? 0),
-      armor: character.combatProfile?.armor ?? 0,
-    },
+    defenderCombatProfile: playerCombatProfile(combat, character),
     defenderHpState: combat.player.hpState,
     severity: weapon.severity,
     ...(rollFn ? { rollFn } : {}),

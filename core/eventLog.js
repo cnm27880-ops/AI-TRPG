@@ -15,6 +15,8 @@ export const EVENT_TYPES = Object.freeze({
   AFFECTION_CHANGE: "affection_change",
   TIME_SPENT: "time_spent",
   COMBAT_ACTION: "combat_action",
+  PURCHASE: "purchase",
+  POINTS_GRANT: "points_grant",
 });
 
 const VALID_TYPES = new Set(Object.values(EVENT_TYPES));

@@ -151,7 +151,13 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
 
   const finalSession = await store.get(sessionId);
   assert.equal(finalSession.scenario.progress.nodes[finaleNodeId].completed, true);
-  assert.ok(finalSession.character.xp.earned > 0, "節點完成應該真的把獎勵加進角色的XP");
+
+  // [2026-08-17 修正] 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
+  // 這則斷言本來寫的是 character.xp.earned > 0，那是因為在錢包進存檔之前，獎勵點數
+  // 沒有地方可以放，只好塞進XP。現在兩種貨幣各有各的來源，見 content/scenario/settlement.js。
+  assert.ok(finalSession.wallet.points > 0, "節點完成應該把獎勵點數加進錢包");
+  assert.ok(finalSession.wallet.xp > 0, "打完最終戰=通關，應該同時跑過通關XP結算");
+  assert.ok(finalSession.scenario.progress.settledAt, "通關結算只能發生一次，要留下時間戳");
 });
 
 test("副本整合：沒有指定scenarioId時預設用內建範例副本，且會用開場場景當作sceneContext", async () => {

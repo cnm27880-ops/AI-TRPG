@@ -22,6 +22,7 @@
 import { getTemplate } from "../templates.js";
 import { validateEffect, applyPermanentEffects } from "./effects.js";
 import { parsePrice, canAfford, pay, formatPrice } from "./wallet.js";
+import { priceAt, formatPriceAt } from "./access.js";
 
 /** 模板能力五類，一個角色一輩子只能挑一類裡的一個(可升級，不可換)。 */
 export const EXCLUSIVE_TEMPLATE_TYPES = Object.freeze(["血統", "改造", "瞳術", "修真", "魔導書"]);
@@ -200,7 +201,15 @@ export function ownedExclusiveTemplates(character) {
  */
 export function evaluatePurchase(character, wallet, good, options = {}) {
   const blockers = [];
-  const price = parsePrice(good.price);
+  const listedPrice = parsePrice(good.price);
+
+  // 地點門禁(規則書第469行)：支線/獎勵點數只能在主神空間花，XP在副本中要付兩倍。
+  // 預設「主神空間」是為了讓不在乎地點的呼叫端(測試、稽核工具)行為不變——
+  // 真正的遊戲流程一定會把 location 傳進來，見 functions/api/shop.js。
+  const location = options.location ?? "主神空間";
+  const access = priceAt(listedPrice, location, { inCombat: options.inCombat === true });
+  const price = access.price;
+  blockers.push(...access.blockers);
 
   // 掛名商品在貨架上看得到、但買不了。這一條擺在最前面而且不 return，
   // 是為了讓玩家同時看到「這件還沒做好」與「就算做好了你也還差500分」——
@@ -265,6 +274,15 @@ export function evaluatePurchase(character, wallet, good, options = {}) {
   for (const [skill, need] of Object.entries(good.prerequisites?.skills ?? {})) {
     const have = character.skills?.[skill] ?? 0;
     if (have < need) blockers.push({ code: "前提不足", message: `需要${skill}技能${need}級，目前${have}級` });
+  }
+  // 「必須先擁有某件商品」——2026-08-17 追能量池來源時加的。書上大量條目的前提是
+  // 另一個資源(青蓮劍歌總決的前提是混元劍經第一層)，那種前提在此之前只能寫在註解裡，
+  // 擋不住任何人。現在它是一個真的擋得住的欄位。
+  for (const requiredId of good.prerequisites?.goods ?? []) {
+    if (!ownedList(character).some((o) => o.goodId === requiredId)) {
+      const name = requiredId;
+      blockers.push({ code: "前提不足", message: `需要先擁有「${name}」` });
+    }
   }
 
   // 3) 重複購買(消耗品除外)
@@ -392,15 +410,16 @@ export function purchase(character, wallet, good, options = {}) {
  * 把商品包(type="商品")攤成貨架，順便標記每一件「這個角色現在買不買得起／買不買得到」。
  * 不會把買不到的商品濾掉——玩家看得到但買不了，才知道要往哪個方向練。
  */
-export function buildStorefront(character, wallet, goods) {
+export function buildStorefront(character, wallet, goods, options = {}) {
+  const location = options.location ?? "主神空間";
   return goods.map((good) => {
-    const evaluation = evaluatePurchase(character, wallet, good);
+    const evaluation = evaluatePurchase(character, wallet, good, options);
     // 「還沒指定屬性點怎麼分配」不是買不起，是還沒填表單。貨架上要跟真正的阻擋分開顯示，
     // 否則每個血統/改造都會長得像買不起。
     const blockers = evaluation.blockers.filter((b) => b.code !== "待分配屬性");
     return {
       good,
-      price: formatPrice(evaluation.price),
+      price: formatPriceAt(parsePrice(good.price), location, { inCombat: options.inCombat === true }),
       status: good.status ?? "上架",
       purchasable: blockers.length === 0,
       needsAllocation: good.attributePool != null,

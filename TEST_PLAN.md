@@ -57,6 +57,30 @@
 | 掛名商品看得到買不了，且說得出缺哪個機制 | [專案規格] | 🔧 結構性測試(付得起也擋下) | shopPacks.test.js | ✅ 通過 |
 | 上架商品一定給得出至少一個數值效果 | CONVERSION_RULES.md 第7節【硬性】 | 🔧 資料驗證 | shopPacks.test.js | ✅ 通過 |
 | 已知定價落差保留原數字(改造/技藝/法術) | 書中原文 vs templates.js | 📖 逐條比對＋稽核回報 | shopPacks.test.js | ✅ 通過 |
+| 型態(暫時性增益容器)：成本/期限/grants 三道驗證 | CONVERSION_RULES.md 第2a節【硬性】 | 🔧 結構性測試(無成本/無期限/塞永久效果/巢狀全部擋下) | shopForms.test.js | ✅ 通過 |
+| 型態啟動真的扣意志力(意志力的第一個消費端) | 型錄原文「支付1點意志力」 | 🔧 扣款＋餘額不足擋下＋失敗不扣款 | shopForms.test.js | ✅ 通過 |
+| 型態的兩個時鐘都真的走(輪數倒數／場景結束) | [設計]，只吃引擎真的在前進的計數器 | 🔧 開啟後引擎輸出變了、到期後變回來 | shopForms.test.js | ✅ 通過 |
+| 型態接到真實戰鬥迴圈(防御DC變高、天生武器打得出去) | [設計] | 🔧 走 encounterState 的完整攻防 | shopForms.test.js | ✅ 通過 |
+| 貨架上每一個型態都啟動得起來且真的改變引擎輸出 | CONVERSION_RULES.md 第2a節 | 🔧 掃過所有商品包的型態 | shopPacks.test.js | ✅ 通過 |
+| 商品的檢定加值真的進到 API 判定結果 | [設計]，補 2026-08-17 前的斷線 | 🔧 POST /api/check 前後骰池比對 | shopForms.test.js | ✅ 通過(在此之前三個API進入點都沒呼叫 checkModifiersFor) |
+| 商品的攻擊加值真的進到戰鬥骰池 | [設計]，補 2026-08-17 前的斷線 | 🔧 同一組固定骰、比對兩次攻擊的骰池大小 | shopForms.test.js | ✅ 通過(在此之前攻擊路徑完全不查效果表) |
+| 七種攻擊方式都對得出自己的關鍵屬性＋技能 | 戰！戰！戰！.htm 各攻擊方式公式 | 🔧 ATTACK_CHECK_KEYS 與 ATTACK_TYPES 一一對應 | shopForms.test.js | ✅ 通過 |
+| 複數匹配鍵(「生理系屬性」)只命中指定的那幾個 | [設計] | 🔧 命中/不命中兩側都測，非法屬性仍要擋 | shopForms.test.js | ✅ 通過 |
+| scope 讓攻擊限定與檢定限定的加值不互相外溢 | [設計] | 🔧 三種 scope 各測兩條路徑 | shopForms.test.js | ✅ 通過 |
+| 存檔長出 wallet/forms 欄位，舊存檔讀取時就地補 | [設計] | 🔧 新存檔欄位齊全＋v1舊存檔補欄位且不覆蓋既有資料 | shopAccess.test.js | ✅ 通過 |
+| 支線/獎勵點數只能在主神空間花 | 核心規則部分.htm 第469行 | 📖 三種價格寫法逐一被擋 | shopAccess.test.js | ✅ 通過 |
+| 經驗兩地都能花，副本中要*2 | 同上，第469行原文 | 📖 加倍係數與不被擋兩件事都測 | shopAccess.test.js | ✅ 通過 |
+| 「現在在不在主神空間」由引擎算，不是AI說了算 | [設計] | 🔧 無副本/進行中/已通關/包查不到 四種情況 | shopAccess.test.js | ✅ 通過 |
+| 節點獎勵入的是獎勵點數，通關才結算XP | [設計]，修正 2026-08-17 前的語意錯位 | 🔧 走完整副本後錢包兩種貨幣都要有 | scenarioIntegration.test.js | ✅ 通過 |
+| 執行期貨架註冊表與 packs JSON 逐件一致 | [設計] | 🔧 deepEqual 比對，忘記同步就紅 | shopAccess.test.js | ✅ 通過 |
+| GET/POST /api/shop 的貨架、門禁與成交 | [設計] | 🔧 副本中被擋、回主神空間買成、寫回存檔、留事件日誌 | shopAccess.test.js | ✅ 通過 |
+| 能量池上限＝關鍵屬性之和 | 生命.htm「能量池」段落(**該頁曾被本專案 trim 誤刪，已取回**) | 📖 書中公式＋兩個已登錄池子逐一比對 | shopForms.test.js | ✅ 通過 |
+| 重複開啟同池的補償 +5/+3/+1/+1，同來源不算重複 | 同上，書中原文 | 📖 逐次比對四段補償 | shopForms.test.js | ✅ 通過 |
+| 能量不足整筆不成立，且失敗不動池子 | [設計]，與 wallet 的 canAfford 同一約定 | 🔧 差額回報＋失敗後池子不變 | shopForms.test.js | ✅ 通過 |
+| 型態可以吃能量池當啟動成本 | 型錄原文「支付1點劍氣」 | 🔧 扣池子＋不足時擋下 | shopForms.test.js | ✅ 通過 |
+| 型態持續時間可掛在屬性上(感知值*1輪) | 型錄原文 | 🔧 到期輪數隨屬性變動 | shopForms.test.js | ✅ 通過 |
+| 整條池子鏈：混元劍經→劍氣池→青蓮劍歌總決→變出6L的劍 | 型錄真實條目 | 🔧 端到端，含前提擋下 | shopForms.test.js | ✅ 通過 |
+| prerequisites.goods（必須先擁有某件商品）真的擋得住 | 型錄原文的資源前提 | 🔧 沒買前提時被擋 | shopForms.test.js | ✅ 通過 |
 | 生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、先攻=敏捷+沉著、敏感範圍=感知×10 | [規則書]衍生屬性段第668~668行+建卡頁欄位 | 📖 逐條公式直接比對原文 | derivedStats.test.js | ✅ 通過 |
 | 基礎防御=敏捷與感知**較低**者 | [規則書]衍生屬性段第668行「敏捷和感知中較低者」 | 📖 原文比對 + 🔧 跨模組一致性(derivedStats與combat/defense必須算出同值) | derivedStats.test.js, defense.test.js | ✅ 通過，**這裡修正過一個bug，見下方「已修正的bug」** |
 | 建卡組裝(點數預算驗證+衍生屬性→完整角色卡) | [設計]組裝層，見content/characterBuilder.js | 🔧 合法草稿組出角色卡、超支/未知欄位/專業掛0級技能/超過配額都要擋 | sessionStore.test.js | ✅ 通過 |

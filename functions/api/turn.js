@@ -27,6 +27,7 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { narrativeFeatHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
@@ -47,6 +48,7 @@ import {
   TURN_RESPONSE_SCHEMA,
 } from "../../content/turnOptions.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
+import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
 import {
   findActiveNode,
   completeNodeAndAdvance,
@@ -350,6 +352,13 @@ export async function onRequestPost(context) {
   }
 
   if (checkParams) {
+    // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數。擺在套路遞減之後，
+    // 因為那個是加在 DC 上的、這個是加在骰池上的，兩者互不覆蓋。
+    const modified = applyCheckModifiers(character, checkParams);
+    checkParams = modified.params;
+    if (modified.modifiers) {
+      warnings.push(`持有能力加值：${modified.modifiers.sources.join("、")}`);
+    }
     try {
       checkResult = performCheck(character, checkParams);
     } catch (err) {
@@ -592,7 +601,11 @@ export async function onRequestPost(context) {
         const result = completeNodeAndAdvance(scenarioPack, progress, activeNode.id, signal.tier);
         if (result.ok) {
           progress = result.progress;
-          character.xp.earned += result.reward;
+          // 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
+          // 在錢包進存檔之前這裡沒有地方放它，只好塞進 character.xp；現在放回該去的地方。
+          // XP 改由副本通關時結算，見 content/scenario/settlement.js 的檔頭。
+          const credited = creditNodeReward(session.wallet, result.reward, activeNode.title);
+          session.wallet = credited.wallet;
           const ts = new Date().toISOString();
           appendEvent(
             session.log,
@@ -602,8 +615,8 @@ export async function onRequestPost(context) {
           );
           appendEvent(
             session.log,
-            EVENT_TYPES.XP_GRANT,
-            { total: result.reward, reason: `完成節點「${activeNode.title}」` },
+            EVENT_TYPES.POINTS_GRANT,
+            { total: credited.credited, reason: `完成節點「${activeNode.title}」` },
             { timestamp: ts }
           );
           nodeCompleted = { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward };
@@ -626,6 +639,26 @@ export async function onRequestPost(context) {
     // 下一回合的 nodeGuidance 就能看到這個數字、加重「不要原地踏步」的提醒語氣。
     if (tookAction && !nodeCompleted && activeNode) {
       progress = bumpNodeStall(progress, activeNode.id);
+    }
+
+    // 副本通關結算：算XP進錢包，並且商店的門在這一刻打開(見 content/shop/access.js)。
+    // settleScenario() 自己用 progress.settledAt 擋重複，所以每回合呼叫是安全的——
+    // 通關之後玩家還會繼續在主神空間逛，這裡每一輪都會再走一次。
+    if (getProgressSummary(scenarioPack, progress).scenarioComplete) {
+      const settlement = settleScenario(scenarioPack, progress, character, session.wallet);
+      if (settlement.settled) {
+        session.wallet = settlement.wallet;
+        progress = settlement.progress;
+        appendEvent(
+          session.log,
+          EVENT_TYPES.XP_GRANT,
+          { total: settlement.xp, reason: `副本「${scenarioPack.briefing?.title ?? scenarioPack.id}」通關結算`, breakdown: settlement.breakdown },
+          { timestamp: new Date().toISOString() }
+        );
+        scenarioWarnings.push(
+          `副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`
+        );
+      }
     }
 
     session.scenario = { packId: scenarioPack.id, progress };

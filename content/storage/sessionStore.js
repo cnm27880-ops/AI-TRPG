@@ -17,19 +17,50 @@
 // 目前 log 仍然完整保留，所以資料沒有遺失，只是沒有餵給AI。
 
 import { createEventLog } from "../../core/eventLog.js";
+import { createWallet } from "../shop/wallet.js";
+import { createFormsState } from "../shop/forms.js";
 
 /** 餵給AI的敘事短期記憶要保留幾輪。調大會更連貫但更花錢，調小會失憶。 */
 export const HISTORY_LIMIT = 8;
 
+/**
+ * 存檔格式版本。
+ *   1 —— 初版
+ *   2 —— 2026-08-17 加入 wallet(主神商店錢包) 與 forms(進行中的型態)
+ * 舊版存檔由 ensureSessionShape() 就地補欄位，不需要離線遷移。
+ */
+export const SESSION_VERSION = 2;
+
 /** 存檔在KV裡的key前綴。 */
 const KEY_PREFIX = "session:";
+
+/**
+ * 把一份存檔補成目前的格式。**每一個讀取路徑都要經過它。**
+ *
+ * [決策記錄 2026-08-17] 錢包與型態在此之前是「函式回傳的獨立物件」，沒有任何地方存得住——
+ * 也就是說買了東西重整頁面就沒了。這一版把它們放進存檔，同時面對一個現實：
+ * KV 裡已經有一批 version:1 的舊存檔，而且玩家正在玩。與其寫一支離線遷移腳本
+ * (Workers 沒有好地方跑它，而且會漏掉當下沒被掃到的 key)，不如**在讀取時補**——
+ * 舊存檔第一次被讀到就長出新欄位，下一次 put 就寫回去了。
+ *
+ * 補欄位刻意只補不改：既有欄位一律原樣保留，這樣即使將來格式再變，
+ * 這個函式也不會把某一版的資料吃掉。
+ */
+export function ensureSessionShape(session) {
+  if (!session) return session;
+  const next = { ...session };
+  if (!next.wallet) next.wallet = createWallet();
+  if (!next.forms) next.forms = createFormsState();
+  next.version = SESSION_VERSION;
+  return next;
+}
 
 /** 建立一份全新的存檔內容。 */
 export function createSession({ id, character, sceneContext = "", ownerId = null }) {
   const now = new Date().toISOString();
   return {
     id,
-    version: 1,
+    version: SESSION_VERSION,
     // 這份存檔屬於哪個登入帳號。null = 匿名存檔（沒登入時建立的）。
     // 匿名存檔在玩家登入時會被「認領」成他的（見 content/auth/ownership.js），
     // 這樣已經在玩的人登入之後不會覺得進度不見了。
@@ -38,6 +69,12 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     log: createEventLog(),
     history: [],
     scene: { context: sceneContext, options: [] },
+    // 主神商店的錢包(支線/獎勵點數/XP)。空的——怎麼賺錢見 content/scenario/settlement.js：
+    // 副本節點完成給獎勵點數，副本通關給XP。
+    wallet: createWallet(),
+    // 進行中的型態(變身/開眼/爆發)。戰鬥中的型態另外存在 combat.forms 裡，
+    // 這一份是戰鬥外的，見 content/shop/forms.js。
+    forms: createFormsState(),
     createdAt: now,
     updatedAt: now,
   };
@@ -82,7 +119,7 @@ export function kvSessionStore(kv) {
     kind: "kv",
     persistent: true,
     async get(id) {
-      return (await kv.get(KEY_PREFIX + id, "json")) ?? null;
+      return ensureSessionShape((await kv.get(KEY_PREFIX + id, "json")) ?? null);
     },
     async put(session) {
       session.updatedAt = new Date().toISOString();
@@ -123,7 +160,7 @@ export function memorySessionStore(initial = new Map()) {
     persistent: false,
     async get(id) {
       const v = map.get(id);
-      return v ? JSON.parse(JSON.stringify(v)) : null;
+      return v ? ensureSessionShape(JSON.parse(JSON.stringify(v))) : null;
     },
     async put(session) {
       session.updatedAt = new Date().toISOString();

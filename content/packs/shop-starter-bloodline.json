@@ -4,7 +4,7 @@
   "version": "2.0.0",
   "sourceRef": "rules-2.35.txt 第9902行起(撰寫規則.htm 血統模板)、第21162行(阿蘭斯)、第21283行(Orphnoch血統)、第45308行(夜兔)",
   "note": "血統貨架。轉換規則見 CONVERSION_RULES.md，三件商品的來源是 content/packs/d-tier-samples-bloodline.json 的同一批原文——那個包存的是型錄原文，這個包存的是轉換後的商品，刻意分開。",
-  "findingNote": "血統是所有分類裡轉換率最低的：3件裡只有1件上架。原因很具體——血統的價值幾乎全寫在『變身/爆發/每場景一次』這種形態上，而引擎既沒有暫時性增益容器，也沒有意志力消費端。阿蘭斯能上架，靠的是它的價值落在『4點自由屬性點』這個簡化規則原封不動保留的東西上。",
+  "findingNote": "2026-08-17 更新：3件裡2件上架(原本只有1件)。上一輪的結論是『血統的價值幾乎全寫在變身/爆發/每場景一次這種形態上，而引擎既沒有暫時性增益容器也沒有意志力消費端』——那兩個機制做出來之後(content/shop/forms.js)，Orphnoch 整條從掛名轉正，阿蘭斯也把原本丟掉的『帝國子民』撿了回來。這是轉換率表當待辦清單用的第一個驗證：卡住的真的是引擎機制，不是轉換人力。剩下的夜兔仍然不收，理由跟形態無關(『殺戮機器』改寫的是死亡判定本身)。",
   "entries": [
     {
       "name": "阿蘭斯血統-D級：阿蘭斯公民",
@@ -22,19 +22,22 @@
         {
           "kind": "敘事",
           "text": "阿蘭斯帝國的公民。買下這個血統之後，角色在判定上視為超自然生物(規則書第532行：所有兌換了血統的單位在判定上都視為超自然生物)。"
+        },
+        {
+          "kind": "型態",
+          "label": "帝國子民",
+          "activation": { "action": "標準", "willpower": 1 },
+          "duration": { "unit": "場景" },
+          "grants": [{ "kind": "檢定加骰", "amount": 1 }]
         }
       ],
       "droppedTraits": [
         {
           "trait": "多項全能：購買本血統時，必須在學識、電腦、白刃與槍械技能中選擇兩項，選定後不可更改，若選定的技能至少有1級，則立刻獲得該技能的所有專業",
           "reason": "專業"
-        },
-        {
-          "trait": "帝國子民：每場景一次，可以花費一個標準動作支付1點意志力，隨後在所有檢定上獲得等同於本血統等級的內在加值，持續一個場景",
-          "reason": "暫時性增益"
         }
       ],
-      "conversionNote": "核心價值『屬性自由分配：4點屬性自由分配，每項最多2點』正好等於血統模板 D 級的 attributePerRank=4 與 attributeCapPerRank=2(content/templates.js)。分配由玩家在購買時決定，合法性由 catalog.js 的 evaluatePurchase() 檢查，不是AI決定。",
+      "conversionNote": "核心價值『屬性自由分配：4點屬性自由分配，每項最多2點』正好等於血統模板 D 級的 attributePerRank=4 與 attributeCapPerRank=2(content/templates.js)。分配由玩家在購買時決定，合法性由 catalog.js 的 evaluatePurchase() 檢查，不是AI決定。 | 『帝國子民』在 2026-08-17 型態容器做出來之後從 droppedTraits 移回效果：標準動作＋1點意志力，持續一個場景，期間所有檢定+1。三個判斷寫在這裡：(1)『等同於本血統等級的內在加值』在D級就是1級，所以是+1，之後升級要跟著改；(2)『內在加值』這個加值類型簡化規則沒有實作，一律直接相加(見 UNSUPPORTED_MECHANICS 的『加值類型』)；(3)『每場景一次』沒有另外做次數限制——一個持續整個場景的型態本來就不可能在同一個場景裡啟動第二次，由 forms.js 的『已在進行中』擋住。",
       "pricingNote": "書中這條D級沒有標價(見 d-tier-samples-bloodline.json 的 price:null)，依血統模板規定的 D+600 上架。這是『用模板價格補上書中留白』，不是覆蓋書上的數字。",
       "higherRanks": [
         { "rank": "C", "name": "古代阿蘭斯人(科技路線) / 阿蘭斯士兵(士兵路線)" },
@@ -49,14 +52,50 @@
       "goodId": "bloodline.Orphnoch.D",
       "lineageId": "bloodline.Orphnoch",
       "rank": "D",
-      "status": "掛名",
+      "status": "上架",
       "category": "模板能力",
       "resourceType": "血統",
       "exclusiveGroup": "血統",
       "price": "D+600",
       "consumable": false,
-      "effects": [],
-      "pendingReason": "唯一的特性『進化形態』是一個變身狀態(花移動動作消耗1點意志力變身、持續一個場景，變身中才有3點天生防禦與3L天生武器)。引擎既沒有暫時性增益容器、也沒有意志力消費端，硬轉成常態生效等於免費送出變身後的全部好處，那不是簡化是加強。這兩個機制其中之一做出來就能上架。",
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "進化形態",
+          "activation": { "action": "移動", "willpower": 1 },
+          "duration": { "unit": "場景" },
+          "grants": [
+            { "kind": "防御", "amount": 3 },
+            {
+              "kind": "武器",
+              "label": "Orphnoch的手足(天生武器)",
+              "attackType": "肉搏",
+              "weaponDamage": 3,
+              "severity": "L",
+              "ranged": false
+            },
+            {
+              "kind": "敘事",
+              "text": "變身成Orphnoch期間，被你殺死的敵人會化為沙子；你自己若在此時死亡，也會粉碎成沙粒。"
+            }
+          ]
+        }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "獲得基於天生防禦的【防彈】",
+          "reason": "傷害類型"
+        },
+        {
+          "trait": "非Orphnoch種族見到變身形態的人對你的印象立刻下降一級，最低為敵對",
+          "reason": "情境條件"
+        },
+        {
+          "trait": "開啟D級Orphnoch技能樹",
+          "reason": "技能樹"
+        }
+      ],
+      "conversionNote": "2026-08-17 型態容器(content/shop/forms.js)做出來之後從掛名轉正。原文的成本與期限逐字照抄：移動動作＋1點意志力，變身中才有3點天生防禦與武器傷害3L的天生武器。兩個判斷：(1)期限『一個場景或10分鐘取低』只取『一個場景』，因為引擎沒有以分鐘計的時鐘(見 UNSUPPORTED_MECHANICS 的『長期計時』)，而在單人網頁節奏下一個場景通常短於10分鐘，取場景是較保守的一邊；(2)天生武器走『肉搏』攻擊方式，不另外改寫攻擊公式(CONVERSION_RULES.md 第5節)。",
       "originalTraits": [
         "進化形態（三特性）：花費一個移動動作消耗1點意志力變身成為Orphnoch，持續一個場景或10分鐘取低；獲得3點天生防禦，手部和腿部為武器傷害3L的天生武器，獲得基於天生防禦的【防彈】；被殺死的敵人化為沙子，自身死亡時也粉碎成沙粒；非Orphnoch種族見到變身形態的人對你的印象立刻下降一級，最低為敵對"
       ],

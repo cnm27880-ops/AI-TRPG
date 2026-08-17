@@ -68,6 +68,37 @@ export const ATTACK_TYPES = {
 };
 
 /**
+ * 每種攻擊方式在六維十技能裡的「關鍵屬性＋技能」是哪一組。
+ *
+ * [決策記錄 2026-08-17] 上面的 dp() 吃的是 strength/unarmedSkill 這種**具名參數**，
+ * 那是為了讓公式表跟角色卡的欄位名解耦。但這也造成一個後果：外面完全看不出
+ * 「肉搏攻擊算的是力量+格鬥」，於是商品效果的匹配鍵(attribute/skill)沒有辦法對上攻擊。
+ * 結果是型錄裡極常見的「攻擊檢定+X」轉不出來，而且已經上架的檢定加值買了之後
+ * 在戰鬥裡靜靜地不生效(narrative check 有效、attack 無效，同一個加值兩種行為)。
+ *
+ * 這張表把那個對應關係講出來，讓 content/shop/effects.js 的 attackModifiersFor()
+ * 可以用跟一般檢定完全相同的匹配規則去比對攻擊。**這不是改寫攻擊公式**
+ * (CONVERSION_RULES.md 第5節仍然成立：個別條目不可以改寫公式)，只是把公式裡本來就
+ * 用到的那兩個欄位標示出來。
+ */
+export const ATTACK_CHECK_KEYS = Object.freeze({
+  肉搏: { attribute: "力量", skill: "格鬥" },
+  白刃: { attribute: "力量", skill: "格鬥" },
+  投擲_輕: { attribute: "敏捷", skill: "體魄" },
+  投擲_重: { attribute: "力量", skill: "體魄" },
+  弓箭: { attribute: "敏捷", skill: "射擊" },
+  槍械: { attribute: "敏捷", skill: "射擊" },
+  炮: { attribute: "智力", skill: "射擊" },
+});
+
+/** 這種攻擊方式算的是哪一組屬性＋技能。 */
+export function attackCheckKeys(attackType) {
+  const keys = ATTACK_CHECK_KEYS[attackType];
+  if (!keys) throw new Error(`不合法的攻擊方式：${attackType}，合法值：${Object.keys(ATTACK_CHECK_KEYS).join("/")}`);
+  return keys;
+}
+
+/**
  * 距離減值：目標距離每超過1倍武器射程，攻擊判定承受2DP減值(書中原文對投擲/弓箭/槍械/炮通用)。
  * @param {number} distance 實際距離
  * @param {number} weaponRange 武器的射程單位
