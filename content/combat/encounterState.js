@@ -27,7 +27,7 @@ import {
   activateForm,
   activeGrantSources,
   tickFormsOnRound,
-  endScene,
+  endCombat,
 } from "../shop/forms.js";
 import { PLACEHOLDER_WEAPONS, buildAttackParams, PLACEHOLDER_ENEMY } from "./placeholderEncounters.js";
 
@@ -147,9 +147,11 @@ function finalizeIfOver(combat) {
   if (status.over) {
     combat.active = false;
     combat.winner = status.winner;
-    // 戰鬥結束＝場景結束：以「場景」計時的型態到這裡為止，以「輪」計時的也一起收掉
-    // (戰鬥輪不會再前進了，留著它就永遠不會到期)。
-    const ended = endScene(combat.forms, "戰鬥結束");
+    // [修正 2026-08-17] 戰鬥結束**不等於**場景結束。使用者把場景定義成「當下所在的地點」，
+    // 而打一場架不會改變你站在哪裡——所以只收以「輪」計時的型態(戰鬥外沒有輪可以數)，
+    // 以「場景」計時的跟著 combat.forms 一起被呼叫端帶回 session.forms，
+    // 直到玩家離開這個地點才由 expireOnSceneChange() 收掉。
+    const ended = endCombat(combat.forms);
     combat.forms = ended.formsState;
     for (const form of ended.expired) {
       combat.log.push({ actor: "player", event: "型態到期", label: form.label, round: combat.round });

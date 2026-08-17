@@ -176,6 +176,10 @@ export async function onRequestPost(context) {
   }
 
   session.combat = combat;
+  // 收兵：戰鬥中的型態狀態帶回戰鬥外那一份。以「輪」計時的已經在 finalizeIfOver() 收掉了
+  // (戰鬥外沒有輪可以數)，剩下的是以「場景」計時的——打一場架不會改變你站在哪裡，
+  // 所以它們要繼續有效，直到玩家離開這個地點。沒有這一行，戰鬥中變的身會在收兵時消失。
+  if (!combat.active) session.forms = combat.forms;
   await store.put(session);
 
   return json({

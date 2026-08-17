@@ -39,7 +39,12 @@ export async function onRequestPost(context) {
 
   // params 優先；只給 playerAction 時由引擎層推導該擲什麼檢定，前端不做這個規則決定。
   const baseParams = params ?? inferCheckParams(playerAction, { character });
-  // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數，不然買了等於沒買。
+  // 商店買到的檢定加值(專長/物品)在這裡併進判定參數，不然買了等於沒買。
+  //
+  // **進行中的型態(變身/開眼)吃不到，這是刻意的**：型態狀態活在存檔的 session.forms 裡，
+  // 而這個端點是無存檔的示範/相容模式(角色卡由 body 傳進來，沒有 sessionId 可以查)。
+  // 真正的遊戲迴圈是 /api/turn，那裡有存檔、也真的讀型態。前端只呼叫 /api/turn。
+  // 要讓這個端點也吃到型態，得先讓它收 sessionId——那等於把它變成另一個 /api/turn。
   const { params: resolvedParams, modifiers } = applyCheckModifiers(character, baseParams);
 
   try {

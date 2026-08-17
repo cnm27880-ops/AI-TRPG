@@ -67,6 +67,8 @@ import { buildThreatDirective, threatSummary } from "../../content/scenario/thre
 import { getDownState, revivalQuote } from "../../content/downState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
+import { sceneKeyOf } from "../../content/shop/access.js";
+import { formsForScene } from "../../content/shop/forms.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 12;
@@ -186,6 +188,19 @@ export async function onRequestPost(context) {
   const character = session?.character ?? body?.character;
   if (!character) {
     return jsonError("body必須包含 sessionId(有存檔時) 或 character(無存檔的相容模式)", 400);
+  }
+
+  // 戰鬥外進行中的型態(變身/開眼/爆發)。**每一輪開始就先對一次場景鑰匙**：
+  // 使用者定義的場景是「當下所在的地點」，而節點推進就是換地點，所以上一輪推進節點之後，
+  // 這一輪的第一件事就是讓上一個地點啟動的型態到期。無存檔的相容模式沒有型態可言。
+  let activeFormSources = [];
+  if (session) {
+    const synced = formsForScene(session.forms, sceneKeyOf(session, getScenarioPack));
+    session.forms = synced.formsState;
+    activeFormSources = synced.extraSources;
+    for (const form of synced.expired) {
+      warnings.push(`「${form.label}」因為離開了啟動時所在的地點而結束`);
+    }
   }
   if (!session) {
     warnings.push("這一回合沒有使用存檔：結果不會被保存，AI也讀不到之前的劇情（會失憶）");
@@ -354,7 +369,11 @@ export async function onRequestPost(context) {
   if (checkParams) {
     // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數。擺在套路遞減之後，
     // 因為那個是加在 DC 上的、這個是加在骰池上的，兩者互不覆蓋。
-    const modified = applyCheckModifiers(character, checkParams);
+    //
+    // [2026-08-17] extraSources 是戰鬥外進行中的型態。在這一行出現之前，`session.forms`
+    // 沒有任何讀取端——變身在敘事迴圈裡完全不生效，只有戰鬥畫面吃得到。
+    // formsForScene() 會先對一次場景鑰匙，所以玩家換了地點之後型態自然查不到了。
+    const modified = applyCheckModifiers(character, checkParams, { extraSources: activeFormSources });
     checkParams = modified.params;
     if (modified.modifiers) {
       warnings.push(`持有能力加值：${modified.modifiers.sources.join("、")}`);

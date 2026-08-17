@@ -21,7 +21,7 @@
 //   副本進行中          → 恐怖片中
 //   戰鬥中              → 恐怖片中(而且另外擋一次，理由見 shopAccess)
 
-import { getProgressSummary } from "../scenario/progress.js";
+import { getProgressSummary, findActiveNode } from "../scenario/progress.js";
 import { formatPrice } from "./wallet.js";
 
 export const LOCATIONS = Object.freeze(["主神空間", "恐怖片中"]);
@@ -122,6 +122,46 @@ export function describeAccess({ location, reason, inCombat }) {
     `恐怖片中（${reason}）。支線與獎勵點數要回主神空間才能花；` +
     `用經驗買的東西現在買得到，但要付 ${IN_MOVIE_XP_MULTIPLIER} 倍經驗（規則書第469行）。`
   );
+}
+
+/**
+ * [設計＋使用者決定 2026-08-17] **場景 ＝ 當下所在的地點。**
+ *
+ * 這個函式是那句話的程式版本：把存檔壓成一把字串鑰匙，鑰匙一變就代表換場了。
+ *
+ *     主神空間
+ *     恐怖片中:alien-nostromo:node-corridor-3
+ *
+ * 為什麼需要它：`content/shop/forms.js` 的型態只認兩個時鐘，「輪」與「場景」。
+ * 「輪」在戰鬥裡由 `advanceTurn()` 遞增，一直都有人推；**「場景」在戰鬥外一直沒有定義**，
+ * 於是存檔裡的 `session.forms` 從第五輪建好之後就沒有任何人讀寫——一個持續整個場景的型態，
+ * 在戰鬥外沒有東西能讓它到期，寫進去就是永久加值。使用者把場景定義成「當下所在的地點」，
+ * 這一句話讓它變得算得出來：副本的活動節點就是玩家現在站的地方。
+ *
+ * 三個刻意的性質：
+ *
+ * 1. **純粹從存檔算出來，沒有新欄位。** 跟 `locationOf()` 同一個原則——
+ *    「現在算不算換場了」由引擎自己算，不是 AI 敘事時說了算，也不是前端傳進來的。
+ * 2. **主神空間整個算一個地點。** 回到主神空間是一次換場（副本裡開的眼會關掉），
+ *    但在主神空間裡逛商店不會一直換場。
+ * 3. **戰鬥不是一個獨立的場景。** 打一場架不會改變你站在哪裡，所以以「場景」計時的型態
+ *    撐得過一場戰鬥的開始與結束；以「輪」計時的則在戰鬥結束時就收掉（戰鬥外沒有輪可以數，
+ *    見 forms.js 的 `endCombat()`）。
+ *
+ * @param {object} session 存檔
+ * @param {(packId: string) => object|null} getPack 跟 locationOf() 同一個注入
+ * @returns {string} 場景鑰匙
+ */
+export function sceneKeyOf(session, getPack) {
+  const { location } = locationOf(session, getPack);
+  if (location === "主神空間") return "主神空間";
+
+  const packId = session?.scenario?.packId ?? "未知副本";
+  const pack = getPack?.(packId) ?? null;
+  // 副本包查不到時退回 packId 當地點：不精確，但仍然是一把穩定的鑰匙——
+  // 不會每次呼叫都變（那會讓型態一啟動就過期），也不會跟別的地點撞在一起。
+  const node = pack ? findActiveNode(pack, session.scenario.progress) : null;
+  return `恐怖片中:${packId}:${node?.id ?? "未知節點"}`;
 }
 
 /** 把一件商品在目前地點的售價寫成人看得懂的字串，加倍時附上原價。 */

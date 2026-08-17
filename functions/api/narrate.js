@@ -92,7 +92,8 @@ export async function onRequestPost(context) {
 
   // --- 規則層：先把數字算出來。這一段完全不碰AI，AI失敗也不影響它的正確性。 ---
   const baseParams = checkParams ?? inferCheckParams(playerAction, { character });
-  // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數，不然買了等於沒買。
+  // 商店買到的檢定加值(專長/物品)在這裡併進判定參數，不然買了等於沒買。
+  // 進行中的型態吃不到，理由同 /api/check：這是無存檔的示範端點，型態活在存檔裡。
   const { params: resolvedParams } = applyCheckModifiers(character, baseParams);
 
   let checkResult;

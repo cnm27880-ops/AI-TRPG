@@ -35,6 +35,9 @@ import {
   deactivateForm,
   tickFormsOnRound,
   endScene,
+  endCombat,
+  expireOnSceneChange,
+  formsForScene,
   activeGrantSources,
   describeActiveForms,
 } from "../content/shop/forms.js";
@@ -376,22 +379,43 @@ test("戰鬥中變身會花掉移動動作，同一輪不能變身兩次", () =>
   assert.ok(second.blockers.some((b) => b.code === "已在進行中"));
 });
 
-test("戰鬥結束時型態一起結束(場景結束)，並留下紀錄", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
+/**
+ * 打完一場架：把敵人設成一擊必倒，然後打他一下。
+ * alreadyActive=true 代表型態是戰鬥外就開好帶進來的，這裡不用再啟動一次。
+ */
+function 一擊結束戰鬥(combat, character, formId, { alreadyActive = false } = {}) {
   combat.order = ["player", "enemy"];
   combat.turnIndex = 0;
   combat.enemy.hpState = { ...combat.enemy.hpState, max: 1, intact: 1, B: 0, L: 0, A: 0 };
-
-  const activation = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(combat.forms.active.length, 1);
-
-  resolvePlayerAttack(combat, activation.character, "unarmed", {
+  let attacker = character;
+  if (!alreadyActive) {
+    const activation = resolveFormActivation(combat, character, formId);
+    assert.equal(activation.ok, true, JSON.stringify(activation.blockers));
+    attacker = activation.character;
+  }
+  assert.equal(combat.forms.active.length, 1, "型態要先真的在進行中");
+  resolvePlayerAttack(combat, attacker, "unarmed", {
     rollFn: () => ({ successes: 20, rolls: [], isFortuneDie: false, fumble: false }),
   });
   assert.equal(combat.active, false, "敵人應該倒下");
-  assert.deepEqual(combat.forms.active, [], "戰鬥結束＝場景結束，型態要收掉");
+}
+
+test("戰鬥結束收掉以「輪」計時的型態(戰鬥外沒有輪可以數)", () => {
+  const c = withAbility(hero(), [爆發]);
+  const combat = createEncounter(c);
+  一擊結束戰鬥(combat, c, formIdOf("test.血統", "爆發"));
+  assert.deepEqual(combat.forms.active, [], "以輪計時的型態留到戰鬥外就永遠不會到期");
   assert.ok(combat.log.some((l) => l.event === "型態到期"));
+});
+
+test("戰鬥結束**不會**收掉以「場景」計時的型態——打一場架不會改變你站在哪裡", () => {
+  // [使用者決定 2026-08-17] 場景＝當下所在的地點。這則測試守的就是那句話：
+  // 先前這裡的規則是「戰鬥結束＝場景結束」，在場景有定義之後那是錯的。
+  const c = withAbility(hero(), [進化形態]);
+  const combat = createEncounter(c);
+  一擊結束戰鬥(combat, c, formIdOf("test.血統", "進化形態"));
+  assert.equal(combat.forms.active.length, 1, "變身要撐得過一場戰鬥");
+  assert.equal(combat.forms.active[0].label, "進化形態");
 });
 
 test("舊存檔的 combat 沒有 forms 欄位時不會炸(型態是後來才加的)", () => {
@@ -900,4 +924,98 @@ test("內力鏈：內力心法開池，葵花寶典是第二個來源——書�
   // 反過來也成立：只買葵花寶典的人，內力池是基礎上限
   const 單買 = purchase(hero(), wallet, 葵花寶典);
   assert.equal(單買.character.derived.energyPools.內力.max, 6);
+});
+
+// ---------------------------------------------------------------------------
+// 戰鬥外的型態：場景 ＝ 當下所在的地點（使用者決定 2026-08-17）
+//
+// 這一組守的是「session.forms 不再是一個沒有消費端的欄位」。在此之前存檔裡有這個欄位、
+// 商店頁也列得出可啟動的型態，但戰鬥外沒有任何東西啟動得了它、也沒有任何東西讓它到期——
+// 而一個不會到期的「持續一個場景」就是永久加值，正是 forms.js 整個設計在避開的事。
+// ---------------------------------------------------------------------------
+
+test("戰鬥外啟動場景型態會記下當下的地點", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const on = activateForm(c, createFormsState(), formIdOf("test.血統", "進化形態"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(on.ok, true, JSON.stringify(on.blockers));
+  assert.equal(on.formsState.active[0].sceneKey, "恐怖片中:p1:n1");
+});
+
+test("換地點 → 場景型態到期；留在原地 → 繼續有效", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const formId = formIdOf("test.血統", "進化形態");
+  const on = activateForm(c, createFormsState(), formId, { sceneKey: "恐怖片中:p1:n1" });
+
+  // 還在同一個地點：加值照樣查得到
+  const same = formsForScene(on.formsState, "恐怖片中:p1:n1");
+  assert.deepEqual(same.expired, []);
+  assert.equal(combatProfileFrom(c, { extraSources: same.extraSources }).equipmentDefense, 3);
+
+  // 推進到下一個節點：到期，加值跟著不見
+  const moved = formsForScene(on.formsState, "恐怖片中:p1:n2");
+  assert.equal(moved.expired.length, 1);
+  assert.equal(isFormActive(moved.formsState, formId), false);
+  assert.equal(combatProfileFrom(c, { extraSources: moved.extraSources }).equipmentDefense, 0);
+  assert.match(moved.formsState.log.at(-1).reason, /離開了啟動時所在的地點/);
+});
+
+test("回到主神空間也是一次換場(副本裡開的眼會關掉)", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const on = activateForm(c, createFormsState(), formIdOf("test.血統", "進化形態"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(formsForScene(on.formsState, "主神空間").expired.length, 1);
+});
+
+test("以「輪」計時的型態不歸換場管(它由戰鬥的輪時鐘收)", () => {
+  // 戰鬥外啟動不了以輪計時的型態：沒有輪可以數，activateForm 會擋下來。
+  const c = withAbility(hero(), [爆發]);
+  const outOfCombat = activateForm(c, createFormsState(), formIdOf("test.血統", "爆發"), {
+    sceneKey: "恐怖片中:p1:n1",
+  });
+  assert.equal(outOfCombat.ok, false);
+  assert.equal(outOfCombat.blockers[0].code, "缺少輪數");
+
+  // 戰鬥中啟動的那一份，換場檢查不該碰它(免得同一個型態被兩個時鐘各收一次)
+  const inCombat = activateForm(c, createFormsState(), formIdOf("test.血統", "爆發"), { round: 1 });
+  assert.equal(inCombat.ok, true);
+  assert.deepEqual(formsForScene(inCombat.formsState, "任何地點").expired, []);
+});
+
+test("endCombat 只收輪型態，場景型態撐得過收兵", () => {
+  const c = withAbility(hero(), [進化形態, 爆發]);
+  let state = createFormsState();
+  state = activateForm(c, state, formIdOf("test.血統", "進化形態"), { sceneKey: "恐怖片中:p1:n1" }).formsState;
+  const withBoth = activateForm(c, state, formIdOf("test.血統", "爆發"), { round: 1, sceneKey: "恐怖片中:p1:n1" });
+  assert.equal(withBoth.formsState.active.length, 2);
+
+  const after = endCombat(withBoth.formsState);
+  assert.equal(after.expired.length, 1);
+  assert.equal(after.expired[0].label, "爆發");
+  assert.equal(after.formsState.active.length, 1);
+  assert.equal(after.formsState.active[0].label, "進化形態", "變身撐得過一場戰鬥");
+});
+
+test("一整條戰鬥外的路徑：變身 → 打一場架 → 收兵仍在 → 換節點才結束", () => {
+  const c = withAbility(hero(), [進化形態]);
+  const formId = formIdOf("test.血統", "進化形態");
+
+  // 1) 戰鬥外變身
+  const on = activateForm(c, createFormsState(), formId, { sceneKey: "恐怖片中:p1:n1" });
+  assert.equal(on.ok, true);
+
+  // 2) 帶著它開戰(這是 combat/start.js 現在做的事)
+  const combat = createEncounter(on.character, undefined, { forms: on.formsState });
+  assert.equal(combat.forms.active.length, 1, "開戰時型態要跟著進去");
+  assert.equal(playerCombatProfile(combat, on.character).equipmentDefense, 3, "戰鬥中吃得到加值");
+
+  // 3) 打完收兵(finalizeIfOver → endCombat)，型態還在
+  一擊結束戰鬥(combat, on.character, formIdOf("test.血統", "進化形態"), { alreadyActive: true });
+  assert.equal(combat.forms.active.length, 1, "收兵不該讓變身消失");
+
+  // 4) 推進節點才真的結束
+  const moved = formsForScene(combat.forms, "恐怖片中:p1:n2");
+  assert.equal(moved.expired.length, 1);
 });

@@ -967,6 +967,11 @@
                 <span id="shop-summary" class="ml-auto text-zinc-500"></span>
             </div>
 
+            <!-- 型態（變身／開眼／爆發）。買了血統或瞳術才會出現。
+                 這一區的按鈕打的是 /api/forms，不是 /api/shop——啟動要扣意志力與能量池，
+                 而且「持續一個場景」的到期條件是離開當下所在的地點（見 content/shop/access.js 的 sceneKeyOf）。 -->
+            <div id="shop-forms" style="display:none" class="px-4 py-2.5 shrink-0 hairline-b bg-zinc-950/40 space-y-1.5"></div>
+
             <!-- 分類頁籤 -->
             <div id="shop-tabs" class="px-4 py-2 flex flex-wrap gap-1.5 text-[11px] font-mono shrink-0 hairline-b"></div>
 

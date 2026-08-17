@@ -1952,6 +1952,9 @@ async function refreshShop() {
     }
     shopState = res;
     renderShop();
+    // 型態的即時狀態(哪些正在進行中、有沒有因為換地點而到期)只有 /api/forms 知道，
+    // /api/shop 給的那一份只有「身上有哪些型態」。
+    await refreshForms();
   } catch (err) {
     document.getElementById("shop-shelf").innerHTML =
       `<div class="text-xs font-mono text-red-400 p-4">無法連線到商店：${escapeHtml(err.message)}</div>`;
@@ -1999,6 +2002,117 @@ function renderShop() {
 
   const items = shopState.shelf.filter((s) => shopCategory === "全部" || s.good.category === shopCategory);
   document.getElementById("shop-shelf").innerHTML = items.map(shopItemHtml).join("");
+
+  renderForms();
+}
+
+// ---------------------------------------------------------------------------
+// 型態（變身／開眼／爆發）
+//
+// 跟貨架一樣：能不能啟動、要付多少代價、什麼時候到期，全部由 /api/forms 算好回傳，
+// 前端只畫。到期條件是「離開當下所在的地點」——那把鑰匙由伺服器從存檔算出來，
+// 前端連問都不用問。
+// ---------------------------------------------------------------------------
+
+let formsState = null;
+let formsBusy = false;
+
+function costText(activation) {
+  const parts = [];
+  if (activation?.action) parts.push(`${activation.action}動作`);
+  if (activation?.willpower) parts.push(`意志力${activation.willpower}`);
+  if (activation?.pool) parts.push(`${activation.pool.name}${activation.pool.amount}`);
+  return parts.join(" + ") || "無代價";
+}
+
+function renderForms() {
+  const box = document.getElementById("shop-forms");
+  if (!box) return;
+  const forms = formsState?.forms ?? shopState?.forms ?? [];
+  if (!forms.length) {
+    box.style.display = "none";
+    return;
+  }
+  box.style.display = "block";
+
+  // 戰鬥中不讓這裡動：戰鬥中的變身要在戰鬥畫面做，那裡才扣得到動作額度。
+  const inCombat = Boolean(formsState?.inCombat ?? shopState?.access?.inCombat);
+  const note = inCombat
+    ? `<span class="text-amber-300/80">戰鬥中——變身請在戰鬥畫面操作（那裡才扣得到動作額度）</span>`
+    : `<span class="text-zinc-500">持續一個場景的型態，會在你離開現在這個地點時結束</span>`;
+
+  box.innerHTML =
+    `<div class="text-[11px] font-mono flex items-center gap-2"><span class="text-zinc-400">型態</span>${note}</div>` +
+    forms
+      .map((f) => {
+        const label = `${escapeHtml(f.sourceName)}·${escapeHtml(f.label)}`;
+        const button = inCombat
+          ? `<span class="px-2 py-0.5 rounded border border-zinc-700 text-zinc-600 text-[10px] font-mono shrink-0">戰鬥中</span>`
+          : `<button data-form-toggle="${escapeHtml(f.formId)}" data-form-action="${f.active ? "收功" : "啟動"}"
+              class="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 transition-all ${
+                f.active
+                  ? "bg-zinc-700/40 border border-zinc-600 text-zinc-300 hover:bg-zinc-700/60"
+                  : "bg-violet-500/20 border border-violet-500/50 text-violet-200 hover:bg-violet-500/30"
+              }">${f.active ? "收功" : "啟動"}</button>`;
+        return `
+          <div class="flex items-center gap-2 text-[11px] font-mono">
+            <span class="${f.active ? "text-violet-200 font-bold" : "text-zinc-300"}">${label}</span>
+            ${f.active ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200">進行中</span>` : ""}
+            <span class="text-[10px] text-zinc-500">${escapeHtml(costText(f.activation))}</span>
+            <span class="ml-auto"></span>
+            ${button}
+          </div>`;
+      })
+      .join("");
+}
+
+async function refreshForms() {
+  if (!currentSessionId) return;
+  try {
+    const res = await (await fetch(`/api/forms?sessionId=${encodeURIComponent(currentSessionId)}`)).json();
+    if (res.ok) {
+      formsState = res;
+      renderForms();
+    }
+  } catch {
+    // 型態面板讀不到不該讓整個商店壞掉——貨架是主體，這一區是附加的。
+  }
+}
+
+async function toggleForm(formId, action) {
+  if (!currentSessionId || formsBusy) return;
+  formsBusy = true;
+  const toast = document.getElementById("shop-toast");
+  try {
+    const res = await (await fetch("/api/forms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, formId, action }),
+    })).json();
+
+    toast.style.display = "block";
+    if (!res.ok) {
+      toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+      toast.textContent = `${action}不成：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`;
+      if (res.forms) { formsState = res; renderForms(); }
+      return;
+    }
+    formsState = res;
+    renderForms();
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-violet-300 bg-violet-500/10";
+    toast.textContent =
+      action === "啟動"
+        ? `「${res.form?.label ?? ""}」啟動，持續到你離開這個地點`
+        : `已收功${res.ended?.length ? `：${res.ended.join("、")}` : ""}`;
+    // 啟動會扣意志力與能量池，側邊欄要跟著更新
+    if (res.character) adoptCharacter(res.character);
+  } catch (err) {
+    toast.style.display = "block";
+    toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
+    toast.textContent = `連線失敗：${err.message}`;
+  } finally {
+    formsBusy = false;
+  }
 }
 
 function shopItemHtml(item) {
@@ -2094,6 +2208,8 @@ document.addEventListener("click", (e) => {
   }
   const buy = e.target.closest("[data-shop-buy]");
   if (buy && !buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
+  const form = e.target.closest("[data-form-toggle]");
+  if (form) toggleForm(form.getAttribute("data-form-toggle"), form.getAttribute("data-form-action"));
 });
 
 window.showScreen = showScreen;

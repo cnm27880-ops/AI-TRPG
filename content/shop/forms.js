@@ -27,7 +27,10 @@
 import { useFree, useSwift, useMove, useStandard, useFullRound, useFullTurn } from "../../core/combat/actionEconomy.js";
 import { spendEnergy } from "../../core/energyPools.js";
 
-/** 空的型態狀態。跟錢包一樣是獨立物件，還沒有進角色卡(見 ARCHITECTURE.md 的待辦)。 */
+/**
+ * 空的型態狀態。存檔裡有兩份：`session.forms`(戰鬥外)與 `combat.forms`(戰鬥中)，
+ * 開戰時前者帶進後者、收兵時再帶回來，見 content/combat/encounterState.js。
+ */
 export function createFormsState() {
   return { active: [], log: [] };
 }
@@ -98,13 +101,15 @@ function applyActionCost(budget, action) {
  * @param {object} character 角色卡(不會被修改)
  * @param {object} formsState createFormsState() 的形狀(不會被修改)
  * @param {string} formId formIdOf() 產生的識別字串
- * @param {{ round?: number, budget?: object }} [ctx]
- *   round  —— 目前的戰鬥輪數，duration.unit==="輪" 時必須提供
- *   budget —— 目前這一輪的動作額度(core/combat/actionEconomy.js)，有給才會檢查動作成本
+ * @param {{ round?: number, budget?: object, sceneKey?: string }} [ctx]
+ *   round    —— 目前的戰鬥輪數，duration.unit==="輪" 時必須提供
+ *   budget   —— 目前這一輪的動作額度(core/combat/actionEconomy.js)，有給才會檢查動作成本
+ *   sceneKey —— 現在人在哪(content/shop/access.js 的 sceneKeyOf())。以「場景」計時的型態
+ *               會把它記在自己身上，之後鑰匙一變就到期，見 expireOnSceneChange()
  * @returns {{ ok: boolean, blockers: {code:string,message:string}[],
  *             character?: object, formsState?: object, budget?: object, form?: object }}
  */
-export function activateForm(character, formsState, formId, { round = null, budget = null } = {}) {
+export function activateForm(character, formsState, formId, { round = null, budget = null, sceneKey = null } = {}) {
   const blockers = [];
   const found = formsOf(character).find((f) => f.formId === formId);
   if (!found) {
@@ -179,6 +184,10 @@ export function activateForm(character, formsState, formId, { round = null, budg
     grants: effect.grants,
     unit,
     activatedAtRound: round,
+    // 以「場景」計時的型態記下啟動當下的地點。這是它唯一的到期條件——
+    // 使用者定義的場景就是「當下所在的地點」，所以鑰匙一變就代表換場了。
+    // 以「輪」計時的不需要，它有 expiresAfterRound。
+    sceneKey: unit === "場景" ? sceneKey : null,
     // 以輪計時的型態：啟動當輪算第1輪，所以第 round+rounds-1 輪結束後失效。
     expiresAfterRound: unit === "輪" ? round + durationRounds(effect.duration, character) - 1 : null,
   };
@@ -250,8 +259,80 @@ export function tickFormsOnRound(formsState, round) {
 }
 
 /**
- * 場景結束(戰鬥結束、或呼叫端明確宣告換場)時呼叫，清掉所有還在進行中的型態。
- * 以「輪」計時的也一起清：戰鬥都結束了，戰鬥輪不會再前進，留著它等於永不過期。
+ * [使用者決定 2026-08-17] **場景 ＝ 當下所在的地點**，所以「換場」＝ 地點變了。
+ *
+ * 這是以「場景」計時的型態在戰鬥外唯一的到期條件，也是 `session.forms` 能夠存在的前提：
+ * 在這個函式出現之前，戰鬥外沒有任何東西讓場景型態到期，於是那個存檔欄位從第五輪建好
+ * 之後就沒有人敢讀它（讀了就等於發一個永久加值）。
+ *
+ * **刻意寫成「每次讀取前先對一次鑰匙」而不是「換地點時記得清一次」**：後者要求每一個
+ * 會改變地點的地方都記得呼叫，漏掉一個就是一個永不過期的型態，而漏掉的那個地方
+ * 不會有任何症狀——這正是本專案一再踩到的那種洞。前者只要讀取路徑都經過這裡就不可能漏。
+ *
+ * @param {object} formsState
+ * @param {string} sceneKey content/shop/access.js 的 sceneKeyOf()
+ */
+export function expireOnSceneChange(formsState, sceneKey) {
+  const active = formsState?.active ?? [];
+  // sceneKey 是 null 的型態＝以「輪」計時的，不歸這個函式管(它們由 tickFormsOnRound/endCombat 收)。
+  const expired = active.filter((f) => f.unit === "場景" && f.sceneKey != null && f.sceneKey !== sceneKey);
+  if (expired.length === 0) return { formsState: formsState ?? createFormsState(), expired };
+  return {
+    formsState: {
+      active: active.filter((f) => !expired.includes(f)),
+      log: [
+        ...(formsState.log ?? []),
+        ...expired.map((f) => ({
+          event: "到期",
+          formId: f.formId,
+          reason: `離開了啟動時所在的地點(${f.sceneKey} → ${sceneKey})`,
+        })),
+      ],
+    },
+    expired,
+  };
+}
+
+/**
+ * 一次讀取的標準入口：**先對場景鑰匙，再把還算數的型態攤成效果來源。**
+ *
+ * 所有要用到型態的地方(檢定、敘事、開戰)都應該走這一個函式，而不是自己去讀
+ * `session.forms.active`——這樣「換地點就到期」不可能被某一條路徑漏掉。
+ * 回傳的 formsState 要寫回存檔（到期是一個狀態改變，不是只在這次計算裡當作沒看到）。
+ *
+ * @returns {{ formsState: object, extraSources: object[], expired: object[] }}
+ */
+export function formsForScene(formsState, sceneKey) {
+  const { formsState: next, expired } = expireOnSceneChange(formsState, sceneKey);
+  return { formsState: next, extraSources: activeGrantSources(next), expired };
+}
+
+/**
+ * 戰鬥結束時呼叫。**只收以「輪」計時的型態**，因為戰鬥外沒有輪可以數，
+ * 留著它等於永不過期。
+ *
+ * [修正 2026-08-17] 先前這裡呼叫的是 `endScene()`，把兩種型態一起清掉——那是在
+ * 「場景」還沒有定義的時候的權宜作法。使用者把場景定義成地點之後它就錯了：
+ * **打一場架不會改變你站在哪裡**，所以一個「持續一個場景」的變身撐得過一場戰鬥，
+ * 直到你離開這個地點為止。
+ */
+export function endCombat(formsState, reason = "戰鬥結束，戰鬥輪不再前進") {
+  const active = formsState?.active ?? [];
+  const expired = active.filter((f) => f.unit === "輪");
+  if (expired.length === 0) return { formsState: formsState ?? createFormsState(), expired };
+  return {
+    formsState: {
+      active: active.filter((f) => !expired.includes(f)),
+      log: [...(formsState.log ?? []), ...expired.map((f) => ({ event: "到期", formId: f.formId, reason }))],
+    },
+    expired,
+  };
+}
+
+/**
+ * 清掉所有還在進行中的型態，不管是哪一種計時。
+ * 現在的用途是「明確宣告一切重來」(例如讀檔測試)，日常的到期走
+ * expireOnSceneChange()(換地點) 與 endCombat()(戰鬥結束) 兩條。
  */
 export function endScene(formsState, reason = "場景結束") {
   const active = formsState?.active ?? [];

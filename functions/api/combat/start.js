@@ -20,6 +20,8 @@ import { THREAT_MAX } from "../../../content/scenario/threat.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../../content/auth/ownership.js";
+import { sceneKeyOf } from "../../../content/shop/access.js";
+import { formsForScene } from "../../../content/shop/forms.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -77,7 +79,15 @@ export async function onRequestPost(context) {
   let combat;
   let openingEnemyAttacks;
   try {
-    combat = createEncounter(session.character, finaleNode?.bossEncounter ?? threatTemplate ?? undefined);
+    // 戰鬥外已經在進行中的型態要跟著進戰鬥。**先對一次場景鑰匙**：如果玩家是在別的
+    // 地點變的身，走到這裡才開打，那個型態應該在開戰前就已經到期(見 forms.js 的
+    // formsForScene)。在這一行出現之前，開戰一律從一份空的型態狀態開始——
+    // 戰鬥外變好身再進戰鬥，變身會在開戰的瞬間無聲消失。
+    const synced = formsForScene(session.forms, sceneKeyOf(session, getScenarioPack));
+    session.forms = synced.formsState;
+    combat = createEncounter(session.character, finaleNode?.bossEncounter ?? threatTemplate ?? undefined, {
+      forms: session.forms,
+    });
     if (finaleNode) combat.scenarioFinaleNodeId = finaleNode.id;
 
     // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見

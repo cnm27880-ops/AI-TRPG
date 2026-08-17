@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { onRequestGet as shopGet, onRequestPost as shopPost } from "../functions/api/shop.js";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { resolveSessionStore, ensureSessionShape, SESSION_VERSION } from "../content/storage/sessionStore.js";
-import { locationOf, priceAt, describeAccess, IN_MOVIE_XP_MULTIPLIER } from "../content/shop/access.js";
+import { locationOf, sceneKeyOf, priceAt, describeAccess, IN_MOVIE_XP_MULTIPLIER } from "../content/shop/access.js";
 import { parsePrice, createWallet } from "../content/shop/wallet.js";
 import { evaluatePurchase } from "../content/shop/catalog.js";
 import { allGoods, SHOP_GOODS } from "../content/shop/registry.js";
@@ -97,6 +97,39 @@ test("副本包查不到時保守視為仍在副本中(不要因為一個壞掉�
   const at = locationOf(broken, getPack);
   assert.equal(at.location, "恐怖片中");
   assert.match(at.reason, /查不到/);
+});
+
+// ---------------------------------------------------------------------------
+// 場景鑰匙 —— 使用者的定義：場景 ＝ 當下所在的地點(2026-08-17)
+// ---------------------------------------------------------------------------
+
+test("場景鑰匙：主神空間整個算一個地點", () => {
+  assert.equal(sceneKeyOf({}, getPack), "主神空間");
+  const cleared = { scenario: { packId: "p1", progress: progressWith(["n1", "n2"]) } };
+  assert.equal(sceneKeyOf(cleared, getPack), "主神空間", "通關回到主神空間也是同一個地點");
+});
+
+test("場景鑰匙：副本裡的地點是「活動節點」，推進節點就是換場", () => {
+  const atN1 = { scenario: { packId: "p1", progress: progressWith([]) } };
+  const atN2 = { scenario: { packId: "p1", progress: progressWith(["n1"]) } };
+  assert.equal(sceneKeyOf(atN1, getPack), "恐怖片中:p1:n1");
+  assert.equal(sceneKeyOf(atN2, getPack), "恐怖片中:p1:n2");
+  assert.notEqual(sceneKeyOf(atN1, getPack), sceneKeyOf(atN2, getPack), "換節點＝換場");
+});
+
+test("場景鑰匙：同一個地點連續問兩次要是同一把鑰匙(否則型態一啟動就過期)", () => {
+  const at = { scenario: { packId: "p1", progress: progressWith([]) } };
+  assert.equal(sceneKeyOf(at, getPack), sceneKeyOf(at, getPack));
+  // 副本包查不到時也一樣要穩定
+  const broken = { scenario: { packId: "不存在", progress: progressWith([]) } };
+  assert.equal(sceneKeyOf(broken, getPack), sceneKeyOf(broken, getPack));
+});
+
+test("場景鑰匙：進出戰鬥不算換場(打一場架不會改變你站在哪裡)", () => {
+  const progress = progressWith([]);
+  const peace = { scenario: { packId: "p1", progress } };
+  const fighting = { scenario: { packId: "p1", progress }, combat: { active: true } };
+  assert.equal(sceneKeyOf(peace, getPack), sceneKeyOf(fighting, getPack));
 });
 
 test("戰鬥中會被標記出來，而且描述文字說得出為什麼買不了", () => {
