@@ -28,14 +28,14 @@ test("屬性直購(經驗)：書中範例『將力量從1提升到5需要4+8+12+
   assert.equal(steps.reduce((a, b) => a + b, 0), 40);
 });
 
-test("屬性直購：0買到1的價格與1買到2相同(第3105行的規則4)", () => {
+test("屬性直購：0買到1的價格與1買到2相同(第674行的規則4)", () => {
   assert.equal(attributePointPrice(0), attributePointPrice(1));
   assert.equal(attributeXpPrice(0), attributeXpPrice(1));
 });
 
 test("技能直購：0→1是3XP，1→2受『最低為1點』的下限保護", () => {
   assert.equal(skillXpPrice(0), 3);
-  assert.equal(skillXpPrice(1), 1, "第3758行『最低為1點』，不是 (1-1)*2=0");
+  assert.equal(skillXpPrice(1), 1, "第686行『最低為1點』，不是 (1-1)*2=0");
   assert.equal(skillXpPrice(2), 2);
   assert.equal(skillXpPrice(5), 8);
 });

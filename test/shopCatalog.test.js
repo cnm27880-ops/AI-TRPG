@@ -310,7 +310,7 @@ test("專長依序學習：不能跳級，而且等級不得超過關鍵屬性�
   const 買了1 = purchase(c, wallet, 警覺1);
   assert.equal(evaluatePurchase(買了1.character, 買了1.wallet, 警覺2).ok, true);
 
-  // 感知3 的角色不能學到4級(第6852行：等級不得超過該屬性數值)
+  // 感知3 的角色不能學到4級(第730行：等級不得超過該屬性數值)
   const 警覺4 = { ...警覺1, goodId: "feat.警覺.4", name: "警覺4", featLevel: 4, price: "12XP" };
   const 超上限 = evaluatePurchase(買了1.character, 買了1.wallet, 警覺4);
   assert.ok(超上限.blockers.some((b) => b.code === "屬性上限"));

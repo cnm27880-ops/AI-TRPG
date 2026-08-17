@@ -1,8 +1,9 @@
 // [規則書] 公式定價的商品 —— 價格不是寫死在型錄裡，而是依角色現況算出來的那些。
 // 出處集中在兩頁：
-//   - 「特殊兌換」(主神修復.htm)，rules-2.35.txt 第17581~17700行 —— 療傷/修復/洗點/精神時光屋
-//   - 「自我強化」(核心規則部分.htm)第737~749行 與「屬性值的增減」第3075~3113行、
-//     「技能」第3758行 —— 屬性與技能直購
+//   - 「特殊兌換」(主神修復.htm)，rules-2.35.txt 第7743~7752行 —— 療傷/修復/洗點/精神時光屋
+//   - 「自我強化」(核心規則部分.htm)第452~464行 與「屬性值的增減」第674~674行、
+//     「屬性值的增減」與「技能」兩頁 —— 屬性與技能直購
+//       (這兩頁已於2026-08-17精簡移出，行號現在指到移出標記，原文取回方式見 RULES_TRIM.md)
 //
 // 這一整頁在本專案裡的地位很特別：它是**唯一一批完全不需要「簡化轉換」的商品**。
 // 型錄裡的血統/物品/專長全都得先過 effects.js 的詞彙表(因為它們的效果講的是完整版規則的語言)，
@@ -11,32 +12,32 @@
 
 import { attributeRaiseCost, skillRaiseCost } from "../../core/xp.js";
 
-/** 屬性直購(分數)：1點屬性 = 當前屬性值 × 200 分。第3078行：1→5 需 200+400+600+800=2000 分。 */
+/** 屬性直購(分數)：1點屬性 = 當前屬性值 × 200 分。第674行：1→5 需 200+400+600+800=2000 分。 */
 export const POINTS_PER_ATTRIBUTE_MULTIPLIER = 200;
 
 /**
  * 提升 1 點屬性的分數價。
- * 第3113行：「在使用分數和經驗兌換屬性時，不計算購買的能力，受到的屬性傷害，只計算屬性基礎值」
+ * 第674行：「在使用分數和經驗兌換屬性時，不計算購買的能力，受到的屬性傷害，只計算屬性基礎值」
  * —— 所以呼叫端要傳的是**基礎屬性值**，不是加上血統/裝備加值之後的顯示值。
- * 第3105行(規則4)：從 0 買到 1 的價格與從 1 買到 2 相同，故 0 與 1 同價。
+ * 第674行(規則4)：從 0 買到 1 的價格與從 1 買到 2 相同，故 0 與 1 同價。
  */
 export function attributePointPrice(baseValue) {
   const effective = Math.max(1, baseValue);
   return effective * POINTS_PER_ATTRIBUTE_MULTIPLIER;
 }
 
-/** 同一點屬性改用經驗買的價格(第3091行：當前屬性值 × 4XP)，規則4同樣適用。 */
+/** 同一點屬性改用經驗買的價格(第674行：當前屬性值 × 4XP)，規則4同樣適用。 */
 export function attributeXpPrice(baseValue) {
   return attributeRaiseCost(Math.max(1, baseValue));
 }
 
-/** 技能只能用 XP 買(第3758行)，沒有分數價。0→1 固定 3XP，其餘 (等級-1)×2 且最低 1。 */
+/** 技能只能用 XP 買(第686行)，沒有分數價。0→1 固定 3XP，其餘 (等級-1)×2 且最低 1。 */
 export function skillXpPrice(currentLevel) {
   return skillRaiseCost(currentLevel);
 }
 
 /**
- * 特殊兌換的固定價目表，逐字照抄第17600~17650行。
+ * 特殊兌換的固定價目表，逐字照抄第7743~7743行。
  * 沖擊/嚴重傷害修復免費是書上明寫的，不是我們送的。
  */
 export const REPAIR_PRICES = Object.freeze({
@@ -49,7 +50,7 @@ export const REPAIR_PRICES = Object.freeze({
   屬性傷害每點: 200,
 });
 
-/** 解除超自然效果，依效果本身的支線等級收費(第17620行)，S級以上與S級同價。 */
+/** 解除超自然效果，依效果本身的支線等級收費(第7743行)，S級以上與S級同價。 */
 export const DISPEL_PRICE_BY_RANK = Object.freeze({
   無支線: 0,
   D: 200,
@@ -63,11 +64,11 @@ export function dispelPrice(rank) {
   return DISPEL_PRICE_BY_RANK[rank] ?? DISPEL_PRICE_BY_RANK.S;
 }
 
-/** 洗點固定價(第17672行)：C+3000。 */
+/** 洗點固定價(第7743行)：C+3000。 */
 export const RESPEC_PRICE = "C+3000";
 
 /**
- * 精神時光屋(第17585行)：每次進去付 D+1000，拿滿 11XP 就會被踢出來，
+ * 精神時光屋(第7743行)：每次進去付 D+1000，拿滿 11XP 就會被踢出來，
  * 每次在主神空間的休息時限用一次。
  */
 export const TIME_CHAMBER = Object.freeze({
@@ -111,7 +112,7 @@ export function buildServiceGoods(character) {
       price: repair.points,
       consumable: true,
       effects: [{ kind: "治療", severity: "A", amount: hp.A }],
-      sourceRef: "rules-2.35.txt 第17607行(主神修復.htm)：惡性傷害每1點修復需要200分獎勵點",
+      sourceRef: "rules-2.35.txt 第7743行(主神修復.htm)：惡性傷害每1點修復需要200分獎勵點",
     });
   }
   goods.push({
@@ -131,7 +132,7 @@ export function buildServiceGoods(character) {
     // XP 的實際發放走 core/campaignXp.js 的入帳流程，不是 effects 詞彙表的效果——
     // 效果詞彙表只描述「對角色卡做什麼」，錢包/經驗的加減一律由呼叫端處理。
     grantsXp: TIME_CHAMBER.xpGranted,
-    sourceRef: "rules-2.35.txt 第17585行(主神修復.htm)：精神時光屋，每次D+1000，獲得11XP即被踢出",
+    sourceRef: "rules-2.35.txt 第7743行(主神修復.htm)：精神時光屋，每次D+1000，獲得11XP即被踢出",
   });
   goods.push({
     goodId: "service.洗點",
@@ -148,7 +149,7 @@ export function buildServiceGoods(character) {
       },
     ],
     respec: true,
-    sourceRef: "rules-2.35.txt 第17672行(主神修復.htm)：洗點花費C+3000",
+    sourceRef: "rules-2.35.txt 第7743行(主神修復.htm)：洗點花費C+3000",
   });
   return goods;
 }

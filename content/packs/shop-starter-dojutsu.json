@@ -1,0 +1,88 @@
+{
+  "id": "shop-starter.瞳術",
+  "type": "商品",
+  "version": "1.0.0",
+  "sourceRef": "rules-2.35.txt 第9988行起(撰寫規則.htm 瞳術模板)、第117995行(寫輪眼)、第119824行(審判眼)、第119881行(毀滅之眼)",
+  "note": "瞳術貨架。原文來源是 content/packs/d-tier-samples-dojutsu.json。轉換規則見 CONVERSION_RULES.md。",
+  "structureNote": "瞳術模板本身註明『無需從D級開始撰寫』，實際清查過31個瞳術條目：21個從D級開始、5個從C級開始、2個從B級開始、3個是無分級的一次性瞳術。這個貨架只收D級起跳的3個。『從C級起跳』的資源要上架，需要商品資料結構支援 startsAtRank——欄位已經有了(見 catalog.js)，但那些條目的效果還沒轉。",
+  "entries": [
+    {
+      "name": "審判眼-D級",
+      "goodId": "dojutsu.審判眼.D",
+      "lineageId": "dojutsu.審判眼",
+      "rank": "D",
+      "status": "上架",
+      "category": "模板能力",
+      "resourceType": "瞳術",
+      "exclusiveGroup": "瞳術",
+      "price": "D+600",
+      "consumable": false,
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "加斯特沖擊波(龍骨炮)",
+          "attackType": "炮",
+          "weaponDamage": 4,
+          "severity": "L",
+          "ranged": true,
+          "weaponRange": 200
+        }
+      ],
+      "droppedTraits": [
+        {
+          "trait": "攻擊檢定為敏捷+神秘學(塑能)+武器傷害",
+          "reason": "core/combat/attackTypes.js 的『炮』公式是智力+射擊+武器傷害，關鍵屬性與技能都寫死在公式表裡，個別武器不能改寫公式"
+        },
+        { "trait": "傷害上限為武器傷害*3點", "reason": "傷害上限機制已於2026-08-15停用(damageCap 保留但不再被呼叫)" },
+        { "trait": "使用該武器檢定時增加3點器械加值", "reason": "加值類型" },
+        { "trait": "造成純能量嚴重傷害", "reason": "傷害類型系統已簡化為單一Armor減法，沒有能量/物理之分" }
+      ],
+      "conversionNote": "這是整批轉換裡唯一一件遠程武器，也是唯一一件『炮』類武器。轉換的重點在武器基本屬性(4L、射程200米)，攻擊公式一律走 attackTypes.js 的表定公式——**個別條目不可以改寫公式**，這是 CONVERSION_RULES.md 的硬性規則之一，否則七種攻擊方式的表就形同虛設。",
+      "higherRanks": [
+        { "rank": "C", "name": "(書中有C級段落，未命名)" },
+        { "rank": "B", "name": "(書中有B級段落，未命名)" },
+        { "rank": "A", "name": "(書中有A級段落，未命名)" }
+      ],
+      "sourceRef": "rules-2.35.txt 第119824行(審判眼)：D級，價格見第119840行 D+600"
+    },
+    {
+      "name": "寫輪眼-D級",
+      "goodId": "dojutsu.寫輪眼.D",
+      "lineageId": "dojutsu.寫輪眼",
+      "rank": "D",
+      "status": "掛名",
+      "category": "模板能力",
+      "resourceType": "瞳術",
+      "exclusiveGroup": "瞳術",
+      "price": "D+600",
+      "consumable": false,
+      "effects": [],
+      "pendingReason": "兩個特性都接不上：『忍術：獲得相當於瞳術等級的忍術施法者等級』需要施法者職能系統(整個沒有)；『洞察眼』需要查克拉能量池、開啟/關閉的持續狀態、以及幻覺免疫，三樣都沒有。",
+      "originalTraits": [
+        "忍術：獲得相當於瞳術等級的忍術施法者等級",
+        "洞察眼：花費一個標準動作支付1點查克拉開啟本瞳術，持續一個場景或10分鐘取低；開啟期間在防御、攻擊以及寫輪眼的相關檢定上獲得2DP洞察加值，獲得相當於瞳術等級的魔幻本質偵測能力，並可以免疫相當於瞳術等級的幻覺效果"
+      ],
+      "pricingNote": "書中D級段落沒有寫價格數字(這在瞳術章節很常見：21個D級起跳的條目裡只有2個明確標價)，依瞳術模板的 D+600 登錄。",
+      "sourceRef": "rules-2.35.txt 第117995行(寫輪眼)：D級"
+    },
+    {
+      "name": "毀滅之眼-D級",
+      "goodId": "dojutsu.毀滅之眼.D",
+      "lineageId": "dojutsu.毀滅之眼",
+      "rank": "D",
+      "status": "掛名",
+      "category": "模板能力",
+      "resourceType": "瞳術",
+      "exclusiveGroup": "瞳術",
+      "price": "D+600",
+      "consumable": false,
+      "effects": [],
+      "pendingReason": "『破法雙瞳』需要意志力消費(每輪1點維持)、目標的魔力池(扣6點魔力)、劇痛點數與強韌豁免——四樣機制引擎都沒有。『信仰導向（負特性）』需要信仰系統。",
+      "originalTraits": [
+        "破法雙瞳：消耗1點意志力，以一個移動動作睜開毀滅之眼並每輪以1點意志力和迅捷動作維持，可使雙眼能看到的一個目標每輪損失6點魔力，並對其造成流失魔力等額的純能量嚴重傷害以及等額的不可疊加的劇痛點數",
+        "信仰導向（負特性）：必須信仰天界十二主神中的毀滅之主迪斯馬森或救贖之主以撒，將失去原本的所有信仰和基於信仰導向的能力；每天需祈禱，否則失去本瞳術帶來的一切好處"
+      ],
+      "sourceRef": "rules-2.35.txt 第119881行(毀滅之眼)：D級，價格見第119897行 D+600"
+    }
+  ]
+}

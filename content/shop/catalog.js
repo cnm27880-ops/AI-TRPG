@@ -7,12 +7,12 @@
 //   pricing.js  [規則書] 公式定價的商品(屬性/技能/療傷/復活/洗點)
 //
 // 購買限制的規則書出處：
-//   - 「模板能力」五類排他：rules-2.35.txt 第944~945行(核心規則部分.htm)
+//   - 「模板能力」五類排他：rules-2.35.txt 第659~660行(核心規則部分.htm)
 //     「以上分類中，血統、改造、瞳術、修真、魔導書這五項具有排他性，這種兌換只能兌換一種，
 //       之后只能升級而不能再購買同一分類的其他兌換」
-//   - 依序購買：rules-2.35.txt 第21260行起(洗點.htm「總綱」)
+//   - 依序購買：rules-2.35.txt 第11312行起(洗點.htm「總綱」)
 //     「若沒有特殊說明，則主神空間的所有強化默認必須按順序購買，D-C-B-A-S」
-//   - 兌換是自由動作、且只能在主神空間：rules-2.35.txt 第754行
+//   - 兌換是自由動作、且只能在主神空間：rules-2.35.txt 第469行
 //
 // [設計] 前提檢查(prerequisites)是本專案的翻譯結果，不是書上的欄位格式：書中前提寫成
 // 「需求敏捷3，運動技能2級並擁有專業"輕投擲武器"」這種自由文字，其中「專業」在簡化規則
@@ -28,6 +28,20 @@ export const EXCLUSIVE_TEMPLATE_TYPES = Object.freeze(["血統", "改造", "瞳�
 
 /** 依序購買的階梯。AA 只出現在血統/稱號/流派，其餘分類跳過即可。 */
 export const RANK_ORDER = Object.freeze(["D", "C", "B", "A", "AA", "S"]);
+
+/**
+ * 商品的上架狀態。這是 2026-08-17 依使用者「轉不出來的先放名字就好」的決定加上的第三態，
+ * 在此之前只有「轉得出來就上架」與「轉不出來就不收」兩種下場。
+ *
+ *   上架 —— 效果已經完整轉成 effects.js 的詞彙，可以購買，買了會真的改變引擎的輸出。
+ *   掛名 —— 只登錄名稱、價格、出處與「為什麼還轉不出來」，**不可購買**。
+ *           它存在的意義是讓貨架看得出「這個分類還有什麼東西在等」，
+ *           而不是讓玩家以為這個分類只有那幾件。
+ *
+ * 掛名不是偷懶的擋箭牌：`pendingReason` 是必填，而且必須指得出具體缺什麼機制。
+ * 一件掛名商品之所以掛名，理由永遠是「引擎缺某個東西」，不會是「還沒空轉」。
+ */
+export const GOOD_STATUS = Object.freeze(["上架", "掛名"]);
 
 /** 商店貨架分類。跟 content/loader.js 的 KNOWN_TYPES 是同一組概念，但商店多了「服務」。 */
 export const SHOP_CATEGORIES = Object.freeze([
@@ -83,15 +97,46 @@ export function validateGood(good) {
       errors.push(`${where} 的 attributePool.capPerAttribute 必須是正整數(模板規定的單項屬性上限)`);
     }
   }
+  const status = good.status ?? "上架";
+  if (!GOOD_STATUS.includes(status)) {
+    errors.push(`${where} 的 status「${status}」不合法，合法值：${GOOD_STATUS.join("/")}`);
+  }
+  if (status === "掛名") {
+    if (!good.pendingReason) {
+      errors.push(
+        `${where} 是掛名商品卻沒有 pendingReason——掛名的理由永遠是「引擎缺某個機制」，必須指名是哪一個`
+      );
+    }
+    if (Array.isArray(good.effects) && good.effects.some((e) => e.kind !== "敘事")) {
+      errors.push(`${where} 是掛名商品，不該帶有數值效果(掛名代表效果還轉不出來)`);
+    }
+  }
+
   if (!Array.isArray(good.effects)) {
     errors.push(`${where} 的 effects 必須是陣列(沒有數值效果請寫成一個 kind:"敘事" 的效果，不要留空欄位)`);
   } else {
-    if (good.effects.length === 0 && !good.attributePool) {
+    if (good.effects.length === 0 && !good.attributePool && status !== "掛名") {
       errors.push(`${where} 的 effects 是空陣列——一個什麼都不做的商品不該上架`);
     }
     good.effects.forEach((effect, i) => {
       errors.push(...validateEffect(effect, `${where} effects[${i}]`));
     });
+  }
+
+  // 一整套(D→C→B→A→S)的資源，這一輪只轉 D 級，更高的級數只登錄名稱。
+  if (good.higherRanks != null) {
+    if (!Array.isArray(good.higherRanks)) errors.push(`${where} 的 higherRanks 必須是陣列`);
+    else {
+      good.higherRanks.forEach((h, i) => {
+        if (!RANK_ORDER.includes(h.rank)) {
+          errors.push(`${where} higherRanks[${i}] 的 rank「${h.rank}」不合法`);
+        }
+        if (h.rank === "D") {
+          errors.push(`${where} higherRanks[${i}] 不該是 D 級——D 級是這件商品本身`);
+        }
+        if (!h.name) errors.push(`${where} higherRanks[${i}] 缺少 name(只放名字也要放得出名字)`);
+      });
+    }
   }
   if (good.droppedTraits != null) {
     if (!Array.isArray(good.droppedTraits)) errors.push(`${where} 的 droppedTraits 必須是陣列`);
@@ -156,6 +201,16 @@ export function ownedExclusiveTemplates(character) {
 export function evaluatePurchase(character, wallet, good, options = {}) {
   const blockers = [];
   const price = parsePrice(good.price);
+
+  // 掛名商品在貨架上看得到、但買不了。這一條擺在最前面而且不 return，
+  // 是為了讓玩家同時看到「這件還沒做好」與「就算做好了你也還差500分」——
+  // 兩件事都是他想知道的。
+  if (good.status === "掛名") {
+    blockers.push({
+      code: "掛名待補",
+      message: `「${good.name}」目前只登錄了名稱，效果還轉不出來：${good.pendingReason}`,
+    });
+  }
 
   // 0) 屬性點數分配。血統/改造/瞳術每一級都會給一包「自由分配的屬性點」
   //    (見 content/templates.js 的 attributePerRank / attributeCapPerRank)，
@@ -235,7 +290,7 @@ export function evaluatePurchase(character, wallet, good, options = {}) {
     }
   }
 
-  // 5a) 專長的等級順序。專長不走 DCBAS，走 1~5 級，規則書「專長概述」(第6845行)明文：
+  // 5a) 專長的等級順序。專長不走 DCBAS，走 1~5 級，規則書「專長概述」(第723行)明文：
   //     「若一個專長擁有多個等級，你必須為每一等級單獨學習，并且必須按順序學習。」
   if (good.featLevel != null) {
     const ownedLevels = new Set(
@@ -253,7 +308,7 @@ export function evaluatePurchase(character, wallet, good, options = {}) {
         message: `專長必須按順序學習，還缺 ${missing.join("/")} 級`,
       });
     }
-    // 專長概述第6852行：「對于基本前提和屬性掛鉤的專長，其等級不得超過該屬性數值」
+    // 專長概述第730行：「對于基本前提和屬性掛鉤的專長，其等級不得超過該屬性數值」
     for (const attr of good.featAttributeCaps ?? []) {
       const have = character.attributes?.[attr] ?? 0;
       if (good.featLevel > have) {
@@ -346,9 +401,27 @@ export function buildStorefront(character, wallet, goods) {
     return {
       good,
       price: formatPrice(evaluation.price),
+      status: good.status ?? "上架",
       purchasable: blockers.length === 0,
       needsAllocation: good.attributePool != null,
+      // 一整套資源的後續級數，只有名字。UI 拿它顯示「這條線之後還會長成什麼樣」。
+      higherRanks: good.higherRanks ?? [],
       blockers,
     };
   });
+}
+
+/**
+ * 貨架的統計摘要 —— 每個分類各有幾件上架、幾件掛名。
+ * 這個函式存在的理由跟 CONVERSION_RULES.md 的「轉換率」那一節是同一件事：
+ * 掛名數字本身就是待辦清單，它應該一直被看見，而不是埋在JSON裡。
+ */
+export function summarizeStorefront(goods) {
+  const summary = {};
+  for (const good of goods) {
+    const bucket = (summary[good.category] ??= { 上架: 0, 掛名: 0, total: 0 });
+    bucket[good.status ?? "上架"] += 1;
+    bucket.total += 1;
+  }
+  return summary;
 }

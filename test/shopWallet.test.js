@@ -20,19 +20,19 @@ import {
 import { computeRevivalCost } from "../core/deathAndRevival.js";
 
 test("價格標記法：書中出現過的每一種寫法都要解析得出來", () => {
-  // 第741行原文：「一桿高能粒子脈沖步槍的標價為D+500，這就意味著你需要支付一個D支線和500獎勵點數」
+  // 第456行原文：「一桿高能粒子脈沖步槍的標價為D+500，這就意味著你需要支付一個D支線和500獎勵點數」
   assert.deepEqual(parsePrice("D+500"), { tokens: { D: 1 }, points: 500, xp: 0, raw: "D+500" });
-  // 第17663行原文的復活費用範例：DD+4600(同面額連寫代表數量)
+  // 第7743行原文的復活費用範例：DD+4600(同面額連寫代表數量)
   assert.deepEqual(parsePrice("DD+4600").tokens, { D: 2 });
   assert.equal(parsePrice("DD+4600").points, 4600);
-  // 第17672行：洗點 C+3000
+  // 第7743行：洗點 C+3000
   assert.deepEqual(parsePrice("C+3000"), { tokens: { C: 1 }, points: 3000, xp: 0, raw: "C+3000" });
-  // 只要分數的物品(第286740行 太陽傘 200分)
+  // 只要分數的物品(第276792行 太陽傘 200分)
   assert.deepEqual(parsePrice("200").tokens, {});
   assert.equal(parsePrice("200分").points, 200);
-  // 只要經驗的專長(第6845行：每個專長點數3XP)
+  // 只要經驗的專長(第723行：每個專長點數3XP)
   assert.deepEqual(parsePrice("3XP"), { tokens: {}, points: 0, xp: 3, raw: "3XP" });
-  // 免費(第17600行：沖擊/嚴重傷害修復免費)
+  // 免費(第7743行：沖擊/嚴重傷害修復免費)
   assert.equal(parsePrice("免費").points, 0);
   assert.equal(parsePrice(0).points, 0);
 });
@@ -52,7 +52,7 @@ test("支線拆組是3進位且無損：3D=1C，3C=1B，3B=1A，3A=1S", () => {
     const value = tokenValueInD(tokens);
     assert.equal(tokenValueInD(normalizeTokens(value)), value);
   }
-  // 第728行原文：「一個C可以被拆開來購買3個不同的D支線資源」
+  // 第443行原文：「一個C可以被拆開來購買3個不同的D支線資源」
   assert.equal(tokenValueInD({ C: 1 }), tokenValueInD({ D: 3 }));
 });
 
@@ -109,7 +109,7 @@ test("earn 入帳", () => {
 });
 
 test("復活費用：書中的 D+1000未花 + D+600血統 + 3000屬性 = DD+4600 範例", () => {
-  // 書中範例(第17663行)是用「支線+分數」表達的；這裡的錢包把支線折成分數之後，
+  // 書中範例(第7743行)是用「支線+分數」表達的；這裡的錢包把支線折成分數之後，
   // computeRevivalCost 會給出單一數字。驗證的是「兩邊的支線數與分數總額都對得上」，
   // 不是硬要湊出字串 "DD+4600"。
   let wallet = createWallet({ tokens: { D: 2 }, points: 4600 });
