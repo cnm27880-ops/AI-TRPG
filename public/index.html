@@ -2,8 +2,26 @@
 <html lang="zh-Hant" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- viewport-fit=cover 讓畫面在有瀏海/圓角的手機上真正畫到邊緣，
+         但要配合下面 .safe-area-* 的 env(safe-area-inset-*) 留白，
+         不然頂欄的按鈕、底部的輸入框會被瀏海或Home Indicator蓋住。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>ECHOES // 無限恐怖 TRPG 終端</title>
+
+    <!-- PWA：讓手機瀏覽器可以「加入主畫面」，變成一個沒有網址列的全螢幕App。
+         manifest 決定安裝後的名稱/圖示/顯示模式，實際把畫面撐滿全螢幕的行為
+         則靠 display / display_override 設定（見 manifest.webmanifest），
+         Safari 額外需要 apple-mobile-web-app-* 這組舊式 meta 才會吃全螢幕模式。 -->
+    <link rel="manifest" href="./manifest.webmanifest">
+    <meta name="theme-color" content="#09090b">
+    <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="ECHOES">
+
     <script>
         // 在任何畫面繪製前就決定明暗主題，避免先閃一下錯的主題再跳回正確的(FOUC)。
         (function () {
@@ -61,6 +79,14 @@
         .hairline-b { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-t { border-top: 1px solid rgba(255, 255, 255, 0.08); }
         .hairline-r { border-right: 1px solid rgba(255, 255, 255, 0.08); }
+
+        /* PWA 安裝後在有瀏海/圓角/Home Indicator的手機上以全螢幕獨立App執行時，
+           env(safe-area-inset-*) 才會有非零值；一般在瀏覽器分頁裡開全部是0px，不影響版面。
+           header 原本用 Tailwind 的 h-12 釘死高度，直接加 padding-top 會把按鈕列往外擠出可視框，
+           所以這裡連同高度一起改成 min-height，讓瀏海留白時整條列自然變高，不會裁切按鈕。 */
+        header.h-12 { height: auto; min-height: 3rem; padding-top: env(safe-area-inset-top, 0px); }
+        body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+        #story-action-panel { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
 
         /* 面板頂部微光漸層邊 */
         .panel-glow-top { position: relative; }
@@ -524,6 +550,12 @@
                     </button>
                 </div>
             </div>
+            <!-- 安裝到手機主畫面：只有真的可以安裝（或需要手動教學）時才會顯示，見 initPwaInstall()。
+                 已經是安裝後全螢幕模式在跑（standalone/fullscreen）就沒有意義，一律藏起來。 -->
+            <button id="pwa-install-btn" onclick="handlePwaInstallClick()" style="display:none" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+                <i class="fas fa-mobile-screen-button text-emerald-400 text-[11px]"></i>
+                <span class="hidden sm:inline">安裝App</span>
+            </button>
             <button onclick="toggleTheme()" title="切換明暗主題" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
                 <i id="theme-toggle-icon" class="fas fa-moon text-emerald-300 text-[11px]"></i>
             </button>
@@ -1099,6 +1131,38 @@
         </div>
     </div>
 
+    <!-- iOS Safari 沒有 beforeinstallprompt 這個事件，瀏覽器不給網頁自己彈安裝提示，
+         只能手把手教玩家怎麼從分享選單加入主畫面（見 initPwaInstall() 的 iOS 分支）。 -->
+    <div id="pwaInstallModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-sm rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+            <div class="flex justify-between items-center pb-1">
+                <div class="ribbon-banner ribbon-sm">
+                    <i class="fas fa-mobile-screen-button text-[11px]"></i>
+                    <span>安裝到主畫面</span>
+                </div>
+                <button onclick="closeModal('pwaInstallModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="space-y-3 text-xs font-mono text-zinc-300 leading-relaxed">
+                <p>iOS 的 Safari 不開放網頁自己跳出安裝提示，要手動加三步：</p>
+                <ol class="space-y-2 list-none">
+                    <li class="flex items-start gap-2">
+                        <span class="section-tag shrink-0">1</span>
+                        <span>點下方工具列的 <i class="fas fa-arrow-up-from-bracket text-emerald-400"></i> 分享鈕</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="section-tag shrink-0">2</span>
+                        <span>往下找到「加入主畫面」（Add to Home Screen）</span>
+                    </li>
+                    <li class="flex items-start gap-2">
+                        <span class="section-tag shrink-0">3</span>
+                        <span>確認名稱後按「新增」，桌面就會出現全螢幕的 ECHOES 圖示</span>
+                    </li>
+                </ol>
+                <p class="text-[10px] text-zinc-500 pt-1 hairline-t">從主畫面圖示打開才會是無網址列的全螢幕模式；在 Safari 分頁裡開仍然是一般網頁。</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         /**
          * 套用明暗主題並記住玩家的選擇。
@@ -1389,6 +1453,69 @@
         // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，
         // 這裡把class標記與圖示、下拉選單一次同步到同一個值。
         applyTheme(document.documentElement.getAttribute('data-theme'));
+
+        // ================= PWA：安裝到主畫面 + 全螢幕 =================
+        // [設計] 手機瀏覽器分頁本身就算「全螢幕」也還有網址列跟系統列，玩家要的
+        // 「全螢幕遊玩」實際上是「加入主畫面之後，用那個獨立圖示開」——manifest.webmanifest
+        // 的 display/display_override 只決定「安裝完之後長什麼樣子」，不會讓分頁本身變全螢幕，
+        // 所以還是需要引導玩家完成「安裝」這個動作。
+        //
+        // Android/桌機Chrome 系瀏覽器支援 beforeinstallprompt：可以攔截瀏覽器原生的安裝提示，
+        // 換成自己在頂欄放一顆按鈕，玩家準備好再按，不會一進站就被彈窗打斷。
+        // iOS Safari 完全沒有這個事件（蘋果不開放網頁觸發安裝），只能用 UA 判斷後主動顯示按鈕，
+        // 按下去改成打開手動教學 Modal（見 pwaInstallModal）。
+        let pwaDeferredPrompt = null;
+
+        function isStandaloneDisplay() {
+            return window.matchMedia('(display-mode: standalone)').matches ||
+                window.matchMedia('(display-mode: fullscreen)').matches ||
+                window.navigator.standalone === true; // iOS Safari 專用欄位，不在 matchMedia 裡
+        }
+        function isIosSafari() {
+            const ua = window.navigator.userAgent;
+            const isIos = /iP(hone|ad|od)/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
+            const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+            return isIos && isSafari;
+        }
+        function handlePwaInstallClick() {
+            if (pwaDeferredPrompt) {
+                const promptEvent = pwaDeferredPrompt;
+                pwaDeferredPrompt = null;
+                promptEvent.prompt();
+                promptEvent.userChoice.finally(() => {
+                    document.getElementById('pwa-install-btn').style.display = 'none';
+                });
+                return;
+            }
+            // 沒有 deferredPrompt 就是走不了自動安裝那條路（通常是 iOS Safari），改開手動教學。
+            openModal('pwaInstallModal');
+        }
+        function initPwaInstall() {
+            const btn = document.getElementById('pwa-install-btn');
+            if (!btn || isStandaloneDisplay()) return; // 已經是安裝後的全螢幕模式在跑，不用再推銷一次
+
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault(); // 蓋掉瀏覽器自己那條迷你資訊列，改用頂欄按鈕
+                pwaDeferredPrompt = e;
+                btn.style.display = 'flex';
+            });
+            window.addEventListener('appinstalled', () => {
+                pwaDeferredPrompt = null;
+                btn.style.display = 'none';
+            });
+            if (isIosSafari()) btn.style.display = 'flex';
+        }
+        initPwaInstall();
+
+        // Service Worker：快取App殼(HTML/JS/圖示)讓開啟速度變快、離線時也能先看到畫面，
+        // 但故事是伺服器算的，/api/ 一律直接打網路，細節與快取策略見 sw.js 檔頭註解。
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch((err) => {
+                    console.warn('Service worker 註冊失敗（不影響遊戲本身，只是少了離線快取與安裝資格）:', err);
+                });
+            });
+        }
     </script>
     <script src="./app.js"></script>
 </body>

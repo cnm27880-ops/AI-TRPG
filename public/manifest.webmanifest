@@ -1,0 +1,22 @@
+{
+  "name": "ECHOES // 無限恐怖 TRPG 終端",
+  "short_name": "ECHOES",
+  "description": "主神空間 · 單人跑團引擎。進入輪迴世界，在無盡的恐懼與殺戮中進化。",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "lang": "zh-Hant",
+  "dir": "ltr",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
