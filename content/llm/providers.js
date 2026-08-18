@@ -65,7 +65,7 @@ export const PROVIDERS = {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta",
     // 查證當下官方quickstart示範的是 gemini-3.6-flash，且pricing頁列它有免費額度。
     // 舊的 gemini-2.5-flash 查證當下仍然存在且仍有免費額度，要沿用也可以，改這個常數即可。
-    defaultModel: "gemini-3.6-flash",
+    defaultModel: "gemini-3.7-flash",
     apiKeyEnv: "GEMINI_API_KEY",
     docs: "https://ai.google.dev/gemini-api/docs/pricing",
     freeTier: "有免費額度（需要自己申請金鑰）",
@@ -98,7 +98,7 @@ export const PROVIDERS = {
     // [注意] 免費模型清單會輪替，這個值是查證當下(2026-08-16)第三方追蹤站列出的常駐免費模型之一。
     // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
     // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
-    defaultModel: "MiniMaxAI/MiniMax-M3",
+    defaultModel: "Qwen/Qwen3-30B-A3B-Instruct",
     apiKeyEnv: "sk-qvbekxpvxjjwihmtjgjjbxnoczuerofopzyvdiicbnmjjhju",
     docs: "https://docs.siliconflow.com/en/userguide/quickstart",
     // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
