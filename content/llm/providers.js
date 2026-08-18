@@ -99,7 +99,7 @@ export const PROVIDERS = {
     // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
     // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
     defaultModel: "Qwen/Qwen3-30B-A3B-Instruct",
-    apiKeyEnv: "sk-qvbekxpvxjjwihmtjgjjbxnoczuerofopzyvdiicbnmjjhju",
+    apiKeyEnv: "SiliconFlow_API_KEY",
     docs: "https://docs.siliconflow.com/en/userguide/quickstart",
     // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
     // 500 RPM / 2,000,000 TPM，而且 L0~L5 六個用量級別完全相同——官方文件說
@@ -142,9 +142,8 @@ export const PROVIDERS = {
     label: "OpenRouter（聚合，含免費模型）",
     protocol: PROTOCOLS.OPENAI_CHAT,
     baseUrl: "https://openrouter.ai/api/v1",
-    // 刻意留空：免費模型的slug每週在變，寫死一個等於保證未來某天壞掉且錯誤訊息很難懂。
-    defaultModel: null,
-    apiKeyEnv: "OPENROUTER_API_KEY",
+    defaultModel: "z-ai/glm-5.2:free",
+    apiKeyEnv: "API_KEY",
     docs: "https://openrouter.ai/models",
     jsonMode: "openai-schema",
     freeTier: "有一批 `:free` 結尾的免費模型，但slug會變動，需自行到models頁確認",
