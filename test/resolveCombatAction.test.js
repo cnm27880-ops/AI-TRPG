@@ -3,7 +3,11 @@
 // 用 rollFn 依賴注入塞固定骰子結果，確保「一次完整攻擊」從命中判定到扣血的每一步都接對了。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveCombatAction } from "../core/combat/resolveCombatAction.js";
+import {
+  resolveCombatAction,
+  damageSeverityTag,
+  DAMAGE_SEVERITY_TAGS,
+} from "../core/combat/resolveCombatAction.js";
 import { createHpState } from "../core/health.js";
 
 function fixedRoll(successes) {
@@ -130,4 +134,109 @@ test("resolveCombatAction(真骰子)：跑得動、回傳結構完整", () => {
   });
   assert.ok(typeof result.hit === "boolean");
   assert.ok(result.newHpState.max === 20);
+});
+
+// ---------------------------------------------------------------------------
+// 傷害嚴重度標籤（Phase 5.3 任務4）
+//
+// 標籤是給敘事層看的視覺提示。這組測試守的是兩件事：
+//   1. 分級對得上（幾點傷該配哪一句）
+//   2. 它**完全不參與運算**——加上這個欄位之後，HP 轉換結果必須跟以前一字不差
+// ---------------------------------------------------------------------------
+
+test("damageSeverityTag：未命中與「命中但被護甲吃光」是兩個不同的標籤", () => {
+  assert.equal(damageSeverityTag({ hit: false }).key, "miss");
+  assert.equal(damageSeverityTag({ hit: true, damage: 0, severity: "B" }).key, "absorbed");
+  assert.equal(damageSeverityTag({ hit: true, damage: 0, severity: "B" }).tag, "[火花四濺 / 毫髮無傷]");
+});
+
+test("damageSeverityTag：1~2點是輕傷、3~4點是重傷、5點以上是致命", () => {
+  assert.equal(damageSeverityTag({ hit: true, damage: 1, severity: "B" }).key, "light");
+  assert.equal(damageSeverityTag({ hit: true, damage: 2, severity: "B" }).key, "light");
+  assert.equal(damageSeverityTag({ hit: true, damage: 3, severity: "L" }).key, "serious");
+  assert.equal(damageSeverityTag({ hit: true, damage: 4, severity: "L" }).key, "serious");
+  assert.equal(damageSeverityTag({ hit: true, damage: 5, severity: "B" }).key, "critical");
+  assert.equal(damageSeverityTag({ hit: true, damage: 12, severity: "L" }).key, "critical");
+});
+
+test("damageSeverityTag：惡性傷(A)不論點數多少都算致命重創", () => {
+  // A傷會直接吃掉完好格且不可回復（見 core/health.js 的轉換表），
+  // 所以「1點A傷」在畫面上不該跟「1點瘀青」寫成同一種東西。
+  assert.equal(damageSeverityTag({ hit: true, damage: 1, severity: "A" }).key, "critical");
+});
+
+test("damageSeverityTag 的文字就是 DAMAGE_SEVERITY_TAGS 那張表(不要有第二份字串)", () => {
+  for (const key of Object.keys(DAMAGE_SEVERITY_TAGS)) {
+    assert.ok(DAMAGE_SEVERITY_TAGS[key].startsWith("["), `${key} 的標籤要用方括號包起來`);
+  }
+  assert.equal(
+    damageSeverityTag({ hit: true, damage: 3, severity: "L" }).tag,
+    DAMAGE_SEVERITY_TAGS.serious
+  );
+});
+
+test("resolveCombatAction：命中時回傳的結果帶著標籤，且跟實質傷害對得上", () => {
+  const result = resolveCombatAction({
+    attackType: "肉搏",
+    attackParams: { strength: 10, unarmedSkill: 3, weaponDamage: 1 },
+    defenderAttributes: { 敏捷: 1, 感知: 1 }, // DC=1
+    defenderHpState: createHpState(20),
+    severity: "B",
+    rollFn: fixedRoll(6),
+  });
+
+  assert.equal(result.finalDamage, 5);
+  assert.equal(result.damageSeverity, "critical");
+  assert.equal(result.damageSeverityTag, DAMAGE_SEVERITY_TAGS.critical);
+});
+
+test("resolveCombatAction：護甲把傷害吃光時是「火花四濺」，不是「未命中」", () => {
+  const result = resolveCombatAction({
+    attackType: "白刃",
+    attackParams: { strength: 4, meleeWeaponSkill: 1, weaponDamage: 1 },
+    defenderAttributes: { 敏捷: 1, 感知: 1 }, // DC=1
+    defenderCombatProfile: { armor: 99 },
+    defenderHpState: createHpState(20),
+    severity: "L",
+    rollFn: fixedRoll(4),
+  });
+
+  assert.equal(result.hit, true);
+  assert.equal(result.finalDamage, 0);
+  assert.equal(result.damageSeverity, "absorbed");
+});
+
+test("resolveCombatAction：未命中時也帶標籤(前端/AI 兩條路都不用自己判斷 null)", () => {
+  const result = resolveCombatAction({
+    attackType: "白刃",
+    attackParams: { strength: 1, meleeWeaponSkill: 0, weaponDamage: 1 },
+    defenderAttributes: { 敏捷: 1, 感知: 1 },
+    defenderCombatProfile: { skillCorrection: 999 },
+    defenderHpState: createHpState(20),
+    severity: "L",
+    rollFn: fixedRoll(5),
+  });
+
+  assert.equal(result.hit, false);
+  assert.equal(result.damageSeverity, "miss");
+});
+
+test("標籤完全不影響傷害運算：同一次攻擊的 HP 結果跟只看數字時一模一樣", () => {
+  const params = {
+    attackType: "肉搏",
+    attackParams: { strength: 6, unarmedSkill: 2, weaponDamage: 0 },
+    defenderAttributes: { 敏捷: 2, 感知: 2 },
+    defenderCombatProfile: { armor: 1 },
+    defenderHpState: createHpState(10),
+    severity: "L",
+    rollFn: fixedRoll(7),
+  };
+  const result = resolveCombatAction(params);
+
+  // 手算：成功數7 - 防禦DC2 = 5 基礎傷害，扣護甲1 = 4 點 L 傷。
+  assert.equal(result.finalDamage, 4);
+  assert.equal(result.newHpState.L, 4);
+  assert.equal(result.newHpState.intact, 6);
+  // 標籤存在，但上面三個數字沒有因為它而改變。
+  assert.equal(result.damageSeverity, "serious");
 });

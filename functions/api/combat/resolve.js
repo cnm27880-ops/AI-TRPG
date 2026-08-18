@@ -8,6 +8,7 @@
 // core/legendaryAttributes.js 算好再傳進來，理由見 core/combat/resolveCombatAction.js 的檔頭註解。
 
 import { resolveCombatAction } from "../../../core/combat/resolveCombatAction.js";
+import { buildCombatNarrationPrompt } from "../../../content/gemini/promptContract.js";
 
 export async function onRequestPost(context) {
   let body;
@@ -19,7 +20,24 @@ export async function onRequestPost(context) {
 
   try {
     const result = resolveCombatAction(body ?? {});
-    return new Response(JSON.stringify({ ok: true, result }), {
+    // [2026-08-18] 傷害嚴重度標籤與它的敘事指令一起回傳（見 Phase 5.3 任務4）。
+    //
+    // 為什麼在這裡就把 prompt 組好，而不是讓呼叫端自己拼：標籤是引擎算的、
+    // 「請根據這個標籤描寫視覺與聽覺細節」那句話也該跟著引擎走。散到每個呼叫端各拼一次，
+    // 遲早有一個地方忘記帶標籤，而那種漏接是完全靜音的——畫面看起來一切正常，
+    // 只是戰鬥描寫又回到乾癟的那一版。
+    //
+    // 這個端點是無狀態的（不讀存檔），所以敵人的意圖預告要由呼叫端自己帶 telegraph 進來。
+    const narrationPrompt = buildCombatNarrationPrompt({
+      attackerLabel: body?.attackerLabel ?? "攻擊方",
+      targetLabel: body?.targetLabel ?? "目標",
+      weaponLabel: body?.weaponLabel ?? null,
+      hit: result.hit,
+      damage: result.finalDamage,
+      damageSeverityTag: result.damageSeverityTag,
+      telegraph: body?.telegraph ?? null,
+    });
+    return new Response(JSON.stringify({ ok: true, result, narrationPrompt }), {
       headers: { "content-type": "application/json; charset=utf-8" },
     });
   } catch (err) {

@@ -25,13 +25,23 @@
 
 import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
-import { SYSTEM_INSTRUCTION, buildTurnPrompt, buildDmMemo } from "../../content/gemini/promptContract.js";
+import {
+  SYSTEM_INSTRUCTION,
+  buildTurnPrompt,
+  buildFreeActionPrompt,
+  buildDmMemo,
+} from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { narrativeFeatHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
-import { composeSystemInstruction, DEFAULT_STYLE_ID } from "../../content/narrativeStyle.js";
+import {
+  composeSystemInstruction,
+  DEFAULT_STYLE_ID,
+  DEFAULT_PERSONA_KEY,
+  PERSONA_KEYS,
+} from "../../content/narrativeStyle.js";
 import { appendEvent, EVENT_TYPES, summarizeForJournal } from "../../core/eventLog.js";
 import {
   resolveSessionStore,
@@ -121,6 +131,9 @@ export async function onRequestPost(context) {
     playerAction,
     sceneContext,
     style,
+    // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
+    // 跟 style 同一個層級：玩家在設定裡選，沒選就用環境變數，再沒有就用預設。
+    persona,
     provider: bodyProvider,
     apiKey: bodyApiKey,
     baseUrl: bodyBaseUrl,
@@ -128,6 +141,13 @@ export async function onRequestPost(context) {
     maxTokens: bodyMaxTokens,
   } = body ?? {};
   const warnings = [];
+
+  if (persona && !PERSONA_KEYS.includes(persona)) {
+    return jsonError(
+      `未知的敘事者人格面具「${persona}」，可用的有：${PERSONA_KEYS.join(" / ")}`,
+      400
+    );
+  }
 
   if (bodyProvider && !PROVIDER_IDS.includes(bodyProvider)) {
     return jsonError(
@@ -323,6 +343,9 @@ export async function onRequestPost(context) {
   let checkResult = null;
   let outcome = null;
   let actionText = null;
+  // 這一回合是不是「純敘事行動」（玩家選了 requiresCheck:false 的選項）。
+  // 跟開場模式不一樣：開場沒有玩家行動，這裡有行動、只是不擲骰。
+  let freeAction = false;
 
   if (chosenOption) {
     // 伺服器端重新查驗，不信任前端送回來的內容
@@ -332,7 +355,18 @@ export async function onRequestPost(context) {
     }
     verified.warnings.forEach((w) => warnings.push(`本次選項：${w}`));
     actionText = verified.option.label;
-    checkParams = optionToCheckParams(verified.option);
+    // [2026-08-18] 純敘事選項在這裡分流，**完全不進判定流程**（見 content/turnOptions.js）。
+    //
+    // 分流點放在查驗之後是刻意的：requiresCheck 一律以**伺服器重新查驗過**的那份為準，
+    // 不是前端送什麼就算什麼。否則玩家只要把任何一個選項的 requiresCheck 改成 false，
+    // 就能讓一個「極難」的行動變成免擲骰通過——那就等於把難度系統關掉。
+    // （查驗本身不會創造這個欄位，它來自AI原本產生的那個選項，前端只是原樣送回。
+    //   這個已知限制跟改難度分級是同一類，見 validateOption() 的說明。）
+    if (verified.option.requiresCheck === false) {
+      freeAction = true;
+    } else {
+      checkParams = optionToCheckParams(verified.option);
+    }
   } else if (playerAction) {
     actionText = String(playerAction).trim();
     if (!actionText) return jsonError("playerAction不可以是空字串", 400);
@@ -427,6 +461,7 @@ export async function onRequestPost(context) {
   try {
     systemInstruction = composeSystemInstruction({
       rulesContract: SYSTEM_INSTRUCTION,
+      personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
       styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
       characterHints: narrativeFeatHints(character),
     });
@@ -452,6 +487,8 @@ export async function onRequestPost(context) {
   const prompt = buildPrompt({
     actionText,
     outcome,
+    freeAction,
+    personaKey: persona ?? env.NARRATOR_PERSONA ?? null,
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
     recentNarration,
@@ -520,17 +557,32 @@ export async function onRequestPost(context) {
     narrationSource: "ai",
     aiOptionCount: 0,
     fallbackOptionCount: 0,
+    freeOptionCount: 0,
     truncated,
     finishReason,
   };
 
+  // [2026-08-18] 思維鏈欄位（見 content/turnOptions.js 的 TURN_RESPONSE_SCHEMA）。
+  //
+  // 這一格**不是給玩家看的**，也**不會進存檔的 history**：它是模型在動筆之前的盤算，
+  // 讀起來像後台筆記（「這次是些微失敗，要關掉通風管這條路，並讓她受一道傷」），
+  // 印給玩家看等於先劇透這一回合的結局。回傳它只有一個用途：開發時能看出
+  // 「模型到底有沒有照著判定結果想事情」，那是調這一層唯一有效的線索。
+  //
+  // 它也**不是**真理來源：裡面就算寫了數字也一律不採用，判定結果永遠以 checkResult 為準。
+  let stThought = null;
+
   if (parsed.ok) {
     if (typeof parsed.data.narration === "string") narration = parsed.data.narration;
+    if (typeof parsed.data.st_thought === "string" && parsed.data.st_thought.trim()) {
+      stThought = parsed.data.st_thought.trim();
+    }
     const validated = validateOptions(parsed.data.options, character);
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));
     degraded.aiOptionCount = validated.aiOptionCount;
     degraded.fallbackOptionCount = validated.fallbackCount;
+    degraded.freeOptionCount = validated.freeOptionCount;
   } else {
     // 降級處理：敘事文字先試著用正則挖出 narration 欄位的純文字
     // （常見成因是輸出被截斷、JSON缺了結尾括號），挖不到才退回顯示整段原始文字。
@@ -564,6 +616,7 @@ export async function onRequestPost(context) {
     validated.warnings.forEach((w) => warnings.push(w));
     degraded.aiOptionCount = validated.aiOptionCount;
     degraded.fallbackOptionCount = validated.fallbackCount;
+    degraded.freeOptionCount = validated.freeOptionCount;
   }
 
   // 有任何一個選項是引擎墊的就留 log。整組都是保底(aiOptionCount === 0)時附上AI原文的前段，
@@ -754,6 +807,8 @@ export async function onRequestPost(context) {
     options,
     // 這一輪的內容來源。前端靠它顯示「保底內容」提示（見 public/app.js 的 renderTurnQuality）。
     degraded,
+    // 說書人的後台盤算（思維鏈）。**前端不可以把它印進故事流**，它只是開發用的檢視窗口。
+    stThought,
     // 角色目前的傷勢閘門狀態。每一回合都附上，前端才能持續顯示昏迷/死亡，
     // 而不是只有在玩家撞到閘門的那一次才知道。
     downState: getDownState(character),
@@ -770,6 +825,8 @@ export async function onRequestPost(context) {
 function buildPrompt({
   actionText,
   outcome,
+  freeAction = false,
+  personaKey = null,
   sceneContext,
   recentEvents,
   recentNarration,
@@ -788,6 +845,20 @@ function buildPrompt({
   // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，
   // 前面內容再長也不會被忘記——比只放在system instruction裡更難被忽略。
   const jsonReminder = `\n\n【系統強制指令】\n你的回覆必須是單一個合法的 JSON 物件，請直接以 { 開頭並以 } 結尾。絕對不要輸出 Markdown (\`\`\`json) 或其他閒聊文字！`;
+
+  // 純敘事行動（requiresCheck:false）：有玩家行動、沒有判定結果。
+  // 不能走底下的開場分支（那一段會完全忽略 actionText，把玩家的選擇吃掉），
+  // 也不能走 buildTurnPrompt（它要求 outcome 必填，硬給就是引擎在編一個不存在的判定）。
+  if (!outcome && freeAction && actionText) {
+    const freePrompt = buildFreeActionPrompt({
+      playerAction: actionText,
+      sceneContext,
+      recentEvents,
+      recentNarration,
+      ...(personaKey ? { personaKey } : {}),
+    });
+    return `${freePrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}${jsonReminder}`;
+  }
 
   if (!outcome) {
     const lines = [];
@@ -816,6 +887,7 @@ function buildPrompt({
     sceneContext,
     recentEvents,
     recentNarration,
+    ...(personaKey ? { personaKey } : {}),
   });
 
   // [修改] 把狀態表格接在後面

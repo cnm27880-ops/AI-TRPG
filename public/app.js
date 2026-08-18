@@ -674,6 +674,8 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
         chosenOption,
         playerAction,
         style: localStorage.getItem("user_narrative_style") || "白描",
+        // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
+        persona: localStorage.getItem("user_narrator_persona") || "RUTHLESS_JUDGE",
         ...overrides.payload,
       })
     });
@@ -714,6 +716,12 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
     if (res.checkResult) await renderCheckResult(res.checkResult);
 
     renderTurnWarnings(res.warnings);
+
+    // 說書人的後台盤算（思維鏈）。**刻意只進 console，不進故事流**：它是模型動筆前的
+    // 筆記（「這次是些微失敗，要關掉通風管這條路」），印給玩家看等於先劇透這一回合的結局。
+    // 留在 console 是為了讓開發時看得出「模型到底有沒有照著判定結果想事情」——
+    // 那是調這一層唯一有效的線索，回傳了卻沒有任何地方讀它才是這個專案要避免的模式。
+    if (res.stThought) console.debug("[ST_THOUGHT]", res.stThought);
 
     if (res.narration) {
       appendNarrationBlock(res.narration);
@@ -1094,6 +1102,11 @@ function renderOptions(options) {
   }
 
   grid.innerHTML = options.map((opt, i) => {
+    // 純敘事選項（requiresCheck === false，見 content/turnOptions.js）：沒有屬性、
+    // 沒有技能、沒有DC，所以底下那一整行檢定資訊全部不畫——畫出來會是「null+null DCnull」。
+    // 改成一個明確的「無需檢定」標籤：玩家有權在按下去之前就知道這一手不會擲骰。
+    const isFreeAction = opt.requiresCheck === false;
+
     // 試算玩家目前的骰池(DP)，讓玩家點下去之前就知道自己大概有幾顆骰子可拼，
     // 而不是看著「屬性+技能」的組合名稱自己臆測。
     const attrVal = currentCharacter?.attributes?.[opt.attribute] ?? 1;
@@ -1101,7 +1114,7 @@ function renderOptions(options) {
     const dp = attrVal + (skillVal ?? 0);
 
     let warningHtml = "";
-    if (opt.skill && skillVal === 0) {
+    if (!isFreeAction && opt.skill && skillVal === 0) {
       const category = SKILL_CATEGORY[opt.skill];
       warningHtml = category === "心智"
         ? `<span class="text-red-400 font-bold whitespace-nowrap">⚠ 自動失敗</span>`
@@ -1117,6 +1130,10 @@ function renderOptions(options) {
 
     // 套路懲罰預告（見 content/scenario/repetition.js）。玩家必須在**按下去之前**就看到
     // 「這是連續第3次用潛行，DC會+1」，這個標籤才有意義——按完才知道等於在罰他，不是在設計。
+    const freeTag = isFreeAction
+      ? `<span class="shrink-0 text-sky-300 text-[10px] font-mono border border-sky-500/40 px-1.5 py-0.5 rounded bg-sky-500/10" title="這個行動不需要擲骰，不會失敗，但場景仍然會推進">無需檢定</span>`
+      : "";
+
     const retreadTag = opt.retread
       ? `<span class="shrink-0 text-orange-300 text-[10px] font-mono border border-orange-500/40 px-1.5 py-0.5 rounded bg-orange-500/10" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
       : "";
@@ -1130,6 +1147,16 @@ function renderOptions(options) {
       ? `<span class="text-[11px] text-zinc-300 leading-snug">↳ ${escapeHtml(opt.hint)}</span>`
       : "";
 
+    // 最後一行：檢定選項給「屬性+技能 · 難度 DC · 骰池」，純敘事選項給一句「不擲骰」。
+    const metaHtml = isFreeAction
+      ? `<span class="text-[10px] font-mono text-sky-300/80 flex items-center gap-1.5 flex-wrap">
+          <i class="fas fa-comment-dots"></i><span>純敘事行動 · 不擲骰</span>
+        </span>`
+      : `<span class="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 flex-wrap">
+          <span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc} · 骰池${dp}</span>
+          ${warningHtml}
+        </span>`;
+
     return `
     <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
@@ -1137,15 +1164,13 @@ function renderOptions(options) {
         <span class="font-bold text-zinc-100 flex items-start justify-between gap-2">
           <span class="flex-1">${escapeHtml(opt.label)}</span>
           <span class="shrink-0 flex items-center gap-1.5">
+            ${freeTag}
             ${fallbackTag}
             ${retreadTag}
           </span>
         </span>
         ${hintHtml}
-        <span class="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 flex-wrap">
-          <span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc} · 骰池${dp}</span>
-          ${warningHtml}
-        </span>
+        ${metaHtml}
       </span>
     </button>`;
   }).join("");
@@ -1454,6 +1479,8 @@ async function resumeSession(id) {
       weaponKey: entry.weaponKey,
       hit: entry.hit,
       damage: entry.damage ?? 0,
+      damageSeverity: entry.damageSeverity,
+      damageSeverityTag: entry.damageSeverityTag,
     }));
     appendCombatSystemLine("已還原重整前進行中的戰鬥。", "text-zinc-400");
     renderCombat();
@@ -1516,7 +1543,14 @@ async function startCombat() {
 
     // 敵人若贏得先攻，開戰當下就已經打了第一擊（見 functions/api/combat/start.js）
     (res.openingEnemyAttacks || []).forEach((atk) => {
-      appendCombatLog({ actor: "enemy", weaponKey: currentCombat.enemy.weaponKey, hit: atk.hit, damage: atk.finalDamage ?? 0 });
+      appendCombatLog({
+        actor: "enemy",
+        weaponKey: currentCombat.enemy.weaponKey,
+        hit: atk.hit,
+        damage: atk.finalDamage ?? 0,
+        damageSeverity: atk.damageSeverity,
+        damageSeverityTag: atk.damageSeverityTag,
+      });
     });
     if (res.character) adoptCharacter(res.character);
     renderPersistenceWarning(res.persistent);
@@ -1547,6 +1581,14 @@ function renderCombat() {
 
   const turnLabel = c.order[c.turnIndex] === "player" ? "輪到你行動" : `輪到${c.enemy.name}行動`;
   document.getElementById("combat-turn-indicator").textContent = c.active ? turnLabel : "戰鬥結束";
+
+  // 敵人這一輪的意圖預告。戰鬥結束後就不再顯示——那時候「牠正在做什麼」已經沒有意義了。
+  const telegraphBox = document.getElementById("combat-telegraph");
+  if (telegraphBox) {
+    const telegraph = c.active ? c.currentTelegraph : null;
+    telegraphBox.style.display = telegraph ? "flex" : "none";
+    if (telegraph) document.getElementById("combat-telegraph-text").textContent = telegraph;
+  }
 
   const actionsEnabled = c.active && c.order[c.turnIndex] === "player" && !combatInFlight;
   renderCombatActions(actionsEnabled);
@@ -1588,9 +1630,21 @@ function appendCombatLog(entry) {
   const weaponLabel = COMBAT_WEAPON_LABELS[entry.weaponKey] ?? entry.weaponKey;
   const outcome = entry.hit ? `命中，造成 ${entry.damage} 點傷害` : "未命中";
   const color = entry.actor === "player" ? "text-emerald-300" : "text-red-300";
+  // 傷害嚴重度標籤由引擎產生（見 core/combat/resolveCombatAction.js）。它同時也被送給AI
+  // 當描寫強度的依據，所以畫面上也給玩家看——玩家與說書人看到的是同一件事。
+  const severityColor = {
+    critical: "text-red-400",
+    serious: "text-orange-300",
+    light: "text-yellow-200/80",
+    absorbed: "text-sky-300",
+    miss: "text-zinc-500",
+  }[entry.damageSeverity] ?? "text-zinc-400";
+  const tagHtml = entry.damageSeverityTag
+    ? ` <span class="${severityColor}">${escapeHtml(entry.damageSeverityTag)}</span>`
+    : "";
   const block = document.createElement("div");
   block.className = "feed-block-enter p-2 rounded bg-panel/70 border hairline-border text-[11px] text-zinc-300";
-  block.innerHTML = `<span class="${color} font-bold">${escapeHtml(actorLabel)}</span> 使用${escapeHtml(weaponLabel)} → ${escapeHtml(outcome)}`;
+  block.innerHTML = `<span class="${color} font-bold">${escapeHtml(actorLabel)}</span> 使用${escapeHtml(weaponLabel)} → ${escapeHtml(outcome)}${tagHtml}`;
   log.appendChild(block);
   log.scrollTop = log.scrollHeight;
 }
@@ -1728,7 +1782,14 @@ async function combatAttack(weaponKey) {
     if (res.playerAttack) {
       checkResult.totalSuccesses = res.playerAttack.rawSuccesses ?? 0;
       await playDiceRollAnimation(checkResult);
-      appendCombatLog({ actor: "player", weaponKey, hit: res.playerAttack.hit, damage: res.playerAttack.finalDamage ?? 0 });
+      appendCombatLog({
+        actor: "player",
+        weaponKey,
+        hit: res.playerAttack.hit,
+        damage: res.playerAttack.finalDamage ?? 0,
+        damageSeverity: res.playerAttack.damageSeverity,
+        damageSeverityTag: res.playerAttack.damageSeverityTag,
+      });
     }
     if (res.enemyAttack) {
       appendCombatLog({
@@ -1736,6 +1797,8 @@ async function combatAttack(weaponKey) {
         weaponKey: currentCombat.enemy.weaponKey,
         hit: res.enemyAttack.hit,
         damage: res.enemyAttack.finalDamage ?? 0,
+        damageSeverity: res.enemyAttack.damageSeverity,
+        damageSeverityTag: res.enemyAttack.damageSeverityTag,
       });
     }
 

@@ -84,6 +84,14 @@ export const ECHO_INSTITUTE_SCENARIO = {
             weaponKey: "unarmed",
             armor: 1,
             size: 6,
+            // 意圖預告：每輪開始時抽一句給玩家看（見 content/combat/encounterState.js）。
+            // 純敘事資料，不影響任何數值。
+            telegraphs: [
+              "容器的軀幹開始復誦你剛才說過的半句話，一個音節一個音節地對齊",
+              "它把兩隻手臂舉到跟肩膀同高，掌心朝向你，像在測量距離",
+              "牆上的喇叭同時嘯叫，容器隨著那個頻率一起顫抖",
+              "它退了半步，腳下的積水漾開一圈又一圈的同心圓",
+            ],
           },
         },
         {

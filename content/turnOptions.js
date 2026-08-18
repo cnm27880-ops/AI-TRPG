@@ -97,7 +97,7 @@ ${skillsByCategory}
 
 挑選時請注意：
 - **四個選項要是四種不同的解決思路**（例如：正面強攻／迂迴潛行／溝通交涉／觀察搜證）。
-- **四個選項的技能必須全部不同**，不可以有兩個選項用同一個技能。這條沒有例外：
+- **需要檢定的選項，技能必須全部不同**，不可以有兩個選項用同一個技能。這條沒有例外：
   玩家如果每一回合都能在選項裡找到自己最強的那個技能，他就不會再讀故事，
   只會挑骰池最大的那個按下去。
 - 至少有一個、但**最多兩個**選項用到角色有訓練的技能。有訓練的選項是讓玩家有把握的出口，
@@ -112,26 +112,38 @@ ${skillsByCategory}
   這一格是玩家判斷「該按哪個」的主要依據——沒有它，玩家只能比較骰池數字大小，
   那等於整個故事都白寫了。hint 寫目的與可能的收穫，不要寫成功率、不要重複 label 的字面。
 
-【定向要求：玩家看不到你的prompt，只看得到你寫的敘事】
-每一段敘事都必須讓一個**中途才開始看**的玩家搞清楚三件事，缺一不可：
-1. 他人在哪裡（具體位置：哪一層、哪個艙室、旁邊有什麼），不要只寫氛圍。
-2. 他現在**為什麼**在這裡，也就是眼前這一步是在追求什麼（對應下面的【劇情節點】目標）。
-3. 下一步可以往哪裡去（至少要有一個明確的方向、目標物或阻礙被指名）。
-只有氣氛、沒有這三件事的敘事一律算寫壞了——玩家的反應會是「我完全摸不清狀況，
-只好看哪個選項數字大就按哪個」，那就是這一回合失敗了。
+【純敘事選項（requiresCheck: false）】
+你可以、也**建議**在這 ${OPTION_COUNT} 個選項裡放 1~2 個純探索、對話、無風險的行動——
+例如「問對方剛才那句話是什麼意思」「走過去看牆上的名牌」「把手電筒轉向通風口」。
+這類選項請標記 "requiresCheck": false，並且**不要**填 attribute / skill / difficulty。
+剩下的選項標記 "requiresCheck": true，照常填屬性、技能與難度。
+
+為什麼要有這種選項：不是每個動作都該擲骰。當四個選項全都是檢定時，玩家每一回合都在
+賭博，故事就退化成連續的骰子畫面；而且「跟NPC講一句話也要擲骰」本身就不合理。
+純敘事選項是讓玩家能安全地把世界看清楚的出口。
+
+限制（這幾條由引擎查驗，違反的選項會被降級或退回）：
+- 純敘事選項不可以拿來取代真正有風險的行動。要開一道卡死的門、要偷東西、
+  要在怪物旁邊移動——那些一律是檢定選項，不可以標成 requiresCheck: false 混過去。
+- 純敘事選項一樣要寫 hint（做這件事想知道／想得到什麼）。
+- ${OPTION_COUNT} 個選項裡**至少要有 2 個是檢定選項**，不可以整頁都是無風險行動。
 
 【輸出格式】
 你必須輸出**純JSON**，不要包任何說明文字、不要用markdown程式碼區塊。格式如下：
 
 {
+  "st_thought": "【玩家看不到】這一回合的盤算：判定是哪一級、要付出什麼代價／給什麼成果、處境怎麼變",
   "narration": "這一段是你的敘事文字",
   "options": [
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "感知", "skill": "偵察", "difficulty": "普通" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "力量", "skill": "格鬥", "difficulty": "困難" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "意志", "skill": "交涉", "difficulty": "容易" },
-    { "label": "選項文字", "hint": "想達成什麼", "attribute": "敏捷", "skill": "潛行", "difficulty": "很困難" }
+    { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "感知", "skill": "偵察", "difficulty": "普通" },
+    { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "力量", "skill": "格鬥", "difficulty": "困難" },
+    { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "敏捷", "skill": "潛行", "difficulty": "很困難" },
+    { "label": "純敘事選項的文字", "hint": "想知道什麼", "requiresCheck": false }
   ]
-}`;
+}
+
+st_thought 是給你自己用的後台盤算，玩家看不到，寫80字以內的重點條列就好。
+它必須排在 narration 之前——先想清楚這一回合要發生什麼，再動筆寫。`;
 }
 
 /**
@@ -156,6 +168,18 @@ ${skillsByCategory}
 export const TURN_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    // [2026-08-18 新增] 思維鏈（CoT）欄位：模型必須先寫這一格的盤算，才寫敘事。
+    //
+    // 放進 schema 而不是只寫在 prompt 裡，是因為結構化輸出是**照欄位順序**生成的——
+    // 只有真的排在 narration 之前，「先想再寫」才成立；寫在 prompt 裡拜託它先想，
+    // 模型照樣可以先寫完故事再回頭補一段事後諸葛。
+    // （Gemini 眼裡 properties 是無序的，順序要靠 propertyOrdering，
+    //   那一步由 content/llm/client.js 的 withPropertyOrdering() 自動補上。）
+    //
+    // 這一格**不給玩家看**（見 functions/api/turn.js：只在 degraded/debug 欄位帶回，
+    // 不會進 narration、不會進存檔的 history）。它也**不是**新的真理來源：
+    // 裡面就算寫了數字也一律不採用，引擎的判定結果永遠以 checkResult 為準。
+    st_thought: { type: "string" },
     narration: { type: "string" },
     options: {
       type: "array",
@@ -169,15 +193,21 @@ export const TURN_RESPONSE_SCHEMA = {
           // 要維護，純粹是一段給玩家看的文字，但它是玩家判斷該按哪個選項的主要依據，
           // 少了它整個選單就退化成比大小。用 schema 保證它一定出現，比在prompt裡拜託模型可靠。
           hint: { type: "string" },
+          // [2026-08-18 新增] 這個選項要不要擲骰。明確的布林值，不是「有沒有填 attribute」
+          // 這種靠推論得到的東西——推論出來的東西沒辦法查驗，也沒辦法在UI上誠實標示。
+          // false = 純敘事行動（探索/對話/觀察），引擎不擲骰，attribute/skill/difficulty 一律忽略。
+          requiresCheck: { type: "boolean" },
+          // attribute/difficulty 不再是 required：純敘事選項本來就不該有這兩格。
+          // 留在 properties 裡是因為檢定選項仍然要用它們，而且 enum 仍然由供應商端保證。
           attribute: { type: "string", enum: ATTRIBUTE_KEYS },
           skill: { type: ["string", "null"] },
           difficulty: { type: "string", enum: DIFFICULTY_IDS },
         },
-        required: ["label", "hint", "attribute", "difficulty"],
+        required: ["label", "hint", "requiresCheck"],
       },
     },
   },
-  required: ["narration", "options"],
+  required: ["st_thought", "narration", "options"],
 };
 
 /**
@@ -287,6 +317,43 @@ export function validateOption(raw, character) {
     return { ok: false, warnings, error: "選項缺少label（要顯示給玩家看的行動文字）" };
   }
 
+  // hint（這個選項想達成什麼）：缺了不算錯——選項本身仍然可以玩，只是玩家少一份判斷依據，
+  // 為了這個把整個選項丟掉反而更糟。長度截斷是因為它要塞進按鈕裡，太長會把版面撐爛。
+  const hint =
+    typeof raw.hint === "string" && raw.hint.trim()
+      ? raw.hint.trim().slice(0, HINT_MAX_LENGTH)
+      : null;
+
+  // -------------------------------------------------------------------------
+  // [2026-08-18 新增] 純敘事選項（requiresCheck === false）。
+  //
+  // 走這條路的選項**完全不驗** attribute / skill / difficulty，而且會把這三格
+  // 連同 dc 一起強制設成 null。理由是「沒有檢定」必須是一個乾淨的狀態，不能留下
+  // 半截的檢定欄位：只要 dc 還帶著一個數字，之後任何一個呼叫端都可能把它拿去擲骰，
+  // 而玩家看到的按鈕上寫的是「這個行動沒有風險」——那就是引擎在騙人。
+  //
+  // 判斷用嚴格 `=== false`：欄位缺席（舊的AI、舊的存檔、舊的前端）一律當成「要檢定」，
+  // 也就是修改前的行為。默認值選「要檢定」而不是「不檢定」是刻意的——猜錯的話，
+  // 前者只是多擲一次骰，後者會讓有風險的行動變成免費通行證。
+  // -------------------------------------------------------------------------
+  if (raw.requiresCheck === false) {
+    const option = {
+      label,
+      requiresCheck: false,
+      attribute: null,
+      skill: null,
+      difficulty: null,
+      dc: null,
+    };
+    if (hint) option.hint = hint;
+    // 有填屬性/技能/難度不算錯，但要講出來：這代表AI對這個選項的性質猶豫，
+    // 而引擎已經照它自己填的 requiresCheck 把那些欄位丟掉了。
+    if (raw.attribute || raw.skill || raw.difficulty) {
+      warnings.push("純敘事選項(requiresCheck:false)附帶了屬性/技能/難度，已一律忽略");
+    }
+    return { ok: true, option, warnings };
+  }
+
   // --- 屬性：一定要是規則書六維屬性之一，沒得商量（沒有屬性就無法組骰池） ---
   if (!ATTRIBUTE_KEYS.includes(raw.attribute)) {
     return {
@@ -296,13 +363,8 @@ export function validateOption(raw, character) {
     };
   }
 
-  const option = { label, attribute: raw.attribute };
-
-  // hint（這個選項想達成什麼）：缺了不算錯——選項本身仍然可以玩，只是玩家少一份判斷依據，
-  // 為了這個把整個選項丟掉反而更糟。長度截斷是因為它要塞進按鈕裡，太長會把版面撐爛。
-  if (typeof raw.hint === "string" && raw.hint.trim()) {
-    option.hint = raw.hint.trim().slice(0, HINT_MAX_LENGTH);
-  }
+  const option = { label, requiresCheck: true, attribute: raw.attribute };
+  if (hint) option.hint = hint;
 
   // --- 技能：不在規則書技能表裡就降級成純屬性檢定，不採用AI自創的技能名 ---
   if (raw.skill != null && raw.skill !== "") {
@@ -358,11 +420,30 @@ export function validateOption(raw, character) {
  * 不算是程式碼在替AI編故事，只是保證版面一定有得選，跟AI實際寫了什麼敘事內容完全脫鉤。
  */
 export const FALLBACK_OPTIONS = [
-  { label: "謹慎觀察四周，尋找線索", hint: "想弄清楚眼前的狀況", attribute: "感知", skill: "偵察", difficulty: "容易" },
-  { label: "強行突破當前的阻礙", hint: "想用力氣打開一條路", attribute: "力量", skill: "格鬥", difficulty: "普通" },
-  { label: "試著開口溝通或喊話", hint: "想確認附近還有沒有人", attribute: "意志", skill: "交涉", difficulty: "普通" },
-  { label: "悄悄行動，伺機而動", hint: "想在不被發現下換位置", attribute: "敏捷", skill: "潛行", difficulty: "普通" },
+  { label: "謹慎觀察四周，尋找線索", hint: "想弄清楚眼前的狀況", requiresCheck: true, attribute: "感知", skill: "偵察", difficulty: "容易" },
+  { label: "強行突破當前的阻礙", hint: "想用力氣打開一條路", requiresCheck: true, attribute: "力量", skill: "格鬥", difficulty: "普通" },
+  { label: "試著開口溝通或喊話", hint: "想確認附近還有沒有人", requiresCheck: true, attribute: "意志", skill: "交涉", difficulty: "普通" },
+  { label: "悄悄行動，伺機而動", hint: "想在不被發現下換位置", requiresCheck: true, attribute: "敏捷", skill: "潛行", difficulty: "普通" },
 ];
+
+/**
+ * 一個回合最多幾個純敘事選項。
+ *
+ * 上限存在的理由：純敘事選項不擲骰、不會推進迫近度、也不會消耗套路遞減的計數，
+ * 全部給純敘事等於玩家可以無風險地一直看下去。留 2 個是「有安全出口」與
+ * 「這仍然是一個有骰子的遊戲」之間的折衷，跟 prompt 裡寫給AI的「1~2個」一致。
+ */
+export const MAX_FREE_OPTIONS = 2;
+
+/** 這一批選項裡有幾個是真的要擲骰的（純敘事選項不算）。 */
+function checkOptionCount(options) {
+  return options.filter((o) => o.requiresCheck !== false).length;
+}
+
+/** 這一批選項裡有幾個是純敘事選項。 */
+function countFreeOptions(options) {
+  return options.filter((o) => o.requiresCheck === false).length;
+}
 
 /**
  * 查驗整批選項，數量不足時用 FALLBACK_OPTIONS 墊到 OPTION_COUNT 個。
@@ -398,11 +479,21 @@ export function validateOptions(rawOptions, character) {
     rawOptions.forEach((raw, index) => {
       const result = validateOption(raw, character);
       result.warnings.forEach((w) => warnings.push(`選項${index + 1}：${w}`));
-      if (result.ok) {
-        options.push({ ...result.option, source: "ai" });
-      } else {
+      if (!result.ok) {
         warnings.push(`選項${index + 1}被捨棄：${result.error}`);
+        return;
       }
+      // [2026-08-18] 純敘事選項的數量上限。prompt 裡寫的是「1~2個」，但那是請求，不是保證——
+      // 模型有機會整頁都給無風險行動，那樣玩家整個回合不會擲到任何一顆骰子，
+      // 骰子系統等於被AI關掉了。超過上限的純敘事選項在這裡丟掉，
+      // 空出來的位置由底下的保底選項（一定是檢定選項）補回來，版面仍然是四顆按鈕。
+      if (result.option.requiresCheck === false && countFreeOptions(options) >= MAX_FREE_OPTIONS) {
+        warnings.push(
+          `選項${index + 1}被捨棄：純敘事選項一回合最多 ${MAX_FREE_OPTIONS} 個（這是第 ${countFreeOptions(options) + 1} 個）`
+        );
+        return;
+      }
+      options.push({ ...result.option, source: "ai" });
     });
   }
 
@@ -424,11 +515,32 @@ export function validateOptions(rawOptions, character) {
     if (result.ok) options.push({ ...result.option, source: "fallback" });
   }
 
-  return { options, warnings, aiOptionCount, fallbackCount: options.length - aiOptionCount };
+  return {
+    options,
+    warnings,
+    aiOptionCount,
+    fallbackCount: options.length - aiOptionCount,
+    // 這一輪玩家有幾個「按下去會擲骰」的選項、幾個純敘事選項。呼叫端拿它留log／給前端顯示，
+    // 不用自己再掃一次陣列，也不用自己推論「沒有 attribute 大概就是純敘事吧」。
+    freeOptionCount: countFreeOptions(options),
+    checkOptionCount: checkOptionCount(options),
+  };
 }
 
-/** 把查驗過的選項轉成 core/check.js 的 performCheck() 需要的參數。 */
+/**
+ * 把查驗過的選項轉成 core/check.js 的 performCheck() 需要的參數。
+ *
+ * 純敘事選項（requiresCheck === false）走到這裡一律**丟錯**，不回傳一組湊出來的參數。
+ * 這是刻意大聲的：呼叫端如果忘了先分流，代表它會替一個「玩家被告知沒有風險」的行動
+ * 擲一次骰——那種錯不可以靜靜地發生，寧可當場炸掉讓測試抓到。
+ */
 export function optionToCheckParams(option) {
+  if (option?.requiresCheck === false) {
+    throw new Error(
+      `「${option.label}」是純敘事選項(requiresCheck:false)，不需要檢定。` +
+        `呼叫端應該在轉檢定參數之前就先分流，不要對它擲骰。`
+    );
+  }
   const params = { attribute: option.attribute, dc: option.dc ?? difficultyToDc(option.difficulty) };
   if (option.skill) params.skill = option.skill;
   return params;

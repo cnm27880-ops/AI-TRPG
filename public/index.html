@@ -846,6 +846,15 @@
                     <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-300 font-semibold">—</div>
                 </div>
 
+                <!-- 敵人意圖預告：引擎在每一輪開始時抽一句（見 content/combat/encounterState.js
+                     的 pickTelegraph），玩家在按下攻擊鍵之前就看得到牠正在做什麼。
+                     沒有預告文案的敵人（舊樣板）這一格會整個隱藏，不會留一條空框。 -->
+                <div id="combat-telegraph" style="display:none"
+                     class="shrink-0 p-2.5 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-200 flex items-start gap-2">
+                    <i class="fas fa-eye mt-0.5 shrink-0"></i>
+                    <span id="combat-telegraph-text" class="flex-1"></span>
+                </div>
+
                 <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
 
                 <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
@@ -1016,6 +1025,17 @@
                         <option value="標準">標準（平衡基準線）</option>
                     </select>
                 </div>
+                <div>
+                    <label class="text-zinc-300 block mb-1">敘事者人格面具</label>
+                    <!-- value 必須跟 content/narrativeStyle.js 的 NARRATOR_PERSONAS 的 key 一字不差，
+                         理由同上面的文筆風格：後端查不到就是 400，整個回合停擺。
+                         面具管「誰在講這個故事」，文筆管「怎麼寫字」，兩個可以自由搭配。 -->
+                    <select id="setting-persona" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <option value="RUTHLESS_JUDGE">主神的冷酷裁判（冷酷簡練、強調代價）</option>
+                        <option value="GENTLE_GOD">溫柔的異界神明（悲憫旁觀、詠嘆調）</option>
+                        <option value="PANIC_SURVIVOR">崩潰的倖存者（神經質、陰影與血）</option>
+                    </select>
+                </div>
                 <div class="pt-2 hairline-t space-y-3">
                     <!-- API 設定檔：每一組「供應商＋金鑰＋Base URL＋模型」存成一筆有名字的設定，
                          切換設定檔會一次帶入該筆的所有欄位（金鑰跟著供應商走，不會殘留上一家的）。
@@ -1139,6 +1159,7 @@
                 document.getElementById('setting-theme').value =
                     document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
                 document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
+                document.getElementById('setting-persona').value = localStorage.getItem('user_narrator_persona') || 'RUTHLESS_JUDGE';
                 renderProfileSelect();
                 loadProfileIntoForm(getActiveProfile());
             }
@@ -1324,6 +1345,7 @@
             // 這裡再存一次是為了涵蓋「用鍵盤改了選項但沒觸發onchange」的情況。
             applyTheme(document.getElementById('setting-theme').value);
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
+            localStorage.setItem('user_narrator_persona', document.getElementById('setting-persona').value);
 
             const profiles = loadProfiles();
             const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
