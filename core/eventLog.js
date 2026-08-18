@@ -92,7 +92,12 @@ function journalSummary(event) {
     case EVENT_TYPES.TIME_SPENT:
       return `花費 ${p.amount ?? "?"} 點時間預算於「${p.activity ?? "未知活動"}」`;
     case EVENT_TYPES.COMBAT_ACTION:
-      return `${p.actor === "player" ? "玩家" : p.actor ?? "未知"}攻擊${p.hit ? `命中，造成${p.damage ?? 0}點傷害` : "未命中"}`;
+      // 傷害嚴重度標籤（core/combat/resolveCombatAction.js）附在摘要後面：這條摘要會被
+      // 餵回給AI當事實記憶，戰後那一輪的敘事要寫得出「牠的哪一邊還在流血」就得靠它。
+      return (
+        `${p.actor === "player" ? "玩家" : p.actor ?? "未知"}攻擊${p.hit ? `命中，造成${p.damage ?? 0}點傷害` : "未命中"}` +
+        `${p.damageSeverityTag ? ` ${p.damageSeverityTag}` : ""}`
+      );
     default:
       return "未知事件";
   }

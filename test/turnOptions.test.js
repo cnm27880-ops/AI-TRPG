@@ -17,6 +17,8 @@ import {
   validateOption,
   validateOptions,
   optionToCheckParams,
+  MAX_FREE_OPTIONS,
+  TURN_RESPONSE_SCHEMA,
 } from "../content/turnOptions.js";
 import { emptyCharacter, SKILLS } from "../core/schema.js";
 import { performCheck } from "../core/check.js";
@@ -366,4 +368,154 @@ test("extractNarrationFallback：結尾剛好斷在一個落單的反斜線上�
 
 test("extractNarrationFallback：完全沒有narration欄位時還是回 null", () => {
   assert.equal(extractNarrationFallback("這只是一段普通的散文，沒有JSON"), null);
+});
+
+// ---------------------------------------------------------------------------
+// 純敘事選項 requiresCheck（Phase 5.3 任務2）
+//
+// 這一組測試的重點是「無風險」這件事必須是**乾淨**的：不擲骰的選項不可以留下任何
+// 半截的檢定欄位。只要 dc 還帶著一個數字，之後任何一個呼叫端都可能拿它去擲骰，
+// 而按鈕上寫的是「這個行動沒有風險」——那就是引擎在騙玩家。
+// ---------------------------------------------------------------------------
+
+test("requiresCheck:false 的選項直接放行，且屬性/技能/難度/DC 一律被清成 null", () => {
+  const result = validateOption(
+    { label: "問她剛才那句話是什麼意思", hint: "想知道她在瞞什麼", requiresCheck: false },
+    demoCharacter()
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.option.requiresCheck, false);
+  assert.equal(result.option.attribute, null);
+  assert.equal(result.option.skill, null);
+  assert.equal(result.option.difficulty, null);
+  assert.equal(result.option.dc, null);
+  assert.equal(result.option.hint, "想知道她在瞞什麼");
+});
+
+test("requiresCheck:false 時，連完全不存在的屬性/技能都不再被查驗(但會留警告)", () => {
+  // 這是這個功能的核心：純敘事選項**不走**屬性查驗那條路。
+  // 修改前這個選項會因為「屬性『心電感應』不在規則書屬性表裡」被整個丟掉。
+  const result = validateOption(
+    { label: "走過去看牆上的名牌", hint: "想確認這是誰的房間", requiresCheck: false, attribute: "心電感應", skill: "讀心術" },
+    demoCharacter()
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.option.attribute, null);
+  assert.ok(result.warnings.some((w) => w.includes("已一律忽略")), "被丟掉的欄位要講出來");
+});
+
+test("沒有 requiresCheck 欄位時當成「要檢定」(舊AI/舊存檔的相容行為完全不變)", () => {
+  const result = validateOption(
+    { label: "撬開櫃子", hint: "想拿到裡面的東西", attribute: "力量", skill: "格鬥", difficulty: "困難" },
+    demoCharacter()
+  );
+
+  assert.equal(result.ok, true);
+  assert.equal(result.option.requiresCheck, true);
+  assert.equal(result.option.dc, 3);
+});
+
+test("requiresCheck 只認 === false：字串 \"false\" 之類的東西一律當成要檢定", () => {
+  // 猜錯方向的代價是不對稱的：猜成「要檢定」最多多擲一次骰，
+  // 猜成「不檢定」會讓一個有風險的行動變成免費通行證。
+  const result = validateOption(
+    { label: "在怪物旁邊挪動", hint: "想繞到牠背後", requiresCheck: "false", attribute: "敏捷", skill: "潛行", difficulty: "很困難" },
+    demoCharacter()
+  );
+
+  assert.equal(result.option.requiresCheck, true);
+  assert.equal(result.option.dc, 4);
+});
+
+test("純敘事選項缺 label 一樣要被打回票(label 是唯一無條件必填的欄位)", () => {
+  const result = validateOption({ requiresCheck: false, hint: "想看看" }, demoCharacter());
+  assert.equal(result.ok, false);
+});
+
+test("optionToCheckParams 對純敘事選項要丟錯，不可以湊一組檢定參數出來", () => {
+  const { option } = validateOption(
+    { label: "看一眼窗外", hint: "想確認外面天黑了沒", requiresCheck: false },
+    demoCharacter()
+  );
+  assert.throws(() => optionToCheckParams(option), /純敘事選項/);
+});
+
+test("validateOptions：一輪最多兩個純敘事選項，多的丟掉並用保底檢定選項補滿", () => {
+  const character = demoCharacter();
+  const raw = [
+    { label: "看窗外", hint: "想確認外面", requiresCheck: false },
+    { label: "問她名字", hint: "想知道她是誰", requiresCheck: false },
+    { label: "翻抽屜", hint: "想找鑰匙", requiresCheck: false },
+    { label: "聽門後的聲音", hint: "想確認有沒有人", requiresCheck: false },
+  ];
+
+  const result = validateOptions(raw, character);
+
+  assert.equal(result.options.length, OPTION_COUNT, "版面永遠是四顆按鈕");
+  assert.equal(result.freeOptionCount, MAX_FREE_OPTIONS);
+  assert.ok(result.checkOptionCount >= 2, "一輪至少要有兩個會擲骰的選項，不然骰子系統等於被關掉");
+  assert.ok(result.warnings.some((w) => w.includes("純敘事選項一回合最多")));
+});
+
+test("validateOptions：正常的一輪(3檢定+1純敘事)會原樣全部保留", () => {
+  const character = demoCharacter();
+  const raw = [
+    { label: "觀察血跡", hint: "想知道通往哪裡", requiresCheck: true, attribute: "感知", skill: "偵察", difficulty: "普通" },
+    { label: "撞開艙門", hint: "想開出一條路", requiresCheck: true, attribute: "力量", skill: "體魄", difficulty: "困難" },
+    { label: "繞到管線後面", hint: "想換一個位置", requiresCheck: true, attribute: "敏捷", skill: "潛行", difficulty: "普通" },
+    { label: "問她剛才看到什麼", hint: "想拼出時間線", requiresCheck: false },
+  ];
+
+  const result = validateOptions(raw, character);
+
+  assert.equal(result.aiOptionCount, 4);
+  assert.equal(result.fallbackCount, 0);
+  assert.equal(result.freeOptionCount, 1);
+  assert.equal(result.checkOptionCount, 3);
+});
+
+test("保底選項全部都是檢定選項(保底不可以是不擲骰的行動)", () => {
+  const result = validateOptions(null, demoCharacter());
+  assert.equal(result.freeOptionCount, 0);
+  assert.equal(result.checkOptionCount, OPTION_COUNT);
+});
+
+test("buildOptionsSpec：明確告訴AI可以給1~2個 requiresCheck:false 的無風險選項", () => {
+  const spec = buildOptionsSpec(demoCharacter());
+  assert.match(spec, /requiresCheck/);
+  assert.match(spec, /純探索、對話、無風險/);
+  assert.match(spec, /"requiresCheck": false/);
+});
+
+test("TURN_RESPONSE_SCHEMA：requiresCheck 是必填布林值，attribute/difficulty 改為選填", () => {
+  const item = TURN_RESPONSE_SCHEMA.properties.options.items;
+  assert.equal(item.properties.requiresCheck.type, "boolean");
+  assert.ok(item.required.includes("requiresCheck"));
+  // 純敘事選項不該有這兩格，所以它們不可以是 required——否則結構化輸出會逼模型
+  // 替一個「不擲骰」的行動硬填一個屬性與難度，玩家看到的按鈕就會自相矛盾。
+  assert.ok(!item.required.includes("attribute"));
+  assert.ok(!item.required.includes("difficulty"));
+  // enum 仍然保留：檢定選項填的值一樣由供應商端保證在合法清單裡。
+  assert.ok(Array.isArray(item.properties.attribute.enum));
+});
+
+test("TURN_RESPONSE_SCHEMA：思維鏈 st_thought 是必填，而且排在 narration 之前", () => {
+  // 結構化輸出按 properties 的順序生成欄位，所以「先想再寫」只有在它真的排前面時才成立。
+  const keys = Object.keys(TURN_RESPONSE_SCHEMA.properties);
+  assert.ok(TURN_RESPONSE_SCHEMA.required.includes("st_thought"));
+  assert.ok(keys.indexOf("st_thought") < keys.indexOf("narration"));
+});
+
+test("純敘事選項不會被前端的骰池顯示邏輯誤讀(attribute 是 null，不是空字串或未定義)", () => {
+  // 前端用 opt.requiresCheck === false 決定要不要畫「屬性+技能 DC 骰池」那一行。
+  // 這裡把資料形狀釘死：null 是明確的「這一格不存在」，undefined 會讓
+  // `opt.attribute ?? 1` 這類寫法悄悄算出一個假的骰池。
+  const { option } = validateOption(
+    { label: "深呼吸一下", hint: "想穩住自己", requiresCheck: false },
+    demoCharacter()
+  );
+  assert.strictEqual(option.attribute, null);
+  assert.ok("dc" in option && option.dc === null);
 });

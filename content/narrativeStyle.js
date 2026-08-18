@@ -148,6 +148,84 @@ export const STYLE_IDS = Object.keys(STYLE_PROFILES);
 // 要換回中性的基準線就把這個常數改成 "標準"，或設環境變數 NARRATIVE_STYLE。
 export const DEFAULT_STYLE_ID = "白描";
 
+// ---------------------------------------------------------------------------
+// [設計 2026-08-18] 敘事者人格面具（Persona）—— 文筆層底下再拆一層。
+//
+// 起因是測玩回饋：「每一輪讀起來都是同一個聲音」。STYLE_PROFILES 解決的是「怎麼寫」
+// （句子長短、修辭密度、禁用詞），但它沒有回答「**誰**在寫」。同一份白描規範，
+// 由一個冷眼旁觀的裁判來講、跟由一個剛從通風管爬出來的倖存者來講，讀起來應該是
+// 兩個人——現在少的正是這一層。
+//
+// 面具跟文筆設定檔的分工（這條要守住，不然兩張表會愈長愈像）：
+//   STYLE_PROFILES  = 句法與修辭的規範（可以套在任何一個面具上）
+//   NARRATOR_PERSONAS = 敘事者是誰、他在乎什麼、他用什麼態度看待玩家的死活
+//
+// 面具**一樣屬於文筆層**：它只影響語氣與取鏡，不影響任何數值、不影響判定結果的解釋權。
+// 所以它跟 STYLE_PROFILES 走同一條組裝路線（buildStylePrompt -> composeSystemInstruction），
+// 最終仍然排在規則契約之前，最後一句仍然是「以規則契約為準」。
+// ---------------------------------------------------------------------------
+
+export const NARRATOR_PERSONAS = {
+  RUTHLESS_JUDGE: {
+    key: "RUTHLESS_JUDGE",
+    label: "主神的冷酷裁判",
+    description: "主神空間的執行者視角。冷酷、簡練，永遠在提醒玩家代價與死亡。",
+    instruction: `敘事者人格面具：【主神的冷酷裁判】
+你是主神空間派來執行規則的那個聲音，不是玩家的隊友。
+- 態度：絕對中立到近乎冷酷。玩家活著或死掉對你沒有差別，你只負責把發生的事說出來。
+- 句子短、資訊密度高，不鋪陳情緒，不安慰、不鼓勵、不替玩家打氣。
+- 每一段都要讓「代價」被看見：花掉的時間、留下的痕跡、身上多出來的傷、少掉的退路。
+- 死亡氣息是背景常數：屍體、血跡、失效的設備、上一批人留下的東西，寫進場景細節裡，
+  不要寫成感嘆句。
+- 禁止對玩家的行動下道德評價，也禁止預告他會不會成功——那是骰子的事，不是你的事。`,
+  },
+
+  GENTLE_GOD: {
+    key: "GENTLE_GOD",
+    label: "溫柔的異界神明",
+    description: "俯瞰這場輪迴的旁觀者。悲憫、疏離，語氣接近詠嘆調。",
+    instruction: `敘事者人格面具：【溫柔的異界神明】
+你是俯瞰這場輪迴的旁觀者，看過太多輪迴者走到同一個結局，因此對眼前這一個懷有悲憫。
+- 視角略微拉遠：先看見這個人在這個空間裡的位置，再看見他做了什麼。
+- 語氣如詠嘆調：從容、悠長，允許一次帶著距離感的停頓，但不要濫情，也不要說教。
+- 悲憫寫在**選擇的重量**上，不寫在形容詞上：把他失去的東西、他來不及做的事，
+  用具體的物件與時間點呈現，不要直接說「多麼令人惋惜」。
+- 你可以憐憫，但不可以插手：不提示正確解法、不預告危險、不替玩家做決定。
+- 禁止使用神明第一人稱自稱或跟玩家對話——你只是看著，不出聲。`,
+  },
+
+  PANIC_SURVIVOR: {
+    key: "PANIC_SURVIVOR",
+    label: "崩潰的倖存者",
+    description: "同一場輪迴裡另一個快撐不住的人。神經質、急促，只看得見陰影與血。",
+    instruction: `敘事者人格面具：【崩潰的倖存者】
+你是同一場輪迴裡另一個還沒死的人，正在用最後一點理智記錄眼前的東西。
+- 節奏急促：短句為主，資訊一次給一件，讀起來像在喘氣。
+- 注意力是壞掉的：優先寫陰影、聲音的來源、血跡的形狀、關不上的門，
+  而不是完整的空間全貌——你看不清楚，也不敢看清楚。
+- 允許寫細節的過度放大（一顆掉在地上的鈕扣、牆上乾掉的手印），那正是這個面具的特徵。
+- 禁止替玩家決定他的情緒（他害不害怕是玩家的事），你只負責讓場景本身壓迫他。
+- 就算你自己快崩潰了，也**不可以扭曲事實**：判定結果、傷勢、數字一律照引擎給的寫。`,
+  },
+};
+
+export const PERSONA_KEYS = Object.keys(NARRATOR_PERSONAS);
+// 預設用冷酷裁判——那是《無限恐怖》主神空間最接近原作的敘事聲音。
+// 要換就設環境變數 NARRATOR_PERSONA，或在前端設定裡選（跟 NARRATIVE_STYLE 同一個層級）。
+export const DEFAULT_PERSONA_KEY = "RUTHLESS_JUDGE";
+
+/** 取出一個面具設定；key 是 null/undefined 時退回預設，不認得的 key 一律丟錯（不靜默吞掉）。 */
+export function getPersona(personaKey) {
+  const key = personaKey ?? DEFAULT_PERSONA_KEY;
+  const persona = NARRATOR_PERSONAS[key];
+  if (!persona) {
+    throw new Error(
+      `未知的敘事者人格面具「${key}」，可用的有：${PERSONA_KEYS.join(" / ")}`
+    );
+  }
+  return persona;
+}
+
 /**
  * 寫你自己的文筆提示詞時，建議涵蓋的面向。
  *
@@ -205,10 +283,111 @@ export const UNIVERSAL_STYLE_RULES = `通用敘事守則（不論採用何種文
 出現其他路線或新的威脅），讓局勢往複雜化的方向移動。`;
 
 /**
+ * 定向要求 —— 「玩家看不到你的prompt，只看得到你寫的敘事」。
+ *
+ * 這一段原本寫在 content/turnOptions.js 的 buildOptionsSpec() 裡，2026-08-18 搬到這裡。
+ * 理由是它根本不是「選項規格」的一部分：它約束的是**敘事怎麼寫**，跟AI要產幾個選項
+ * 沒有任何關係。留在那裡的後果是換文筆/換面具時不會有人想到要一起檢查它，
+ * 而它正是測玩回饋「我完全摸不清狀況」的那條規則。
+ *
+ * 現在它由 buildStylePrompt() 統一帶進系統提示，不論用哪個面具、哪個文筆設定檔都在。
+ */
+export const ORIENTATION_RULES = `【定向要求：玩家看不到你的prompt，只看得到你寫的敘事】
+每一段敘事都必須讓一個**中途才開始看**的玩家搞清楚三件事，缺一不可：
+1. 他人在哪裡（具體位置：哪一層、哪個艙室、旁邊有什麼），不要只寫氛圍。
+2. 他現在**為什麼**在這裡，也就是眼前這一步是在追求什麼。
+3. 下一步可以往哪裡去（至少要有一個明確的方向、目標物或阻礙被指名）。
+只有氣氛、沒有這三件事的敘事一律算寫壞了——玩家的反應會是「我完全摸不清狀況，
+只好看哪個選項數字大就按哪個」，那就是這一回合失敗了。`;
+
+/**
+ * 活場法 + 防全知 —— 「畫面怎麼長出來」與「敘事者知道多少」。
+ *
+ * [2026-08-18 新增] 來源是使用者提供的 SillyTavern 預設（Monster_Hone v1.4）裡的
+ * <活场法> 與 <防全知> 兩個區塊，改寫成本專案的用語後收進文筆層。
+ *
+ * 為什麼值得單獨成一塊、而不是塞進某個 STYLE_PROFILES：
+ *   - 它跟句法規範（白描檔那種黑名單）是兩件事：黑名單管「不要寫成那樣」，
+ *     這一塊管「畫面要從哪裡長出來」，換文筆設定檔的時候不該把它一起換掉。
+ *   - 「防全知」尤其重要，而且它**看起來像規則、其實是文筆**：引擎給的判定結果是事實，
+ *     但「玩家角色當下知不知道這件事」是取鏡問題。失敗不等於敘事者要當場報出正確答案。
+ *
+ * 分界線：這一塊完全不碰數字，也不改判定結果的解釋權，所以留在文筆層。
+ * 「失敗要付出什麼代價」是規則層的事，寫在 core/narration.js 的 OUTCOME_TIERS，不寫在這裡。
+ */
+export const LIVE_SCENE_RULES = `【活場法：用畫面說話，不要用旁白貼標籤】
+- 鏡頭先給具體的東西：怪物在哪裡、環境剛剛變了什麼、NPC 的手在做什麼。
+  不要寫「氣氛變得緊張」，改寫「天花板的通風管口滴下一滴黏稠的液體，落在腳邊的鐵板上」。
+- 場面要從**人與物**身上長出來，不要從敘事者的總結長出來。玩家該從細節推論出結論，
+  而不是讀到你替他寫好的結論。
+- NPC 的對白要符合他此刻的處境：短促、喘、答非所問、被恐懼或憤怒截斷。
+  不要讓瀕死的人講出完整工整的長句。
+
+【防全知：你只寫玩家感官範圍內的東西】
+- 玩家角色沒看到、沒聽到、沒摸到的事，不可以直接寫出來，也不可以提前暴雷。
+- 判定失敗時**不要替玩家把真相講白**。不要寫「異形發現了你」，
+  要寫「黑暗裡傳來金屬被緩慢刮過的聲音，某種溫熱的氣息噴在你的後頸上」。
+- 引擎給的判定結果是事實，你不能改；但「玩家角色當下知道多少」由你控制——
+  用感官細節去暗示，讓玩家自己拼出來。
+- 不要替玩家角色進行他做不到的觀察（隔著牆看見另一個房間、聽見沒有聲音的東西）。`
+
+/**
+ * 組出**完整的文筆層**：人格面具 + 文筆設定檔 + 活場法/防全知 + 通用敘事守則 + 定向要求。
+ *
+ * 這是文筆層唯一的組裝入口，composeSystemInstruction() 內部也走它，
+ * 所以「換面具」與「換文筆」永遠是同一條路徑，不會有兩份長得不一樣的文筆提示。
+ * 回傳的字串**不含任何規則契約**——組進系統提示的順序由 composeSystemInstruction() 負責。
+ *
+ * @param {string} [personaKey] NARRATOR_PERSONAS 的 key，省略時用 DEFAULT_PERSONA_KEY
+ * @param {object} [options]
+ * @param {string} [options.styleId] 內建文筆設定檔，預設 DEFAULT_STYLE_ID
+ * @param {string} [options.customStyle] 自訂文筆提示詞（有傳就取代內建設定檔）
+ * @param {boolean} [options.includeUniversalRules] 是否附上通用敘事守則，預設 true
+ * @param {boolean} [options.includeOrientation] 是否附上定向要求與活場法/防全知，預設 true
+ * @param {string[]} [options.characterHints] 角色純敘事型專長的性格傾向描述
+ * @returns {string}
+ */
+export function buildStylePrompt(
+  personaKey,
+  {
+    styleId = DEFAULT_STYLE_ID,
+    customStyle,
+    includeUniversalRules = true,
+    includeOrientation = true,
+    characterHints = [],
+  } = {}
+) {
+  const persona = getPersona(personaKey);
+
+  const style = customStyle ?? STYLE_PROFILES[styleId]?.instruction;
+  if (!style) {
+    throw new Error(
+      `未知的文筆設定檔「${styleId}」，可用的有：${STYLE_IDS.join(" / ")}，` +
+        `或改用 customStyle 直接傳入你自己的文筆提示詞`
+    );
+  }
+
+  // 面具排在文筆設定檔**之前**：先決定「誰在說話」，再套「他怎麼寫字」。
+  const parts = [persona.instruction, style];
+  if (characterHints.length > 0) {
+    parts.push(
+      `角色性格提示（只是這個角色的反應傾向，不是規則，也不強制玩家怎麼選）：\n` +
+        characterHints.map((h) => `- ${h}`).join("\n")
+    );
+  }
+  parts.push(LIVE_SCENE_RULES);
+  if (includeUniversalRules) parts.push(UNIVERSAL_STYLE_RULES);
+  if (includeOrientation) parts.push(ORIENTATION_RULES);
+
+  return parts.join("\n\n");
+}
+
+/**
  * 把「文筆層」與「規則契約層」組成一段完整的系統提示。
  *
  * @param {object} params
  * @param {string} params.rulesContract 規則契約層，直接傳 promptContract.js 的 SYSTEM_INSTRUCTION
+ * @param {string} [params.personaKey] 敘事者人格面具，見 NARRATOR_PERSONAS，預設 DEFAULT_PERSONA_KEY
  * @param {string} [params.styleId] 使用哪個內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [params.customStyle] 你自己的文筆提示詞。有傳的話就用這個，不用內建的
  * @param {boolean} [params.includeUniversalRules] 是否附上通用敘事守則，預設 true
@@ -220,6 +399,7 @@ export const UNIVERSAL_STYLE_RULES = `通用敘事守則（不論採用何種文
  */
 export function composeSystemInstruction({
   rulesContract,
+  personaKey,
   styleId = DEFAULT_STYLE_ID,
   customStyle,
   includeUniversalRules = true,
@@ -229,22 +409,11 @@ export function composeSystemInstruction({
     throw new Error("composeSystemInstruction需要rulesContract(規則契約層，見promptContract.js)");
   }
 
-  const style = customStyle ?? STYLE_PROFILES[styleId]?.instruction;
-  if (!style) {
-    throw new Error(
-      `未知的文筆設定檔「${styleId}」，可用的有：${STYLE_IDS.join(" / ")}，` +
-        `或改用 customStyle 直接傳入你自己的文筆提示詞`
-    );
-  }
-
-  const parts = [style];
-  if (characterHints.length > 0) {
-    parts.push(
-      `角色性格提示（只是這個角色的反應傾向，不是規則，也不強制玩家怎麼選）：\n` +
-        characterHints.map((h) => `- ${h}`).join("\n")
-    );
-  }
-  if (includeUniversalRules) parts.push(UNIVERSAL_STYLE_RULES);
+  // 文筆層整段交給 buildStylePrompt()（面具 + 文筆 + 活場法 + 通用守則 + 定向要求），
+  // 這裡只負責「文筆在前、規則契約在後、最後宣告優先序」這個順序。
+  const parts = [
+    buildStylePrompt(personaKey, { styleId, customStyle, includeUniversalRules, characterHints }),
+  ];
 
   // 規則契約放最後，並且明確宣告優先序 —— 順序本身就是防線的一部分，不要調換。
   parts.push(rulesContract);

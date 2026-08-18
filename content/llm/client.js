@@ -250,6 +250,37 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
 // Gemini原生格式（generateContent）
 // ---------------------------------------------------------------------------
 
+/**
+ * Gemini 專用：替每一層 object 補上 propertyOrdering。
+ *
+ * [2026-08-18] 為什麼需要這個：這個專案的回合 schema 把思維鏈 st_thought 排在 narration
+ * 之前，用意是逼模型「先盤算再下筆」（見 content/turnOptions.js 的 TURN_RESPONSE_SCHEMA）。
+ * 但 JSON Schema 的 properties 在 Gemini 眼裡是**無序**的，只有 propertyOrdering 才會被
+ * 當成生成順序——沒有這一步，「先想再寫」在 Gemini 上就只是我們自己以為有效。
+ *
+ * 只在 Gemini 這條線路做：OpenAI 相容端點對 schema 的多餘關鍵字有可能直接回 400，
+ * 那會讓整個結構化輸出退回關閉狀態（見底下的 shouldRetryWithoutSchema），
+ * 為了一個它們不看的欄位冒這個險不划算。
+ *
+ * 純函式，不修改傳進來的 schema。
+ */
+function withPropertyOrdering(schema) {
+  if (Array.isArray(schema)) return schema.map(withPropertyOrdering);
+  if (!schema || typeof schema !== "object") return schema;
+
+  const next = { ...schema };
+  if (next.items) next.items = withPropertyOrdering(next.items);
+  if (next.properties && typeof next.properties === "object") {
+    const keys = Object.keys(next.properties);
+    next.properties = Object.fromEntries(
+      keys.map((k) => [k, withPropertyOrdering(next.properties[k])])
+    );
+    // 已經自己指定順序的 schema 不覆蓋——那是作者刻意寫的，比我們推的準。
+    if (!next.propertyOrdering) next.propertyOrdering = keys;
+  }
+  return next;
+}
+
 async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch }) {
   if (!cfg.apiKey) {
     throw new LlmError(
@@ -260,6 +291,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
   }
 
   const useSchema = responseSchema && cfg.jsonMode === "gemini-schema";
+  const orderedSchema = useSchema ? withPropertyOrdering(responseSchema) : null;
 
   const buildBody = (withSchema) => ({
     system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
@@ -269,7 +301,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
     generationConfig: {
       maxOutputTokens: maxTokens,
       ...(withSchema
-        ? { responseMimeType: "application/json", responseSchema }
+        ? { responseMimeType: "application/json", responseSchema: orderedSchema }
         : {}),
     },
   });

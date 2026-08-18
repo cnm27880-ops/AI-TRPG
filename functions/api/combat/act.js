@@ -18,6 +18,7 @@ import {
   combatOptions,
 } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
+import { buildCombatNarrationPrompt } from "../../../content/gemini/promptContract.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
 import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
 import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
@@ -115,11 +116,19 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: err.message }, 400);
   }
 
+  // 這一輪敵人的意圖預告在玩家出手之前就已經抽好了（見 encounterState.js 的 advanceTurn）。
+  // 先抓下來：底下組敘事 prompt 時要用它當背景，而 combat.currentTelegraph 在敵人反擊
+  // 跨到下一輪時就會被換成新的一句。
+  const telegraphThisRound = combat.currentTelegraph ?? null;
+
   appendEvent(session.log, EVENT_TYPES.COMBAT_ACTION, {
     actor: "player",
     weaponKey,
     hit: playerAttack.hit,
     damage: playerAttack.finalDamage ?? 0,
+    // 傷害嚴重度標籤：事件日誌是餵給AI的事實記憶，戰後那一輪的敘事要寫得出
+    // 「打斷了牠的哪隻手」就得靠它（見 core/combat/resolveCombatAction.js）。
+    damageSeverityTag: playerAttack.damageSeverityTag ?? null,
   });
 
   let enemyAttack = null;
@@ -134,6 +143,7 @@ export async function onRequestPost(context) {
       weaponKey: combat.enemy.weaponKey,
       hit: enemyAttack.hit,
       damage: enemyAttack.finalDamage ?? 0,
+      damageSeverityTag: enemyAttack.damageSeverityTag ?? null,
     });
   }
 
@@ -250,6 +260,37 @@ export async function onRequestPost(context) {
     options: combatOptions(combat, session.character),
     playerAttack,
     enemyAttack,
+    // 這一輪的意圖預告（玩家出手前抽的那一句）與下一輪的預告。前端把後者顯示在畫面上，
+    // 玩家在按下一次攻擊之前就看得到敵人正在做什麼（見 Phase 5.3 任務5）。
+    telegraph: telegraphThisRound,
+    nextTelegraph: combat.currentTelegraph ?? null,
+    // 這一輪要餵給AI的戰鬥敘事指令（含傷害嚴重度標籤與意圖預告）。
+    // 引擎組好給呼叫端用，不讓每個呼叫端各自拼一次（見 Phase 5.3 任務4）。
+    narrationPrompts: [
+      buildCombatNarrationPrompt({
+        attackerLabel: "你",
+        targetLabel: combat.enemy.name,
+        weaponLabel: weaponKey,
+        hit: playerAttack.hit,
+        damage: playerAttack.finalDamage ?? 0,
+        damageSeverityTag: playerAttack.damageSeverityTag,
+        round: combat.round,
+      }),
+      ...(enemyAttack
+        ? [
+            buildCombatNarrationPrompt({
+              attackerLabel: combat.enemy.name,
+              targetLabel: "你",
+              weaponLabel: combat.enemy.weaponKey,
+              hit: enemyAttack.hit,
+              damage: enemyAttack.finalDamage ?? 0,
+              damageSeverityTag: enemyAttack.damageSeverityTag,
+              telegraph: telegraphThisRound,
+              round: combat.round,
+            }),
+          ]
+        : []),
+    ],
     // 這次行動跨輪時發生的型態事件(付了維持成本、或付不出來而斷氣)。
     // 不回給前端的話，玩家會看到防御突然變低卻沒有任何訊息——那正是本專案一再抓到的
     // 「引擎做了事但畫面上不存在」，只是這次是反過來：引擎收走了東西。

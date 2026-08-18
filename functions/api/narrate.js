@@ -15,6 +15,7 @@
 //   LLM_BASE_URL   接第三方OpenAI相容中轉時使用
 //   GEMINI_API_KEY / DEEPSEEK_API_KEY / OPENROUTER_API_KEY / LLM_API_KEY
 //   NARRATIVE_STYLE 文筆設定檔名稱（見 content/narrativeStyle.js 的 STYLE_PROFILES）
+//   NARRATOR_PERSONA 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）
 //
 // 什麼金鑰都沒設定時，會退到 Cloudflare Workers AI（免金鑰，靠 wrangler.toml 的 [ai] binding），
 // 讓你不用先申請任何東西就能把整條鏈路跑起來。細節見 LLM_PROVIDERS.md。
@@ -26,7 +27,11 @@ import { inferCheckParams } from "../../content/checkIntent.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
-import { composeSystemInstruction, DEFAULT_STYLE_ID } from "../../content/narrativeStyle.js";
+import {
+  composeSystemInstruction,
+  DEFAULT_STYLE_ID,
+  DEFAULT_PERSONA_KEY,
+} from "../../content/narrativeStyle.js";
 
 /**
  * 跟 functions/api/turn.js 的 logLlmFailure() 是同一件事。
@@ -63,6 +68,7 @@ export async function onRequestPost(context) {
     sceneContext,
     recentEvents,
     style,
+    persona,
     provider: bodyProvider,
     apiKey: bodyApiKey,
     baseUrl: bodyBaseUrl,
@@ -125,6 +131,8 @@ export async function onRequestPost(context) {
   try {
     systemInstruction = composeSystemInstruction({
       rulesContract: SYSTEM_INSTRUCTION,
+      // 敘事者人格面具，跟文筆設定檔同一個優先序：body > 環境變數 > 預設。
+      personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
       styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
     });
   } catch (err) {
@@ -132,6 +140,7 @@ export async function onRequestPost(context) {
   }
 
   const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents });
+
 
   try {
     const { text, model } = await callLlm({

@@ -434,7 +434,36 @@ test("結構化輸出：Gemini 用 generationConfig 的 responseMimeType + respo
   await callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "k" }, prompt: "x", responseSchema: SCHEMA, fetchFn: ff });
   const sent = JSON.parse(ff.calls[0].options.body);
   assert.equal(sent.generationConfig.responseMimeType, "application/json");
-  assert.deepEqual(sent.generationConfig.responseSchema, SCHEMA);
+  assert.equal(sent.generationConfig.responseSchema.type, "object");
+  assert.deepEqual(sent.generationConfig.responseSchema.properties, SCHEMA.properties);
+});
+
+test("結構化輸出：Gemini 會補上 propertyOrdering(欄位順序在它眼裡不是靠 properties 決定的)", async () => {
+  // 這是「思維鏈要排在敘事之前」能不能成立的關鍵：沒有 propertyOrdering，
+  // Gemini 不保證先生成 st_thought，那條「先盤算再下筆」的設計就只是我們自己以為有效。
+  const ff = fakeFetch(GEMINI_OK);
+  const schema = {
+    type: "object",
+    properties: {
+      st_thought: { type: "string" },
+      narration: { type: "string" },
+      options: { type: "array", items: { type: "object", properties: { label: { type: "string" }, hint: { type: "string" } } } },
+    },
+  };
+  await callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "k" }, prompt: "x", responseSchema: schema, fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body).generationConfig.responseSchema;
+
+  assert.deepEqual(sent.propertyOrdering, ["st_thought", "narration", "options"]);
+  assert.deepEqual(sent.properties.options.items.propertyOrdering, ["label", "hint"], "巢狀的物件也要補");
+  // 原本那份 schema 不可以被就地改掉（它是模組層級的常數，被改到就會汙染其他呼叫端）。
+  assert.equal(schema.propertyOrdering, undefined);
+});
+
+test("結構化輸出：OpenAI 相容端點不加 propertyOrdering(多餘關鍵字有機會被直接回400)", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", responseSchema: SCHEMA, fetchFn: ff });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  assert.equal(sent.response_format.json_schema.schema.propertyOrdering, undefined);
 });
 
 test("結構化輸出：Workers AI 用 response_format.json_schema", async () => {

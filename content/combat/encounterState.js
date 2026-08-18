@@ -99,13 +99,35 @@ export function combatOptions(combat, character) {
 }
 
 /**
+ * [設計 2026-08-18] 抽一句敵人的意圖預告（見 Phase 5.3 任務5）。
+ *
+ * 抽取時機是**每一輪開始、玩家選行動之前**（createEncounter 與 advanceTurn 跨輪那一刻），
+ * 所以玩家按下攻擊鍵之前就看得到「牠正在做什麼」——按完才知道等於沒有預告。
+ *
+ * pickFn 是依賴注入的隨機來源，跟戰鬥骰子的 rollFn 同一個約定：測試要能鎖住結果，
+ * 不然這個功能只能靠肉眼看畫面驗證。預設用 Math.random，敵人沒有 telegraphs 資料
+ * （舊的敵人樣板、echoInstitute 的 bossEncounter）就回 null——沒有預告不是錯誤，
+ * 只是那隻怪還沒寫預告文案，戰鬥照常進行。
+ *
+ * @param {string[]} [telegraphs]
+ * @param {() => number} [pickFn] 回傳 [0,1) 的亂數
+ * @returns {string | null}
+ */
+export function pickTelegraph(telegraphs, pickFn = Math.random) {
+  if (!Array.isArray(telegraphs) || telegraphs.length === 0) return null;
+  const index = Math.min(telegraphs.length - 1, Math.max(0, Math.floor(pickFn() * telegraphs.length)));
+  return telegraphs[index];
+}
+
+/**
  * 建立一場新的戰鬥遭遇。雙方各擲一次先攻，決定行動順序。
  * @param {object} character 玩家角色卡（core/schema.js 形狀，需要 attributes/skills/derived.hp）
  * @param {object} [enemyTemplate] 預設用 PLACEHOLDER_ENEMY
- * @param {{ forms?: object }} [opts] forms：content/shop/forms.js 的型態狀態。
+ * @param {{ forms?: object, pickFn?: Function }} [opts] forms：content/shop/forms.js 的型態狀態。
  *   帶進來的話，戰鬥中的變身會扣它、也會由它到期；不帶就是一份空的。
+ *   pickFn：抽敵人意圖預告用的亂數來源（測試用依賴注入，見 pickTelegraph）。
  */
-export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY, { forms } = {}) {
+export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY, { forms, pickFn } = {}) {
   // 開戰當下就先驗武器，不要等到敵人第一次揮拳才炸——那時候戰鬥已經寫進存檔了，
   // 玩家會卡在一場永遠打不下去的戰鬥裡（見 /api/combat/act 的錯誤處理）。
   if (!PLACEHOLDER_WEAPONS[enemyTemplate.weaponKey]) {
@@ -152,7 +174,12 @@ export function createEncounter(character, enemyTemplate = PLACEHOLDER_ENEMY, { 
       armor: enemyTemplate.armor ?? 0,
       hpState: createHpState(enemyDerived.hp.max),
       budget: createActionBudget(),
+      // 意圖預告的文案跟著戰鬥狀態一起進存檔：續戰的玩家（重整頁面回來）也要看得到
+      // 同一隻敵人的預告，不能因為敵人樣板是從別的地方查來的就變成空的。
+      telegraphs: enemyTemplate.telegraphs ?? [],
     },
+    // 這一輪敵人的意圖預告。**第一輪在這裡就先抽好**，玩家開戰後第一次做決定之前就看得到。
+    currentTelegraph: pickTelegraph(enemyTemplate.telegraphs, pickFn ?? Math.random),
     log: [],
   };
 }
@@ -177,7 +204,7 @@ export function isCombatOver(combat) {
  *   跟 resolveFormActivation() 回傳 character 是同一個約定。沒有存回去的話，
  *   維持成本會每輪都「扣了但沒扣」，型態就變成免費的。
  */
-function advanceTurn(combat, character) {
+function advanceTurn(combat, character, { pickFn } = {}) {
   const nextIndex = (combat.turnIndex + 1) % combat.order.length;
   combat.turnIndex = nextIndex;
   if (nextIndex !== 0) return character;
@@ -185,6 +212,9 @@ function advanceTurn(combat, character) {
   combat.round += 1;
   combat.player.budget = createActionBudget();
   combat.enemy.budget = createActionBudget();
+  // 新的一輪＝新的意圖預告。抽在這裡（而不是敵人攻擊完之後）是刻意的：
+  // 這一行執行完，行動順位才回到玩家身上，所以玩家永遠是「先看到預告，再決定要做什麼」。
+  combat.currentTelegraph = pickTelegraph(combat.enemy.telegraphs, pickFn ?? Math.random);
   // 型態的唯一「輪」時鐘就在這裡。新的一輪開始時才結算到期，所以「持續1輪」的型態
   // 在啟動的那一輪內完整有效，下一輪開始才消失。
   const ticked = tickFormsOnRound(combat.forms, combat.round);
@@ -269,7 +299,7 @@ export function resolveFormActivation(combat, character, formId, { amount = null
  * @param {object} character 玩家角色卡
  * @param {keyof PLACEHOLDER_WEAPONS} weaponKey
  */
-export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {}) {
+export function resolvePlayerAttack(combat, character, weaponKey, { rollFn, pickFn } = {}) {
   if (!combat.active) throw new Error("戰鬥已經結束");
   if (combat.order[combat.turnIndex] !== "player") throw new Error("現在不是玩家的行動順位");
 
@@ -309,7 +339,7 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
 
   const status = finalizeIfOver(combat);
   // 回傳的 character 可能因為維持成本而變(見 advanceTurn)，呼叫端要存回去。
-  const nextCharacter = status.over ? character : advanceTurn(combat, character);
+  const nextCharacter = status.over ? character : advanceTurn(combat, character, { pickFn });
 
   return { result, combat, character: nextCharacter };
 }
@@ -318,7 +348,7 @@ export function resolvePlayerAttack(combat, character, weaponKey, { rollFn } = {
  * 敵人攻擊玩家（固定行為：用自己配備的武器攻擊）。呼叫端要先確認輪到敵人行動。
  * 回傳的 result.newHpState 要由呼叫端同步回 character.derived.hp（這個模組不改角色卡本身）。
  */
-export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
+export function resolveEnemyAttack(combat, character, { rollFn, pickFn } = {}) {
   if (!combat.active) throw new Error("戰鬥已經結束");
   if (combat.order[combat.turnIndex] !== "enemy") throw new Error("現在不是敵人的行動順位");
 
@@ -355,7 +385,7 @@ export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
   combat.log.push({ actor: "enemy", weaponKey: weapon.key, ...summarizeResult(result) });
 
   const status = finalizeIfOver(combat);
-  const nextCharacter = status.over ? character : advanceTurn(combat, character);
+  const nextCharacter = status.over ? character : advanceTurn(combat, character, { pickFn });
 
   return { result, combat, character: nextCharacter };
 }
@@ -369,11 +399,11 @@ export function resolveEnemyAttack(combat, character, { rollFn } = {}) {
  * 敵人攻擊都可能跨過一輪的界線，而跨過界線就要收維持成本。回傳陣列的話那筆扣款無處可去。
  * @returns {{ results: object[], character: object }}
  */
-export function resolveLeadingEnemyTurns(combat, character, { rollFn } = {}) {
+export function resolveLeadingEnemyTurns(combat, character, { rollFn, pickFn } = {}) {
   const results = [];
   let current = character;
   while (combat.active && combat.order[combat.turnIndex] === "enemy") {
-    const attack = resolveEnemyAttack(combat, current, { rollFn });
+    const attack = resolveEnemyAttack(combat, current, { rollFn, pickFn });
     current = attack.character;
     results.push(attack.result);
   }
@@ -385,5 +415,9 @@ function summarizeResult(result) {
     hit: result.hit,
     damage: result.finalDamage,
     rawSuccesses: result.attackResult?.rawSuccesses ?? null,
+    // 傷害嚴重度標籤（core/combat/resolveCombatAction.js 算的）。寫進戰鬥紀錄是為了讓
+    // 前端的戰鬥log與之後餵給AI的戰鬥摘要拿得到同一份文字，不用各自再推論一次。
+    damageSeverity: result.damageSeverity ?? null,
+    damageSeverityTag: result.damageSeverityTag ?? null,
   };
 }
