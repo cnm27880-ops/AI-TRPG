@@ -88,7 +88,7 @@ export const PROVIDERS = {
 
   // --- SiliconFlow 硅基流動（聚合平台，有一批常駐免費模型） ---
   siliconflow: {
-    label: "SiliconFlow 硅基流動（含免費模型）",
+    label: "SiliconFlow 硅基流動 ",
     protocol: PROTOCOLS.OPENAI_CHAT,
     // 查證2026-08-16官方 quickstart：https://docs.siliconflow.com/en/userguide/quickstart
     // 官方英文站給的是 .com；另有 .cn 站(api.siliconflow.cn/v1)，兩邊帳號與金鑰是分開的。
@@ -121,7 +121,7 @@ export const PROVIDERS = {
 
   // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
   nvidia: {
-    label: "NVIDIA NIM（build.nvidia.com，免費無總量上限）",
+    label: "NVIDIA NIM",
     protocol: PROTOCOLS.OPENAI_CHAT,
     baseUrl: "https://integrate.api.nvidia.com/v1",
     // 查證當下(2026-08-16)幾個適合「敘事+嚴格JSON輸出」的候選：
@@ -139,7 +139,7 @@ export const PROVIDERS = {
 
   // --- OpenRouter（第三方聚合，一把金鑰打很多家模型） ---
   openrouter: {
-    label: "OpenRouter（聚合，含免費模型）",
+    label: "OpenRouter",
     protocol: PROTOCOLS.OPENAI_CHAT,
     baseUrl: "https://openrouter.ai/api/v1",
     defaultModel: "z-ai/glm-5.2:free",
@@ -153,7 +153,7 @@ export const PROVIDERS = {
 
   // --- Cloudflare Workers AI（免金鑰，靠部署平台的binding） ---
   "workers-ai": {
-    label: "Cloudflare Workers AI（免金鑰）",
+    label: "Cloudflare Workers AI（免費）",
     protocol: PROTOCOLS.WORKERS_AI,
     baseUrl: null, // 不走HTTP，走 env.AI binding
     // [決策記錄 2026-08-15] 原本這裡是 "@cf/meta/llama-3.1-8b-instruct"，實際部署到Cloudflare
