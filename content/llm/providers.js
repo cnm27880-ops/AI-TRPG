@@ -98,8 +98,8 @@ export const PROVIDERS = {
     // [注意] 免費模型清單會輪替，這個值是查證當下(2026-08-16)第三方追蹤站列出的常駐免費模型之一。
     // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
     // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
-    defaultModel: "Qwen/Qwen3-8B",
-    apiKeyEnv: "SILICONFLOW_API_KEY",
+    defaultModel: "Qwen/Qwen3.5-397B-A17B",
+    apiKeyEnv: "sk-qvbekxpvxjjwihmtjgjjbxnoczuerofopzyvdiicbnmjjhju",
     docs: "https://docs.siliconflow.com/en/userguide/quickstart",
     // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
     // 500 RPM / 2,000,000 TPM，而且 L0~L5 六個用量級別完全相同——官方文件說
