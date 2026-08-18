@@ -54,6 +54,31 @@ function legendaryAttributeBonus(val) {
   return Math.max(0, Math.floor((val - 1) / 5));
 }
 
+// --- 屬性／技能小磚的視覺換算 ---------------------------------------------
+// 兩者共用同一條刻度：5 是建卡的上限，也是玩家心裡「滿級」的那條線。
+// 傳奇屬性（>5）不會把軌道撐爆，改成整條填滿再多亮幾顆點——
+// 「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是看起來一樣滿。
+const STAT_TILE_SCALE = 5;
+
+/** 等級軌要填多高。回傳可以直接塞進 CSS 的百分比字串。 */
+function levelPercent(value) {
+  const pct = Math.max(0, Math.min(1, (Number(value) || 0) / STAT_TILE_SCALE)) * 100;
+  return `${pct}%`;
+}
+
+/** 等級點：滿刻度五顆，超出的部分用不同顏色接在後面。 */
+function pipTrackHtml(value) {
+  const lv = Math.max(0, Number(value) || 0);
+  const pips = [];
+  for (let i = 1; i <= STAT_TILE_SCALE; i++) {
+    pips.push(`<span class="pip ${i <= lv ? "pip-on" : ""}"></span>`);
+  }
+  for (let i = STAT_TILE_SCALE + 1; i <= lv; i++) {
+    pips.push(`<span class="pip pip-over"></span>`);
+  }
+  return `<span class="pip-track">${pips.join("")}</span>`;
+}
+
 // --- 建卡初始化 ---
 // ===========================================================================
 // 建卡 —— 五題問答 + 甦醒（見 content/chargen/lifePath.js 與 awakening.js）
@@ -507,11 +532,17 @@ function adoptCharacter(charData) {
   document.getElementById("attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
     const val = charData.attributes[key] || 1;
     const bonus = legendaryAttributeBonus(val);
-    const bonusTag = bonus > 0 ? `<span class="text-emerald-300 text-[10px] align-top ml-0.5">+${bonus}★</span>` : "";
+    const bonusTag = bonus > 0 ? `<span class="stat-tile-star">+${bonus}★</span>` : "";
     return `
-      <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center gap-2 font-mono">
-        <span class="text-zinc-400 text-[11px] leading-tight">${en}<br><span class="text-zinc-500 text-[10px]">${key}</span></span>
-        <span class="font-bold text-zinc-100 text-lg leading-none">${val}${bonusTag}</span>
+      <div class="stat-tile stat-tile-rail pl-3 pr-2.5 py-1.5 rounded space-y-1" style="--lv-pct:${levelPercent(val)}">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="stat-tile-en">${en}</span>
+          <span class="stat-tile-value">${val}${bonusTag}</span>
+        </div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="stat-tile-cn">${key}</span>
+          ${pipTrackHtml(val)}
+        </div>
       </div>`;
   }).join("");
 
@@ -519,12 +550,16 @@ function adoptCharacter(charData) {
   document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => {
     const specs = charData.specializations?.[skill];
     const specText = Array.isArray(specs) && specs.length
-      ? `<span class="text-[9px] text-zinc-500 ml-1">(${specs.map(escapeHtml).join("、")})</span>`
+      ? `<span class="stat-tile-cn ml-1">(${specs.map(escapeHtml).join("、")})</span>`
       : "";
     return `
-    <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center font-mono text-xs">
-      <span class="text-zinc-300">${escapeHtml(skill)}${specText}</span>
-      <span class="font-bold ${lv > 0 ? 'text-emerald-300' : 'text-zinc-500'}">${lv}</span>
+    <div class="stat-tile stat-tile-rail ${lv > 0 ? "" : "stat-tile-empty"} pl-3 pr-2.5 py-1.5 rounded flex justify-between items-center gap-2"
+         style="--lv-pct:${levelPercent(lv)}">
+      <span class="text-xs text-zinc-300 truncate">${escapeHtml(skill)}${specText}</span>
+      <span class="flex items-center gap-2 shrink-0">
+        ${pipTrackHtml(lv)}
+        <span class="font-mono font-bold text-sm ${lv > 0 ? "text-emerald-300" : "text-zinc-500"}">${lv}</span>
+      </span>
     </div>`;
   }).join("");
 
@@ -727,7 +762,7 @@ function showNarratorPending() {
     `</div>` +
     `<div data-pending-hint class="text-[10px] text-zinc-400"></div>`;
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
 
   const startedAt = Date.now();
   pendingTimer = setInterval(() => {
@@ -1061,7 +1096,7 @@ function appendTurnError(message, res) {
     if (lastTurnRequest) runTurn(lastTurnRequest);
   });
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
 }
 
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
@@ -1366,7 +1401,29 @@ function appendFeedBlock(title, content, extraClass = "") {
   block.className = `space-y-1 feed-block-enter ${extraClass}`;
   block.innerHTML = `<div class="text-[11px] font-bold opacity-80 font-mono">${title}</div><div>${content}</div>`;
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
+}
+
+/**
+ * 把故事流捲到最底。
+ *
+ * [2026-08-18 修正] 以前每個呼叫點都是直接寫 `feed.scrollTop = feed.scrollHeight`，
+ * 而且是在剛 appendChild 完的同一個 tick 就算。那個時間點量到的高度不一定是最後的高度——
+ * 送出回合時底部輸入列的按鈕會換成「書寫中」而變高、選項列同時被鎖住重繪，
+ * 故事流的可視高度接著被壓縮，於是「剛剛捲到的底」就不再是底，最後一塊只露出半條。
+ *
+ * 改成排到下一個影格再捲：那時版面已經重算完，量到的才是真的高度。
+ * 為了不讓玩家在等待期間看到畫面先跳一下再跳第二下，同一個影格內只捲一次。
+ */
+let feedScrollQueued = false;
+function scrollFeedToBottom() {
+  if (feedScrollQueued) return;
+  feedScrollQueued = true;
+  requestAnimationFrame(() => {
+    feedScrollQueued = false;
+    const feed = document.getElementById("story-feed");
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1430,24 +1487,103 @@ function escapeHtml(str) {
 }
 
 // 僅將故事最後一句 DM 提問標記為翡翠綠引導條 + 粗體白字
-function renderNarrationHtml(text) {
-  const trimmed = String(text || "").trim();
-  const lastQ = Math.max(trimmed.lastIndexOf("？"), trimmed.lastIndexOf("?"));
-  if (lastQ === -1) return escapeHtml(trimmed);
+// ---------------------------------------------------------------------------
+// 敘事排版
+//
+// [2026-08-18] 使用者回報（逐字）：「除了最開始固定的故事開頭之外，後續的AI回覆
+// 都沒有長短段落交錯，全部都擠在一團，看起來很難閱讀」。
+//
+// 真正的修法在提示詞那一層（content/narrativeStyle.js 的 PACING_RULES 現在有一節
+// 【分段與換行】），因為只有模型知道哪裡該斷。但那是「請模型配合」，不是保證——
+// 便宜或小的模型常常整段吐回來一坨字，而玩家換模型是這個專案的核心功能之一。
+// 所以這裡再補一層前端的保險：模型有分段就完全照它的分段，一行都不動；
+// 真的一個換行都沒有回，才由前端按句子把它切開。切開的品質一定不如模型自己分的，
+// 但「還算能讀」永遠好過「一整團」。
+// ---------------------------------------------------------------------------
 
-  const tail = trimmed.slice(lastQ + 1).trim();
-  if (tail.length > 2) return escapeHtml(trimmed); // 問號不在段落結尾，維持純文字
+/** 短於這個長度就不自動切——三兩句話本來就該是一段。 */
+const AUTO_PARAGRAPH_MIN_LENGTH = 150;
+
+/**
+ * 自動分段時，每一段至少要累積到幾個字才收尾。
+ * 兩個值輪流用，切出來才會是「長段、短段、長段、短段」的節奏，
+ * 而不是一排長度一模一樣的方塊——後者讀起來跟一整團字沒有差多少。
+ */
+const AUTO_PARAGRAPH_LENGTHS = [110, 55];
+
+/** 把一段沒有任何換行的長文字按句子切成長短交錯的段落。 */
+function autoParagraphs(text) {
+  if (text.length < AUTO_PARAGRAPH_MIN_LENGTH) return [text];
+
+  // 句尾標點後面可能還跟著收尾的引號括號，要一起帶走，不然「」會被切到下一段開頭。
+  const sentences = text.match(/[^。！？!?…]*[。！？!?…]+[」』）)"']*|[^。！？!?…]+$/g);
+  if (!sentences || sentences.length < 2) return [text];
+
+  const paragraphs = [];
+  let current = "";
+  let turn = 0;
+  for (const sentence of sentences) {
+    current += sentence;
+    if (current.length >= AUTO_PARAGRAPH_LENGTHS[turn % AUTO_PARAGRAPH_LENGTHS.length]) {
+      paragraphs.push(current.trim());
+      current = "";
+      turn++;
+    }
+  }
+  // 收尾不足一段的殘句併回前一段，避免最後留下一句孤零零的碎片。
+  if (current.trim()) {
+    if (paragraphs.length > 0 && current.trim().length < 18) paragraphs[paragraphs.length - 1] += current.trim();
+    else paragraphs.push(current.trim());
+  }
+  return paragraphs.length > 0 ? paragraphs : [text];
+}
+
+/** 敘事切成段落：模型有分段就照它的，沒有才自己切。 */
+function splitNarrationParagraphs(text) {
+  const byBlankLine = text.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (byBlankLine.length > 1) return byBlankLine;
+
+  // 只用單換行分段的模型也不少，一樣算它有分段。
+  const byLine = text.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (byLine.length > 1) return byLine;
+
+  return autoParagraphs(text);
+}
+
+/**
+ * 把最後一段裡「丟回給玩家的那個問句」拆出來單獨標示。
+ * @returns {{ body: string, question: string } | null} 不是以問句收尾就回傳 null
+ */
+function splitTrailingQuestion(paragraph) {
+  const lastQ = Math.max(paragraph.lastIndexOf("？"), paragraph.lastIndexOf("?"));
+  if (lastQ === -1) return null;
+  if (paragraph.slice(lastQ + 1).trim().length > 2) return null; // 問號不在結尾，不是收束句
 
   let start = 0;
-  for (const punct of ["。", "！", "\n"]) {
-    const idx = trimmed.lastIndexOf(punct, lastQ - 1);
+  for (const punct of ["。", "！", "!"]) {
+    const idx = paragraph.lastIndexOf(punct, lastQ - 1);
     if (idx + 1 > start) start = idx + 1;
   }
+  return { body: paragraph.slice(0, start).trim(), question: paragraph.slice(start, lastQ + 1).trim() };
+}
 
-  const before = trimmed.slice(0, start).trim();
-  const question = trimmed.slice(start, lastQ + 1).trim();
-  const beforeHtml = before ? `<div>${escapeHtml(before)}</div>` : "";
-  return `${beforeHtml}<div class="feed-final-question"><strong>${escapeHtml(question)}</strong></div>`;
+function renderNarrationHtml(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+
+  const paragraphs = splitNarrationParagraphs(trimmed);
+  const last = paragraphs[paragraphs.length - 1];
+  const tail = splitTrailingQuestion(last);
+
+  const blocks = paragraphs.slice(0, -1).map((para) => `<p class="feed-para">${escapeHtml(para)}</p>`);
+  if (!tail) {
+    blocks.push(`<p class="feed-para">${escapeHtml(last)}</p>`);
+    return blocks.join("");
+  }
+
+  if (tail.body) blocks.push(`<p class="feed-para">${escapeHtml(tail.body)}</p>`);
+  blocks.push(`<div class="feed-final-question"><strong>${escapeHtml(tail.question)}</strong></div>`);
+  return blocks.join("");
 }
 
 // 新提問出現後，卸除故事流中先前的引導條高亮（僅保留最新一則）

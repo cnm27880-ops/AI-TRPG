@@ -113,15 +113,59 @@
             box-shadow: 0 0 16px rgba(16,185,129,0.2) !important;
         }
 
-        /* 屬性/技能/特質小磚 */
+        /* ================= 屬性／技能／特質小磚 =================
+           [2026-08-18 改版] 原本只是「一個灰框加兩段文字」，六個屬性排在一起就是六個
+           一模一樣的灰方塊，得逐個把數字讀完才知道自己哪一項強、哪一項弱——
+           使用者的說法是「屬性跟技能的格子太樸素了」。
+
+           加了三個都在傳遞資訊、而不是純裝飾的東西：
+             1) 左緣的等級軌：填滿的高度就是等級比例，掃一眼就看得出高低分布
+             2) 底下的等級點：把數值再表達一次，適合「3 和 4 差多少」這種比較
+             3) 分兩行的排版：英文縮寫與數值一行、中文與等級點一行，欄寬用得完
+           前兩個都跟著同一個數值走，沒有任何一個需要另外維護。 */
         .stat-tile {
             position: relative;
-            background: rgba(24, 24, 27, 0.65);
+            overflow: hidden;
+            background:
+                linear-gradient(150deg, rgba(255,255,255,.055), rgba(255,255,255,0) 60%),
+                rgba(24, 24, 27, 0.72);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 6px;
-            transition: all .2s ease;
+            transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease, background-color .2s ease;
         }
         .stat-tile:hover { border-color: rgba(16,185,129,.45); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+        /* 左緣等級軌。--lv-pct 由 public/app.js 依數值算好後用 inline style 帶進來。
+           ::before 是軌道、::after 是填滿的部分——順序不能顛倒，後宣告的那個才會蓋在上面。 */
+        .stat-tile-rail::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: rgba(255,255,255,.07);
+        }
+        .stat-tile-rail::after {
+            content: ''; position: absolute; left: 0; bottom: 0; width: 3px;
+            height: var(--lv-pct, 0%);
+            background: linear-gradient(0deg, var(--accent), var(--accent-alt));
+            box-shadow: 0 0 8px rgba(16,185,129,.45);
+            transition: height .35s cubic-bezier(.2,.8,.2,1);
+        }
+        /* 未受訓（0級）的技能：整格壓暗，讓「這一項我沒有」在餘光裡就分得出來 */
+        .stat-tile-empty { opacity: .62; }
+        .stat-tile-empty::after { box-shadow: none; }
+
+        .stat-tile-en { font-size: .68rem; font-weight: 700; letter-spacing: .12em; color: var(--ink-400); }
+        .stat-tile-cn { font-size: .64rem; color: var(--ink-500); letter-spacing: .04em; }
+        .stat-tile-value {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 700; line-height: 1;
+            color: var(--ink-100);
+        }
+        .stat-tile-star { font-size: .6rem; font-weight: 700; color: var(--accent); vertical-align: top; margin-left: .1rem; }
+
+        /* 等級點：五顆是建卡上限那條線，超過的（傳奇屬性）多畫幾顆並換色——
+           「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是同樣一排滿點。 */
+        .pip-track { display: inline-flex; gap: 3px; align-items: center; }
+        .pip { width: 6px; height: 6px; border-radius: 1px; background: rgba(255,255,255,.16); }
+        .pip-on { background: var(--accent); box-shadow: 0 0 5px rgba(16,185,129,.45); }
+        .pip-over { background: #facc15; box-shadow: 0 0 5px rgba(250,204,21,.5); }
 
         /* 生命傷勢軌分段 */
         .hp-seg { border-radius: 2px; transition: background-color .3s ease; }
@@ -132,11 +176,21 @@
 
         /* 故事流 */
         #story-feed { border-left: 2px solid rgba(16,185,129,0.2); margin-left: 4px; padding-left: 1.25rem !important; }
+        /* [2026-08-18 修正] 故事流是 flex-col 的可捲動容器，而 flex 子項預設 flex-shrink:1。
+           內容一超出高度，瀏覽器就會**把每一塊都壓扁**去湊高度，而不是讓容器捲動——
+           被壓扁的區塊內容不會跟著縮，於是文字直接溢出自己的框；
+           「說書人書寫中」那一塊還額外有 overflow:hidden（掃描線動畫要用），
+           所以它是最明顯的受害者：整條被切掉一半，看起來就像跑版。
+           一律不准壓縮，超出的部分老老實實交給捲軸。 */
+        #story-feed > * { flex-shrink: 0; }
         .feed-block-dm { line-height: 1.75; font-weight: 600; }
+        /* 敘事段落之間的呼吸空間。刻意比行距大一截——1.75 的行距底下，
+           段落間距要拉得夠開才看得出「這裡換了一段」，不然分了段也還是一整片。 */
+        .feed-para + .feed-para { margin-top: 0.9em; }
         .feed-final-question {
             border-left: 2px solid var(--accent);
             padding: 0.15rem 0 0.15rem 0.75rem;
-            margin-top: 0.5rem;
+            margin-top: 0.9em;
         }
         .feed-final-question strong { color: var(--ink-100); font-weight: 600; }
 
@@ -215,8 +269,12 @@
         .action-tile:active { transform: translateY(0); }
         .action-tile-icon { font-size: 1.35rem; color: #34d399; filter: drop-shadow(0 0 6px rgba(16,185,129,.4)); transition: transform .2s ease; }
         .action-tile:hover .action-tile-icon { transform: scale(1.1); }
-        .action-tile-label { font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: #f4f4f5; }
-        .action-tile-sub { font-size: .68rem; color: #a1a1aa; }
+        /* [2026-08-18 對比度修正] 這兩行以前寫死 #f4f4f5 / #a1a1aa，那是「深色底上的字」的顏色。
+           淺色主題整段沒有覆寫，於是主選單的「建立新檔案 / 讀取存檔 / 系統設定」
+           變成白底上的白字——按鈕整顆看起來是空的，只剩下面那行小字看得到。
+           改成吃主題變數，兩個主題各自拿到正確的墨色，之後新增主題也不用再補一次。 */
+        .action-tile-label { font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: var(--ink-100); }
+        .action-tile-sub { font-size: .68rem; color: var(--ink-400); }
         .action-tile.primary {
             border-color: rgba(16,185,129,.4);
             background: linear-gradient(160deg, rgba(16,185,129,.12), rgba(24,24,27,.75));
@@ -252,6 +310,25 @@
         @keyframes typingBlink { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
 
         /* 掃描線：讓「等待中」這件事在餘光裡也看得見，不必盯著小字 */
+        /* [2026-08-18 修正] 這個區塊原本就只是故事流最後面的一個普通子項，
+           送出回合的當下同時發生三件事：底部輸入列的按鈕換成「書寫中」而變高、
+           選項列被鎖住、這個區塊被插進來。捲到底的動作跑在版面重算之前，
+           於是它常常只露出上面半條，被故事流的下緣切掉——使用者說的「說書人書寫中會跑掉」。
+
+           改成 sticky 貼在故事流可視區的底部：不管捲軸在哪裡、外框怎麼變高變矮，
+           它永遠完整地待在故事流的最下面。等待狀態本來就該是「一直看得到」的東西，
+           而不是一段會被捲走的內容。 */
+        #narrator-pending {
+            position: sticky; bottom: 0; z-index: 5;
+            margin-top: auto;
+            /* 底色一定要不透明：貼在上層之後，半透明的底會讓下面的敘事透出來跟它疊在一起。
+               原本的淡綠色調改用 background-image 疊一層，這樣底色與色調可以並存。 */
+            background-color: var(--bg-void);
+            background-image: linear-gradient(0deg, rgba(16,185,129,.07), rgba(16,185,129,.07));
+        }
+        html[data-theme="light"] #narrator-pending {
+            background-image: linear-gradient(0deg, rgba(37,99,235,.06), rgba(37,99,235,.06));
+        }
         .pending-sweep { position: relative; overflow: hidden; }
         .pending-sweep::after {
             content: ''; position: absolute; inset: 0;
@@ -280,8 +357,36 @@
         .threat-pip.on-3 { background: #fb923c; border-color: #fb923c; }
         .threat-pip.on-4 { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.6); }
 
-        .modal-panel { transform: scale(.96) translateY(6px); opacity: 0; transition: all .25s ease; }
+        /* [2026-08-18 修正] 視窗高度不夠時，設定視窗會整個往上下超出畫面——
+           上緣的「介面色彩主題」被切掉、下緣的「儲存設定」按鈕根本按不到，
+           而且外層是 fixed 的遮罩，整頁也捲不動，等於卡死。
+           （選了「自訂」供應商時會多出金鑰／Base URL／模型三組欄位，一定會超出。）
+
+           修法：所有 modal 面板一律是「上限高度 + 內部捲動」的直向 flex。
+           面板高度封頂在可視高度扣掉遮罩的 p-4 留白，內容區自己長捲軸，
+           標題列與底部按鈕列則釘在上下不動。dvh 讓手機上網址列縮放時也算得對。 */
+        .modal-panel {
+            transform: scale(.96) translateY(6px); opacity: 0; transition: all .25s ease;
+            display: flex; flex-direction: column;
+            max-height: calc(100vh - 2rem);
+            max-height: calc(100dvh - 2rem);
+        }
         .modal-backdrop.modal-open .modal-panel { transform: scale(1) translateY(0); opacity: 1; }
+        /* 面板裡真正會長高的那一段。min-height:0 是必要的——flex 子項的預設
+           min-height:auto 會讓它拒絕縮小，overflow 就永遠不會生效。 */
+        /* 面板的其他直接子項（標題列、底部按鈕列）一律不縮：面板一旦被高度上限壓到，
+           預設的 flex-shrink:1 會把它們一起壓扁，變成標題跟按鈕互相疊在一起。 */
+        .modal-panel > * { flex-shrink: 0; }
+
+        /* 同一個坑的另一處：主選單是 overflow-y-auto + justify-center 的直向 flex。
+           內容比視窗高的時候（登入提示 + 檢測到存檔 + 三塊功能磚一起出現），
+           justify-center 會把溢出的部分往「捲動範圍之外」推，上緣被切掉而且捲不回去。
+           auto margin 置中沒有這個毛病：空間不夠時 auto 會塌成 0，自動退化成靠上對齊。 */
+        #portal-screen { justify-content: flex-start; }
+        #portal-screen > :first-child { margin-top: auto; }
+        #portal-screen > :last-child { margin-bottom: auto; }
+        #portal-screen > * { flex-shrink: 0; }
+        .modal-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 
         .section-tag {
             display: inline-flex; align-items: center; gap: .35rem;
@@ -351,8 +456,10 @@
             --bg-panel: #ffffff;
             --bg-card: #ffffff;
             --ink-100: #0f172a;
-            --ink-400: #64748b;
-            --ink-500: #94a3b8;
+            /* 這兩階與下方 .text-zinc-400 / .text-zinc-500 的覆寫值一致（7.4:1 / 4.6:1）。
+               先前是 #64748b / #94a3b8，後者在白底上只有 2.6:1，低於 WCAG AA。 */
+            --ink-400: #475569;
+            --ink-500: #64748b;
             --accent: #2563eb;
             --accent-alt: #1d4ed8;
             --danger: #dc2626;
@@ -371,123 +478,216 @@
         html[data-theme="light"] .hairline-t { border-top-color: rgba(15,23,42,0.1); }
         html[data-theme="light"] .hairline-r { border-right-color: rgba(15,23,42,0.1); }
 
+        /* ================= 淺色主題的顏色對照表（單一來源） =================
+           [2026-08-18 重寫] 這一段以前是分三輪補出來的：先補純色、再補一部分透明度變體，
+           每次都只補「當下看到壞掉的那幾個」，於是永遠有漏網的（使用者最後一次回報的
+           主選單白字、主神掃描面板的淡紫字、商店的琥珀/天藍字都在漏網名單裡）。
+
+           現在改成一次把**畫面上真的有用到的每一個顏色工具**都列出來（來源是對
+           public/index.html 與 public/app.js 直接掃 class 字串），並且照色系分組。
+           新增一個顏色類別時請同時在這裡補一行——這是唯一的規則。
+
+           色系對照（深色 → 淺色）：
+             emerald 綠（主色）→ #2563eb 藍          violet 紫 → #6d28d9
+             yellow/amber 黃 → #b45309 琥珀           orange 橘 → #c2410c
+             red 紅 → #b91c1c                        rose 玫瑰 → #be123c
+             sky 天藍 → #0369a1                      cyan 青 → #0e7490
+           全部都是在白底上 ≥4.5:1（WCAG AA）的深色版本。
+
+           一條重要原則：**淺色主題不用透明度做文字層次**。深色主題可以靠
+           「亮字 × 透明度」拉出層次，白底上同樣的做法只會讓字越來越接近背景。
+           所以所有 /70、/80、/90 的文字變體在這裡一律拉回不透明的深色，層次改用
+           字級與粗細表達。底色與邊框則相反——它們本來就該是很淡的一層，維持透明度。 */
+
+        /* ---- 底色：深色主題的各級「更暗的面」在淺色主題全部收斂成白/極淺灰 ---- */
         html[data-theme="light"] .bg-zinc-950,
         html[data-theme="light"] .bg-zinc-900,
         html[data-theme="light"] .bg-zinc-800,
         html[data-theme="light"] .bg-zinc-700,
         html[data-theme="light"] .bg-panel { background-color: #ffffff; }
-        html[data-theme="light"] .hover\:bg-zinc-800:hover { background-color: #f1f5f9; }
+        html[data-theme="light"] .bg-panel\/70 { background-color: rgba(255,255,255,.7); }
+        html[data-theme="light"] .bg-zinc-700\/40,
+        html[data-theme="light"] .bg-zinc-700\/60 { background-color: #e2e8f0; }
+        html[data-theme="light"] .hover\:bg-zinc-800:hover,
+        html[data-theme="light"] .hover\:bg-zinc-700:hover,
+        html[data-theme="light"] .hover\:bg-zinc-700\/60:hover { background-color: #f1f5f9; }
+        html[data-theme="light"] .bg-zinc-950\/40,
         html[data-theme="light"] .bg-zinc-950\/60,
         html[data-theme="light"] .bg-zinc-900\/50,
         html[data-theme="light"] .bg-zinc-900\/30 { background-color: #f8fafc; }
         html[data-theme="light"] .bg-zinc-950\/90,
         html[data-theme="light"] .bg-zinc-950\/95 { background-color: rgba(255,255,255,0.95); }
 
+        /* ---- 中性文字：往下壓一級，讓每一階在白底上都站得住 ----
+           #1e293b 13:1 / #334155 10:1 / #475569 7.4:1 / #64748b 4.6:1
+           placeholder 與 zinc-700 維持較淺是刻意的——它們本來就該比實際內容弱一階。 */
         html[data-theme="light"] .text-zinc-100,
         html[data-theme="light"] .text-white { color: #0f172a; }
         html[data-theme="light"] .text-zinc-200 { color: #1e293b; }
         html[data-theme="light"] .text-zinc-300 { color: #334155; }
-        /* [2026-08-16 對比度修正] 這兩級原本是 #64748b / #94a3b8，在白底上分別約 4.6:1 與 2.6:1。
-           後者用在設定視窗的說明小字、劇情HUD的進度文字上，實際是讀不清楚的（低於 WCAG AA 的 4.5:1）。
-           整體往下壓一級：#475569 約 7.4:1、#64748b 約 4.6:1，兩者都站得住。
-           placeholder 維持較淺是刻意的——它本來就該比實際輸入的文字弱一階。 */
+        html[data-theme="light"] .hover\:text-zinc-200:hover { color: #1e293b; }
         html[data-theme="light"] .text-zinc-400 { color: #475569; }
-        html[data-theme="light"] .text-zinc-500 { color: #64748b; }
+        /* zinc-500/600 在深色主題都是「更暗的註解灰」；淺色主題不能照抄那個relation，
+           但也不該淡到讀不出來——兩級都收在 4.6:1 這條線上。 */
+        html[data-theme="light"] .text-zinc-500,
+        html[data-theme="light"] .text-zinc-600 { color: #64748b; }
+        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
+           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
+        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
         html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #94a3b8; }
+        html[data-theme="light"] .border-zinc-600,
+        html[data-theme="light"] .border-zinc-700,
+        html[data-theme="light"] .border-zinc-700\/60,
+        html[data-theme="light"] .border-zinc-800 { border-color: #e2e8f0; }
 
+        /* ---- emerald 綠（主色）→ 藍 ---- */
         html[data-theme="light"] .text-emerald-200,
+        html[data-theme="light"] .text-emerald-200\/80,
         html[data-theme="light"] .text-emerald-200\/85,
+        html[data-theme="light"] .text-emerald-200\/90,
         html[data-theme="light"] .text-emerald-300,
+        html[data-theme="light"] .text-emerald-300\/70,
         html[data-theme="light"] .text-emerald-300\/90,
         html[data-theme="light"] .text-emerald-400,
-        html[data-theme="light"] .text-emerald-500 { color: #2563eb; }
+        html[data-theme="light"] .text-emerald-400\/80,
+        html[data-theme="light"] .text-emerald-500,
+        html[data-theme="light"] .hover\:text-emerald-200:hover,
+        html[data-theme="light"] .hover\:text-emerald-300:hover { color: #2563eb; }
+        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
+        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
+        html[data-theme="light"] .text-emerald-500\/25 { color: rgba(37,99,235,.25); }
 
+        html[data-theme="light"] .bg-emerald-400 { background-color: #2563eb; }
+        html[data-theme="light"] .bg-emerald-500\/\[0\.04\],
+        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.05); }
         html[data-theme="light"] .bg-emerald-500\/10,
         html[data-theme="light"] .bg-emerald-500\/15,
-        html[data-theme="light"] .bg-emerald-500\/20 { background-color: rgba(37,99,235,.08); }
+        html[data-theme="light"] .bg-emerald-500\/20,
+        html[data-theme="light"] .bg-emerald-500\/25,
+        html[data-theme="light"] .bg-emerald-500\/30 { background-color: rgba(37,99,235,.09); }
         html[data-theme="light"] .hover\:bg-emerald-500\/20:hover,
-        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.14); }
+        html[data-theme="light"] .hover\:bg-emerald-500\/25:hover,
+        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.16); }
         html[data-theme="light"] .border-emerald-500,
+        html[data-theme="light"] .border-emerald-500\/60,
         html[data-theme="light"] .border-emerald-500\/50,
         html[data-theme="light"] .border-emerald-500\/40,
-        html[data-theme="light"] .border-emerald-500\/30 { border-color: rgba(37,99,235,.35); }
+        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .border-emerald-500\/30,
+        html[data-theme="light"] .border-emerald-500\/20,
+        html[data-theme="light"] .border-emerald-500\/15 { border-color: rgba(37,99,235,.25); }
+        html[data-theme="light"] .hover\:border-emerald-500\/40:hover,
+        html[data-theme="light"] .hover\:border-emerald-500\/50:hover { border-color: rgba(37,99,235,.5); }
 
-        /* --- 警告色（黃）在淺色主題的處理 ---------------------------------
-           [2026-08-16] 淺色主題原本只把 emerald 換成藍，**完全沒有處理黃色**，
-           於是所有警告都維持深色主題的亮黃：yellow-300(#fde047) 落在白底上對比度約 1.2:1，
-           幾乎讀不到；而且保底標籤、未受訓提示、存檔警告條、劇情提示同時都是整塊亮黃，
-           整個版面變得很吵。
-
-           作法分兩層，跟使用者的要求一致（「部分提示字是黃色就好」）：
-             文字 → 改用琥珀色 #b45309，白底對比度約 5.9:1，過 WCAG AA
-             底色與邊框 → 幾乎去掉，換成近乎中性的淺灰面，只留一點點暖調
-           這樣「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
+        /* ---- 警告色（黃／琥珀）----------------------------------------------
+           深色主題的亮黃 yellow-300(#fde047) 落在白底上只有約 1.2:1，幾乎讀不到；
+           而且保底標籤、未受訓提示、存檔警告條、商店價格同時都是整塊亮黃，版面會很吵。
+           文字改用琥珀 #b45309（5.9:1），底色幾乎去掉只留一點暖調——
+           「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
         html[data-theme="light"] .text-yellow-200,
         html[data-theme="light"] .text-yellow-200\/80,
         html[data-theme="light"] .text-yellow-300,
         html[data-theme="light"] .text-yellow-300\/80,
         html[data-theme="light"] .text-yellow-300\/90,
-        html[data-theme="light"] .text-yellow-400 { color: #b45309; }
+        html[data-theme="light"] .text-yellow-400,
+        html[data-theme="light"] .text-yellow-500,
+        html[data-theme="light"] .text-amber-200,
+        html[data-theme="light"] .text-amber-300,
+        html[data-theme="light"] .text-amber-300\/80,
+        html[data-theme="light"] .text-amber-300\/90 { color: #b45309; }
 
         html[data-theme="light"] .bg-yellow-500\/5,
-        html[data-theme="light"] .bg-yellow-500\/10 { background-color: #fafaf9; }
+        html[data-theme="light"] .bg-yellow-500\/10,
+        html[data-theme="light"] .bg-amber-500\/10 { background-color: #fdf6ec; }
+        html[data-theme="light"] .bg-amber-500\/20,
+        html[data-theme="light"] .bg-amber-500\/30 { background-color: rgba(180,83,9,.14); }
+        html[data-theme="light"] .hover\:bg-amber-500\/20:hover,
+        html[data-theme="light"] .hover\:bg-amber-500\/30:hover { background-color: rgba(180,83,9,.2); }
         html[data-theme="light"] .border-yellow-500\/30,
-        html[data-theme="light"] .border-yellow-500\/40 { border-color: rgba(180,83,9,.28); }
+        html[data-theme="light"] .border-yellow-500\/40,
+        html[data-theme="light"] .border-amber-500\/40,
+        html[data-theme="light"] .border-amber-500\/50 { border-color: rgba(180,83,9,.28); }
 
-        /* 橘（時間吃緊）比照辦理，否則同一條 HUD 上黃橘紅三色會一起出現 */
-        html[data-theme="light"] .text-orange-300 { color: #c2410c; }
-        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fafaf9; }
+        /* ---- 橘（時間吃緊）：跟黃分開，否則同一條 HUD 上黃橘紅會糊成一片 ---- */
+        html[data-theme="light"] .text-orange-200\/90,
+        html[data-theme="light"] .text-orange-300,
+        html[data-theme="light"] .text-orange-300\/90 { color: #c2410c; }
+        html[data-theme="light"] .bg-orange-500\/5,
+        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fff7ed; }
+        html[data-theme="light"] .border-orange-500\/30,
         html[data-theme="light"] .border-orange-500\/40 { border-color: rgba(194,65,12,.28); }
 
-        /* 紅色系：yellow 同樣的理由，深色主題的亮紅在白底上偏刺眼且對比不足 */
+        /* ---- 紅（傷害／死亡／錯誤）與玫瑰（惡德）---- */
         html[data-theme="light"] .text-red-200,
         html[data-theme="light"] .text-red-300,
-        html[data-theme="light"] .text-red-400 { color: #b91c1c; }
+        html[data-theme="light"] .text-red-400,
+        html[data-theme="light"] .hover\:text-red-400:hover { color: #b91c1c; }
+        html[data-theme="light"] .text-rose-200,
+        html[data-theme="light"] .text-rose-300 { color: #be123c; }
         html[data-theme="light"] .bg-red-500\/5,
-        html[data-theme="light"] .bg-red-500\/10 { background-color: #fef7f7; }
+        html[data-theme="light"] .bg-red-500\/10,
+        html[data-theme="light"] .bg-rose-500\/10 { background-color: #fef5f5; }
+        html[data-theme="light"] .bg-red-500\/20,
+        html[data-theme="light"] .hover\:bg-red-500\/20:hover { background-color: rgba(185,28,28,.12); }
+        html[data-theme="light"] .border-red-500\/30,
         html[data-theme="light"] .border-red-500\/40,
-        html[data-theme="light"] .border-red-500\/30 { border-color: rgba(185,28,28,.28); }
+        html[data-theme="light"] .border-red-500\/50,
+        html[data-theme="light"] .border-red-400\/50,
+        html[data-theme="light"] .hover\:border-red-500\/40:hover,
+        html[data-theme="light"] .hover\:border-red-500\/50:hover { border-color: rgba(185,28,28,.3); }
+        html[data-theme="light"] .border-rose-500\/30,
+        html[data-theme="light"] .border-rose-500\/40 { border-color: rgba(190,18,60,.3); }
 
-        /* --- [2026-08-16 第二輪對比度修正] ------------------------------------
-           上一輪只處理了「純色」的工具類（text-emerald-300、text-yellow-300…），
-           但畫面上真正用得最多的其實是**帶透明度的變體**（text-emerald-300\/70、
-           text-emerald-200\/80…）。那些變體沒有被覆寫，於是在淺色主題底下維持深色主題的
-           亮綠再乘上透明度，落在白底上大多只有 1.5~2.5:1 —— 使用者回報的「明亮風格有些地方
-           文字對比度沒調好，黑暗風格就沒問題」正是這一批。
-           （受影響的實際位置：說書人書寫中的秒數、輪迴者行動那行斜體、副本簡介、迫近度提示。）
-
-           作法跟上一輪一致：綠→藍、橘→深橘、紫→深紫，透明度變體一律拉回不透明的深色，
-           因為在白底上「用透明度做層次」本來就行不通——層次改用字級與粗細做。 */
-        html[data-theme="light"] .text-emerald-200\/80,
-        html[data-theme="light"] .text-emerald-200\/90,
-        html[data-theme="light"] .text-emerald-300\/70,
-        html[data-theme="light"] .text-emerald-400\/80 { color: #2563eb; }
-        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
-        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
-        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.06); }
-        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.4); }
-
-        html[data-theme="light"] .text-orange-200\/90 { color: #c2410c; }
-        html[data-theme="light"] .bg-orange-500\/5 { background-color: #fffbf7; }
-        html[data-theme="light"] .border-orange-500\/30 { border-color: rgba(194,65,12,.28); }
-
-        /* 紫（純敘事型專長的標記色）在白底上同樣要壓深，否則跟淺灰幾乎分不出來 */
+        /* ---- 紫（主神系統／特性／型態）----
+           主神掃描面板整塊都是紫系：標題 violet-300、內文 violet-100、
+           五句引用 violet-200/70、結語 violet-200/90。淺色主題以前只覆寫了
+           violet-200 與 violet-300 兩個純色，於是那塊面板上真正的內文全部是淡紫色
+           落在淡紫底上，等於一片空白——使用者截圖裡讀不到字的就是這一塊。 */
         html[data-theme="light"] .text-violet-200,
-        html[data-theme="light"] .text-violet-300 { color: #6d28d9; }
-        html[data-theme="light"] .bg-violet-500\/10 { background-color: #faf5ff; }
+        html[data-theme="light"] .text-violet-200\/70,
+        html[data-theme="light"] .text-violet-200\/90,
+        html[data-theme="light"] .text-violet-300,
+        html[data-theme="light"] .text-violet-300\/80,
+        html[data-theme="light"] .hover\:text-violet-200:hover { color: #6d28d9; }
+        /* violet-100 是面板主要內文，底又是淡紫，要比標題再深一階才拉得開 */
+        html[data-theme="light"] .text-violet-100 { color: #4c1d95; }
+        html[data-theme="light"] .bg-violet-500\/\[0\.07\],
+        html[data-theme="light"] .bg-violet-500\/10 { background-color: #f7f3ff; }
+        html[data-theme="light"] .bg-violet-500\/20,
+        html[data-theme="light"] .bg-violet-500\/30 { background-color: rgba(109,40,217,.12); }
+        html[data-theme="light"] .hover\:bg-violet-500\/20:hover,
+        html[data-theme="light"] .hover\:bg-violet-500\/30:hover { background-color: rgba(109,40,217,.18); }
+        html[data-theme="light"] .border-violet-400,
+        html[data-theme="light"] .border-violet-500\/50,
+        html[data-theme="light"] .border-violet-500\/40,
+        html[data-theme="light"] .hover\:border-violet-400:hover { border-color: rgba(109,40,217,.4); }
         html[data-theme="light"] .border-violet-500\/30,
-        html[data-theme="light"] .border-violet-500\/40 { border-color: rgba(109,40,217,.3); }
+        html[data-theme="light"] .border-violet-500\/25 { border-color: rgba(109,40,217,.25); }
 
-        html[data-theme="light"] .border-red-400\/50 { border-color: rgba(185,28,28,.35); }
-
-        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
-           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
-        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
+        /* ---- 天藍（休息／無需檢定／吸收）與青（支線代幣）---- */
+        html[data-theme="light"] .text-sky-300,
+        html[data-theme="light"] .text-sky-300\/80 { color: #0369a1; }
+        html[data-theme="light"] .text-cyan-300 { color: #0e7490; }
+        html[data-theme="light"] .bg-sky-500\/10 { background-color: #f0f9ff; }
+        html[data-theme="light"] .bg-sky-500\/20,
+        html[data-theme="light"] .hover\:bg-sky-500\/20:hover { background-color: rgba(3,105,161,.12); }
+        html[data-theme="light"] .border-sky-500\/40 { border-color: rgba(3,105,161,.3); }
 
         html[data-theme="light"] .hud-box { background: #ffffff; border-color: rgba(15,23,42,.1); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
         html[data-theme="light"] .hud-float { background: rgba(255,255,255,0.9); border-right-color: rgba(15,23,42,.08); }
-        html[data-theme="light"] .stat-tile { background: #ffffff; border-color: rgba(15,23,42,.08); box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .stat-tile {
+            background: linear-gradient(150deg, rgba(15,23,42,.03), rgba(255,255,255,0) 60%), #ffffff;
+            border-color: rgba(15,23,42,.08);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); box-shadow: 0 4px 12px rgba(15,23,42,.08); }
+        html[data-theme="light"] .stat-tile-rail::before { background: rgba(15,23,42,.08); }
+        html[data-theme="light"] .stat-tile-rail::after { box-shadow: 0 0 8px rgba(37,99,235,.3); }
+        /* 只覆寫「沒點亮」的那幾顆——直接寫 .pip 的話，這條 (0,2,0) 的特異度會蓋過
+           點亮用的 .pip-on (0,1,0)，淺色主題下整排點就會全部變成灰的。 */
+        html[data-theme="light"] .pip:not(.pip-on):not(.pip-over) { background: rgba(15,23,42,.14); }
+        html[data-theme="light"] .pip-on { box-shadow: 0 0 5px rgba(37,99,235,.35); }
+        html[data-theme="light"] .pip-over { background: #b45309; box-shadow: 0 0 5px rgba(180,83,9,.35); }
         html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(37,99,235,.08), #ffffff 70%); border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .scene-bar-tint { background: #ffffff; border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .folder-tab { color: #64748b; }
@@ -986,7 +1186,7 @@
                 </div>
                 <button onclick="closeModal('sessionModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 font-mono text-xs">
+            <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
                 <!-- 我的存檔：登入之後才有東西。這是 Google 登入真正的用途——
                      存檔綁在帳號上，換一台電腦、清掉瀏覽器資料都還找得回來。
                      沒登入時顯示提示，而不是一塊空白。 -->
@@ -1018,7 +1218,7 @@
     <!-- 主神商店。整個貨架由 GET /api/shop 產生，前端不做任何價格或可否購買的判斷——
          那些全部是 content/shop/ 底下的純函式算好的（本專案第4條最高原則：數值不交給前端也不交給AI）。 -->
     <div id="shopModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box hud-corners flex flex-col max-h-[88vh]">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box hud-corners">
             <div class="flex items-center justify-between p-4 pb-3 hairline-b shrink-0">
                 <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
                     <i class="fas fa-store"></i> 主神商店
@@ -1048,7 +1248,7 @@
             <!-- 分類頁籤 -->
             <div id="shop-tabs" class="px-4 py-2 flex flex-wrap gap-1.5 text-[11px] font-mono shrink-0 hairline-b"></div>
 
-            <div id="shop-shelf" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+            <div id="shop-shelf" class="modal-scroll p-4 space-y-2"></div>
 
             <div id="shop-toast" style="display:none" class="px-4 py-2 text-[11px] font-mono shrink-0 hairline-t"></div>
         </div>
@@ -1056,14 +1256,16 @@
 
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
         <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
-            <div class="flex justify-between items-center pb-1">
+            <div class="flex justify-between items-center pb-1 shrink-0">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-sliders-h text-[11px]"></i>
                     <span>系統與文筆設定</span>
                 </div>
                 <button onclick="closeModal('settingsModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 font-mono text-xs">
+            <!-- modal-scroll：這一段（也只有這一段）會捲動，標題列與底下的「儲存設定」永遠在畫面上。
+                 -mr-2 pr-2 是把捲軸推到面板邊緣，不然它會擠在欄位跟內距之間。 -->
+            <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
                 <div>
                     <label class="text-zinc-300 block mb-1">介面色彩主題</label>
                     <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
@@ -1150,7 +1352,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 pt-3 hairline-t">
+            <div class="flex justify-end gap-2 pt-3 hairline-t shrink-0">
                 <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                     儲存設定
                 </button>
@@ -1169,7 +1371,7 @@
                 </div>
                 <button onclick="closeModal('pwaInstallModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 text-xs font-mono text-zinc-300 leading-relaxed">
+            <div class="modal-scroll space-y-3 text-xs font-mono text-zinc-300 leading-relaxed -mr-2 pr-2">
                 <p>iOS 的 Safari 不開放網頁自己跳出安裝提示，要手動加三步：</p>
                 <ol class="space-y-2 list-none">
                     <li class="flex items-start gap-2">
