@@ -27,6 +27,19 @@
 //   因此型態內部的 grants 允許省略匹配鍵（「變身期間所有檢定+1」是書上原文，引擎算得出來），
 //   但代價是型態必須付出啟動成本（意志力/動作）並且會過期——沒有成本或沒有期限的型態
 //   等於把加值白送，那才是真正的放寬。這兩件事由 validateEffect() 擋住。
+//
+// [決策記錄 2026-08-17 第九輪] 型態容器補上兩個缺口，兩個都是「玩家在啟動當下做的決定」，
+//   不是「AI 在敘事時的判斷」——所以兩個都沒有動到上面那條紅線，守門員仍然是程式碼：
+//
+//   1. **可變量支付**(activation.poolVariable ＋ grants 的 amountPerPoint)。書上大量寫成
+//      「支付最多不超過X點，獲得等額加值」。上限必須算得出來(寫死一個數字，或掛在六維上)，
+//      玩家在啟動時報一個數，引擎驗範圍、扣款、把 amountPerPoint 乘開寫進進行中的紀錄。
+//   2. **維持成本**(upkeep ＋ duration.untilUpkeepFails)。「每輪支付X點否則立刻結束」。
+//      這是型態的第二種到期方式：先前只有「時鐘走完」，現在多了「某一輪付不出錢」。
+//      維持成本只能掛在「輪」上，因為 advanceTurn() 是引擎裡唯一會週期性回頭收錢的地方。
+//
+//   附帶的第三個小東西是 modes(「在攻擊或防御上獲得加值，由你自己選擇」)：啟動時選一種變體，
+//   選完就固定下來。它不是新的效果種類，只是 grants 的二選一寫法。
 
 import { ATTRIBUTES, SKILLS } from "../../core/schema.js";
 import { attackCheckKeys } from "../../core/combat/attackTypes.js";
@@ -79,7 +92,9 @@ export const EFFECT_KINDS = Object.freeze({
     target:
       "content/shop/forms.js 的 activeForms → 期間內把 grants 併進上面同一張效果表" +
       "(戰鬥中的消費端是 content/combat/encounterState.js)",
-    fields: ["label", "activation", "duration", "grants"],
+    // grants 不在必要欄位裡：帶 modes 的型態(攻/防二選一)把 grants 寫在每個 mode 底下，
+    // 由 validateFormEffect() 檢查「grants 與 modes 恰好有一個」。
+    fields: ["label", "activation", "duration"],
   },
 });
 
@@ -125,6 +140,13 @@ export const FORM_ACTIVATION_ACTIONS = Object.freeze([
   "整輪",
   "全回合",
 ]);
+
+/**
+ * 可變量型態的支付上限怎麼算。書上寫「支付最多不超過自身敏捷或感知取低/點」，
+ * 那兩個字(取低/取高)就是這個欄位——**它是資料，不是預設值**：漏寫時不猜一個，直接擋下來，
+ * 因為猜錯的方向剛好是「玩家可以多付幾點」。
+ */
+export const VARIABLE_MAX_RULES = Object.freeze(["取低", "取高"]);
 
 /** 本引擎沒有實作、因此不可能被轉換成效果的規則書機制。轉換時用來把「為什麼被丟掉」講清楚。 */
 export const UNSUPPORTED_MECHANICS = Object.freeze({
@@ -214,8 +236,158 @@ function effectApplies(effect, { attribute, skill, scope }) {
  *    事件，放進一個會反覆開關的容器裡會變成無限回血。剩下的六種都是每次用到才查表的，
  *    型態一結束，下一次查表就自然查不到了。
  */
+function validatePoolCost(cost, where, field, errors) {
+  if (!POOL_DEFS[cost.name]) {
+    fail(
+      errors,
+      `${where}(型態) 的 ${field}.name「${cost.name}」還沒有登錄關鍵屬性，` +
+        `合法值：${Object.keys(POOL_DEFS).join("/")}`
+    );
+  }
+  if (!Number.isInteger(cost.amount) || cost.amount <= 0) {
+    fail(errors, `${where}(型態) 的 ${field}.amount 必須是正整數`);
+  }
+}
+
+/**
+ * 可變量支付的驗證。**上限一定要算得出來**：要嘛寫死一個數字，要嘛掛在角色卡的屬性上，
+ * 兩者都不是就等於讓玩家(或AI)自己決定能付多少，那是這條紅線最前面就禁掉的事。
+ */
+function validateVariableCost(variable, where, errors) {
+  if (typeof variable !== "object") {
+    fail(errors, `${where}(型態) 的 activation.poolVariable 必須是物件`);
+    return;
+  }
+  if (!POOL_DEFS[variable.name]) {
+    fail(
+      errors,
+      `${where}(型態) 的 activation.poolVariable.name「${variable.name}」還沒有登錄關鍵屬性，` +
+        `合法值：${Object.keys(POOL_DEFS).join("/")}`
+    );
+  }
+  const min = variable.min ?? 1;
+  if (!Number.isInteger(min) || min <= 0) {
+    fail(errors, `${where}(型態) 的 activation.poolVariable.min 必須是正整數(不寫視為1)`);
+  }
+  const hasFixedMax = variable.max != null;
+  const hasScaledMax = variable.maxFromAttributes != null;
+  if (hasFixedMax === hasScaledMax) {
+    fail(
+      errors,
+      `${where}(型態) 的 activation.poolVariable 必須且只能寫 max 或 maxFromAttributes 其中一個——` +
+        `一個算不出上限的可變量支付等於「玩家想付多少都可以」`
+    );
+  }
+  if (hasFixedMax && (!Number.isInteger(variable.max) || variable.max < min)) {
+    fail(errors, `${where}(型態) 的 activation.poolVariable.max 必須是不小於 min 的整數`);
+  }
+  if (hasScaledMax) {
+    if (!Array.isArray(variable.maxFromAttributes) || variable.maxFromAttributes.length === 0) {
+      fail(errors, `${where}(型態) 的 activation.poolVariable.maxFromAttributes 必須是非空陣列`);
+    } else {
+      for (const key of variable.maxFromAttributes) {
+        if (!ATTRIBUTE_KEYS.has(key)) {
+          fail(errors, `${where}(型態) 的 activation.poolVariable.maxFromAttributes「${key}」不是六維之一`);
+        }
+      }
+      if (variable.maxFromAttributes.length > 1 && !VARIABLE_MAX_RULES.includes(variable.maxRule)) {
+        fail(
+          errors,
+          `${where}(型態) 的 activation.poolVariable 掛了多個屬性，就必須寫明 maxRule` +
+            `(${VARIABLE_MAX_RULES.join("/")})——書上「敏捷或感知取低」的那兩個字就是這個欄位`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * 維持成本的驗證。**維持成本只有一個時鐘可以掛：戰鬥輪**(content/combat/encounterState.js
+ * 的 advanceTurn() 每輪扣一次)。以「場景」計時的型態沒有任何東西會週期性地跑，
+ * 掛上維持成本就是一個永遠不會被收錢的維持成本——那比沒有維持成本更糟，因為它看起來有。
+ */
+function validateUpkeep(upkeep, duration, where, errors) {
+  if (typeof upkeep !== "object") {
+    fail(errors, `${where}(型態) 的 upkeep 必須是物件`);
+    return;
+  }
+  const wp = upkeep.willpower ?? 0;
+  if (!Number.isInteger(wp) || wp < 0) {
+    fail(errors, `${where}(型態) 的 upkeep.willpower 必須是非負整數`);
+  }
+  if (upkeep.action != null && !FORM_ACTIVATION_ACTIONS.includes(upkeep.action)) {
+    fail(
+      errors,
+      `${where}(型態) 的 upkeep.action「${upkeep.action}」不是動作等級之一：` +
+        FORM_ACTIVATION_ACTIONS.join("/")
+    );
+  }
+  if (upkeep.pool != null) validatePoolCost(upkeep.pool, where, "upkeep.pool", errors);
+  if (wp === 0 && upkeep.action == null && upkeep.pool == null) {
+    fail(errors, `${where}(型態) 的 upkeep 沒有任何成本——那就不要寫 upkeep`);
+  }
+  if (duration?.unit !== "輪") {
+    fail(
+      errors,
+      `${where}(型態) 有 upkeep，duration.unit 就必須是「輪」——` +
+        `維持成本每輪收一次，而引擎唯一會前進的週期時鐘是戰鬥輪(advanceTurn())。` +
+        `掛在「場景」上等於一個永遠不會被收錢的維持成本`
+    );
+  }
+}
+
+function validateGrantList(grants, where, errors, { variable = false } = {}) {
+  if (!Array.isArray(grants)) {
+    fail(errors, `${where} 必須是陣列`);
+    return;
+  }
+  if (grants.length === 0) {
+    fail(errors, `${where} 是空陣列——一個什麼都不給的型態不該存在`);
+    return;
+  }
+  grants.forEach((grant, i) => {
+    const gw = `${where}[${i}]`;
+    if (grant?.kind === "型態") {
+      fail(errors, `${gw} 又是一個型態——型態不可以巢狀(變身中再變身沒有定義，也沒有消費端)`);
+      return;
+    }
+    if (grant?.kind != null && EFFECT_KINDS[grant.kind] && !GRANTABLE_EFFECT_KINDS.includes(grant.kind)) {
+      fail(
+        errors,
+        `${gw} 的 kind「${grant.kind}」不能由型態授予，可授予的只有：${GRANTABLE_EFFECT_KINDS.join("/")}` +
+          `——「${grant.kind}」是購買當下寫進角色卡或當場發生一次的效果，型態結束時收不回來`
+      );
+      return;
+    }
+    if (grant?.amountPerPoint != null) {
+      if (!variable) {
+        fail(
+          errors,
+          `${gw} 寫了 amountPerPoint，但這個型態的 activation 沒有 poolVariable——` +
+            `「每點加值」要先有「每點」才算得出來`
+        );
+      }
+      if (grant.amount != null) {
+        fail(errors, `${gw} 不能同時寫 amount 與 amountPerPoint，二選一`);
+      }
+      if (!Number.isInteger(grant.amountPerPoint) || grant.amountPerPoint <= 0) {
+        fail(errors, `${gw} 的 amountPerPoint 必須是正整數`);
+      }
+      if (!EFFECT_KINDS[grant.kind]?.fields?.includes("amount")) {
+        fail(
+          errors,
+          `${gw} 的 kind「${grant.kind}」沒有 amount 欄位，放大不了——` +
+            `可變量只對數值型的授予有意義(防御/護甲/先攻/檢定加骰/附加成功)`
+        );
+      }
+    }
+    errors.push(...validateEffect(grant, gw, { insideForm: true, scaled: grant?.amountPerPoint != null }));
+  });
+}
+
 function validateFormEffect(effect, where, errors) {
   const activation = effect.activation;
+  const hasVariable = activation?.poolVariable != null;
   if (activation != null) {
     if (typeof activation !== "object") {
       fail(errors, `${where}(型態) 的 activation 必須是物件`);
@@ -231,19 +403,16 @@ function validateFormEffect(effect, where, errors) {
             FORM_ACTIVATION_ACTIONS.join("/")
         );
       }
-      if (activation.pool != null) {
-        if (!POOL_DEFS[activation.pool.name]) {
-          fail(
-            errors,
-            `${where}(型態) 的 activation.pool.name「${activation.pool.name}」還沒有登錄關鍵屬性，` +
-              `合法值：${Object.keys(POOL_DEFS).join("/")}`
-          );
-        }
-        if (!Number.isInteger(activation.pool.amount) || activation.pool.amount <= 0) {
-          fail(errors, `${where}(型態) 的 activation.pool.amount 必須是正整數`);
-        }
+      if (activation.pool != null) validatePoolCost(activation.pool, where, "activation.pool", errors);
+      if (hasVariable) validateVariableCost(activation.poolVariable, where, errors);
+      if (activation.pool != null && hasVariable) {
+        fail(
+          errors,
+          `${where}(型態) 同時寫了 activation.pool(固定支付)與 activation.poolVariable(可變量支付)——` +
+            `二選一。兩種一起收沒有任何條目需要，也沒有測試守得住`
+        );
       }
-      if (wp === 0 && activation.action == null && activation.pool == null) {
+      if (wp === 0 && activation.action == null && activation.pool == null && !hasVariable) {
         fail(
           errors,
           `${where}(型態) 沒有任何啟動成本(意志力與動作都沒有)——` +
@@ -265,12 +434,24 @@ function validateFormEffect(effect, where, errors) {
       );
     } else if (duration.unit === "輪") {
       // 輪數可以寫死，也可以掛在一個屬性上——書上大量寫成「持續你的感知值*1輪」，
-      // 那是引擎算得出來的數字(不是 AI 判斷)，所以兩種寫法都收，但只能二選一。
-      const hasFixed = duration.rounds != null;
-      const hasScaled = duration.roundsFromAttribute != null;
-      if (hasFixed && hasScaled) {
-        fail(errors, `${where}(型態) 的 duration 不能同時寫 rounds 與 roundsFromAttribute，二選一`);
-      } else if (hasScaled) {
+      // 那是引擎算得出來的數字(不是 AI 判斷)，所以兩種寫法都收，但只能三選一：
+      // 第三種是「付得出維持成本就繼續」(untilUpkeepFails)，那時候到期條件不是輪數用盡，
+      // 而是某一輪付不出錢——時鐘仍然是戰鬥輪，所以它還是「輪」而不是新的單位。
+      const written = ["rounds", "roundsFromAttribute", "untilUpkeepFails"].filter((k) => duration[k] != null);
+      if (written.length > 1) {
+        fail(errors, `${where}(型態) 的 duration 只能寫 ${written.join("／")} 其中一個，不能並存`);
+      } else if (duration.untilUpkeepFails != null) {
+        if (duration.untilUpkeepFails !== true) {
+          fail(errors, `${where}(型態) 的 duration.untilUpkeepFails 只能是 true(不寫就是沒有這回事)`);
+        }
+        if (effect.upkeep == null) {
+          fail(
+            errors,
+            `${where}(型態) 寫了 untilUpkeepFails 卻沒有 upkeep——` +
+              `那是一個沒有到期條件的型態，也就是一個永久加值`
+          );
+        }
+      } else if (duration.roundsFromAttribute != null) {
         if (!ATTRIBUTE_KEYS.has(duration.roundsFromAttribute)) {
           fail(
             errors,
@@ -283,27 +464,33 @@ function validateFormEffect(effect, where, errors) {
     }
   }
 
-  if (effect.grants != null) {
-    if (!Array.isArray(effect.grants)) {
-      fail(errors, `${where}(型態) 的 grants 必須是陣列`);
-    } else if (effect.grants.length === 0) {
-      fail(errors, `${where}(型態) 的 grants 是空陣列——一個什麼都不給的型態不該存在`);
+  if (effect.upkeep != null) validateUpkeep(effect.upkeep, duration, where, errors);
+
+  // grants 與 modes 恰好二選一。modes 是「啟動時由玩家選一種形態」(書上的「由你自己選擇」)，
+  // 選擇點在啟動的那一瞬間關掉，之後就是一個普通的進行中型態——所以它沒有動到
+  // 「條件不可以交給AI判斷」那條紅線：選的人是玩家，記下來的是引擎。
+  const hasGrants = effect.grants != null;
+  const hasModes = effect.modes != null;
+  if (hasGrants === hasModes) {
+    fail(
+      errors,
+      `${where}(型態) 必須且只能寫 grants 或 modes 其中一個` +
+        `(modes 是啟動時二選一的變體，例如「在攻擊或防御上獲得加值，由你自己選擇」)`
+    );
+  }
+  if (hasGrants) validateGrantList(effect.grants, `${where}(型態) grants`, errors, { variable: hasVariable });
+  if (hasModes) {
+    if (!Array.isArray(effect.modes) || effect.modes.length < 2) {
+      fail(errors, `${where}(型態) 的 modes 至少要有兩個選項——只有一個的話直接寫 grants 就好`);
     } else {
-      effect.grants.forEach((grant, i) => {
-        const gw = `${where}(型態) grants[${i}]`;
-        if (grant?.kind === "型態") {
-          fail(errors, `${gw} 又是一個型態——型態不可以巢狀(變身中再變身沒有定義，也沒有消費端)`);
-          return;
-        }
-        if (grant?.kind != null && EFFECT_KINDS[grant.kind] && !GRANTABLE_EFFECT_KINDS.includes(grant.kind)) {
-          fail(
-            errors,
-            `${gw} 的 kind「${grant.kind}」不能由型態授予，可授予的只有：${GRANTABLE_EFFECT_KINDS.join("/")}` +
-              `——「${grant.kind}」是購買當下寫進角色卡或當場發生一次的效果，型態結束時收不回來`
-          );
-          return;
-        }
-        errors.push(...validateEffect(grant, gw, { insideForm: true }));
+      const seen = new Set();
+      effect.modes.forEach((mode, i) => {
+        const mw = `${where}(型態) modes[${i}]`;
+        if (!mode?.key) fail(errors, `${mw} 缺少 key(玩家啟動時就是傳這個字串)`);
+        else if (seen.has(mode.key)) fail(errors, `${mw} 的 key「${mode.key}」重複了`);
+        else seen.add(mode.key);
+        if (!mode?.label) fail(errors, `${mw} 缺少 label(UI 要畫得出這個選項)`);
+        validateGrantList(mode?.grants, `${mw} grants`, errors, { variable: hasVariable });
       });
     }
   }
@@ -313,10 +500,13 @@ function validateFormEffect(effect, where, errors) {
  * 驗證單一效果的結構。回傳錯誤陣列(空陣列=合法)。
  * @param {object} effect
  * @param {string} where 錯誤訊息用的位置描述
- * @param {{ insideForm?: boolean }} [opts] insideForm：這個效果是某個「型態」的 grants 之一。
- *   型態內部的檢定類效果可以省略匹配鍵，理由見本檔案開頭 2026-08-17 的決策記錄。
+ * @param {{ insideForm?: boolean, scaled?: boolean }} [opts]
+ *   insideForm：這個效果是某個「型態」的 grants 之一。
+ *     型態內部的檢定類效果可以省略匹配鍵，理由見本檔案開頭 2026-08-17 的決策記錄。
+ *   scaled：這個授予的數值是「每支付1點得到多少」(amountPerPoint)，所以沒有 amount 是正常的——
+ *     真正的 amount 要等玩家在啟動時決定付幾點才算得出來(content/shop/forms.js 的 scaleGrants)。
  */
-export function validateEffect(effect, where = "effect", { insideForm = false } = {}) {
+export function validateEffect(effect, where = "effect", { insideForm = false, scaled = false } = {}) {
   const errors = [];
   if (!effect || typeof effect !== "object") {
     return [`${where} 不是物件`];
@@ -326,6 +516,7 @@ export function validateEffect(effect, where = "effect", { insideForm = false } 
     return [`${where} 的 kind「${effect.kind}」不在詞彙表中，合法值：${Object.keys(EFFECT_KINDS).join("/")}`];
   }
   for (const field of spec.fields) {
+    if (field === "amount" && scaled) continue;
     if (effect[field] == null) fail(errors, `${where}(${effect.kind}) 缺少必要欄位「${field}」`);
   }
   for (const attribute of matchAttributes(effect)) {

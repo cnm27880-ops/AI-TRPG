@@ -1,0 +1,128 @@
+// /api/forms 與 /api/combat/act 的型態接線測試（2026-08-17 第九輪）。
+//
+// 為什麼要有這一份：型態的規則本身在 test/shopForms.test.js 已經測透了，這一份問的是
+// 另一個問題——**API 層有沒有把玩家的決定送進去、有沒有把引擎的收費送回來**。
+// 這一輪在真的跑起來的 wrangler 上做端對端實測時，抓到的正是這一層的bug：
+// `/api/forms` 擋下一次啟動時回的是 `ok:true`（`...formsPayload()` 帶著自己的 ok
+// 被展開在 `ok:false` 後面，把它蓋掉了），於是前端的 `if (!res.ok)` 永遠不成立，
+// 玩家按下一個按不動的按鈕會看到一句綠色的「啟動成功」。純函式測試看不到這種東西。
+import test from "node:test";
+import assert from "node:assert/strict";
+import { onRequestPost as sessionPost } from "../functions/api/session.js";
+import { onRequestGet as formsGet, onRequestPost as formsPost } from "../functions/api/forms.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
+import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { emptyCharacter } from "../core/schema.js";
+import { computeDerivedStats } from "../core/derivedStats.js";
+import { openPool } from "../core/energyPools.js";
+import { SHOP_GOODS } from "../content/shop/registry.js";
+
+const req = (env, body) => ({ request: { json: async () => body }, env });
+const getReq = (env, url) => ({ request: { url }, env });
+const read = async (res) => JSON.parse(await res.text());
+
+const 混元劍經 = SHOP_GOODS.find((g) => g.goodId === "pool.混元劍經.1");
+const 葵花寶典 = SHOP_GOODS.find((g) => g.goodId === "technique.葵花寶典.1");
+const 劍氣FormId = "pool.混元劍經.1:劍氣";
+const 鬼魅身FormId = "technique.葵花寶典.1:鬼魅身";
+
+/** 一張已經買好那兩件商品、池子也開好的角色卡(買賣流程有自己的測試，這裡不重跑)。 */
+function 帶著兩個型態的角色卡({ 內力 = 2 } = {}) {
+  const c = emptyCharacter("型態實測");
+  c.attributes = { 力量: 3, 敏捷: 3, 耐力: 3, 智力: 2, 感知: 3, 意志: 2 };
+  c.skills.格鬥 = 2;
+  c.derived = computeDerivedStats(c.attributes);
+  c.abilities = [
+    { goodId: 混元劍經.goodId, name: 混元劍經.name, effects: 混元劍經.effects },
+    { goodId: 葵花寶典.goodId, name: 葵花寶典.name, effects: 葵花寶典.effects },
+  ];
+  let pools = openPool({}, "劍氣", c.attributes, 混元劍經.goodId);
+  pools = openPool(pools, "內力", c.attributes, 葵花寶典.goodId);
+  pools.內力 = { ...pools.內力, current: 內力 };
+  c.derived.energyPools = pools;
+  return c;
+}
+
+/**
+ * 把行動順位固定成「玩家先手」。先攻是擲骰決定的，而下面兩則測試問的不是先攻——
+ * 用 `if (不是玩家先手) return` 跳過的話，那兩則測試會有一半的機率什麼都沒測，
+ * 而且看起來還是綠的。
+ */
+async function 讓玩家先手(env, sessionId) {
+  const { resolveSessionStore } = await import("../content/storage/sessionStore.js");
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.combat.order = ["player", "enemy"];
+  session.combat.turnIndex = 0;
+  await store.put(session);
+}
+
+async function newSession(env, character) {
+  const body = await read(await sessionPost(req(env, { character })));
+  assert.equal(body.ok, true, JSON.stringify(body));
+  return body.session.id;
+}
+
+test("/api/forms 把「這次要決定什麼」一起交出去(支付範圍、二選一選項、維持成本)", async () => {
+  const env = {};
+  const sessionId = await newSession(env, 帶著兩個型態的角色卡());
+  const view = await read(await formsGet(getReq(env, `https://x/api/forms?sessionId=${sessionId}`)));
+
+  const 劍氣 = view.forms.find((f) => f.formId === 劍氣FormId);
+  assert.deepEqual(劍氣.variable, { poolName: "劍氣", min: 1, max: 3 }, "上限是伺服器算的(敏捷或感知取低)");
+  assert.deepEqual(劍氣.modes.map((m) => m.key), ["攻", "防"]);
+
+  const 鬼魅身 = view.forms.find((f) => f.formId === 鬼魅身FormId);
+  assert.deepEqual(鬼魅身.upkeep, { action: "自由", pool: { name: "內力", amount: 1 } });
+});
+
+test("/api/forms 擋下來的時候一定要回 ok:false(這是端對端實測抓到的bug)", async () => {
+  const env = {};
+  const sessionId = await newSession(env, 帶著兩個型態的角色卡());
+  // 以「輪」計時的型態在戰鬥外啟動不了——沒有輪可以數
+  const res = await read(await formsPost(req(env, { sessionId, formId: 劍氣FormId, amount: 2, mode: "攻" })));
+  assert.equal(res.ok, false, "擋下來卻回 ok:true 的話，前端會顯示一句綠色的『啟動成功』");
+  assert.ok(res.blockers.some((b) => b.code === "缺少輪數"));
+  // 而且不可以偷偷扣錢
+  const view = await read(await formsGet(getReq(env, `https://x/api/forms?sessionId=${sessionId}`)));
+  assert.equal(view.energyPools.劍氣.current, view.energyPools.劍氣.max, "沒啟動成功就不該扣劍氣");
+});
+
+test("/api/combat/act：可變量型態付幾點，攻擊加值就是幾點(而且池子真的少了)", async () => {
+  const env = {};
+  const character = 帶著兩個型態的角色卡();
+  const sessionId = await newSession(env, character);
+  const started = await read(await combatStart(req(env, { sessionId })));
+  assert.equal(started.ok, true, JSON.stringify(started));
+  await 讓玩家先手(env, sessionId);
+
+  const 沒報數 = await read(await combatAct(req(env, { sessionId, action: "型態", formId: 劍氣FormId, mode: "攻" })));
+  assert.equal(沒報數.ok, false);
+  assert.ok(沒報數.blockers.some((b) => b.code === "缺少支付點數"), "沒報數不可以偷偷用最小值");
+
+  const 開眼 = await read(
+    await combatAct(req(env, { sessionId, action: "型態", formId: 劍氣FormId, amount: 3, mode: "攻" }))
+  );
+  assert.equal(開眼.ok, true, JSON.stringify(開眼.blockers));
+  assert.deepEqual(開眼.form.grants, [{ kind: "檢定加骰", scope: "攻擊", skill: "格鬥", amount: 3 }]);
+  assert.equal(開眼.character.derived.energyPools.劍氣.current, character.derived.energyPools.劍氣.max - 3);
+});
+
+test("/api/combat/act：維持成本斷氣時，回應要說得出是哪一個型態、為什麼", async () => {
+  const env = {};
+  const sessionId = await newSession(env, 帶著兩個型態的角色卡({ 內力: 1 })); // 只夠啟動，維持不了
+  const started = await read(await combatStart(req(env, { sessionId })));
+  assert.equal(started.ok, true, JSON.stringify(started));
+  await 讓玩家先手(env, sessionId);
+
+  const 開鬼魅身 = await read(await combatAct(req(env, { sessionId, action: "型態", formId: 鬼魅身FormId })));
+  assert.equal(開鬼魅身.ok, true, JSON.stringify(開鬼魅身.blockers));
+  assert.equal(開鬼魅身.character.derived.energyPools.內力.current, 0);
+
+  const 打一拳 = await read(await combatAct(req(env, { sessionId, weaponKey: "unarmed" })));
+  assert.equal(打一拳.ok, true, JSON.stringify(打一拳));
+  const 斷氣 = (打一拳.formEvents ?? []).find((e) => e.event === "型態到期" && e.label === "鬼魅身");
+  assert.ok(斷氣, "型態被引擎收走了，回應裡要有紀錄——不然玩家只會看到防御莫名其妙變低");
+  assert.match(斷氣.reason, /內力不足/);
+  assert.deepEqual(打一拳.combat.forms.active, []);
+});

@@ -1444,7 +1444,9 @@ async function resumeSession(id) {
   // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
   if (res.session.combat?.active) {
     currentCombat = res.session.combat;
-    currentCombatOptions = null; // 續戰的存檔沒帶 options，等下一次行動回來再填
+    // 續戰的行動列由伺服器算好一起送來(2026-08-17 第九輪)。先前這裡是 null，
+    // 於是重整之後只剩 index.html 裡寫死的兩顆按鈕——買到的武器與型態全部按不到。
+    currentCombatOptions = res.combatOptions ?? null;
     enterCombatView();
     document.getElementById("combat-log").innerHTML = "";
     (currentCombat.log || []).forEach((entry) => appendCombatLog({
@@ -1617,33 +1619,65 @@ function renderCombatActions(enabled) {
       </span>
     </button>`;
 
-  const formBtn = (f) => `
-    <button data-combat-form="${escapeHtml(f.formId)}" ${f.active ? "disabled" : ""}
+  // 可變量型態的支付點數選單。範圍是伺服器算的(「不超過敏捷或感知取低」是規則，
+  // 不是介面細節)，這裡只把 min~max 攤成選項。
+  const amountPicker = (f) => {
+    if (!f.variable || f.active) return "";
+    const options = [];
+    for (let n = f.variable.min; n <= f.variable.max; n++) {
+      options.push(`<option value="${n}">${n}</option>`);
+    }
+    return `
+      <label class="flex items-center gap-1 text-[10px] font-mono text-zinc-400 px-1">
+        支付
+        <select data-form-amount="${escapeHtml(f.formId)}"
+          class="bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-violet-200">${options.join("")}</select>
+        點${escapeHtml(f.variable.poolName)}
+      </label>`;
+  };
+
+  // 二選一的型態(書上的「由你自己選擇」)一個選項畫一顆按鈕：選擇點在啟動的那一瞬間，
+  // 所以它就是按下去的那一下，不需要另外一層「先選模式再啟動」的狀態。
+  const formBtn = (f) => {
+    const upkeepNote = f.upkeep ? `，每輪${escapeHtml(costText(f.upkeep))}維持` : "";
+    const one = (mode) => `
+    <button data-combat-form="${escapeHtml(f.formId)}" ${mode ? `data-combat-form-mode="${escapeHtml(mode.key)}"` : ""}
+      ${f.active ? "disabled" : ""}
       class="action-tile !p-2.5 !flex-row justify-center ${f.active ? "opacity-50" : "!border-violet-500/50"}">
       <i class="fas fa-wand-magic-sparkles action-tile-icon !text-base ${f.active ? "" : "!text-violet-300"}"></i>
       <span class="flex flex-col items-start leading-tight">
-        <span class="action-tile-label">${escapeHtml(f.label)}${f.active ? "（進行中）" : ""}</span>
-        <span class="action-tile-sub">${escapeHtml(costText(f.activation))}</span>
+        <span class="action-tile-label">${escapeHtml(f.label)}${mode ? `·${escapeHtml(mode.label)}` : ""}${f.active ? "（進行中）" : ""}</span>
+        <span class="action-tile-sub">${escapeHtml(costText(f.activation))}${upkeepNote}</span>
       </span>
     </button>`;
+    const buttons = f.modes?.length ? f.modes.map(one).join("") : one(null);
+    return amountPicker(f) + buttons;
+  };
 
   box.innerHTML = [...opts.weapons.map(weaponBtn), ...opts.forms.map(formBtn)].join("");
-  box.querySelectorAll("button").forEach((b) => {
+  box.querySelectorAll("button,select").forEach((b) => {
     if (!enabled) b.disabled = true;
   });
 }
 
-/** 戰鬥中啟動型態。跟攻擊走同一個端點，差在 action="型態"——它不推進行動順位。 */
-async function combatActivateForm(formId) {
+/**
+ * 戰鬥中啟動型態。跟攻擊走同一個端點，差在 action="型態"——它不推進行動順位。
+ * @param {string} formId
+ * @param {{ mode?: string|null }} [opts] mode：書上「由你自己選擇」的那個選擇，
+ *   支付點數則直接從同一個型態的選單讀(可變量型態才有那個選單)。
+ */
+async function combatActivateForm(formId, { mode = null } = {}) {
   if (!currentCombat?.active || combatInFlight) return;
   if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
+  const picker = document.querySelector(`[data-form-amount="${CSS.escape(formId)}"]`);
+  const amount = picker ? Number(picker.value) : null;
   combatInFlight = true;
   renderCombat();
   try {
     const res = await (await fetch("/api/combat/act", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: currentSessionId, formId, action: "型態" }),
+      body: JSON.stringify({ sessionId: currentSessionId, formId, action: "型態", amount, mode }),
     })).json();
 
     if (!res.ok) {
@@ -1657,7 +1691,12 @@ async function combatActivateForm(formId) {
     currentCombat = res.combat;
     currentCombatOptions = res.options ?? currentCombatOptions;
     if (res.character) adoptCharacter(res.character);
-    appendCombatSystemLine(`${res.form.label} 啟動`, "text-violet-300");
+    // 玩家在啟動當下做的兩個決定要回顯出來：同一個型態付3點跟付1點強度差三倍，
+    // 畫面上只寫「劍氣 啟動」的話，玩家看不出這次到底變多強。
+    const chose = [res.form.mode?.label, res.form.paid != null ? `支付${res.form.paid}點` : null]
+      .filter(Boolean)
+      .join("，");
+    appendCombatSystemLine(`${res.form.label} 啟動${chose ? `（${chose}）` : ""}`, "text-violet-300");
   } catch (err) {
     appendCombatSystemLine(`變身失敗（連線失敗）：${err.message}`);
   } finally {
@@ -1698,6 +1737,15 @@ async function combatAttack(weaponKey) {
         hit: res.enemyAttack.hit,
         damage: res.enemyAttack.finalDamage ?? 0,
       });
+    }
+
+    // 跨輪時型態的維持成本被收走了(或收不到而斷氣)。不說一聲的話，玩家只會看到
+    // 防御突然變低、內力莫名其妙少了一點——引擎收走了東西，畫面上要有紀錄。
+    for (const ev of res.formEvents ?? []) {
+      appendCombatSystemLine(
+        ev.event === "型態到期" ? `${ev.label} 結束${ev.reason ? `：${ev.reason}` : ""}` : `${ev.label} 維持中（已支付這一輪的維持成本）`,
+        ev.event === "型態到期" ? "text-yellow-300" : "text-violet-300"
+      );
     }
 
     currentCombat = res.combat;
@@ -2027,7 +2075,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("combat-actions")?.addEventListener("click", (e) => {
     const form = e.target.closest("[data-combat-form]");
     if (form && !form.disabled) {
-      combatActivateForm(form.dataset.combatForm);
+      combatActivateForm(form.dataset.combatForm, { mode: form.dataset.combatFormMode ?? null });
       return;
     }
     const btn = e.target.closest("[data-combat-attack]");
@@ -2183,19 +2231,28 @@ function renderForms() {
     forms
       .map((f) => {
         const label = `${escapeHtml(f.sourceName)}·${escapeHtml(f.label)}`;
+        // 以「輪」計時的型態(含所有帶維持成本的)在戰鬥外根本啟動不了——沒有輪可以數，
+        // 引擎會回「缺少輪數」。與其讓玩家按下去吃一個看不懂的錯誤，不如在這裡就講清楚。
+        const roundBound = f.duration?.unit === "輪";
         const button = inCombat
           ? `<span class="px-2 py-0.5 rounded border border-zinc-700 text-zinc-600 text-[10px] font-mono shrink-0">戰鬥中</span>`
-          : `<button data-form-toggle="${escapeHtml(f.formId)}" data-form-action="${f.active ? "收功" : "啟動"}"
+          : roundBound && !f.active
+            ? `<span class="px-2 py-0.5 rounded border border-zinc-700 text-zinc-600 text-[10px] font-mono shrink-0">只能在戰鬥中</span>`
+            : `<button data-form-toggle="${escapeHtml(f.formId)}" data-form-action="${f.active ? "收功" : "啟動"}"
               class="px-2 py-0.5 rounded text-[10px] font-mono font-bold shrink-0 transition-all ${
                 f.active
                   ? "bg-zinc-700/40 border border-zinc-600 text-zinc-300 hover:bg-zinc-700/60"
                   : "bg-violet-500/20 border border-violet-500/50 text-violet-200 hover:bg-violet-500/30"
               }">${f.active ? "收功" : "啟動"}</button>`;
+        const upkeep = f.upkeep ? `｜每輪${escapeHtml(costText(f.upkeep))}維持` : "";
+        const variable = f.variable
+          ? `｜支付${f.variable.min}～${f.variable.max}點${escapeHtml(f.variable.poolName)}，加值等額`
+          : "";
         return `
           <div class="flex items-center gap-2 text-[11px] font-mono">
             <span class="${f.active ? "text-violet-200 font-bold" : "text-zinc-300"}">${label}</span>
             ${f.active ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200">進行中</span>` : ""}
-            <span class="text-[10px] text-zinc-500">${escapeHtml(costText(f.activation))}</span>
+            <span class="text-[10px] text-zinc-500">${escapeHtml(costText(f.activation))}${variable}${upkeep}</span>
             <span class="ml-auto"></span>
             ${button}
           </div>`;

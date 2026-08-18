@@ -27,6 +27,7 @@ import {
   deactivateForm,
   isFormActive,
   describeActiveForms,
+  variablePaymentRange,
 } from "../../content/shop/forms.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
@@ -71,6 +72,11 @@ function formsPayload(session) {
       sourceName: f.sourceName,
       activation: f.effect.activation,
       duration: f.effect.duration,
+      upkeep: f.effect.upkeep ?? null,
+      // 可變量支付的範圍與二選一的選項。跟貨架同一個原則：上限是規則，由伺服器算，
+      // 前端只畫——「最多不超過自身敏捷或感知取低」不該在瀏覽器裡重寫一次。
+      variable: variablePaymentRange(f.effect, session.character),
+      modes: (f.effect.modes ?? []).map((m) => ({ key: m.key, label: m.label })),
       active: isFormActive(formsState, f.formId),
     })),
     active: describeActiveForms(formsState),
@@ -99,7 +105,7 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { sessionId, formId, action = "啟動" } = body ?? {};
+  const { sessionId, formId, action = "啟動", amount = null, mode = null } = body ?? {};
   const { error, store, session } = await loadSession(context, sessionId);
   if (error) return error;
   if (!formId) return json({ ok: false, error: "body必須包含 formId" }, 400);
@@ -110,10 +116,15 @@ export async function onRequestPost(context) {
   // 戰鬥中的型態走 /api/combat/act，因為那裡才有動作額度可以扣。
   // 這裡直接擋掉，不然同一場戰鬥會有兩條互相看不到對方的路徑在改型態。
   if (session.combat?.active) {
+    // [修正 2026-08-17 第九輪] `...formsPayload()` 一定要放在 `ok:false` **前面**。
+    // formsPayload() 自己帶著 ok:true，先前它被展開在後面，於是這個「擋下來」的回應
+    // 實際送出去的是 ok:true——前端的 `if (!res.ok)` 永遠不成立，玩家按下去會看到
+    // 一句「啟動成功」的綠字，而什麼也沒發生。**這條線在上一輪是用眼睛看過的，
+    // 但看的是能不能啟動，沒有看擋下來的那一條**；這次是端對端腳本把它照出來的。
     return json({
+      ...formsPayload(session),
       ok: false,
       blockers: [{ code: "戰鬥中", message: "戰鬥中的變身要在戰鬥畫面裡做(那裡才扣得到動作額度)" }],
-      ...formsPayload(session),
     });
   }
 
@@ -139,9 +150,10 @@ export async function onRequestPost(context) {
   // 戰鬥外沒有回合制的動作額度，所以不傳 budget——強迫它有一個等於憑空發明規則
   // (forms.js 的 activateForm 對 budget=null 的處理就是「動作成本不適用」)。
   // 以「輪」計時的型態在戰鬥外啟動不了：沒有輪可以數，activateForm 會回「缺少輪數」。
-  const result = activateForm(session.character, session.forms, formId, { sceneKey });
+  const result = activateForm(session.character, session.forms, formId, { sceneKey, amount, mode });
   if (!result.ok) {
-    return json({ ok: false, blockers: result.blockers, ...formsPayload(session) });
+    // 同上：formsPayload() 帶著 ok:true，展開順序反了就會把失敗回成成功。
+    return json({ ...formsPayload(session), ok: false, blockers: result.blockers });
   }
 
   session.character = result.character;
@@ -158,6 +170,7 @@ export async function onRequestPost(context) {
       sceneKey,
       willpowerSpent: cost.willpowerSpent ?? 0,
       poolSpent: cost.poolSpent ?? null,
+      mode: cost.mode ?? null,
     },
     { timestamp: new Date().toISOString() }
   );

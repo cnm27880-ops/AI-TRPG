@@ -92,7 +92,10 @@ export async function onRequestPost(context) {
 
     // 敵人若贏得先攻，開戰當下就先把敵人的開場攻擊解決掉，玩家才有機會行動（見
     // content/combat/encounterState.js 的 resolveLeadingEnemyTurns 說明）。
-    openingEnemyAttacks = resolveLeadingEnemyTurns(combat, session.character);
+    const leading = resolveLeadingEnemyTurns(combat, session.character);
+    openingEnemyAttacks = leading.results;
+    // 開場的敵人回合也可能跨輪(多參戰單位時)，跨輪就會收維持成本，所以角色卡要接回來。
+    session.character = leading.character;
   } catch (err) {
     console.error("[COMBAT_START_FAILED]", JSON.stringify({
       where: "POST /api/combat/start",

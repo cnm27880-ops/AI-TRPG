@@ -26,7 +26,14 @@ import { createWallet } from "../content/shop/wallet.js";
 import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from "../content/shop/catalog.js";
 import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor } from "../content/shop/effects.js";
 import { ATTACK_CHECK_KEYS } from "../core/combat/attackTypes.js";
-import { createFormsState, formIdOf, activateForm, activeGrantSources, endScene } from "../content/shop/forms.js";
+import {
+  createFormsState,
+  formIdOf,
+  activateForm,
+  activeGrantSources,
+  endScene,
+  variablePaymentRange,
+} from "../content/shop/forms.js";
 import { POOL_DEFS, openPool } from "../core/energyPools.js";
 
 const PACK_FILES = [
@@ -440,44 +447,51 @@ test("貨架上的每一個型態都啟動得起來，而且啟動後真的改�
     owner.attributes = { 力量: 3, 敏捷: 3, 耐力: 3, 智力: 3, 感知: 3, 意志: 3 };
     // 吃能量池的型態要先有池子。這裡直接把它需要的池子開好——這則測試問的是
     // 「型態啟動之後引擎輸出有沒有變」，不是「玩家買不買得起前提」(那是 evaluatePurchase 的事)。
-    const needsPool = effect.activation?.pool?.name;
+    const needsPool = effect.activation?.pool?.name ?? effect.activation?.poolVariable?.name;
     if (needsPool) {
       owner.derived.energyPools = openPool({}, needsPool, owner.attributes, "測試");
     }
 
     const formId = formIdOf(good.goodId, effect.label);
-    const activated = activateForm(owner, createFormsState(), formId, { round: 1 });
-    assert.equal(activated.ok, true, `「${good.name}」的型態「${effect.label}」啟動失敗：${JSON.stringify(activated.blockers)}`);
+    // 可變量型態要報一個支付點數、二選一的型態要選一種，兩個都是玩家在啟動當下的決定
+    // (2026-08-17 第九輪)。這則測試每一種 mode 都要問一次——「攻」有效但「防」是個空殼，
+    // 只挑第一個的話抓不到。
+    const range = variablePaymentRange(effect, owner);
+    const modes = effect.modes ? effect.modes.map((m) => m.key) : [null];
+    for (const mode of modes) {
+      const activated = activateForm(owner, createFormsState(), formId, { round: 1, amount: range?.min ?? null, mode });
+      assert.equal(activated.ok, true, `「${good.name}」的型態「${effect.label}」啟動失敗：${JSON.stringify(activated.blockers)}`);
 
-    // 啟動一定要付出代價：意志力或動作，至少一樣
-    const paidWillpower = activated.character.derived.willpower.current < owner.derived.willpower.current;
-    assert.ok(
-      paidWillpower || effect.activation?.action != null,
-      `「${effect.label}」啟動不需要任何代價，那它不該是型態`
-    );
+      // 啟動一定要付出代價：意志力或動作，至少一樣
+      const paidWillpower = activated.character.derived.willpower.current < owner.derived.willpower.current;
+      assert.ok(
+        paidWillpower || effect.activation?.action != null,
+        `「${effect.label}」啟動不需要任何代價，那它不該是型態`
+      );
 
-    // 而且啟動之後，三個查表函式至少有一個的輸出變了——不然這個型態什麼也沒做
-    const extraSources = activeGrantSources(activated.formsState);
-    const profileChanged =
-      JSON.stringify(combatProfileFrom(owner)) !== JSON.stringify(combatProfileFrom(owner, { extraSources }));
-    const weaponsChanged = weaponsFrom(owner, { extraSources }).length > weaponsFrom(owner).length;
-    const checkChanged = ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
-      (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
-    );
-    // 攻擊路徑是獨立的一條(scope:"攻擊" 的效果只在這裡生效)，所以也要問一次
-    const attackChanged = Object.keys(ATTACK_CHECK_KEYS).some((attackType) => {
-      const before = attackModifiersFor(owner, attackType);
-      const after = attackModifiersFor(owner, attackType, { extraSources });
-      return after.dp !== before.dp || after.bonusSuccesses !== before.bonusSuccesses;
-    });
-    assert.ok(
-      profileChanged || weaponsChanged || checkChanged || attackChanged,
-      `「${effect.label}」啟動之後沒有任何引擎函式的輸出改變——那它就是一個謊言`
-    );
+      // 而且啟動之後，三個查表函式至少有一個的輸出變了——不然這個型態什麼也沒做
+      const extraSources = activeGrantSources(activated.formsState);
+      const profileChanged =
+        JSON.stringify(combatProfileFrom(owner)) !== JSON.stringify(combatProfileFrom(owner, { extraSources }));
+      const weaponsChanged = weaponsFrom(owner, { extraSources }).length > weaponsFrom(owner).length;
+      const checkChanged = ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
+        (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
+      );
+      // 攻擊路徑是獨立的一條(scope:"攻擊" 的效果只在這裡生效)，所以也要問一次
+      const attackChanged = Object.keys(ATTACK_CHECK_KEYS).some((attackType) => {
+        const before = attackModifiersFor(owner, attackType);
+        const after = attackModifiersFor(owner, attackType, { extraSources });
+        return after.dp !== before.dp || after.bonusSuccesses !== before.bonusSuccesses;
+      });
+      assert.ok(
+        profileChanged || weaponsChanged || checkChanged || attackChanged,
+        `「${effect.label}」啟動之後沒有任何引擎函式的輸出改變——那它就是一個謊言`
+      );
 
-    // 場景結束後要收乾淨
-    const ended = endScene(activated.formsState);
-    assert.deepEqual(ended.formsState.active, [], `「${effect.label}」在場景結束後沒有被收掉`);
+      // 場景結束後要收乾淨
+      const ended = endScene(activated.formsState);
+      assert.deepEqual(ended.formsState.active, [], `「${effect.label}」在場景結束後沒有被收掉`);
+    }
   }
 });
 
