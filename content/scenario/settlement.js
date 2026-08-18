@@ -49,7 +49,18 @@ export function creditNodeReward(wallet, points, label) {
  * | heroicAct          | 有任何一個節點打到最高扭轉度 |
  * | defeatedStrongEnemy| 有完成標記 isFinale 的最終戰節點 |
  *
- * 美德/惡德(virtue/vice)沒有實作，一律 0，不亂填。
+ * 美德/惡德(virtueTriggers/viceTriggers)**仍然一律 0**，這是刻意的。
+ *
+ * [2026-08-18] 角色現在確實有美德與惡德了（見 content/chargen/virtueVice.js，建卡時由五題
+ * 綜合判定），所以「有沒有這筆資料」不再是缺口。缺的是另一件事：**沒有任何引擎事實
+ * 能推出「玩家這一場觸發過美德」**。上面每一欄都對應到引擎自己算得出來的東西
+ * （節點完成度、扭轉度、傷勢、最終戰旗標），觸發美德惡德不是——它是一個關於
+ * 「玩家的行動有沒有體現這個性格」的判斷。
+ *
+ * 要接的話只有兩條路，兩條都需要先做決定，所以現在不動：
+ *   a. 讓AI在每回合的回傳裡多報一個布林值（像 divergenceTier 那樣從固定表裡挑），引擎自己累加
+ *   b. 讓玩家主動宣告「我這個行動是在貫徹我的美德」，由引擎記次數
+ * 在其中一條做好之前填任何數字都是編的，那正是本檔案第4條最高原則要擋的事。
  */
 export function deriveSessionTiers(pack, progress, character) {
   const nodeStates = Object.entries(progress?.nodes ?? {})

@@ -8,6 +8,7 @@
 //        最後送出時同一個端點回傳組好的完整角色卡。
 
 import { buildCharacter, buildCharacterFromLifePath, chargenRules } from "../../content/characterBuilder.js";
+import { getScenarioPack, DEFAULT_SCENARIO_ID } from "../../content/scenario/registry.js";
 
 export async function onRequestGet() {
   return json({ ok: true, rules: chargenRules() });
@@ -22,11 +23,22 @@ export async function onRequestPost(context) {
   }
 
   // 兩種輸入：
-  //   lifePath —— 生平問答（前端實際走的路徑，見 content/chargen/lifePath.js）
+  //   lifePath —— 建卡問答（前端實際走的路徑，見 content/chargen/lifePath.js）
   //   draft    —— 現成的配點草稿（測試/匯入用的低階入口）
   // 前者只是後者的前置換算，驗證與組裝完全共用同一段程式碼。
+  //
+  // lifePath 這條路會被前端呼叫兩次：五題答完時（不帶 reshape，拿甦醒那一幕的內容），
+  // 以及玩家配完 5 點自由屬性時（帶 reshape，拿最終角色卡）。同一個端點，同一段驗證。
+  //
+  // 甦醒那一幕的房間描述是**副本**的資料（見 content/scenario/schema.js 的 ArrivalNarration），
+  // 所以要先把副本查出來。查不到就不傳，awakening.js 會退回通用的過場而不是炸掉——
+  // 這個端點只是預覽，不該因為副本id打錯就讓玩家卡在建卡畫面。
+  const arrivalNarration = body?.lifePath
+    ? getScenarioPack(body.scenarioId ?? DEFAULT_SCENARIO_ID)?.arrivalNarration
+    : undefined;
+
   const result = body?.lifePath
-    ? buildCharacterFromLifePath(body.lifePath)
+    ? buildCharacterFromLifePath({ ...body.lifePath, arrivalNarration })
     : buildCharacter(body?.draft ?? body ?? {});
 
   // 驗證失敗也回200：這個端點在建卡過程中會被連續呼叫（每次加點都打一次），
@@ -37,8 +49,11 @@ export async function onRequestPost(context) {
     errors: result.errors,
     budgets: result.budgets,
     character: result.character ?? null,
-    // 生平問答才有：拼好的小傳與「你擅長什麼」的白話描述，給建卡畫面直接顯示。
+    // 建卡問答才有：拼好的小傳與「你擅長什麼」的白話描述，給建卡畫面直接顯示。
     lifePath: result.lifePath ?? null,
+    // 甦醒那一幕（過場、房間、主神掃描結果、5點自由屬性的價目表與建議分配）。
+    // 已經帶 reshape 送出的話會是 null——那一幕演過了，不用再演一次。
+    awakening: result.awakening ?? null,
   });
 }
 

@@ -33,7 +33,7 @@ import {
 } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
-import { narrativeFeatHints } from "../../content/characterBuilder.js";
+import { narrativeFeatHints, moralityHints } from "../../content/characterBuilder.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import {
@@ -463,7 +463,10 @@ export async function onRequestPost(context) {
       rulesContract: SYSTEM_INSTRUCTION,
       personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
       styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
-      characterHints: narrativeFeatHints(character),
+      // 美德/惡德放在最前面：那是這個角色的核心，專長特質是細節。
+      // 兩者都走 characterHints（文筆層），不進規則契約層——它們是「這個人容易對什麼有反應」，
+      // 不是判定規則，放進契約層有機會被模型讀成「遇到這類情節就必須怎樣」的硬指令。
+      characterHints: [...moralityHints(character), ...narrativeFeatHints(character)],
     });
   } catch (err) {
     return jsonError(`文筆設定檔錯誤：${err.message}`, 400);

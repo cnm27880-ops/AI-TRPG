@@ -56,30 +56,35 @@ function legendaryAttributeBonus(val) {
 
 // --- 建卡初始化 ---
 // ===========================================================================
-// 建卡 —— 生平問答（見 content/chargen/lifePath.js）
+// 建卡 —— 五題問答 + 甦醒（見 content/chargen/lifePath.js 與 awakening.js）
 //
-// [2026-08-16 改版] 這一整段原本是「選身分模板 -> 選背景故事 -> 手動配點」。
-// 使用者的要求(逐字)：「我想把目前預設的背景故事拿掉，要透過一些更有代入感的方式讓玩家
-// 可以逐步建立一個他心目中的角色…這樣屬性跟技能都改成後台，透過建卡系統自動幫玩家分配好」
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答，最後多一幕「甦醒」。
+// 使用者的要求(逐字)：
+//   「請協助我將建卡問題替換成七美德/七惡德/角色特性的決定，並根據選項自動分配大部分基礎點」
+//   「所以應該是用五道題目綜合判斷七美德/七惡德，有點類似心理測驗」
 //
-// 所以現在是一個一次一題的精靈：姓名 -> 六個關於「被抓走之前的人生」的問題 -> 這個人是誰。
-// 玩家從頭到尾看不到任何一個數字（想看的人可以在最後一步展開摺疊區）。
-// 一次只顯示一題是刻意的：六題全部攤在同一頁會變成一張問卷，玩家會用掃的；
-// 一次一題他才會真的讀完四個選項，那四個選項就是這個角色的個性。
+// 流程：姓名 -> 五題 -> 甦醒（主神掃描 + 5點自由屬性）-> 進入副本。
+// 一次只顯示一題是刻意的：五題全部攤在同一頁會變成一張問卷，玩家會用掃的；
+// 一次一題他才會真的讀完每個選項，那些選項就是這個角色。
+//
+// 玩家看不到任何權重與美德惡德的分數——那些**不會**被送到前端（見 questionsForClient）。
+// 看得到分表的玩家可以直接反推出想要的結果，主神掃描那一幕就沒有意義了。
 // ===========================================================================
 
-/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 檢視。 */
+/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 甦醒。 */
 let chargenStep = 0;
 /** 玩家的答案 { 題目id: 選項id }。 */
 let chargenAnswers = {};
-/** 最後一步從後端拿回來的完整結果（小傳、傾向、角色卡）。 */
-let chargenPreview = null;
+/** 甦醒那一幕從後端拿回來的完整結果（過場、掃描、小傳、角色卡）。 */
+let chargenAwakening = null;
+/** 玩家在肉體重塑分掉的點 { 屬性: 加幾級 }。 */
+let chargenReshape = {};
 
 function lifePathQuestions() {
   return chargenRules?.lifePath ?? [];
 }
 
-function reviewStepIndex() {
+function awakeningStepIndex() {
   return lifePathQuestions().length + 1;
 }
 
@@ -99,22 +104,23 @@ async function startNewChargen() {
 
   chargenStep = 0;
   chargenAnswers = {};
-  chargenPreview = null;
+  chargenAwakening = null;
+  chargenReshape = {};
   renderChargenStep();
 }
 
 function renderChargenStep() {
   const questions = lifePathQuestions();
-  const total = questions.length + 1; // 基本資料 + 六題（檢視那一步不算進度）
+  const total = questions.length + 1; // 基本資料 + 五題（甦醒那一步不算進度）
   const basic = document.getElementById("cg-step-basic");
   const question = document.getElementById("cg-step-question");
-  const review = document.getElementById("cg-step-review");
+  const awakening = document.getElementById("cg-step-awakening");
   const back = document.getElementById("cg-back");
   const submit = document.getElementById("cg-submit");
 
   basic.style.display = chargenStep === 0 ? "" : "none";
   question.style.display = chargenStep >= 1 && chargenStep <= questions.length ? "" : "none";
-  review.style.display = chargenStep === reviewStepIndex() ? "" : "none";
+  awakening.style.display = chargenStep === awakeningStepIndex() ? "" : "none";
   back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
   document.getElementById("cg-errors").innerHTML = "";
 
@@ -136,9 +142,9 @@ function renderChargenStep() {
     // 選項本身就是「下一步」，所以按鈕只在已經答過這題時才有意義（用來改完之後往前走）
     submit.textContent = chargenAnswers[q.id] ? "下一步" : "選一個";
   } else {
-    document.getElementById("cg-step-label").textContent = "這個人是誰";
-    document.getElementById("cg-step-count").textContent = "完成";
-    submit.textContent = "進入輪迴世界";
+    document.getElementById("cg-step-label").textContent = "甦醒";
+    document.getElementById("cg-step-count").textContent = "最終的肉體重塑";
+    submit.textContent = "解除防護罩";
   }
 
   submit.disabled = false;
@@ -202,7 +208,7 @@ async function advanceChargen() {
     }
     chargenStep += 1;
     renderChargenStep();
-    if (chargenStep === reviewStepIndex()) await loadChargenPreview();
+    if (chargenStep === awakeningStepIndex()) await loadAwakening();
     return;
   }
 
@@ -221,14 +227,14 @@ function showChargenError(message) {
 }
 
 /**
- * 問完之後跟後端要一次完整結果：小傳、傾向描述、以及換算好的角色卡。
- * 換算一律在後端做（跟建卡驗證同一段程式碼），前端不自己算任何一個數字。
+ * 五題答完之後跟後端要甦醒那一幕：過場文字、主神掃描結果、小傳、以及自動配好的角色卡。
+ * 換算一律在後端做（跟建卡驗證同一段程式碼），前端不自己算美德惡德，也不自己配點。
  */
-async function loadChargenPreview() {
+async function loadAwakening() {
   const submit = document.getElementById("cg-submit");
   submit.disabled = true;
   submit.classList.add("opacity-40");
-  document.getElementById("cg-review-background").textContent = "整理中……";
+  document.getElementById("cg-awakening-narration").textContent = "連線中……";
 
   try {
     const res = await (await fetch("/api/character", {
@@ -237,18 +243,21 @@ async function loadChargenPreview() {
       body: JSON.stringify({ lifePath: { concept: readChargenConcept(), answers: chargenAnswers } }),
     })).json();
 
-    if (!res.valid) {
+    if (!res.valid || !res.awakening) {
       showChargenError((res.errors ?? ["建卡驗證失敗"]).join("；"));
-      document.getElementById("cg-review-background").textContent = "";
+      document.getElementById("cg-awakening-narration").textContent = "";
       return;
     }
 
-    chargenPreview = res;
-    renderChargenReview(res);
+    chargenAwakening = res;
+    // 預設先填後端算好的建議分配，玩家想改再改。三十秒的緊張感底下，
+    // 逼一個沒看過規則的人從零開始配點是很糟的第一印象。
+    chargenReshape = { ...res.awakening.reshape.suggestion };
+    renderAwakening(res);
   } catch (err) {
-    console.error("[CHARGEN_PREVIEW_FAILURE]", err);
+    console.error("[CHARGEN_AWAKENING_FAILURE]", err);
     showChargenError(`無法連線到後端規則引擎（${err.message}）`);
-    document.getElementById("cg-review-background").textContent = "";
+    document.getElementById("cg-awakening-narration").textContent = "";
   } finally {
     submit.disabled = false;
     submit.classList.remove("opacity-40");
@@ -262,35 +271,145 @@ function readChargenConcept() {
   };
 }
 
-function renderChargenReview(res) {
-  const c = res.character;
+function renderAwakening(res) {
+  const a = res.awakening;
+
+  document.getElementById("cg-awakening-narration").textContent = `${a.transition}\n\n${a.arrival}`;
+
+  document.getElementById("cg-scan-header").textContent = a.system.header;
+
+  // 五句引用。玩家沒有直接勾選美德惡德，所以掃描結果必須說得出理由，
+  // 否則那個結論讀起來會像亂數（見 content/chargen/awakening.js 檔頭）。
+  document.getElementById("cg-scan-echoes").innerHTML = a.system.echoes
+    .map((line, i) => `<div class="text-[11px] font-mono text-violet-200/70 leading-snug anim-fade-up" style="animation-delay:${i * 0.06}s">${escapeHtml(line)}</div>`)
+    .join("");
+
+  const cards = [];
+  if (a.system.virtue) cards.push(scanCardHtml("美德", a.system.virtue.key, a.system.virtue.description, "virtue"));
+  if (a.system.vice) cards.push(scanCardHtml("惡德", a.system.vice.key, a.system.vice.description, "vice"));
+  for (const t of a.system.traits) cards.push(scanCardHtml("特性", t.name, t.description, "trait"));
+  document.getElementById("cg-scan-result").innerHTML = cards.join("");
+
+  document.getElementById("cg-scan-core").innerHTML = a.system.core
+    ? `<span class="text-zinc-400">性格核心：</span><span class="font-bold text-violet-200">${escapeHtml(a.system.core.name)}</span>
+       <div class="text-zinc-400 mt-0.5">${escapeHtml(a.system.core.description)}</div>`
+    : "";
+
+  document.getElementById("cg-scan-footer").textContent = a.system.footer;
+
   document.getElementById("cg-review-background").textContent = res.lifePath.background;
   document.getElementById("cg-review-tendency").textContent = res.lifePath.tendency;
 
-  document.getElementById("cg-review-traits").innerHTML = (c.feats ?? [])
-    .map(
-      (f) => `
-      <div class="flex items-start gap-2 p-2.5 rounded bg-zinc-950 border border-violet-500/30">
-        <div class="flex-1 space-y-0.5">
-          <div class="text-xs font-bold text-violet-200">${escapeHtml(f.name)}</div>
-          <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(f.description)}</div>
+  renderReshape();
+}
+
+/**
+ * 掃描結果的三種卡片配色。
+ * 刻意寫成完整的類別字串而不是用 `border-${color}-500` 拼出來——Tailwind 是靠掃描原始碼
+ * 產生類別的，拼接出來的名字在原始碼裡不存在，能不能生效只能靠 CDN 版的執行期掃描，
+ * 那是一種「現在剛好會動」的狀態。寫死三份反而是最不會壞的做法。
+ */
+const SCAN_CARD_STYLES = {
+  virtue: { box: "border-emerald-500/30", tag: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", name: "text-emerald-200" },
+  vice: { box: "border-rose-500/30", tag: "border-rose-500/40 bg-rose-500/10 text-rose-300", name: "text-rose-200" },
+  trait: { box: "border-violet-500/30", tag: "border-violet-500/40 bg-violet-500/10 text-violet-300", name: "text-violet-200" },
+};
+
+function scanCardHtml(tag, name, description, kind) {
+  const style = SCAN_CARD_STYLES[kind] ?? SCAN_CARD_STYLES.trait;
+  return `
+    <div class="p-2.5 rounded bg-zinc-950 border ${style.box} space-y-0.5">
+      <div class="flex items-center gap-1.5">
+        <span class="px-1.5 py-0.5 rounded border ${style.tag} text-[10px] font-bold">${escapeHtml(tag)}</span>
+        <span class="text-xs font-bold ${style.name}">${escapeHtml(name)}</span>
+      </div>
+      <div class="text-[11px] text-zinc-400 leading-snug">${escapeHtml(description)}</div>
+    </div>`;
+}
+
+/**
+ * 屬性從 value 升到 value+1 要幾點。
+ * 成本表是後端給的（chargenRules.attributes.cumulativeCost），前端不自己抄一份常數——
+ * 抄了之後規則改了但前端沒改，玩家看到的價格會跟後端驗的不一樣。
+ */
+function attributeStepCost(value) {
+  const table = chargenRules?.attributes?.cumulativeCost ?? {};
+  const here = table[value];
+  const next = table[value + 1];
+  if (here == null || next == null) return null;
+  return next - here;
+}
+
+function reshapeState() {
+  const conf = chargenAwakening?.awakening?.reshape;
+  if (!conf) return null;
+  let spent = 0;
+  const values = {};
+  for (const { key } of ATTRIBUTE_DISPLAY) {
+    const base = conf.base[key] ?? 1;
+    const added = chargenReshape[key] ?? 0;
+    values[key] = base + added;
+    const table = chargenRules?.attributes?.cumulativeCost ?? {};
+    spent += (table[base + added] ?? 0) - (table[base] ?? 0);
+  }
+  return { conf, values, spent, remaining: conf.points - spent };
+}
+
+function renderReshape() {
+  const state = reshapeState();
+  if (!state) return;
+  const { conf, values, remaining } = state;
+
+  document.getElementById("cg-reshape-remaining").textContent = `${remaining} / ${conf.points}`;
+
+  document.getElementById("cg-reshape-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
+    const base = conf.base[key] ?? 1;
+    const value = values[key];
+    const added = value - base;
+    const cost = attributeStepCost(value);
+    const canAdd = value < conf.cap && cost != null && cost <= remaining;
+    return `
+      <div class="flex items-center gap-2 bg-zinc-950 border hairline-border px-2.5 py-1.5 rounded">
+        <div class="flex-1 min-w-0">
+          <span class="text-xs text-zinc-300">${escapeHtml(key)}</span>
+          <span class="text-[10px] font-mono text-zinc-600 ml-1">${en}</span>
         </div>
-        <span class="shrink-0 px-1.5 py-0.5 rounded border border-violet-500/40 bg-violet-500/10 text-violet-300 text-[10px] font-bold">性格特質</span>
-      </div>`
-    )
-    .join("");
+        <span class="text-[10px] font-mono ${added > 0 ? "text-violet-300" : "text-zinc-600"}">${added > 0 ? `+${added}` : ""}</span>
+        <span class="text-sm font-bold ${added > 0 ? "text-violet-200" : "text-emerald-300"} w-4 text-center">${value}</span>
+        <button data-reshape-down="${escapeHtml(key)}" ${added > 0 ? "" : "disabled"}
+          class="w-6 h-6 rounded border text-xs font-bold transition-all ${added > 0 ? "border-zinc-600 text-zinc-300 hover:border-violet-400 hover:text-violet-200" : "border-zinc-800 text-zinc-700 cursor-not-allowed"}">−</button>
+        <button data-reshape-up="${escapeHtml(key)}" ${canAdd ? "" : "disabled"}
+          class="w-6 h-6 rounded border text-xs font-bold transition-all ${canAdd ? "border-violet-500/50 text-violet-200 hover:bg-violet-500/20" : "border-zinc-800 text-zinc-700 cursor-not-allowed"}">+</button>
+        <span class="w-8 text-right text-[10px] font-mono ${canAdd ? "text-zinc-400" : "text-zinc-700"}">${value >= conf.cap ? "上限" : cost == null ? "—" : `${cost}點`}</span>
+      </div>`;
+  }).join("");
+
+  renderChargenNumbers(values);
+}
+
+/**
+ * 摺疊區裡那份「系統換算出來的詳細數值」。
+ * 屬性要跟著重塑即時變動，所以掛在 renderReshape() 後面而不是只畫一次——
+ * 玩家按了 +1 卻看到摺疊區還是舊數字，會直接懷疑這個介面有沒有真的生效。
+ */
+function renderChargenNumbers(values) {
+  const character = chargenAwakening?.character;
+  if (!character) return;
 
   document.getElementById("cg-review-attributes").innerHTML = ATTRIBUTE_DISPLAY.map(
-    ({ key }) => statChipHtml(key, c.attributes[key] ?? 1)
+    ({ key }) => statChipHtml(key, values[key] ?? character.attributes[key] ?? 1)
   ).join("");
 
-  document.getElementById("cg-review-skills").innerHTML = SKILL_NAMES.filter((s) => (c.skills[s] ?? 0) > 0)
-    .map((s) => statChipHtml(s, c.skills[s]))
+  document.getElementById("cg-review-skills").innerHTML = SKILL_NAMES.filter((s) => (character.skills[s] ?? 0) > 0)
+    .map((s) => statChipHtml(s, character.skills[s]))
     .join("");
 
-  const d = c.derived;
+  // 衍生數值只標「自動配點時」的基準：耐力被重塑加上去之後生命值也會變，
+  // 但那要重算 computeDerivedStats，而那是後端的事——前端不自己算任何一個數字。
+  // 最終數值在進遊戲之後的角色卡上（那份是後端算的）。
+  const d = character.derived;
   document.getElementById("cg-derived").textContent =
-    `生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
+    `重塑前：生命 ${d.hp.max} · 意志 ${d.willpower.max} · 先攻 ${d.initiative} · 防禦 ${d.baseDefense}`;
 }
 
 function statChipHtml(label, value) {
@@ -301,17 +420,46 @@ function statChipHtml(label, value) {
     </div>`;
 }
 
+function adjustReshape(key, delta) {
+  const state = reshapeState();
+  if (!state) return;
+  const base = state.conf.base[key] ?? 1;
+  const current = state.values[key];
+
+  if (delta > 0) {
+    const cost = attributeStepCost(current);
+    if (current >= state.conf.cap || cost == null || cost > state.remaining) return;
+  } else if (current <= base) {
+    return;
+  }
+
+  chargenReshape[key] = (chargenReshape[key] ?? 0) + delta;
+  renderReshape();
+}
+
 async function submitChargen() {
+  const state = reshapeState();
+  if (!state) {
+    showChargenError("甦醒資料還沒載入完成，請稍候再試。");
+    return;
+  }
+  // 主神給的點數必須剛好用完（後端也會再驗一次，見 content/chargen/reshape.js）。
+  // 擋在這裡只是為了不用等一趟往返才告訴玩家他還有點沒花。
+  if (state.remaining !== 0) {
+    showChargenError(`還有 ${state.remaining} 點自由屬性沒有分配，防護罩解除前必須用完。`);
+    return;
+  }
+
   const submit = document.getElementById("cg-submit");
   submit.disabled = true;
-  submit.textContent = "傳送進主神空間中...";
+  submit.textContent = "重塑中...";
 
   try {
     const res = await (await fetch("/api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lifePath: { concept: readChargenConcept(), answers: chargenAnswers },
+        lifePath: { concept: readChargenConcept(), answers: chargenAnswers, reshape: chargenReshape },
         sceneContext: "",
       }),
     })).json();
@@ -329,7 +477,7 @@ async function submitChargen() {
     showChargenError(`進入遊戲失敗：${err.message}`);
   } finally {
     submit.disabled = false;
-    submit.textContent = "進入輪迴世界";
+    submit.textContent = "解除防護罩";
   }
 }
 
@@ -2119,6 +2267,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("cg-question-options")?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-lifepath-option]");
     if (btn) chooseLifePathOption(btn.dataset.lifepathOption);
+  });
+  // 肉體重塑的加減點。同樣用委派——整格會在每次加減之後重畫。
+  document.getElementById("cg-reshape-grid")?.addEventListener("click", (e) => {
+    const up = e.target.closest("[data-reshape-up]");
+    if (up) return adjustReshape(up.dataset.reshapeUp, 1);
+    const down = e.target.closest("[data-reshape-down]");
+    if (down) return adjustReshape(down.dataset.reshapeDown, -1);
+  });
+  document.getElementById("cg-reshape-reset")?.addEventListener("click", () => {
+    const suggestion = chargenAwakening?.awakening?.reshape?.suggestion;
+    if (!suggestion) return;
+    chargenReshape = { ...suggestion };
+    renderReshape();
   });
 
   // 特質 / 資源卡：滾輪與點擊切換

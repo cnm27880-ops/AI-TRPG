@@ -44,6 +44,15 @@ export async function onRequestPost(context) {
   // 三種建立方式：生平問答（正常流程）、現成配點草稿、或直接給一張角色卡（測試/匯入用）
   let character;
   if (lifePath) {
+    // 建卡的最後一步是甦醒那一幕的肉體重塑（見 content/chargen/reshape.js）。
+    // 少了 reshape 一樣建得出合法角色卡，只是少了主神給的 5 點——那會是一個
+    // 「玩家沒發現自己虧了」的靜默錯誤，所以這裡明確擋下來而不是放行。
+    if (lifePath.reshape == null) {
+      return json(
+        { ok: false, error: "建卡尚未完成：還沒送出肉體重塑的自由屬性分配（lifePath.reshape）" },
+        400
+      );
+    }
     const result = buildCharacterFromLifePath(lifePath);
     if (!result.valid) {
       return json({ ok: false, error: "建卡驗證失敗", errors: result.errors }, 400);

@@ -645,7 +645,7 @@
                 </button>
             </div>
 
-            <!-- 進度條：讓玩家知道還有幾題（六題問完才會出現「進入輪迴」） -->
+            <!-- 進度條：讓玩家知道還有幾題（五題問完才會進入甦醒那一幕） -->
             <div class="space-y-1.5">
                 <div class="flex justify-between items-center text-[11px] font-mono">
                     <span id="cg-step-label" class="text-emerald-300 font-bold">基本資料</span>
@@ -661,8 +661,8 @@
                 <div class="space-y-1">
                     <div class="text-sm font-bold text-zinc-100">先給這個人一個名字。</div>
                     <div class="text-[11px] font-mono text-zinc-400">
-                        接下來的六個問題，問的都是你被拉進主神空間之前的日常。沒有正確答案，
-                        也沒有比較強的選項——你怎麼答，這個人就是什麼樣子。
+                        接下來的五個問題，問的都是你被拉進主神空間之前的最後那個晚上。
+                        沒有正確答案，也沒有比較強的選項——你怎麼答，這個人就是什麼樣子。
                     </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -675,7 +675,7 @@
                 </div>
             </section>
 
-            <!-- 第 1~N 步：生平問答（由 app.js 依 /api/character 回傳的題目渲染） -->
+            <!-- 第 1~N 步：建卡問答（由 app.js 依 /api/character 回傳的題目渲染） -->
             <section id="cg-step-question" style="display:none" class="space-y-3 anim-fade-up">
                 <div class="space-y-1">
                     <div id="cg-question-title" class="text-sm font-bold text-zinc-100"></div>
@@ -684,17 +684,44 @@
                 <div id="cg-question-options" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
             </section>
 
-            <!-- 最後一步：這個人是誰 -->
-            <section id="cg-step-review" style="display:none" class="space-y-4 anim-fade-up">
+            <!-- 最後一步：甦醒（見 content/chargen/awakening.js）
+                 順序就是戲劇順序：墜落 -> 醒在哪 -> 主神說你是誰 -> 你自己捏最後那 5 點。
+                 「這個人是誰」的小傳放在掃描之後，因為掃描結果才是這一幕的重點，
+                 小傳是佐證；詳細數值再往後折起來，想看的人展開得到。 -->
+            <section id="cg-step-awakening" style="display:none" class="space-y-4 anim-fade-up">
+                <div id="cg-awakening-narration" class="text-xs leading-relaxed text-zinc-200 bg-zinc-950/60 border hairline-border rounded p-4 whitespace-pre-line"></div>
+
+                <div class="rounded border border-violet-500/40 bg-violet-500/[0.07] p-4 space-y-3">
+                    <div class="text-[10px] font-mono font-bold text-violet-300 tracking-[0.25em]">主神系統 / MAIN GOD</div>
+                    <div id="cg-scan-header" class="text-xs font-mono text-violet-100 leading-snug"></div>
+                    <div id="cg-scan-echoes" class="space-y-1 border-l-2 border-violet-500/40 pl-3"></div>
+                    <div id="cg-scan-result" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                    <div id="cg-scan-core" class="text-[11px] leading-snug"></div>
+                    <div id="cg-scan-footer" class="text-[11px] font-mono text-violet-200/90 leading-snug border-t border-violet-500/25 pt-2.5"></div>
+                </div>
+
+                <!-- 肉體重塑：建卡裡唯一要玩家自己按數字的地方。
+                     每個按鈕旁邊都標出「下一級要幾點」，因為成本是遞增的——
+                     玩家必須在按下去之前就看到價格，否則只會變成「我按了才發現不夠」。 -->
                 <div class="space-y-2">
-                    <div class="section-tag">這個人是誰</div>
-                    <div id="cg-review-background" class="text-xs leading-relaxed text-zinc-200 bg-zinc-950/60 border hairline-border rounded p-4"></div>
+                    <div class="flex items-center justify-between">
+                        <div class="section-tag">最終的肉體重塑</div>
+                        <div class="text-[11px] font-mono">
+                            <span class="text-zinc-400">剩餘自由屬性</span>
+                            <span id="cg-reshape-remaining" class="font-bold text-violet-300 ml-1.5">—</span>
+                        </div>
+                    </div>
+                    <div id="cg-reshape-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5"></div>
+                    <div class="flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                        <span>主神給的這 5 點不吃你原本的配點，而且只有它能把單項推到 5。</span>
+                        <button id="cg-reshape-reset" class="text-violet-300/80 hover:text-violet-200 underline underline-offset-2">回到建議分配</button>
+                    </div>
                 </div>
 
                 <div class="space-y-2">
-                    <div class="section-tag">他擅長什麼</div>
+                    <div class="section-tag">這個人是誰</div>
+                    <div id="cg-review-background" class="text-xs leading-relaxed text-zinc-200 bg-zinc-950/60 border hairline-border rounded p-4"></div>
                     <div id="cg-review-tendency" class="text-xs leading-relaxed text-emerald-200/90 bg-emerald-500/5 border border-emerald-500/30 rounded p-3"></div>
-                    <div id="cg-review-traits" class="space-y-1.5"></div>
                 </div>
 
                 <!-- 屬性技能是後台自動配的，預設收起來。想看的人展開得到，不想看的人完全不用碰。 -->
@@ -704,7 +731,7 @@
                     </summary>
                     <div class="pt-2 space-y-2">
                         <div class="text-[10px] text-zinc-500 leading-snug">
-                            這些數字由你的六個答案自動換算，不需要也不能手動調整。
+                            這些數字由你的五個答案自動換算，再加上你剛剛分配的自由屬性。
                             列出來只是為了讓你看得懂遊戲裡的骰池從哪來。
                         </div>
                         <div id="cg-review-attributes" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5"></div>
