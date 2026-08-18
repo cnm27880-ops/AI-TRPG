@@ -54,6 +54,31 @@ function legendaryAttributeBonus(val) {
   return Math.max(0, Math.floor((val - 1) / 5));
 }
 
+// --- 屬性／技能小磚的視覺換算 ---------------------------------------------
+// 兩者共用同一條刻度：5 是建卡的上限，也是玩家心裡「滿級」的那條線。
+// 傳奇屬性（>5）不會把軌道撐爆，改成整條填滿再多亮幾顆點——
+// 「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是看起來一樣滿。
+const STAT_TILE_SCALE = 5;
+
+/** 等級軌要填多高。回傳可以直接塞進 CSS 的百分比字串。 */
+function levelPercent(value) {
+  const pct = Math.max(0, Math.min(1, (Number(value) || 0) / STAT_TILE_SCALE)) * 100;
+  return `${pct}%`;
+}
+
+/** 等級點：滿刻度五顆，超出的部分用不同顏色接在後面。 */
+function pipTrackHtml(value) {
+  const lv = Math.max(0, Number(value) || 0);
+  const pips = [];
+  for (let i = 1; i <= STAT_TILE_SCALE; i++) {
+    pips.push(`<span class="pip ${i <= lv ? "pip-on" : ""}"></span>`);
+  }
+  for (let i = STAT_TILE_SCALE + 1; i <= lv; i++) {
+    pips.push(`<span class="pip pip-over"></span>`);
+  }
+  return `<span class="pip-track">${pips.join("")}</span>`;
+}
+
 // --- 建卡初始化 ---
 // ===========================================================================
 // 建卡 —— 五題問答 + 甦醒（見 content/chargen/lifePath.js 與 awakening.js）
@@ -507,11 +532,17 @@ function adoptCharacter(charData) {
   document.getElementById("attr-grid").innerHTML = ATTRIBUTE_DISPLAY.map(({ key, en }) => {
     const val = charData.attributes[key] || 1;
     const bonus = legendaryAttributeBonus(val);
-    const bonusTag = bonus > 0 ? `<span class="text-emerald-300 text-[10px] align-top ml-0.5">+${bonus}★</span>` : "";
+    const bonusTag = bonus > 0 ? `<span class="stat-tile-star">+${bonus}★</span>` : "";
     return `
-      <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center gap-2 font-mono">
-        <span class="text-zinc-400 text-[11px] leading-tight">${en}<br><span class="text-zinc-500 text-[10px]">${key}</span></span>
-        <span class="font-bold text-zinc-100 text-lg leading-none">${val}${bonusTag}</span>
+      <div class="stat-tile stat-tile-rail pl-3 pr-2.5 py-1.5 rounded space-y-1" style="--lv-pct:${levelPercent(val)}">
+        <div class="flex items-baseline justify-between gap-2">
+          <span class="stat-tile-en">${en}</span>
+          <span class="stat-tile-value">${val}${bonusTag}</span>
+        </div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="stat-tile-cn">${key}</span>
+          ${pipTrackHtml(val)}
+        </div>
       </div>`;
   }).join("");
 
@@ -519,12 +550,16 @@ function adoptCharacter(charData) {
   document.getElementById("skill-display-grid").innerHTML = Object.entries(charData.skills || {}).map(([skill, lv]) => {
     const specs = charData.specializations?.[skill];
     const specText = Array.isArray(specs) && specs.length
-      ? `<span class="text-[9px] text-zinc-500 ml-1">(${specs.map(escapeHtml).join("、")})</span>`
+      ? `<span class="stat-tile-cn ml-1">(${specs.map(escapeHtml).join("、")})</span>`
       : "";
     return `
-    <div class="stat-tile hud-corners px-2.5 py-1.5 rounded flex justify-between items-center font-mono text-xs">
-      <span class="text-zinc-300">${escapeHtml(skill)}${specText}</span>
-      <span class="font-bold ${lv > 0 ? 'text-emerald-300' : 'text-zinc-500'}">${lv}</span>
+    <div class="stat-tile stat-tile-rail ${lv > 0 ? "" : "stat-tile-empty"} pl-3 pr-2.5 py-1.5 rounded flex justify-between items-center gap-2"
+         style="--lv-pct:${levelPercent(lv)}">
+      <span class="text-xs text-zinc-300 truncate">${escapeHtml(skill)}${specText}</span>
+      <span class="flex items-center gap-2 shrink-0">
+        ${pipTrackHtml(lv)}
+        <span class="font-mono font-bold text-sm ${lv > 0 ? "text-emerald-300" : "text-zinc-500"}">${lv}</span>
+      </span>
     </div>`;
   }).join("");
 
@@ -579,6 +614,19 @@ function renderTraitCards(charData) {
   renderTraitStage();
 }
 
+/**
+ * 特質卡上的說明文字。
+ *
+ * [2026-08-18 修正] 這裡以前直接寫 `t.desc`，但建卡產生的特質物件是
+ * `{ id, name, description, effect }`（見 content/chargen/lifePath.js 的 collectTraits），
+ * 根本沒有 desc 這個欄位——所以特質分頁的說明**永遠是空字串**，
+ * 玩家看到的一直是「[資源] + 一個名字」，那張卡等於只有一半。
+ * 兩個名字都收下：日後從商店買進來的資源如果用的是 desc，也不會再壞一次。
+ */
+function traitDescription(trait) {
+  return trait?.description ?? trait?.desc ?? "";
+}
+
 function renderTraitStage() {
   const stage = document.getElementById("trait-carousel");
   const empty = document.getElementById("trait-empty");
@@ -602,10 +650,10 @@ function renderTraitStage() {
     else if (rel === 1) posClass = "trait-card-next";
     else if (rel === n - 1) posClass = "trait-card-prev";
     return `
-      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile hud-corners rounded p-3 flex flex-col justify-between cursor-pointer">
-        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || "資源")}]</span>
+      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile rounded p-3 flex flex-col justify-between cursor-pointer">
+        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || t.kind || "特質")}]</span>
         <div class="font-bold text-zinc-100 text-sm">${escapeHtml(t.name || "未命名")}</div>
-        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-2">${escapeHtml(t.desc || "")}</div>
+        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-3" title="${escapeHtml(traitDescription(t))}">${escapeHtml(traitDescription(t))}</div>
       </div>`;
   }).join("");
 }
@@ -727,7 +775,7 @@ function showNarratorPending() {
     `</div>` +
     `<div data-pending-hint class="text-[10px] text-zinc-400"></div>`;
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
 
   const startedAt = Date.now();
   pendingTimer = setInterval(() => {
@@ -897,7 +945,7 @@ async function renderCheckResult(r) {
   appendFeedBlock(
     `<span class="${outcomeColor}">SYSTEM.CHECK // ${r.autoFail ? "自動失敗" : (r.success ? "SUCCESS" : "FAILURE")}</span>`,
     `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
-    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border hud-corners"
+    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border"
   );
 }
 
@@ -1061,7 +1109,7 @@ function appendTurnError(message, res) {
     if (lastTurnRequest) runTurn(lastTurnRequest);
   });
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
 }
 
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
@@ -1091,7 +1139,7 @@ function updateScenarioHud(scenario) {
     appendFeedBlock(
       `<span class="text-emerald-300">劇情節點完成</span>`,
       `「${escapeHtml(n.title)}」已達成 · 扭轉度 ${n.divergenceTier} 級 · 獲得 <span class="text-emerald-300 font-bold">${n.reward}</span> 點經驗`,
-      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 hud-corners pulse-glow"
+      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 pulse-glow"
     );
   }
 
@@ -1306,7 +1354,7 @@ function renderOptions(options) {
         </span>`;
 
     return `
-    <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
       <span class="flex flex-col gap-1 flex-1 min-w-0">
         <span class="font-bold text-zinc-100 flex items-start justify-between gap-2">
@@ -1360,13 +1408,91 @@ function playDiceRollAnimation(checkResult) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// 畫面內通知（toast）
+//
+// [2026-08-18] 取代三處原生的 alert()（讀檔失敗 ×2、刪檔失敗 ×1）。
+// alert() 有兩個實際的問題，不只是好不好看：它會**卡住整個 JS 執行緒**
+// （後面的重試、狀態更新全部要等玩家按掉），而且在已安裝的 PWA 裡跳出來的
+// 系統對話框看起來就像網頁當掉了。
+//
+// 錯誤類的通知不自動消失——玩家可能正在看別的地方，錯過了就再也不知道發生什麼事；
+// 訊息類的會自己收掉。兩種都可以手動關。
+// ---------------------------------------------------------------------------
+
+const TOAST_STYLES = {
+  error: { box: "border-red-500/40 bg-red-500/10 text-red-200", icon: "fa-circle-exclamation", role: "alert" },
+  warn: { box: "border-yellow-500/40 bg-yellow-500/10 text-yellow-200", icon: "fa-triangle-exclamation", role: "status" },
+  info: { box: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200", icon: "fa-circle-info", role: "status" },
+};
+
+/**
+ * @param {string} message 要顯示的文字（純文字，會被跳脫）
+ * @param {object} [options]
+ * @param {"error"|"warn"|"info"} [options.kind] 預設 error
+ * @param {number|null} [options.timeout] 幾毫秒後自動收掉。null＝不自動收（錯誤的預設）
+ */
+function showToast(message, { kind = "error", timeout } = {}) {
+  const tray = document.getElementById("toast-tray");
+  if (!tray) {
+    console.warn("[TOAST] 找不到 #toast-tray，改用 console 輸出：", message);
+    return;
+  }
+  const style = TOAST_STYLES[kind] ?? TOAST_STYLES.error;
+  const autoHide = timeout === undefined ? (kind === "error" ? null : 4000) : timeout;
+
+  const el = document.createElement("div");
+  el.className =
+    `pointer-events-auto feed-block-enter flex items-start gap-2.5 rounded border p-3 ` +
+    `font-mono text-xs leading-relaxed shadow-lg backdrop-blur ${style.box}`;
+  el.setAttribute("role", style.role);
+  el.innerHTML =
+    `<i class="fas ${style.icon} mt-0.5 shrink-0"></i>` +
+    `<span class="flex-1 whitespace-pre-line">${escapeHtml(message)}</span>` +
+    `<button type="button" aria-label="關閉這則通知" class="shrink-0 px-1 opacity-70 hover:opacity-100 transition-opacity">` +
+    `<i class="fas fa-times"></i></button>`;
+
+  const dismiss = () => {
+    clearTimeout(timer);
+    el.remove();
+  };
+  el.querySelector("button").addEventListener("click", dismiss);
+  const timer = autoHide == null ? null : setTimeout(dismiss, autoHide);
+
+  tray.appendChild(el);
+  // 疊太多會蓋掉畫面，只留最近的三則。
+  while (tray.children.length > 3) tray.firstElementChild.remove();
+}
+
 function appendFeedBlock(title, content, extraClass = "") {
   const feed = document.getElementById("story-feed");
   const block = document.createElement("div");
   block.className = `space-y-1 feed-block-enter ${extraClass}`;
   block.innerHTML = `<div class="text-[11px] font-bold opacity-80 font-mono">${title}</div><div>${content}</div>`;
   feed.appendChild(block);
-  feed.scrollTop = feed.scrollHeight;
+  scrollFeedToBottom();
+}
+
+/**
+ * 把故事流捲到最底。
+ *
+ * [2026-08-18 修正] 以前每個呼叫點都是直接寫 `feed.scrollTop = feed.scrollHeight`，
+ * 而且是在剛 appendChild 完的同一個 tick 就算。那個時間點量到的高度不一定是最後的高度——
+ * 送出回合時底部輸入列的按鈕會換成「書寫中」而變高、選項列同時被鎖住重繪，
+ * 故事流的可視高度接著被壓縮，於是「剛剛捲到的底」就不再是底，最後一塊只露出半條。
+ *
+ * 改成排到下一個影格再捲：那時版面已經重算完，量到的才是真的高度。
+ * 為了不讓玩家在等待期間看到畫面先跳一下再跳第二下，同一個影格內只捲一次。
+ */
+let feedScrollQueued = false;
+function scrollFeedToBottom() {
+  if (feedScrollQueued) return;
+  feedScrollQueued = true;
+  requestAnimationFrame(() => {
+    feedScrollQueued = false;
+    const feed = document.getElementById("story-feed");
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1430,24 +1556,103 @@ function escapeHtml(str) {
 }
 
 // 僅將故事最後一句 DM 提問標記為翡翠綠引導條 + 粗體白字
-function renderNarrationHtml(text) {
-  const trimmed = String(text || "").trim();
-  const lastQ = Math.max(trimmed.lastIndexOf("？"), trimmed.lastIndexOf("?"));
-  if (lastQ === -1) return escapeHtml(trimmed);
+// ---------------------------------------------------------------------------
+// 敘事排版
+//
+// [2026-08-18] 使用者回報（逐字）：「除了最開始固定的故事開頭之外，後續的AI回覆
+// 都沒有長短段落交錯，全部都擠在一團，看起來很難閱讀」。
+//
+// 真正的修法在提示詞那一層（content/narrativeStyle.js 的 PACING_RULES 現在有一節
+// 【分段與換行】），因為只有模型知道哪裡該斷。但那是「請模型配合」，不是保證——
+// 便宜或小的模型常常整段吐回來一坨字，而玩家換模型是這個專案的核心功能之一。
+// 所以這裡再補一層前端的保險：模型有分段就完全照它的分段，一行都不動；
+// 真的一個換行都沒有回，才由前端按句子把它切開。切開的品質一定不如模型自己分的，
+// 但「還算能讀」永遠好過「一整團」。
+// ---------------------------------------------------------------------------
 
-  const tail = trimmed.slice(lastQ + 1).trim();
-  if (tail.length > 2) return escapeHtml(trimmed); // 問號不在段落結尾，維持純文字
+/** 短於這個長度就不自動切——三兩句話本來就該是一段。 */
+const AUTO_PARAGRAPH_MIN_LENGTH = 150;
+
+/**
+ * 自動分段時，每一段至少要累積到幾個字才收尾。
+ * 兩個值輪流用，切出來才會是「長段、短段、長段、短段」的節奏，
+ * 而不是一排長度一模一樣的方塊——後者讀起來跟一整團字沒有差多少。
+ */
+const AUTO_PARAGRAPH_LENGTHS = [110, 55];
+
+/** 把一段沒有任何換行的長文字按句子切成長短交錯的段落。 */
+function autoParagraphs(text) {
+  if (text.length < AUTO_PARAGRAPH_MIN_LENGTH) return [text];
+
+  // 句尾標點後面可能還跟著收尾的引號括號，要一起帶走，不然「」會被切到下一段開頭。
+  const sentences = text.match(/[^。！？!?…]*[。！？!?…]+[」』）)"']*|[^。！？!?…]+$/g);
+  if (!sentences || sentences.length < 2) return [text];
+
+  const paragraphs = [];
+  let current = "";
+  let turn = 0;
+  for (const sentence of sentences) {
+    current += sentence;
+    if (current.length >= AUTO_PARAGRAPH_LENGTHS[turn % AUTO_PARAGRAPH_LENGTHS.length]) {
+      paragraphs.push(current.trim());
+      current = "";
+      turn++;
+    }
+  }
+  // 收尾不足一段的殘句併回前一段，避免最後留下一句孤零零的碎片。
+  if (current.trim()) {
+    if (paragraphs.length > 0 && current.trim().length < 18) paragraphs[paragraphs.length - 1] += current.trim();
+    else paragraphs.push(current.trim());
+  }
+  return paragraphs.length > 0 ? paragraphs : [text];
+}
+
+/** 敘事切成段落：模型有分段就照它的，沒有才自己切。 */
+function splitNarrationParagraphs(text) {
+  const byBlankLine = text.split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+  if (byBlankLine.length > 1) return byBlankLine;
+
+  // 只用單換行分段的模型也不少，一樣算它有分段。
+  const byLine = text.split(/\n/).map((s) => s.trim()).filter(Boolean);
+  if (byLine.length > 1) return byLine;
+
+  return autoParagraphs(text);
+}
+
+/**
+ * 把最後一段裡「丟回給玩家的那個問句」拆出來單獨標示。
+ * @returns {{ body: string, question: string } | null} 不是以問句收尾就回傳 null
+ */
+function splitTrailingQuestion(paragraph) {
+  const lastQ = Math.max(paragraph.lastIndexOf("？"), paragraph.lastIndexOf("?"));
+  if (lastQ === -1) return null;
+  if (paragraph.slice(lastQ + 1).trim().length > 2) return null; // 問號不在結尾，不是收束句
 
   let start = 0;
-  for (const punct of ["。", "！", "\n"]) {
-    const idx = trimmed.lastIndexOf(punct, lastQ - 1);
+  for (const punct of ["。", "！", "!"]) {
+    const idx = paragraph.lastIndexOf(punct, lastQ - 1);
     if (idx + 1 > start) start = idx + 1;
   }
+  return { body: paragraph.slice(0, start).trim(), question: paragraph.slice(start, lastQ + 1).trim() };
+}
 
-  const before = trimmed.slice(0, start).trim();
-  const question = trimmed.slice(start, lastQ + 1).trim();
-  const beforeHtml = before ? `<div>${escapeHtml(before)}</div>` : "";
-  return `${beforeHtml}<div class="feed-final-question"><strong>${escapeHtml(question)}</strong></div>`;
+function renderNarrationHtml(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return "";
+
+  const paragraphs = splitNarrationParagraphs(trimmed);
+  const last = paragraphs[paragraphs.length - 1];
+  const tail = splitTrailingQuestion(last);
+
+  const blocks = paragraphs.slice(0, -1).map((para) => `<p class="feed-para">${escapeHtml(para)}</p>`);
+  if (!tail) {
+    blocks.push(`<p class="feed-para">${escapeHtml(last)}</p>`);
+    return blocks.join("");
+  }
+
+  if (tail.body) blocks.push(`<p class="feed-para">${escapeHtml(tail.body)}</p>`);
+  blocks.push(`<div class="feed-final-question"><strong>${escapeHtml(tail.question)}</strong></div>`);
+  return blocks.join("");
 }
 
 // 新提問出現後，卸除故事流中先前的引導條高亮（僅保留最新一則）
@@ -1583,7 +1788,9 @@ async function resumeLocalSession() {
     await resumeSession(savedId);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
-    alert(`讀取存檔失敗：${err.message}\n\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`);
+    showToast(
+      `讀取存檔失敗：${err.message}\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`
+    );
   }
 }
 
@@ -1965,7 +2172,7 @@ async function combatAttack(weaponKey) {
     if (res.scenario?.nodeCompleted) {
       const n = res.scenario.nodeCompleted;
       const block = document.createElement("div");
-      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold hud-corners pulse-glow";
+      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold pulse-glow";
       block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
       document.getElementById("combat-log").appendChild(block);
     }
@@ -2030,7 +2237,7 @@ async function handleResumeFromModal() {
     await resumeSession(id);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
-    alert(`讀取存檔失敗：${err.message}`);
+    showToast(`讀取存檔失敗：${err.message}`);
   }
 }
 
@@ -2166,7 +2373,7 @@ async function deleteSession(id) {
     await checkLocalSession();
   } catch (err) {
     console.error("[SESSION_DELETE_FAILURE]", err);
-    alert(`刪除存檔失敗：${err.message}`);
+    showToast(`刪除存檔失敗：${err.message}`);
   }
 }
 
@@ -2325,6 +2532,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       input.value = "";
       runTurn({ playerAction: text });
     }
+  });
+
+  // 數字鍵直接選選項。
+  //
+  // [2026-08-18] 每一顆選項卡左邊本來就印著 1/2/3/4 的編號，但那個編號沒有綁任何按鍵，
+  // 純粹是裝飾。玩家一局要按幾十次選項，鍵盤上一個鍵能解決的事沒有理由要移動滑鼠。
+  //
+  // 幾個必要的但書：
+  //   - 焦點在輸入框裡的時候不能攔（玩家正在打自訂行動，數字是內容不是指令）
+  //   - 有 modal 開著的時候不能攔（那時畫面焦點在商店或設定上）
+  //   - 帶了 Ctrl/Alt/Meta 的組合鍵不攔，那些是瀏覽器自己的快捷鍵
+  //   - 送出中（turnInFlight）不攔，理由跟選項被鎖住時不能點是同一個
+  document.addEventListener("keydown", (event) => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key < "1" || event.key > "9") return;
+
+    const active = document.activeElement;
+    const tag = active?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
+    if (document.querySelector(".modal-backdrop.modal-open")) return;
+    if (turnInFlight) return;
+
+    const index = Number(event.key) - 1;
+    if (!currentOptions?.[index]) return;
+    event.preventDefault();
+    selectOption(index);
   });
 });
 

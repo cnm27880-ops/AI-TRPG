@@ -1,0 +1,7 @@
+/* Tailwind 的來源檔。編譯結果是 public/tailwind.css（有提交進版控）。
+   重新產生：npm run build:css
+   專案自己的樣式全部留在 public/index.html 的 <style> 區塊裡，這裡不放任何東西——
+   那份樣式跟畫面是一起讀的，拆開來只會讓人兩邊找。 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

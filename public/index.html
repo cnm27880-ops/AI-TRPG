@@ -33,28 +33,38 @@
             html.classList.toggle('dark', theme === 'dark');
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind：事先編譯好的靜態 CSS（來源 src/tailwind.css，設定見根目錄的 tailwind.config.js）。
+         [2026-08-18] 這裡原本是 <script src="https://cdn.tailwindcss.com"> 加一段 tailwind.config，
+         也就是把整個 Tailwind 編譯器（約 400KB 的 JS）送到每個玩家的瀏覽器，每次開啟都重新
+         掃 DOM 產生一次 CSS。官方文件明講那個版本只供開發試作、不要用在正式環境，
+         實際症狀就是首屏會先閃一下沒有樣式的畫面，手機上特別明顯。
+         改成預先編譯之後只剩約 31KB 的 CSS，而且是 render-blocking 的正常樣式表，不會閃。
+         改了任何 class 之後要跑 `npm run build:css` 重新產生並一起提交。 -->
+    <link rel="stylesheet" href="./tailwind.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        zinc: { 850: '#131316', 900: '#18181b', 950: '#09090b' },
-                        panel: '#121215',
-                        emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', '-apple-system', 'sans-serif'],
-                        mono: ['"JetBrains Mono"', 'monospace'],
-                        serif: ['"Noto Serif TC"', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- 字型。[2026-08-18 瘦身]
+         原本要 Inter 五個字重、JetBrains Mono 三個、Noto Serif TC 三個，
+         但實際用到的只有 400/600/700——font-light 與 font-medium 在整個專案裡出現 0 次，
+         而 serif 只出現在兩個地方（主選單那段介紹、故事流），兩個都是 600。
+
+         省下來的**不是字型檔的流量**：這三套在 Google Fonts 上都是可變字型，
+         同一個 unicode-range 子集不論要幾個字重都指向同一個 woff2，瀏覽器只會下載一次。
+         實際量過：舊的寫法有 377 個 @font-face 宣告，但只指向 121 個不重複的檔案。
+
+         真正省到的是**那份 CSS 本身**——它是 render-blocking 的，擋在首屏前面：
+           舊：377 個 @font-face，394 KB
+           新：121 個 @font-face，132 KB
+         Noto Serif TC 佔了絕大部分（CJK 會被切成上百個 unicode-range 子集，
+         每多一個字重就多一整輪宣告），所以只留 600 是這裡面最有感的一項。
+
+         Inter 與 JetBrains Mono 改用 400..700 的可變範圍而不是列舉字重：
+         同樣一個檔案，但字重是連續的，中間值不會被吸附到最近的整數級。
+
+         preconnect 讓瀏覽器在解析到這一行之前就先把連線建好（gstatic 是另一個網域，
+         沒有 preconnect 的話字型檔要等 DNS+TLS 走完才開始下載）。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-void: #09090b;
@@ -103,9 +113,15 @@
             border-radius: 8px;
         }
 
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        /* 捲軸。原本只有 ::-webkit-scrollbar，那是 WebKit/Blink 專屬的——
+           Firefox 完全不吃，那邊看到的是系統預設的粗捲軸，跟整體設計對不起來。
+           標準屬性 scrollbar-width/scrollbar-color 補上之後兩邊才一致。
+           寬度也從 4px 放寬到 8px：4px 在觸控與滑鼠拖曳下都太細，抓不到。 */
+        * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
         .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
         .archetype-card.active {
             border-color: #10b981 !important;
@@ -113,15 +129,59 @@
             box-shadow: 0 0 16px rgba(16,185,129,0.2) !important;
         }
 
-        /* 屬性/技能/特質小磚 */
+        /* ================= 屬性／技能／特質小磚 =================
+           [2026-08-18 改版] 原本只是「一個灰框加兩段文字」，六個屬性排在一起就是六個
+           一模一樣的灰方塊，得逐個把數字讀完才知道自己哪一項強、哪一項弱——
+           使用者的說法是「屬性跟技能的格子太樸素了」。
+
+           加了三個都在傳遞資訊、而不是純裝飾的東西：
+             1) 左緣的等級軌：填滿的高度就是等級比例，掃一眼就看得出高低分布
+             2) 底下的等級點：把數值再表達一次，適合「3 和 4 差多少」這種比較
+             3) 分兩行的排版：英文縮寫與數值一行、中文與等級點一行，欄寬用得完
+           前兩個都跟著同一個數值走，沒有任何一個需要另外維護。 */
         .stat-tile {
             position: relative;
-            background: rgba(24, 24, 27, 0.65);
+            overflow: hidden;
+            background:
+                linear-gradient(150deg, rgba(255,255,255,.055), rgba(255,255,255,0) 60%),
+                rgba(24, 24, 27, 0.72);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 6px;
-            transition: all .2s ease;
+            transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease, background-color .2s ease;
         }
         .stat-tile:hover { border-color: rgba(16,185,129,.45); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+
+        /* 左緣等級軌。--lv-pct 由 public/app.js 依數值算好後用 inline style 帶進來。
+           ::before 是軌道、::after 是填滿的部分——順序不能顛倒，後宣告的那個才會蓋在上面。 */
+        .stat-tile-rail::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+            background: rgba(255,255,255,.07);
+        }
+        .stat-tile-rail::after {
+            content: ''; position: absolute; left: 0; bottom: 0; width: 3px;
+            height: var(--lv-pct, 0%);
+            background: linear-gradient(0deg, var(--accent), var(--accent-alt));
+            box-shadow: 0 0 8px rgba(16,185,129,.45);
+            transition: height .35s cubic-bezier(.2,.8,.2,1);
+        }
+        /* 未受訓（0級）的技能：整格壓暗，讓「這一項我沒有」在餘光裡就分得出來 */
+        .stat-tile-empty { opacity: .62; }
+        .stat-tile-empty::after { box-shadow: none; }
+
+        .stat-tile-en { font-size: .68rem; font-weight: 700; letter-spacing: .12em; color: var(--ink-400); }
+        .stat-tile-cn { font-size: .64rem; color: var(--ink-500); letter-spacing: .04em; }
+        .stat-tile-value {
+            font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; font-weight: 700; line-height: 1;
+            color: var(--ink-100);
+        }
+        .stat-tile-star { font-size: .6rem; font-weight: 700; color: var(--accent); vertical-align: top; margin-left: .1rem; }
+
+        /* 等級點：五顆是建卡上限那條線，超過的（傳奇屬性）多畫幾顆並換色——
+           「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是同樣一排滿點。 */
+        .pip-track { display: inline-flex; gap: 3px; align-items: center; }
+        .pip { width: 6px; height: 6px; border-radius: 1px; background: rgba(255,255,255,.16); }
+        .pip-on { background: var(--accent); box-shadow: 0 0 5px rgba(16,185,129,.45); }
+        .pip-over { background: #facc15; box-shadow: 0 0 5px rgba(250,204,21,.5); }
 
         /* 生命傷勢軌分段 */
         .hp-seg { border-radius: 2px; transition: background-color .3s ease; }
@@ -132,11 +192,21 @@
 
         /* 故事流 */
         #story-feed { border-left: 2px solid rgba(16,185,129,0.2); margin-left: 4px; padding-left: 1.25rem !important; }
+        /* [2026-08-18 修正] 故事流是 flex-col 的可捲動容器，而 flex 子項預設 flex-shrink:1。
+           內容一超出高度，瀏覽器就會**把每一塊都壓扁**去湊高度，而不是讓容器捲動——
+           被壓扁的區塊內容不會跟著縮，於是文字直接溢出自己的框；
+           「說書人書寫中」那一塊還額外有 overflow:hidden（掃描線動畫要用），
+           所以它是最明顯的受害者：整條被切掉一半，看起來就像跑版。
+           一律不准壓縮，超出的部分老老實實交給捲軸。 */
+        #story-feed > * { flex-shrink: 0; }
         .feed-block-dm { line-height: 1.75; font-weight: 600; }
+        /* 敘事段落之間的呼吸空間。刻意比行距大一截——1.75 的行距底下，
+           段落間距要拉得夠開才看得出「這裡換了一段」，不然分了段也還是一整片。 */
+        .feed-para + .feed-para { margin-top: 0.9em; }
         .feed-final-question {
             border-left: 2px solid var(--accent);
             padding: 0.15rem 0 0.15rem 0.75rem;
-            margin-top: 0.5rem;
+            margin-top: 0.9em;
         }
         .feed-final-question strong { color: var(--ink-100); font-weight: 600; }
 
@@ -215,8 +285,12 @@
         .action-tile:active { transform: translateY(0); }
         .action-tile-icon { font-size: 1.35rem; color: #34d399; filter: drop-shadow(0 0 6px rgba(16,185,129,.4)); transition: transform .2s ease; }
         .action-tile:hover .action-tile-icon { transform: scale(1.1); }
-        .action-tile-label { font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: #f4f4f5; }
-        .action-tile-sub { font-size: .68rem; color: #a1a1aa; }
+        /* [2026-08-18 對比度修正] 這兩行以前寫死 #f4f4f5 / #a1a1aa，那是「深色底上的字」的顏色。
+           淺色主題整段沒有覆寫，於是主選單的「建立新檔案 / 讀取存檔 / 系統設定」
+           變成白底上的白字——按鈕整顆看起來是空的，只剩下面那行小字看得到。
+           改成吃主題變數，兩個主題各自拿到正確的墨色，之後新增主題也不用再補一次。 */
+        .action-tile-label { font-size: .82rem; font-weight: 700; letter-spacing: .02em; color: var(--ink-100); }
+        .action-tile-sub { font-size: .68rem; color: var(--ink-400); }
         .action-tile.primary {
             border-color: rgba(16,185,129,.4);
             background: linear-gradient(160deg, rgba(16,185,129,.12), rgba(24,24,27,.75));
@@ -252,6 +326,25 @@
         @keyframes typingBlink { 0%, 60%, 100% { opacity: .3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
 
         /* 掃描線：讓「等待中」這件事在餘光裡也看得見，不必盯著小字 */
+        /* [2026-08-18 修正] 這個區塊原本就只是故事流最後面的一個普通子項，
+           送出回合的當下同時發生三件事：底部輸入列的按鈕換成「書寫中」而變高、
+           選項列被鎖住、這個區塊被插進來。捲到底的動作跑在版面重算之前，
+           於是它常常只露出上面半條，被故事流的下緣切掉——使用者說的「說書人書寫中會跑掉」。
+
+           改成 sticky 貼在故事流可視區的底部：不管捲軸在哪裡、外框怎麼變高變矮，
+           它永遠完整地待在故事流的最下面。等待狀態本來就該是「一直看得到」的東西，
+           而不是一段會被捲走的內容。 */
+        #narrator-pending {
+            position: sticky; bottom: 0; z-index: 5;
+            margin-top: auto;
+            /* 底色一定要不透明：貼在上層之後，半透明的底會讓下面的敘事透出來跟它疊在一起。
+               原本的淡綠色調改用 background-image 疊一層，這樣底色與色調可以並存。 */
+            background-color: var(--bg-void);
+            background-image: linear-gradient(0deg, rgba(16,185,129,.07), rgba(16,185,129,.07));
+        }
+        html[data-theme="light"] #narrator-pending {
+            background-image: linear-gradient(0deg, rgba(37,99,235,.06), rgba(37,99,235,.06));
+        }
         .pending-sweep { position: relative; overflow: hidden; }
         .pending-sweep::after {
             content: ''; position: absolute; inset: 0;
@@ -280,8 +373,36 @@
         .threat-pip.on-3 { background: #fb923c; border-color: #fb923c; }
         .threat-pip.on-4 { background: #ef4444; border-color: #ef4444; box-shadow: 0 0 8px rgba(239,68,68,.6); }
 
-        .modal-panel { transform: scale(.96) translateY(6px); opacity: 0; transition: all .25s ease; }
+        /* [2026-08-18 修正] 視窗高度不夠時，設定視窗會整個往上下超出畫面——
+           上緣的「介面色彩主題」被切掉、下緣的「儲存設定」按鈕根本按不到，
+           而且外層是 fixed 的遮罩，整頁也捲不動，等於卡死。
+           （選了「自訂」供應商時會多出金鑰／Base URL／模型三組欄位，一定會超出。）
+
+           修法：所有 modal 面板一律是「上限高度 + 內部捲動」的直向 flex。
+           面板高度封頂在可視高度扣掉遮罩的 p-4 留白，內容區自己長捲軸，
+           標題列與底部按鈕列則釘在上下不動。dvh 讓手機上網址列縮放時也算得對。 */
+        .modal-panel {
+            transform: scale(.96) translateY(6px); opacity: 0; transition: all .25s ease;
+            display: flex; flex-direction: column;
+            max-height: calc(100vh - 2rem);
+            max-height: calc(100dvh - 2rem);
+        }
         .modal-backdrop.modal-open .modal-panel { transform: scale(1) translateY(0); opacity: 1; }
+        /* 面板裡真正會長高的那一段。min-height:0 是必要的——flex 子項的預設
+           min-height:auto 會讓它拒絕縮小，overflow 就永遠不會生效。 */
+        /* 面板的其他直接子項（標題列、底部按鈕列）一律不縮：面板一旦被高度上限壓到，
+           預設的 flex-shrink:1 會把它們一起壓扁，變成標題跟按鈕互相疊在一起。 */
+        .modal-panel > * { flex-shrink: 0; }
+
+        /* 同一個坑的另一處：主選單是 overflow-y-auto + justify-center 的直向 flex。
+           內容比視窗高的時候（登入提示 + 檢測到存檔 + 三塊功能磚一起出現），
+           justify-center 會把溢出的部分往「捲動範圍之外」推，上緣被切掉而且捲不回去。
+           auto margin 置中沒有這個毛病：空間不夠時 auto 會塌成 0，自動退化成靠上對齊。 */
+        #portal-screen { justify-content: flex-start; }
+        #portal-screen > :first-child { margin-top: auto; }
+        #portal-screen > :last-child { margin-bottom: auto; }
+        #portal-screen > * { flex-shrink: 0; }
+        .modal-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 
         .section-tag {
             display: inline-flex; align-items: center; gap: .35rem;
@@ -294,7 +415,28 @@
 
         button { -webkit-tap-highlight-color: transparent; }
         button:active { transform: translateY(0.5px); }
-        button, input, select, textarea, a { outline: none; }
+
+        /* [2026-08-18 無障礙修正] 這裡原本只有一行 `outline: none`，把整個畫面的鍵盤焦點
+           指示拿掉了。輸入類元素各自補了 focus:border-emerald-500，但**按鈕一顆都沒有**——
+           用鍵盤 Tab 走過選項卡、四個分頁、視窗關閉鈕、購買鈕時，完全看不出焦點在哪。
+
+           改成用 :focus-visible：滑鼠點按不會出現外框（那正是當初想拿掉的東西），
+           只有鍵盤操作時才畫出來，所以視覺上跟原本一樣，但鍵盤使用者拿回了方向感。
+           外框用兩層（outline + offset）確保在深色與淺色底上都看得見。 */
+        button:focus, input:focus, select:focus, textarea:focus, a:focus { outline: none; }
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        a:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        /* 對話框面板本身會被聚焦（開啟時焦點先落在它上面），但它不是操作元素，
+           畫一圈外框反而像是「這個框被選取了」。它靠 aria 宣告身分就夠了。 */
+        .modal-panel:focus-visible { outline: none; }
 
         /* ================= 大型主選單標題（全新現代微光設計） ================= */
         .menu-banner {
@@ -339,6 +481,29 @@
             border-right: 1px solid rgba(255,255,255,.08);
         }
 
+        /* ===== 手機版的角色卡抽屜 =====
+           桌機（>=768px）不套用這一段，側欄維持原本的常駐浮層。
+           手機上改成從左側滑出：關閉時 visibility:hidden，鍵盤 Tab 才不會跑進
+           一個看不見的面板裡（只用 translateX 推出畫面的話它仍然可以被聚焦）。
+           visibility 的 transition 用 0s 延遲控制：開啟時立刻可見，關閉時等滑動結束才隱藏。 */
+        @media (max-width: 767px) {
+            #char-hud {
+                position: fixed; top: 0; bottom: 0; left: 0; z-index: 45;
+                width: min(20rem, 86vw);
+                padding-top: env(safe-area-inset-top, 0px);
+                padding-bottom: env(safe-area-inset-bottom, 0px);
+                transform: translateX(-100%);
+                visibility: hidden;
+                box-shadow: 8px 0 32px rgba(0,0,0,.45);
+                transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s;
+            }
+            #char-hud.hud-open {
+                transform: translateX(0);
+                visibility: visible;
+                transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s;
+            }
+        }
+
         .terminal-strip { position: relative; }
         .terminal-strip::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
@@ -351,8 +516,10 @@
             --bg-panel: #ffffff;
             --bg-card: #ffffff;
             --ink-100: #0f172a;
-            --ink-400: #64748b;
-            --ink-500: #94a3b8;
+            /* 這兩階與下方 .text-zinc-400 / .text-zinc-500 的覆寫值一致（7.4:1 / 4.6:1）。
+               先前是 #64748b / #94a3b8，後者在白底上只有 2.6:1，低於 WCAG AA。 */
+            --ink-400: #475569;
+            --ink-500: #64748b;
             --accent: #2563eb;
             --accent-alt: #1d4ed8;
             --danger: #dc2626;
@@ -364,130 +531,225 @@
                 radial-gradient(ellipse 50% 35% at 105% 105%, rgba(220,38,38,0.03), transparent 60%);
         }
         html[data-theme="light"] .bg-tech-grid { background-image: radial-gradient(rgba(15,23,42,0.06) 1px, transparent 1px); }
+        html[data-theme="light"] * { scrollbar-color: #cbd5e1 transparent; }
         html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         html[data-theme="light"] .hairline-border { border-color: rgba(15,23,42,0.1); }
         html[data-theme="light"] .hairline-b { border-bottom-color: rgba(15,23,42,0.1); }
         html[data-theme="light"] .hairline-t { border-top-color: rgba(15,23,42,0.1); }
         html[data-theme="light"] .hairline-r { border-right-color: rgba(15,23,42,0.1); }
 
+        /* ================= 淺色主題的顏色對照表（單一來源） =================
+           [2026-08-18 重寫] 這一段以前是分三輪補出來的：先補純色、再補一部分透明度變體，
+           每次都只補「當下看到壞掉的那幾個」，於是永遠有漏網的（使用者最後一次回報的
+           主選單白字、主神掃描面板的淡紫字、商店的琥珀/天藍字都在漏網名單裡）。
+
+           現在改成一次把**畫面上真的有用到的每一個顏色工具**都列出來（來源是對
+           public/index.html 與 public/app.js 直接掃 class 字串），並且照色系分組。
+           新增一個顏色類別時請同時在這裡補一行——這是唯一的規則。
+
+           色系對照（深色 → 淺色）：
+             emerald 綠（主色）→ #2563eb 藍          violet 紫 → #6d28d9
+             yellow/amber 黃 → #b45309 琥珀           orange 橘 → #c2410c
+             red 紅 → #b91c1c                        rose 玫瑰 → #be123c
+             sky 天藍 → #0369a1                      cyan 青 → #0e7490
+           全部都是在白底上 ≥4.5:1（WCAG AA）的深色版本。
+
+           一條重要原則：**淺色主題不用透明度做文字層次**。深色主題可以靠
+           「亮字 × 透明度」拉出層次，白底上同樣的做法只會讓字越來越接近背景。
+           所以所有 /70、/80、/90 的文字變體在這裡一律拉回不透明的深色，層次改用
+           字級與粗細表達。底色與邊框則相反——它們本來就該是很淡的一層，維持透明度。 */
+
+        /* ---- 底色：深色主題的各級「更暗的面」在淺色主題全部收斂成白/極淺灰 ---- */
         html[data-theme="light"] .bg-zinc-950,
         html[data-theme="light"] .bg-zinc-900,
         html[data-theme="light"] .bg-zinc-800,
         html[data-theme="light"] .bg-zinc-700,
         html[data-theme="light"] .bg-panel { background-color: #ffffff; }
-        html[data-theme="light"] .hover\:bg-zinc-800:hover { background-color: #f1f5f9; }
+        html[data-theme="light"] .bg-panel\/70 { background-color: rgba(255,255,255,.7); }
+        html[data-theme="light"] .bg-zinc-700\/40,
+        html[data-theme="light"] .bg-zinc-700\/60 { background-color: #e2e8f0; }
+        html[data-theme="light"] .hover\:bg-zinc-800:hover,
+        html[data-theme="light"] .hover\:bg-zinc-700:hover,
+        html[data-theme="light"] .hover\:bg-zinc-700\/60:hover { background-color: #f1f5f9; }
+        html[data-theme="light"] .bg-zinc-950\/40,
         html[data-theme="light"] .bg-zinc-950\/60,
         html[data-theme="light"] .bg-zinc-900\/50,
         html[data-theme="light"] .bg-zinc-900\/30 { background-color: #f8fafc; }
         html[data-theme="light"] .bg-zinc-950\/90,
         html[data-theme="light"] .bg-zinc-950\/95 { background-color: rgba(255,255,255,0.95); }
 
+        /* ---- 中性文字：往下壓一級，讓每一階在白底上都站得住 ----
+           #1e293b 13:1 / #334155 10:1 / #475569 7.4:1 / #64748b 4.6:1
+           placeholder 與 zinc-700 維持較淺是刻意的——它們本來就該比實際內容弱一階。 */
         html[data-theme="light"] .text-zinc-100,
         html[data-theme="light"] .text-white { color: #0f172a; }
         html[data-theme="light"] .text-zinc-200 { color: #1e293b; }
         html[data-theme="light"] .text-zinc-300 { color: #334155; }
-        /* [2026-08-16 對比度修正] 這兩級原本是 #64748b / #94a3b8，在白底上分別約 4.6:1 與 2.6:1。
-           後者用在設定視窗的說明小字、劇情HUD的進度文字上，實際是讀不清楚的（低於 WCAG AA 的 4.5:1）。
-           整體往下壓一級：#475569 約 7.4:1、#64748b 約 4.6:1，兩者都站得住。
-           placeholder 維持較淺是刻意的——它本來就該比實際輸入的文字弱一階。 */
+        html[data-theme="light"] .hover\:text-zinc-200:hover { color: #1e293b; }
         html[data-theme="light"] .text-zinc-400 { color: #475569; }
-        html[data-theme="light"] .text-zinc-500 { color: #64748b; }
+        /* zinc-500/600 在深色主題都是「更暗的註解灰」；淺色主題不能照抄那個relation，
+           但也不該淡到讀不出來——兩級都收在 4.6:1 這條線上。 */
+        html[data-theme="light"] .text-zinc-500,
+        html[data-theme="light"] .text-zinc-600 { color: #64748b; }
+        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
+           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
+        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
         html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #94a3b8; }
+        html[data-theme="light"] .border-zinc-600,
+        html[data-theme="light"] .border-zinc-700,
+        html[data-theme="light"] .border-zinc-700\/60,
+        html[data-theme="light"] .border-zinc-800 { border-color: #e2e8f0; }
 
+        /* ---- emerald 綠（主色）→ 藍 ---- */
         html[data-theme="light"] .text-emerald-200,
+        html[data-theme="light"] .text-emerald-200\/80,
         html[data-theme="light"] .text-emerald-200\/85,
+        html[data-theme="light"] .text-emerald-200\/90,
         html[data-theme="light"] .text-emerald-300,
+        html[data-theme="light"] .text-emerald-300\/70,
         html[data-theme="light"] .text-emerald-300\/90,
         html[data-theme="light"] .text-emerald-400,
-        html[data-theme="light"] .text-emerald-500 { color: #2563eb; }
+        html[data-theme="light"] .text-emerald-400\/80,
+        html[data-theme="light"] .text-emerald-500,
+        html[data-theme="light"] .hover\:text-emerald-200:hover,
+        html[data-theme="light"] .hover\:text-emerald-300:hover { color: #2563eb; }
+        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
+        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
+        html[data-theme="light"] .text-emerald-500\/25 { color: rgba(37,99,235,.25); }
 
+        html[data-theme="light"] .bg-emerald-400 { background-color: #2563eb; }
+        html[data-theme="light"] .bg-emerald-500\/\[0\.04\],
+        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.05); }
         html[data-theme="light"] .bg-emerald-500\/10,
         html[data-theme="light"] .bg-emerald-500\/15,
-        html[data-theme="light"] .bg-emerald-500\/20 { background-color: rgba(37,99,235,.08); }
+        html[data-theme="light"] .bg-emerald-500\/20,
+        html[data-theme="light"] .bg-emerald-500\/25,
+        html[data-theme="light"] .bg-emerald-500\/30 { background-color: rgba(37,99,235,.09); }
         html[data-theme="light"] .hover\:bg-emerald-500\/20:hover,
-        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.14); }
+        html[data-theme="light"] .hover\:bg-emerald-500\/25:hover,
+        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.16); }
         html[data-theme="light"] .border-emerald-500,
+        html[data-theme="light"] .border-emerald-500\/60,
         html[data-theme="light"] .border-emerald-500\/50,
         html[data-theme="light"] .border-emerald-500\/40,
-        html[data-theme="light"] .border-emerald-500\/30 { border-color: rgba(37,99,235,.35); }
+        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .border-emerald-500\/30,
+        html[data-theme="light"] .border-emerald-500\/20,
+        html[data-theme="light"] .border-emerald-500\/15 { border-color: rgba(37,99,235,.25); }
+        html[data-theme="light"] .hover\:border-emerald-500\/40:hover,
+        html[data-theme="light"] .hover\:border-emerald-500\/50:hover { border-color: rgba(37,99,235,.5); }
 
-        /* --- 警告色（黃）在淺色主題的處理 ---------------------------------
-           [2026-08-16] 淺色主題原本只把 emerald 換成藍，**完全沒有處理黃色**，
-           於是所有警告都維持深色主題的亮黃：yellow-300(#fde047) 落在白底上對比度約 1.2:1，
-           幾乎讀不到；而且保底標籤、未受訓提示、存檔警告條、劇情提示同時都是整塊亮黃，
-           整個版面變得很吵。
-
-           作法分兩層，跟使用者的要求一致（「部分提示字是黃色就好」）：
-             文字 → 改用琥珀色 #b45309，白底對比度約 5.9:1，過 WCAG AA
-             底色與邊框 → 幾乎去掉，換成近乎中性的淺灰面，只留一點點暖調
-           這樣「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
+        /* ---- 警告色（黃／琥珀）----------------------------------------------
+           深色主題的亮黃 yellow-300(#fde047) 落在白底上只有約 1.2:1，幾乎讀不到；
+           而且保底標籤、未受訓提示、存檔警告條、商店價格同時都是整塊亮黃，版面會很吵。
+           文字改用琥珀 #b45309（5.9:1），底色幾乎去掉只留一點暖調——
+           「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
         html[data-theme="light"] .text-yellow-200,
         html[data-theme="light"] .text-yellow-200\/80,
         html[data-theme="light"] .text-yellow-300,
         html[data-theme="light"] .text-yellow-300\/80,
         html[data-theme="light"] .text-yellow-300\/90,
-        html[data-theme="light"] .text-yellow-400 { color: #b45309; }
+        html[data-theme="light"] .text-yellow-400,
+        html[data-theme="light"] .text-yellow-500,
+        html[data-theme="light"] .text-amber-200,
+        html[data-theme="light"] .text-amber-300,
+        html[data-theme="light"] .text-amber-300\/80,
+        html[data-theme="light"] .text-amber-300\/90 { color: #b45309; }
 
         html[data-theme="light"] .bg-yellow-500\/5,
-        html[data-theme="light"] .bg-yellow-500\/10 { background-color: #fafaf9; }
+        html[data-theme="light"] .bg-yellow-500\/10,
+        html[data-theme="light"] .bg-amber-500\/10 { background-color: #fdf6ec; }
+        html[data-theme="light"] .bg-amber-500\/20,
+        html[data-theme="light"] .bg-amber-500\/30 { background-color: rgba(180,83,9,.14); }
+        html[data-theme="light"] .hover\:bg-amber-500\/20:hover,
+        html[data-theme="light"] .hover\:bg-amber-500\/30:hover { background-color: rgba(180,83,9,.2); }
         html[data-theme="light"] .border-yellow-500\/30,
-        html[data-theme="light"] .border-yellow-500\/40 { border-color: rgba(180,83,9,.28); }
+        html[data-theme="light"] .border-yellow-500\/40,
+        html[data-theme="light"] .border-amber-500\/40,
+        html[data-theme="light"] .border-amber-500\/50 { border-color: rgba(180,83,9,.28); }
 
-        /* 橘（時間吃緊）比照辦理，否則同一條 HUD 上黃橘紅三色會一起出現 */
-        html[data-theme="light"] .text-orange-300 { color: #c2410c; }
-        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fafaf9; }
+        /* ---- 橘（時間吃緊）：跟黃分開，否則同一條 HUD 上黃橘紅會糊成一片 ---- */
+        html[data-theme="light"] .text-orange-200\/90,
+        html[data-theme="light"] .text-orange-300,
+        html[data-theme="light"] .text-orange-300\/90 { color: #c2410c; }
+        html[data-theme="light"] .bg-orange-500\/5,
+        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fff7ed; }
+        html[data-theme="light"] .border-orange-500\/30,
         html[data-theme="light"] .border-orange-500\/40 { border-color: rgba(194,65,12,.28); }
 
-        /* 紅色系：yellow 同樣的理由，深色主題的亮紅在白底上偏刺眼且對比不足 */
+        /* ---- 紅（傷害／死亡／錯誤）與玫瑰（惡德）---- */
         html[data-theme="light"] .text-red-200,
         html[data-theme="light"] .text-red-300,
-        html[data-theme="light"] .text-red-400 { color: #b91c1c; }
+        html[data-theme="light"] .text-red-400,
+        html[data-theme="light"] .hover\:text-red-400:hover { color: #b91c1c; }
+        html[data-theme="light"] .text-rose-200,
+        html[data-theme="light"] .text-rose-300 { color: #be123c; }
         html[data-theme="light"] .bg-red-500\/5,
-        html[data-theme="light"] .bg-red-500\/10 { background-color: #fef7f7; }
+        html[data-theme="light"] .bg-red-500\/10,
+        html[data-theme="light"] .bg-rose-500\/10 { background-color: #fef5f5; }
+        html[data-theme="light"] .bg-red-500\/20,
+        html[data-theme="light"] .hover\:bg-red-500\/20:hover { background-color: rgba(185,28,28,.12); }
+        html[data-theme="light"] .border-red-500\/30,
         html[data-theme="light"] .border-red-500\/40,
-        html[data-theme="light"] .border-red-500\/30 { border-color: rgba(185,28,28,.28); }
+        html[data-theme="light"] .border-red-500\/50,
+        html[data-theme="light"] .border-red-400\/50,
+        html[data-theme="light"] .hover\:border-red-500\/40:hover,
+        html[data-theme="light"] .hover\:border-red-500\/50:hover { border-color: rgba(185,28,28,.3); }
+        html[data-theme="light"] .border-rose-500\/30,
+        html[data-theme="light"] .border-rose-500\/40 { border-color: rgba(190,18,60,.3); }
 
-        /* --- [2026-08-16 第二輪對比度修正] ------------------------------------
-           上一輪只處理了「純色」的工具類（text-emerald-300、text-yellow-300…），
-           但畫面上真正用得最多的其實是**帶透明度的變體**（text-emerald-300\/70、
-           text-emerald-200\/80…）。那些變體沒有被覆寫，於是在淺色主題底下維持深色主題的
-           亮綠再乘上透明度，落在白底上大多只有 1.5~2.5:1 —— 使用者回報的「明亮風格有些地方
-           文字對比度沒調好，黑暗風格就沒問題」正是這一批。
-           （受影響的實際位置：說書人書寫中的秒數、輪迴者行動那行斜體、副本簡介、迫近度提示。）
-
-           作法跟上一輪一致：綠→藍、橘→深橘、紫→深紫，透明度變體一律拉回不透明的深色，
-           因為在白底上「用透明度做層次」本來就行不通——層次改用字級與粗細做。 */
-        html[data-theme="light"] .text-emerald-200\/80,
-        html[data-theme="light"] .text-emerald-200\/90,
-        html[data-theme="light"] .text-emerald-300\/70,
-        html[data-theme="light"] .text-emerald-400\/80 { color: #2563eb; }
-        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
-        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
-        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.06); }
-        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.4); }
-
-        html[data-theme="light"] .text-orange-200\/90 { color: #c2410c; }
-        html[data-theme="light"] .bg-orange-500\/5 { background-color: #fffbf7; }
-        html[data-theme="light"] .border-orange-500\/30 { border-color: rgba(194,65,12,.28); }
-
-        /* 紫（純敘事型專長的標記色）在白底上同樣要壓深，否則跟淺灰幾乎分不出來 */
+        /* ---- 紫（主神系統／特性／型態）----
+           主神掃描面板整塊都是紫系：標題 violet-300、內文 violet-100、
+           五句引用 violet-200/70、結語 violet-200/90。淺色主題以前只覆寫了
+           violet-200 與 violet-300 兩個純色，於是那塊面板上真正的內文全部是淡紫色
+           落在淡紫底上，等於一片空白——使用者截圖裡讀不到字的就是這一塊。 */
         html[data-theme="light"] .text-violet-200,
-        html[data-theme="light"] .text-violet-300 { color: #6d28d9; }
-        html[data-theme="light"] .bg-violet-500\/10 { background-color: #faf5ff; }
+        html[data-theme="light"] .text-violet-200\/70,
+        html[data-theme="light"] .text-violet-200\/90,
+        html[data-theme="light"] .text-violet-300,
+        html[data-theme="light"] .text-violet-300\/80,
+        html[data-theme="light"] .hover\:text-violet-200:hover { color: #6d28d9; }
+        /* violet-100 是面板主要內文，底又是淡紫，要比標題再深一階才拉得開 */
+        html[data-theme="light"] .text-violet-100 { color: #4c1d95; }
+        html[data-theme="light"] .bg-violet-500\/\[0\.07\],
+        html[data-theme="light"] .bg-violet-500\/10 { background-color: #f7f3ff; }
+        html[data-theme="light"] .bg-violet-500\/20,
+        html[data-theme="light"] .bg-violet-500\/30 { background-color: rgba(109,40,217,.12); }
+        html[data-theme="light"] .hover\:bg-violet-500\/20:hover,
+        html[data-theme="light"] .hover\:bg-violet-500\/30:hover { background-color: rgba(109,40,217,.18); }
+        html[data-theme="light"] .border-violet-400,
+        html[data-theme="light"] .border-violet-500\/50,
+        html[data-theme="light"] .border-violet-500\/40,
+        html[data-theme="light"] .hover\:border-violet-400:hover { border-color: rgba(109,40,217,.4); }
         html[data-theme="light"] .border-violet-500\/30,
-        html[data-theme="light"] .border-violet-500\/40 { border-color: rgba(109,40,217,.3); }
+        html[data-theme="light"] .border-violet-500\/25 { border-color: rgba(109,40,217,.25); }
 
-        html[data-theme="light"] .border-red-400\/50 { border-color: rgba(185,28,28,.35); }
-
-        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
-           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
-        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
+        /* ---- 天藍（休息／無需檢定／吸收）與青（支線代幣）---- */
+        html[data-theme="light"] .text-sky-300,
+        html[data-theme="light"] .text-sky-300\/80 { color: #0369a1; }
+        html[data-theme="light"] .text-cyan-300 { color: #0e7490; }
+        html[data-theme="light"] .bg-sky-500\/10 { background-color: #f0f9ff; }
+        html[data-theme="light"] .bg-sky-500\/20,
+        html[data-theme="light"] .hover\:bg-sky-500\/20:hover { background-color: rgba(3,105,161,.12); }
+        html[data-theme="light"] .border-sky-500\/40 { border-color: rgba(3,105,161,.3); }
 
         html[data-theme="light"] .hud-box { background: #ffffff; border-color: rgba(15,23,42,.1); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
         html[data-theme="light"] .hud-float { background: rgba(255,255,255,0.9); border-right-color: rgba(15,23,42,.08); }
-        html[data-theme="light"] .stat-tile { background: #ffffff; border-color: rgba(15,23,42,.08); box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
-        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); }
+        html[data-theme="light"] .stat-tile {
+            background: linear-gradient(150deg, rgba(15,23,42,.03), rgba(255,255,255,0) 60%), #ffffff;
+            border-color: rgba(15,23,42,.08);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); box-shadow: 0 4px 12px rgba(15,23,42,.08); }
+        html[data-theme="light"] .stat-tile-rail::before { background: rgba(15,23,42,.08); }
+        html[data-theme="light"] .stat-tile-rail::after { box-shadow: 0 0 8px rgba(37,99,235,.3); }
+        /* 只覆寫「沒點亮」的那幾顆——直接寫 .pip 的話，這條 (0,2,0) 的特異度會蓋過
+           點亮用的 .pip-on (0,1,0)，淺色主題下整排點就會全部變成灰的。 */
+        html[data-theme="light"] .pip:not(.pip-on):not(.pip-over) { background: rgba(15,23,42,.14); }
+        html[data-theme="light"] .pip-on { box-shadow: 0 0 5px rgba(37,99,235,.35); }
+        html[data-theme="light"] .pip-over { background: #b45309; box-shadow: 0 0 5px rgba(180,83,9,.35); }
         html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(37,99,235,.08), #ffffff 70%); border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .scene-bar-tint { background: #ffffff; border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .folder-tab { color: #64748b; }
@@ -528,6 +790,32 @@
             color: #2563eb;
         }
         html[data-theme="light"] #story-feed { border-left-color: rgba(37,99,235,.2); }
+
+        /* ================= 減少動態 =================
+           [2026-08-18 新增] 這個介面同時有五個無限循環的動畫在跑：背景呼吸光暈
+           (ambientBreathe)、存檔提示的 pulse-glow、連線指示燈的 animate-ping、
+           等待回覆時的掃描線 (pendingSweep) 與打字點 (typingBlink)。
+           對前庭功能敏感的人來說，長時間盯著一個永遠在動的畫面是會不舒服的，
+           而在這之前完全沒有關掉的路。
+
+           系統層級開了「減少動態」的人，這裡把**循環**動畫停掉、把過場壓到近乎瞬間。
+           刻意不是全部設成 0：完全沒有狀態變化會讓「送出了沒有」這種回饋消失，
+           所以保留 0.01s 的過場（畫面仍然會換，只是不會動給你看）。
+           d20 擲骰動畫也照樣停——結果數字本來就會直接顯示，不靠動畫傳達資訊。 */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+            body::before { animation: none !important; opacity: .85; }
+            .pending-sweep::after { animation: none !important; content: none; }
+            .typing-dots > span { animation: none !important; opacity: .7; }
+            .pulse-glow { animation: none !important; }
+            /* hover 的位移在減少動態下也一併拿掉：它是「動」的一種，只是很短。 */
+            .action-tile:hover, .stat-tile:hover { transform: none !important; }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -634,7 +922,7 @@
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
     <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-4 sm:p-6">
-        <div class="hud-box hud-corners p-6 rounded-lg space-y-5">
+        <div class="hud-box p-6 rounded-lg space-y-5">
             <div class="flex items-center justify-between hairline-b pb-3">
                 <div>
                     <div class="ribbon-banner ribbon-sm">Character Creation</div>
@@ -756,15 +1044,29 @@
 
     <!-- 3. 遊戲主視窗 (In-Game Screen) -->
     <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
-        <!-- 左側 HUD：浮層面板，非實色儀表板欄 -->
-        <aside class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden hidden md:flex">
+        <!-- 手機版抽屜的遮罩。桌機永遠不顯示（md:hidden），手機上點它就關抽屜。 -->
+        <div id="char-hud-scrim" onclick="closeCharHud()" class="hidden md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"></div>
+
+        <!-- 左側 HUD：桌機是常駐浮層面板；手機是從左側滑出的抽屜（見 CSS 的 #char-hud）。
+             [2026-08-18] 這裡原本是 `hidden md:flex`——寬度小於 768px 時整條側欄
+             display:none，而且沒有任何替代入口。等於在手機上玩的人看不到自己的血量、
+             屬性、技能、特質與日誌。這個專案有 PWA manifest 也有「安裝App」按鈕，
+             手機本來就是預期的玩法之一，不能把角色卡整個藏起來。 -->
+        <aside id="char-hud" aria-label="角色狀態" class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
             <div class="name-plate">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">OPERATIVE STATUS</div>
                         <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
-                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
+                        <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
+                        <button type="button" onclick="closeCharHud()" aria-label="關閉角色狀態"
+                                class="md:hidden px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
 
@@ -780,22 +1082,25 @@
                 </div>
             </div>
 
-            <!-- 分頁 Tab：檔案夾造型 -->
-            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b">
-                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="folder-tab sidebar-tab-btn active">屬性</button>
-                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="folder-tab sidebar-tab-btn">技能</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="folder-tab sidebar-tab-btn">特質</button>
-                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="folder-tab sidebar-tab-btn">日誌</button>
+            <!-- 分頁 Tab：檔案夾造型。
+                 sidebar-tab-btn 這個 class 已經拿掉——它既沒有 CSS 定義，也沒有任何 JS 讀它
+                 （切換分頁是靠 id="tab-btn-*" 抓的，見下面的 switchSidebarTab）。
+                 換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「四個分頁，現在在第一個」。 -->
+            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b" role="tablist" aria-label="角色資訊分頁">
+                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" role="tab" aria-selected="true" aria-controls="sidebar-tab-attr" class="folder-tab active">屬性</button>
+                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" role="tab" aria-selected="false" aria-controls="sidebar-tab-skills" class="folder-tab">技能</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">特質</button>
+                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div id="sidebar-tab-attr" class="space-y-2">
+                <div id="sidebar-tab-attr" role="tabpanel" aria-labelledby="tab-btn-attr" class="space-y-2">
                     <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
                 </div>
-                <div id="sidebar-tab-skills" class="hidden space-y-2">
+                <div id="sidebar-tab-skills" role="tabpanel" aria-labelledby="tab-btn-skills" class="hidden space-y-2">
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                 </div>
-                <div id="sidebar-tab-traits" class="hidden space-y-2">
+                <div id="sidebar-tab-traits" role="tabpanel" aria-labelledby="tab-btn-traits" class="hidden space-y-2">
                     <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5">
                         <span>特質 / 資源</span>
                         <span>滾輪 / 點擊切換 ↻</span>
@@ -803,7 +1108,7 @@
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
                 </div>
-                <div id="sidebar-tab-journal" class="hidden space-y-2">
+                <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2">
                     <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
                 </div>
             </div>
@@ -811,28 +1116,38 @@
 
         <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-            <div class="chevron-bar scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
-                <div class="flex items-center gap-2 text-zinc-300">
-                    <i class="fas fa-map-marker-alt text-emerald-400"></i>
-                    <span id="current-scene-text" class="text-zinc-100 font-semibold">主神空間 · 任務進行中</span>
+            <div class="scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
+                <div class="flex items-center gap-2 text-zinc-300 min-w-0">
+                    <!-- 手機版開啟角色卡的入口。桌機不需要（側欄一直在），所以 md:hidden。 -->
+                    <button type="button" id="char-hud-toggle" onclick="openCharHud()"
+                            aria-label="開啟角色狀態" aria-controls="char-hud" aria-expanded="false"
+                            class="md:hidden shrink-0 px-2 py-1 -ml-2 rounded border hairline-border bg-panel text-emerald-300 hover:border-emerald-500/40 transition-all">
+                        <i class="fas fa-id-badge text-[11px]"></i>
+                    </button>
+                    <i class="fas fa-map-marker-alt text-emerald-400 shrink-0"></i>
+                    <span id="current-scene-text" class="text-zinc-100 font-semibold truncate">主神空間 · 任務進行中</span>
                 </div>
-                <div class="flex items-center gap-3 text-[11px] text-zinc-300">
-                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
+                <!-- [2026-08-18] 這一列在 390px 寬的手機上會整組擠成兩三行：
+                     「主神／商店」「回合：／1」「已存／檔」全部斷開，讀起來像壞掉的表格。
+                     作法是把每一顆都設成不換行、不壓縮，並在小螢幕上只留圖示——
+                     文字標籤改用 title/aria-label 保留語意，圖示本身在桌機仍然帶著文字。 -->
+                <div class="flex items-center gap-2 sm:gap-3 text-[11px] text-zinc-300 shrink-0">
+                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" title="遭遇戰鬥" aria-label="遭遇戰鬥" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-crosshairs text-[10px]"></i><span class="hidden sm:inline"> 遭遇戰鬥</span>
                     </button>
                     <!-- 主神商店。門禁規則見 content/shop/access.js（規則書第469行）：
                          支線與獎勵點數只能在主神空間花，經驗兩邊都能花但副本中要兩倍。
                          按鈕一直在，因為玩家在副本中也需要看得到「等我出去要買什麼」。 -->
-                    <button id="shop-open-btn" onclick="openShop()" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-store text-[10px]"></i> 主神商店
+                    <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-store text-[10px]"></i><span class="hidden sm:inline"> 主神商店</span>
                     </button>
                     <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
                          主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
-                    <button id="rest-btn" onclick="doRest()" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-mug-hot text-[10px]"></i> 休息
+                    <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-mug-hot text-[10px]"></i><span class="hidden sm:inline"> 休息</span>
                     </button>
-                    <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
-                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300">已存檔</span>
+                    <span class="whitespace-nowrap shrink-0"><span class="hidden sm:inline">回合: </span><span class="sm:hidden">#</span><span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
+                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300 whitespace-nowrap shrink-0">已存檔</span>
                 </div>
             </div>
 
@@ -885,7 +1200,7 @@
 
             <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
             <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
-                <div class="hud-box hud-corners p-4 rounded-lg space-y-3 shrink-0">
+                <div class="hud-box p-4 rounded-lg space-y-3 shrink-0">
                     <div class="flex items-center justify-between font-mono text-xs">
                         <span class="text-red-300 font-bold flex items-center gap-1.5"><i class="fas fa-skull text-[11px]"></i><span id="combat-enemy-name">—</span></span>
                         <span class="text-zinc-300">第 <span id="combat-round">1</span> 輪</span>
@@ -916,7 +1231,7 @@
 
                 <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
 
-                <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
+                <div id="combat-over-banner" style="display:none" class="hud-box p-4 rounded-lg text-center space-y-3 shrink-0">
                     <div id="combat-over-text" class="text-lg font-bold"></div>
                     <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                         返回劇情
@@ -967,7 +1282,7 @@
                         <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
-                    <button data-send-custom class="chevron-bar-r bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
+                    <button data-send-custom class="bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
                         <span>執行</span>
                         <i class="fas fa-arrow-right text-[10px]"></i>
                     </button>
@@ -978,7 +1293,7 @@
 
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="輪迴存檔管理" tabindex="-1">
             <div class="flex justify-between items-center pb-1">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-database text-[11px]"></i>
@@ -986,7 +1301,7 @@
                 </div>
                 <button onclick="closeModal('sessionModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 font-mono text-xs">
+            <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
                 <!-- 我的存檔：登入之後才有東西。這是 Google 登入真正的用途——
                      存檔綁在帳號上，換一台電腦、清掉瀏覽器資料都還找得回來。
                      沒登入時顯示提示，而不是一塊空白。 -->
@@ -1018,7 +1333,7 @@
     <!-- 主神商店。整個貨架由 GET /api/shop 產生，前端不做任何價格或可否購買的判斷——
          那些全部是 content/shop/ 底下的純函式算好的（本專案第4條最高原則：數值不交給前端也不交給AI）。 -->
     <div id="shopModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box hud-corners flex flex-col max-h-[88vh]">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="主神商店" tabindex="-1">
             <div class="flex items-center justify-between p-4 pb-3 hairline-b shrink-0">
                 <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
                     <i class="fas fa-store"></i> 主神商店
@@ -1048,22 +1363,24 @@
             <!-- 分類頁籤 -->
             <div id="shop-tabs" class="px-4 py-2 flex flex-wrap gap-1.5 text-[11px] font-mono shrink-0 hairline-b"></div>
 
-            <div id="shop-shelf" class="flex-1 overflow-y-auto p-4 space-y-2"></div>
+            <div id="shop-shelf" class="modal-scroll p-4 space-y-2"></div>
 
             <div id="shop-toast" style="display:none" class="px-4 py-2 text-[11px] font-mono shrink-0 hairline-t"></div>
         </div>
     </div>
 
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
-            <div class="flex justify-between items-center pb-1">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="系統與文筆設定" tabindex="-1">
+            <div class="flex justify-between items-center pb-1 shrink-0">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-sliders-h text-[11px]"></i>
                     <span>系統與文筆設定</span>
                 </div>
                 <button onclick="closeModal('settingsModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 font-mono text-xs">
+            <!-- modal-scroll：這一段（也只有這一段）會捲動，標題列與底下的「儲存設定」永遠在畫面上。
+                 -mr-2 pr-2 是把捲軸推到面板邊緣，不然它會擠在欄位跟內距之間。 -->
+            <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
                 <div>
                     <label class="text-zinc-300 block mb-1">介面色彩主題</label>
                     <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
@@ -1150,7 +1467,7 @@
                     </div>
                 </div>
             </div>
-            <div class="flex justify-end gap-2 pt-3 hairline-t">
+            <div class="flex justify-end gap-2 pt-3 hairline-t shrink-0">
                 <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                     儲存設定
                 </button>
@@ -1158,10 +1475,19 @@
         </div>
     </div>
 
+    <!-- 畫面內通知（見 public/app.js 的 showToast）。
+         [2026-08-18] 在這之前，讀檔失敗與刪檔失敗是用原生的 alert() 報的——
+         畫面其他地方每一種錯誤都有自己的樣式（故事流裡的 SYSTEM.ERROR 區塊、
+         存檔警告條…），只有這三處會跳出一個瀏覽器對話框，看起來像網頁壞掉。
+         aria-live=polite：讀屏會唸出來，但不會打斷使用者正在讀的東西。 -->
+    <div id="toast-tray" aria-live="polite" aria-atomic="false"
+         class="fixed left-1/2 -translate-x-1/2 z-[60] w-[min(30rem,calc(100vw-2rem))] space-y-2 pointer-events-none"
+         style="top: calc(0.75rem + env(safe-area-inset-top, 0px))"></div>
+
     <!-- iOS Safari 沒有 beforeinstallprompt 這個事件，瀏覽器不給網頁自己彈安裝提示，
          只能手把手教玩家怎麼從分享選單加入主畫面（見 initPwaInstall() 的 iOS 分支）。 -->
     <div id="pwaInstallModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-sm rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-sm rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="安裝到主畫面" tabindex="-1">
             <div class="flex justify-between items-center pb-1">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-mobile-screen-button text-[11px]"></i>
@@ -1169,7 +1495,7 @@
                 </div>
                 <button onclick="closeModal('pwaInstallModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
-            <div class="space-y-3 text-xs font-mono text-zinc-300 leading-relaxed">
+            <div class="modal-scroll space-y-3 text-xs font-mono text-zinc-300 leading-relaxed -mr-2 pr-2">
                 <p>iOS 的 Safari 不開放網頁自己跳出安裝提示，要手動加三步：</p>
                 <ol class="space-y-2 list-none">
                     <li class="flex items-start gap-2">
@@ -1237,10 +1563,47 @@
             game.style.display = (screen === 'game') ? 'flex' : 'none';
             replayEnterAnim({ portal, chargen, game }[screen]);
         }
+        // =====================================================================
+        // Modal 的無障礙與關閉方式
+        //
+        // [2026-08-18] 在這之前，四個 modal 都只能靠角落那顆小小的 × 關掉：
+        // 按 Esc 沒反應、點背景沒反應，而且整份 HTML 一個 role/aria 都沒有——
+        // 用鍵盤或讀屏的人打開設定視窗之後，是走不出來也讀不出「這是一個對話框」的。
+        //
+        // 這裡補齊四件事，都是對話框的基本要求：
+        //   1) role="dialog" + aria-modal（在各自的 .modal-panel 上，見上面的標記）
+        //   2) Esc 關閉最上層的那一個
+        //   3) 點背景關閉（只認點在遮罩本身，點面板內部不算）
+        //   4) 焦點管理：開啟時把焦點移進面板、Tab 鎖在面板內、關閉時還給原本的元素
+        // =====================================================================
+
+        const FOCUSABLE_SELECTOR =
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+            'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+        /** 目前疊著幾個 modal。最後一個就是「最上層」，Esc 與 Tab 鎖定都認它。 */
+        const openModalStack = [];
+        /** 每個 modal 打開之前，焦點原本在哪顆元素上——關閉時要還回去。 */
+        const focusBeforeModal = new Map();
+
+        function focusablesIn(el) {
+            return [...el.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+                (n) => n.offsetParent !== null || n === document.activeElement
+            );
+        }
+
         function openModal(id) {
             const el = document.getElementById(id);
-            el?.classList.remove('opacity-0', 'pointer-events-none');
-            requestAnimationFrame(() => el?.classList.add('modal-open'));
+            if (!el) return;
+            focusBeforeModal.set(id, document.activeElement);
+            el.removeAttribute('inert');
+            el.removeAttribute('aria-hidden');
+            el.classList.remove('opacity-0', 'pointer-events-none');
+            requestAnimationFrame(() => el.classList.add('modal-open'));
+            if (!openModalStack.includes(id)) openModalStack.push(id);
+            // 焦點先落在面板本身而不是第一顆按鈕：讀屏會先唸出對話框的名稱，
+            // 而不是劈頭唸「關閉」——後者聽起來像「這裡只能關掉」。
+            requestAnimationFrame(() => el.querySelector('.modal-panel')?.focus());
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
                 // 每次打開都重新抓一次：玩家可能剛在別的分頁登入，也可能剛刪掉一份存檔。
@@ -1284,9 +1647,91 @@
         }
         function closeModal(id) {
             const el = document.getElementById(id);
-            el?.classList.remove('modal-open');
-            el?.classList.add('opacity-0', 'pointer-events-none');
+            if (!el) return;
+            el.classList.remove('modal-open');
+            el.classList.add('opacity-0', 'pointer-events-none');
+
+            const at = openModalStack.indexOf(id);
+            if (at !== -1) openModalStack.splice(at, 1);
+
+            // 先把焦點移回去，再標 aria-hidden／inert——順序反過來的話，
+            // 會變成「把還握著焦點的元素標成隱藏」，那是無障礙樹上的錯誤狀態。
+            const previous = focusBeforeModal.get(id);
+            focusBeforeModal.delete(id);
+            if (previous && document.contains(previous)) previous.focus();
+            else if (el.contains(document.activeElement)) document.activeElement.blur();
+
+            el.setAttribute('aria-hidden', 'true');
+            el.setAttribute('inert', '');
         }
+
+        /** 把 Tab 鎖在最上層 modal 裡面，讓焦點不會跑到底下那層還看得到的畫面上。 */
+        function trapModalTab(event) {
+            const top = openModalStack[openModalStack.length - 1];
+            if (!top) return;
+            const panel = document.getElementById(top)?.querySelector('.modal-panel');
+            if (!panel) return;
+            const items = focusablesIn(panel);
+            if (items.length === 0) { event.preventDefault(); panel.focus(); return; }
+            const first = items[0];
+            const last = items[items.length - 1];
+            const active = document.activeElement;
+            if (event.shiftKey && (active === first || active === panel)) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        // ---- 手機版角色卡抽屜 ----------------------------------------------
+        // 桌機（>=768px）側欄本來就常駐，這兩個函式在那裡呼叫也不會有副作用：
+        // hud-open 這個 class 只有在手機的 media query 底下才有樣式。
+        function openCharHud() {
+            document.getElementById('char-hud')?.classList.add('hud-open');
+            document.getElementById('char-hud-scrim')?.classList.remove('hidden');
+            document.getElementById('char-hud-toggle')?.setAttribute('aria-expanded', 'true');
+        }
+        function closeCharHud() {
+            const hud = document.getElementById('char-hud');
+            const toggle = document.getElementById('char-hud-toggle');
+            // 焦點可能還在抽屜裡面，收起來之前先還給開啟它的那顆按鈕。
+            if (hud?.contains(document.activeElement)) toggle?.focus();
+            hud?.classList.remove('hud-open');
+            document.getElementById('char-hud-scrim')?.classList.add('hidden');
+            toggle?.setAttribute('aria-expanded', 'false');
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                if (openModalStack.length > 0) {
+                    closeModal(openModalStack[openModalStack.length - 1]);
+                    return;
+                }
+                if (document.getElementById('char-hud')?.classList.contains('hud-open')) closeCharHud();
+                return;
+            }
+            if (event.key === 'Tab') trapModalTab(event);
+        });
+
+        // 點遮罩關閉。只認「點在遮罩自己身上」——點面板裡面時 target 是面板或其子元素，
+        // 那不該關掉視窗（拖曳選取文字滑出面板外也一樣，所以用 mousedown 起點判斷）。
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+                let pressedOnBackdrop = false;
+                backdrop.addEventListener('mousedown', (e) => { pressedOnBackdrop = e.target === backdrop; });
+                backdrop.addEventListener('click', (e) => {
+                    if (e.target === backdrop && pressedOnBackdrop) closeModal(backdrop.id);
+                    pressedOnBackdrop = false;
+                });
+                // 沒開啟的 modal 一開始就該對輔助技術隱形。
+                if (backdrop.classList.contains('opacity-0')) {
+                    backdrop.setAttribute('aria-hidden', 'true');
+                    backdrop.setAttribute('inert', '');
+                }
+            });
+        });
         function switchSidebarTab(tabKey) {
             ['attr', 'skills', 'traits', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
@@ -1295,15 +1740,17 @@
                     p?.classList.remove('hidden');
                     p?.classList.add('anim-fade-up');
                     b?.classList.add('active');
+                    b?.setAttribute('aria-selected', 'true');
                 } else {
                     p?.classList.add('hidden');
                     b?.classList.remove('active');
+                    b?.setAttribute('aria-selected', 'false');
                 }
             });
         }
         function copySessionId() {
             const val = document.getElementById('modal-session-id').value;
-            if (val) { navigator.clipboard.writeText(val); alert('Session ID 已複製！'); }
+            if (val) { navigator.clipboard.writeText(val); showToast('Session ID 已複製到剪貼簿。', { kind: 'info' }); }
         }
         // ===================================================================
         // API 設定檔（localStorage）
@@ -1419,7 +1866,7 @@
         function deleteProfile() {
             const profiles = loadProfiles();
             if (profiles.length <= 1) {
-                alert('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。');
+                showToast('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。', { kind: 'warn' });
                 return;
             }
             const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
@@ -1447,15 +1894,15 @@
             // 被存起來。舊行為是照存不誤，然後每一回合都送出一個缺金鑰的請求：伺服器要嘛
             // 改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，要嘛整回合失敗。
             if (fields?.key && !edited.apiKey) {
-                alert('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
+                showToast('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
                 return;
             }
             if (fields?.baseUrl && !edited.baseUrl) {
-                alert('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
+                showToast('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
                 return;
             }
             if (fields?.model && !edited.model) {
-                alert('這個供應商沒有預設模型，必須自己填模型名稱。');
+                showToast('這個供應商沒有預設模型，必須自己填模型名稱。');
                 return;
             }
 
@@ -1474,7 +1921,7 @@
 
             renderProfileSelect();
             closeModal('settingsModal');
-            alert('設定已儲存！');
+            showToast('設定已儲存。', { kind: 'info' });
         }
 
         // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，
