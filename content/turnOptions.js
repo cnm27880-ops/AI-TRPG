@@ -128,6 +128,22 @@ ${skillsByCategory}
 - 純敘事選項一樣要寫 hint（做這件事想知道／想得到什麼）。
 - ${OPTION_COUNT} 個選項裡**至少要有 2 個是檢定選項**，不可以整頁都是無風險行動。
 
+【選項產出嚴格規範：requiresCheck 決定了哪些欄位該填、哪些欄位必須是 null】
+每個選項物件都要有 label、hint、requiresCheck 三格，缺任何一格這個選項會被系統直接丟棄、
+換成一個跟這回合劇情無關的通用保底選項頂替——那等於這回合的選項全部白寫。
+- requiresCheck: true（需要檢定的高風險動作）：一定要填 attribute（六維屬性之一）、
+  skill（規則書技能表裡的技能，沒有對應技能就填 null 表示純屬性檢定）、
+  difficulty（五級難度之一）。
+- requiresCheck: false（純敘事、無風險的安全動作）：attribute、skill、difficulty
+  這三格請明確填 null，不要留空不寫、也不要照抄別的選項的值糊弄過去。
+- 嚴禁產出欄位不齊的半殘JSON——照下面兩個範例的完整形狀寫，不要自己省略欄位：
+
+{ "label": "強行撬開卡死的艙門", "hint": "想在它繞過來之前打通退路", "requiresCheck": true, "attribute": "力量", "skill": "格鬥", "difficulty": "困難" }
+{ "label": "問她剛才那句話是什麼意思", "hint": "想知道她是不是也看到了同樣的東西", "requiresCheck": false, "attribute": null, "skill": null, "difficulty": null }
+
+（沒有 dc 這一格：難度數字一律由引擎依 difficulty 分級查表得出，你只挑分級文字，
+  不要自己算或自己填一個數字進去，填了也會被引擎忽略。）
+
 【輸出格式】
 你必須輸出**純JSON**，不要包任何說明文字、不要用markdown程式碼區塊。格式如下：
 
@@ -138,7 +154,7 @@ ${skillsByCategory}
     { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "感知", "skill": "偵察", "difficulty": "普通" },
     { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "力量", "skill": "格鬥", "difficulty": "困難" },
     { "label": "選項文字", "hint": "想達成什麼", "requiresCheck": true, "attribute": "敏捷", "skill": "潛行", "difficulty": "很困難" },
-    { "label": "純敘事選項的文字", "hint": "想知道什麼", "requiresCheck": false }
+    { "label": "純敘事選項的文字", "hint": "想知道什麼", "requiresCheck": false, "attribute": null, "skill": null, "difficulty": null }
   ]
 }
 
