@@ -33,28 +33,38 @@
             html.classList.toggle('dark', theme === 'dark');
         })();
     </script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind：事先編譯好的靜態 CSS（來源 src/tailwind.css，設定見根目錄的 tailwind.config.js）。
+         [2026-08-18] 這裡原本是 <script src="https://cdn.tailwindcss.com"> 加一段 tailwind.config，
+         也就是把整個 Tailwind 編譯器（約 400KB 的 JS）送到每個玩家的瀏覽器，每次開啟都重新
+         掃 DOM 產生一次 CSS。官方文件明講那個版本只供開發試作、不要用在正式環境，
+         實際症狀就是首屏會先閃一下沒有樣式的畫面，手機上特別明顯。
+         改成預先編譯之後只剩約 31KB 的 CSS，而且是 render-blocking 的正常樣式表，不會閃。
+         改了任何 class 之後要跑 `npm run build:css` 重新產生並一起提交。 -->
+    <link rel="stylesheet" href="./tailwind.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Serif+TC:wght@400;600;700&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        zinc: { 850: '#131316', 900: '#18181b', 950: '#09090b' },
-                        panel: '#121215',
-                        emerald: { 400: '#34d399', 500: '#10b981', 600: '#059669' }
-                    },
-                    fontFamily: {
-                        sans: ['Inter', '-apple-system', 'sans-serif'],
-                        mono: ['"JetBrains Mono"', 'monospace'],
-                        serif: ['"Noto Serif TC"', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
+    <!-- 字型。[2026-08-18 瘦身]
+         原本要 Inter 五個字重、JetBrains Mono 三個、Noto Serif TC 三個，
+         但實際用到的只有 400/600/700——font-light 與 font-medium 在整個專案裡出現 0 次，
+         而 serif 只出現在兩個地方（主選單那段介紹、故事流），兩個都是 600。
+
+         省下來的**不是字型檔的流量**：這三套在 Google Fonts 上都是可變字型，
+         同一個 unicode-range 子集不論要幾個字重都指向同一個 woff2，瀏覽器只會下載一次。
+         實際量過：舊的寫法有 377 個 @font-face 宣告，但只指向 121 個不重複的檔案。
+
+         真正省到的是**那份 CSS 本身**——它是 render-blocking 的，擋在首屏前面：
+           舊：377 個 @font-face，394 KB
+           新：121 個 @font-face，132 KB
+         Noto Serif TC 佔了絕大部分（CJK 會被切成上百個 unicode-range 子集，
+         每多一個字重就多一整輪宣告），所以只留 600 是這裡面最有感的一項。
+
+         Inter 與 JetBrains Mono 改用 400..700 的可變範圍而不是列舉字重：
+         同樣一個檔案，但字重是連續的，中間值不會被吸附到最近的整數級。
+
+         preconnect 讓瀏覽器在解析到這一行之前就先把連線建好（gstatic 是另一個網域，
+         沒有 preconnect 的話字型檔要等 DNS+TLS 走完才開始下載）。 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
     <style>
         :root {
             --bg-void: #09090b;
@@ -103,9 +113,15 @@
             border-radius: 8px;
         }
 
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        /* 捲軸。原本只有 ::-webkit-scrollbar，那是 WebKit/Blink 專屬的——
+           Firefox 完全不吃，那邊看到的是系統預設的粗捲軸，跟整體設計對不起來。
+           標準屬性 scrollbar-width/scrollbar-color 補上之後兩邊才一致。
+           寬度也從 4px 放寬到 8px：4px 在觸控與滑鼠拖曳下都太細，抓不到。 */
+        * { scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #27272a; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #52525b; }
         .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
         .archetype-card.active {
             border-color: #10b981 !important;
@@ -399,7 +415,28 @@
 
         button { -webkit-tap-highlight-color: transparent; }
         button:active { transform: translateY(0.5px); }
-        button, input, select, textarea, a { outline: none; }
+
+        /* [2026-08-18 無障礙修正] 這裡原本只有一行 `outline: none`，把整個畫面的鍵盤焦點
+           指示拿掉了。輸入類元素各自補了 focus:border-emerald-500，但**按鈕一顆都沒有**——
+           用鍵盤 Tab 走過選項卡、四個分頁、視窗關閉鈕、購買鈕時，完全看不出焦點在哪。
+
+           改成用 :focus-visible：滑鼠點按不會出現外框（那正是當初想拿掉的東西），
+           只有鍵盤操作時才畫出來，所以視覺上跟原本一樣，但鍵盤使用者拿回了方向感。
+           外框用兩層（outline + offset）確保在深色與淺色底上都看得見。 */
+        button:focus, input:focus, select:focus, textarea:focus, a:focus { outline: none; }
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible,
+        a:focus-visible,
+        [tabindex]:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        /* 對話框面板本身會被聚焦（開啟時焦點先落在它上面），但它不是操作元素，
+           畫一圈外框反而像是「這個框被選取了」。它靠 aria 宣告身分就夠了。 */
+        .modal-panel:focus-visible { outline: none; }
 
         /* ================= 大型主選單標題（全新現代微光設計） ================= */
         .menu-banner {
@@ -444,6 +481,29 @@
             border-right: 1px solid rgba(255,255,255,.08);
         }
 
+        /* ===== 手機版的角色卡抽屜 =====
+           桌機（>=768px）不套用這一段，側欄維持原本的常駐浮層。
+           手機上改成從左側滑出：關閉時 visibility:hidden，鍵盤 Tab 才不會跑進
+           一個看不見的面板裡（只用 translateX 推出畫面的話它仍然可以被聚焦）。
+           visibility 的 transition 用 0s 延遲控制：開啟時立刻可見，關閉時等滑動結束才隱藏。 */
+        @media (max-width: 767px) {
+            #char-hud {
+                position: fixed; top: 0; bottom: 0; left: 0; z-index: 45;
+                width: min(20rem, 86vw);
+                padding-top: env(safe-area-inset-top, 0px);
+                padding-bottom: env(safe-area-inset-bottom, 0px);
+                transform: translateX(-100%);
+                visibility: hidden;
+                box-shadow: 8px 0 32px rgba(0,0,0,.45);
+                transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s linear .28s;
+            }
+            #char-hud.hud-open {
+                transform: translateX(0);
+                visibility: visible;
+                transition: transform .28s cubic-bezier(.2,.8,.2,1), visibility 0s;
+            }
+        }
+
         .terminal-strip { position: relative; }
         .terminal-strip::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
@@ -471,7 +531,9 @@
                 radial-gradient(ellipse 50% 35% at 105% 105%, rgba(220,38,38,0.03), transparent 60%);
         }
         html[data-theme="light"] .bg-tech-grid { background-image: radial-gradient(rgba(15,23,42,0.06) 1px, transparent 1px); }
+        html[data-theme="light"] * { scrollbar-color: #cbd5e1 transparent; }
         html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+        html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
         html[data-theme="light"] .hairline-border { border-color: rgba(15,23,42,0.1); }
         html[data-theme="light"] .hairline-b { border-bottom-color: rgba(15,23,42,0.1); }
@@ -728,6 +790,32 @@
             color: #2563eb;
         }
         html[data-theme="light"] #story-feed { border-left-color: rgba(37,99,235,.2); }
+
+        /* ================= 減少動態 =================
+           [2026-08-18 新增] 這個介面同時有五個無限循環的動畫在跑：背景呼吸光暈
+           (ambientBreathe)、存檔提示的 pulse-glow、連線指示燈的 animate-ping、
+           等待回覆時的掃描線 (pendingSweep) 與打字點 (typingBlink)。
+           對前庭功能敏感的人來說，長時間盯著一個永遠在動的畫面是會不舒服的，
+           而在這之前完全沒有關掉的路。
+
+           系統層級開了「減少動態」的人，這裡把**循環**動畫停掉、把過場壓到近乎瞬間。
+           刻意不是全部設成 0：完全沒有狀態變化會讓「送出了沒有」這種回饋消失，
+           所以保留 0.01s 的過場（畫面仍然會換，只是不會動給你看）。
+           d20 擲骰動畫也照樣停——結果數字本來就會直接顯示，不靠動畫傳達資訊。 */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+            body::before { animation: none !important; opacity: .85; }
+            .pending-sweep::after { animation: none !important; content: none; }
+            .typing-dots > span { animation: none !important; opacity: .7; }
+            .pulse-glow { animation: none !important; }
+            /* hover 的位移在減少動態下也一併拿掉：它是「動」的一種，只是很短。 */
+            .action-tile:hover, .stat-tile:hover { transform: none !important; }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -834,7 +922,7 @@
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
     <div id="chargen-screen" style="display:none" class="flex-1 overflow-y-auto w-full max-w-3xl mx-auto p-4 sm:p-6">
-        <div class="hud-box hud-corners p-6 rounded-lg space-y-5">
+        <div class="hud-box p-6 rounded-lg space-y-5">
             <div class="flex items-center justify-between hairline-b pb-3">
                 <div>
                     <div class="ribbon-banner ribbon-sm">Character Creation</div>
@@ -956,15 +1044,29 @@
 
     <!-- 3. 遊戲主視窗 (In-Game Screen) -->
     <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
-        <!-- 左側 HUD：浮層面板，非實色儀表板欄 -->
-        <aside class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden hidden md:flex">
+        <!-- 手機版抽屜的遮罩。桌機永遠不顯示（md:hidden），手機上點它就關抽屜。 -->
+        <div id="char-hud-scrim" onclick="closeCharHud()" class="hidden md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"></div>
+
+        <!-- 左側 HUD：桌機是常駐浮層面板；手機是從左側滑出的抽屜（見 CSS 的 #char-hud）。
+             [2026-08-18] 這裡原本是 `hidden md:flex`——寬度小於 768px 時整條側欄
+             display:none，而且沒有任何替代入口。等於在手機上玩的人看不到自己的血量、
+             屬性、技能、特質與日誌。這個專案有 PWA manifest 也有「安裝App」按鈕，
+             手機本來就是預期的玩法之一，不能把角色卡整個藏起來。 -->
+        <aside id="char-hud" aria-label="角色狀態" class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
             <div class="name-plate">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">OPERATIVE STATUS</div>
                         <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
-                    <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
+                        <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
+                        <button type="button" onclick="closeCharHud()" aria-label="關閉角色狀態"
+                                class="md:hidden px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
 
@@ -980,22 +1082,25 @@
                 </div>
             </div>
 
-            <!-- 分頁 Tab：檔案夾造型 -->
-            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b">
-                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" class="folder-tab sidebar-tab-btn active">屬性</button>
-                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" class="folder-tab sidebar-tab-btn">技能</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" class="folder-tab sidebar-tab-btn">特質</button>
-                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" class="folder-tab sidebar-tab-btn">日誌</button>
+            <!-- 分頁 Tab：檔案夾造型。
+                 sidebar-tab-btn 這個 class 已經拿掉——它既沒有 CSS 定義，也沒有任何 JS 讀它
+                 （切換分頁是靠 id="tab-btn-*" 抓的，見下面的 switchSidebarTab）。
+                 換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「四個分頁，現在在第一個」。 -->
+            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b" role="tablist" aria-label="角色資訊分頁">
+                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" role="tab" aria-selected="true" aria-controls="sidebar-tab-attr" class="folder-tab active">屬性</button>
+                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" role="tab" aria-selected="false" aria-controls="sidebar-tab-skills" class="folder-tab">技能</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">特質</button>
+                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div id="sidebar-tab-attr" class="space-y-2">
+                <div id="sidebar-tab-attr" role="tabpanel" aria-labelledby="tab-btn-attr" class="space-y-2">
                     <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
                 </div>
-                <div id="sidebar-tab-skills" class="hidden space-y-2">
+                <div id="sidebar-tab-skills" role="tabpanel" aria-labelledby="tab-btn-skills" class="hidden space-y-2">
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                 </div>
-                <div id="sidebar-tab-traits" class="hidden space-y-2">
+                <div id="sidebar-tab-traits" role="tabpanel" aria-labelledby="tab-btn-traits" class="hidden space-y-2">
                     <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5">
                         <span>特質 / 資源</span>
                         <span>滾輪 / 點擊切換 ↻</span>
@@ -1003,7 +1108,7 @@
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
                 </div>
-                <div id="sidebar-tab-journal" class="hidden space-y-2">
+                <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2">
                     <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
                 </div>
             </div>
@@ -1011,28 +1116,38 @@
 
         <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-            <div class="chevron-bar scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
-                <div class="flex items-center gap-2 text-zinc-300">
-                    <i class="fas fa-map-marker-alt text-emerald-400"></i>
-                    <span id="current-scene-text" class="text-zinc-100 font-semibold">主神空間 · 任務進行中</span>
+            <div class="scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
+                <div class="flex items-center gap-2 text-zinc-300 min-w-0">
+                    <!-- 手機版開啟角色卡的入口。桌機不需要（側欄一直在），所以 md:hidden。 -->
+                    <button type="button" id="char-hud-toggle" onclick="openCharHud()"
+                            aria-label="開啟角色狀態" aria-controls="char-hud" aria-expanded="false"
+                            class="md:hidden shrink-0 px-2 py-1 -ml-2 rounded border hairline-border bg-panel text-emerald-300 hover:border-emerald-500/40 transition-all">
+                        <i class="fas fa-id-badge text-[11px]"></i>
+                    </button>
+                    <i class="fas fa-map-marker-alt text-emerald-400 shrink-0"></i>
+                    <span id="current-scene-text" class="text-zinc-100 font-semibold truncate">主神空間 · 任務進行中</span>
                 </div>
-                <div class="flex items-center gap-3 text-[11px] text-zinc-300">
-                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-crosshairs text-[10px]"></i> 遭遇戰鬥
+                <!-- [2026-08-18] 這一列在 390px 寬的手機上會整組擠成兩三行：
+                     「主神／商店」「回合：／1」「已存／檔」全部斷開，讀起來像壞掉的表格。
+                     作法是把每一顆都設成不換行、不壓縮，並在小螢幕上只留圖示——
+                     文字標籤改用 title/aria-label 保留語意，圖示本身在桌機仍然帶著文字。 -->
+                <div class="flex items-center gap-2 sm:gap-3 text-[11px] text-zinc-300 shrink-0">
+                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" title="遭遇戰鬥" aria-label="遭遇戰鬥" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-crosshairs text-[10px]"></i><span class="hidden sm:inline"> 遭遇戰鬥</span>
                     </button>
                     <!-- 主神商店。門禁規則見 content/shop/access.js（規則書第469行）：
                          支線與獎勵點數只能在主神空間花，經驗兩邊都能花但副本中要兩倍。
                          按鈕一直在，因為玩家在副本中也需要看得到「等我出去要買什麼」。 -->
-                    <button id="shop-open-btn" onclick="openShop()" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-store text-[10px]"></i> 主神商店
+                    <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-store text-[10px]"></i><span class="hidden sm:inline"> 主神商店</span>
                     </button>
                     <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
                          主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
-                    <button id="rest-btn" onclick="doRest()" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold">
-                        <i class="fas fa-mug-hot text-[10px]"></i> 休息
+                    <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-mug-hot text-[10px]"></i><span class="hidden sm:inline"> 休息</span>
                     </button>
-                    <span>回合: <span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
-                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300">已存檔</span>
+                    <span class="whitespace-nowrap shrink-0"><span class="hidden sm:inline">回合: </span><span class="sm:hidden">#</span><span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
+                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300 whitespace-nowrap shrink-0">已存檔</span>
                 </div>
             </div>
 
@@ -1085,7 +1200,7 @@
 
             <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
             <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
-                <div class="hud-box hud-corners p-4 rounded-lg space-y-3 shrink-0">
+                <div class="hud-box p-4 rounded-lg space-y-3 shrink-0">
                     <div class="flex items-center justify-between font-mono text-xs">
                         <span class="text-red-300 font-bold flex items-center gap-1.5"><i class="fas fa-skull text-[11px]"></i><span id="combat-enemy-name">—</span></span>
                         <span class="text-zinc-300">第 <span id="combat-round">1</span> 輪</span>
@@ -1116,7 +1231,7 @@
 
                 <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
 
-                <div id="combat-over-banner" style="display:none" class="hud-box hud-corners p-4 rounded-lg text-center space-y-3 shrink-0">
+                <div id="combat-over-banner" style="display:none" class="hud-box p-4 rounded-lg text-center space-y-3 shrink-0">
                     <div id="combat-over-text" class="text-lg font-bold"></div>
                     <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
                         返回劇情
@@ -1167,7 +1282,7 @@
                         <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
-                    <button data-send-custom class="chevron-bar-r bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
+                    <button data-send-custom class="bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
                         <span>執行</span>
                         <i class="fas fa-arrow-right text-[10px]"></i>
                     </button>
@@ -1178,7 +1293,7 @@
 
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="輪迴存檔管理" tabindex="-1">
             <div class="flex justify-between items-center pb-1">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-database text-[11px]"></i>
@@ -1218,7 +1333,7 @@
     <!-- 主神商店。整個貨架由 GET /api/shop 產生，前端不做任何價格或可否購買的判斷——
          那些全部是 content/shop/ 底下的純函式算好的（本專案第4條最高原則：數值不交給前端也不交給AI）。 -->
     <div id="shopModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="主神商店" tabindex="-1">
             <div class="flex items-center justify-between p-4 pb-3 hairline-b shrink-0">
                 <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
                     <i class="fas fa-store"></i> 主神商店
@@ -1255,7 +1370,7 @@
     </div>
 
     <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="系統與文筆設定" tabindex="-1">
             <div class="flex justify-between items-center pb-1 shrink-0">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-sliders-h text-[11px]"></i>
@@ -1360,10 +1475,19 @@
         </div>
     </div>
 
+    <!-- 畫面內通知（見 public/app.js 的 showToast）。
+         [2026-08-18] 在這之前，讀檔失敗與刪檔失敗是用原生的 alert() 報的——
+         畫面其他地方每一種錯誤都有自己的樣式（故事流裡的 SYSTEM.ERROR 區塊、
+         存檔警告條…），只有這三處會跳出一個瀏覽器對話框，看起來像網頁壞掉。
+         aria-live=polite：讀屏會唸出來，但不會打斷使用者正在讀的東西。 -->
+    <div id="toast-tray" aria-live="polite" aria-atomic="false"
+         class="fixed left-1/2 -translate-x-1/2 z-[60] w-[min(30rem,calc(100vw-2rem))] space-y-2 pointer-events-none"
+         style="top: calc(0.75rem + env(safe-area-inset-top, 0px))"></div>
+
     <!-- iOS Safari 沒有 beforeinstallprompt 這個事件，瀏覽器不給網頁自己彈安裝提示，
          只能手把手教玩家怎麼從分享選單加入主畫面（見 initPwaInstall() 的 iOS 分支）。 -->
     <div id="pwaInstallModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-sm rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box hud-corners">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-sm rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="安裝到主畫面" tabindex="-1">
             <div class="flex justify-between items-center pb-1">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-mobile-screen-button text-[11px]"></i>
@@ -1439,10 +1563,47 @@
             game.style.display = (screen === 'game') ? 'flex' : 'none';
             replayEnterAnim({ portal, chargen, game }[screen]);
         }
+        // =====================================================================
+        // Modal 的無障礙與關閉方式
+        //
+        // [2026-08-18] 在這之前，四個 modal 都只能靠角落那顆小小的 × 關掉：
+        // 按 Esc 沒反應、點背景沒反應，而且整份 HTML 一個 role/aria 都沒有——
+        // 用鍵盤或讀屏的人打開設定視窗之後，是走不出來也讀不出「這是一個對話框」的。
+        //
+        // 這裡補齊四件事，都是對話框的基本要求：
+        //   1) role="dialog" + aria-modal（在各自的 .modal-panel 上，見上面的標記）
+        //   2) Esc 關閉最上層的那一個
+        //   3) 點背景關閉（只認點在遮罩本身，點面板內部不算）
+        //   4) 焦點管理：開啟時把焦點移進面板、Tab 鎖在面板內、關閉時還給原本的元素
+        // =====================================================================
+
+        const FOCUSABLE_SELECTOR =
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+            'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+        /** 目前疊著幾個 modal。最後一個就是「最上層」，Esc 與 Tab 鎖定都認它。 */
+        const openModalStack = [];
+        /** 每個 modal 打開之前，焦點原本在哪顆元素上——關閉時要還回去。 */
+        const focusBeforeModal = new Map();
+
+        function focusablesIn(el) {
+            return [...el.querySelectorAll(FOCUSABLE_SELECTOR)].filter(
+                (n) => n.offsetParent !== null || n === document.activeElement
+            );
+        }
+
         function openModal(id) {
             const el = document.getElementById(id);
-            el?.classList.remove('opacity-0', 'pointer-events-none');
-            requestAnimationFrame(() => el?.classList.add('modal-open'));
+            if (!el) return;
+            focusBeforeModal.set(id, document.activeElement);
+            el.removeAttribute('inert');
+            el.removeAttribute('aria-hidden');
+            el.classList.remove('opacity-0', 'pointer-events-none');
+            requestAnimationFrame(() => el.classList.add('modal-open'));
+            if (!openModalStack.includes(id)) openModalStack.push(id);
+            // 焦點先落在面板本身而不是第一顆按鈕：讀屏會先唸出對話框的名稱，
+            // 而不是劈頭唸「關閉」——後者聽起來像「這裡只能關掉」。
+            requestAnimationFrame(() => el.querySelector('.modal-panel')?.focus());
             if (id === 'sessionModal') {
                 document.getElementById('modal-session-id').value = localStorage.getItem('ai-trpg-session-id') || '';
                 // 每次打開都重新抓一次：玩家可能剛在別的分頁登入，也可能剛刪掉一份存檔。
@@ -1486,9 +1647,91 @@
         }
         function closeModal(id) {
             const el = document.getElementById(id);
-            el?.classList.remove('modal-open');
-            el?.classList.add('opacity-0', 'pointer-events-none');
+            if (!el) return;
+            el.classList.remove('modal-open');
+            el.classList.add('opacity-0', 'pointer-events-none');
+
+            const at = openModalStack.indexOf(id);
+            if (at !== -1) openModalStack.splice(at, 1);
+
+            // 先把焦點移回去，再標 aria-hidden／inert——順序反過來的話，
+            // 會變成「把還握著焦點的元素標成隱藏」，那是無障礙樹上的錯誤狀態。
+            const previous = focusBeforeModal.get(id);
+            focusBeforeModal.delete(id);
+            if (previous && document.contains(previous)) previous.focus();
+            else if (el.contains(document.activeElement)) document.activeElement.blur();
+
+            el.setAttribute('aria-hidden', 'true');
+            el.setAttribute('inert', '');
         }
+
+        /** 把 Tab 鎖在最上層 modal 裡面，讓焦點不會跑到底下那層還看得到的畫面上。 */
+        function trapModalTab(event) {
+            const top = openModalStack[openModalStack.length - 1];
+            if (!top) return;
+            const panel = document.getElementById(top)?.querySelector('.modal-panel');
+            if (!panel) return;
+            const items = focusablesIn(panel);
+            if (items.length === 0) { event.preventDefault(); panel.focus(); return; }
+            const first = items[0];
+            const last = items[items.length - 1];
+            const active = document.activeElement;
+            if (event.shiftKey && (active === first || active === panel)) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        // ---- 手機版角色卡抽屜 ----------------------------------------------
+        // 桌機（>=768px）側欄本來就常駐，這兩個函式在那裡呼叫也不會有副作用：
+        // hud-open 這個 class 只有在手機的 media query 底下才有樣式。
+        function openCharHud() {
+            document.getElementById('char-hud')?.classList.add('hud-open');
+            document.getElementById('char-hud-scrim')?.classList.remove('hidden');
+            document.getElementById('char-hud-toggle')?.setAttribute('aria-expanded', 'true');
+        }
+        function closeCharHud() {
+            const hud = document.getElementById('char-hud');
+            const toggle = document.getElementById('char-hud-toggle');
+            // 焦點可能還在抽屜裡面，收起來之前先還給開啟它的那顆按鈕。
+            if (hud?.contains(document.activeElement)) toggle?.focus();
+            hud?.classList.remove('hud-open');
+            document.getElementById('char-hud-scrim')?.classList.add('hidden');
+            toggle?.setAttribute('aria-expanded', 'false');
+        }
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                if (openModalStack.length > 0) {
+                    closeModal(openModalStack[openModalStack.length - 1]);
+                    return;
+                }
+                if (document.getElementById('char-hud')?.classList.contains('hud-open')) closeCharHud();
+                return;
+            }
+            if (event.key === 'Tab') trapModalTab(event);
+        });
+
+        // 點遮罩關閉。只認「點在遮罩自己身上」——點面板裡面時 target 是面板或其子元素，
+        // 那不該關掉視窗（拖曳選取文字滑出面板外也一樣，所以用 mousedown 起點判斷）。
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+                let pressedOnBackdrop = false;
+                backdrop.addEventListener('mousedown', (e) => { pressedOnBackdrop = e.target === backdrop; });
+                backdrop.addEventListener('click', (e) => {
+                    if (e.target === backdrop && pressedOnBackdrop) closeModal(backdrop.id);
+                    pressedOnBackdrop = false;
+                });
+                // 沒開啟的 modal 一開始就該對輔助技術隱形。
+                if (backdrop.classList.contains('opacity-0')) {
+                    backdrop.setAttribute('aria-hidden', 'true');
+                    backdrop.setAttribute('inert', '');
+                }
+            });
+        });
         function switchSidebarTab(tabKey) {
             ['attr', 'skills', 'traits', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
@@ -1497,15 +1740,17 @@
                     p?.classList.remove('hidden');
                     p?.classList.add('anim-fade-up');
                     b?.classList.add('active');
+                    b?.setAttribute('aria-selected', 'true');
                 } else {
                     p?.classList.add('hidden');
                     b?.classList.remove('active');
+                    b?.setAttribute('aria-selected', 'false');
                 }
             });
         }
         function copySessionId() {
             const val = document.getElementById('modal-session-id').value;
-            if (val) { navigator.clipboard.writeText(val); alert('Session ID 已複製！'); }
+            if (val) { navigator.clipboard.writeText(val); showToast('Session ID 已複製到剪貼簿。', { kind: 'info' }); }
         }
         // ===================================================================
         // API 設定檔（localStorage）
@@ -1621,7 +1866,7 @@
         function deleteProfile() {
             const profiles = loadProfiles();
             if (profiles.length <= 1) {
-                alert('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。');
+                showToast('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。', { kind: 'warn' });
                 return;
             }
             const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
@@ -1649,15 +1894,15 @@
             // 被存起來。舊行為是照存不誤，然後每一回合都送出一個缺金鑰的請求：伺服器要嘛
             // 改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，要嘛整回合失敗。
             if (fields?.key && !edited.apiKey) {
-                alert('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
+                showToast('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
                 return;
             }
             if (fields?.baseUrl && !edited.baseUrl) {
-                alert('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
+                showToast('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
                 return;
             }
             if (fields?.model && !edited.model) {
-                alert('這個供應商沒有預設模型，必須自己填模型名稱。');
+                showToast('這個供應商沒有預設模型，必須自己填模型名稱。');
                 return;
             }
 
@@ -1676,7 +1921,7 @@
 
             renderProfileSelect();
             closeModal('settingsModal');
-            alert('設定已儲存！');
+            showToast('設定已儲存。', { kind: 'info' });
         }
 
         // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，

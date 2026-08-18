@@ -614,6 +614,19 @@ function renderTraitCards(charData) {
   renderTraitStage();
 }
 
+/**
+ * 特質卡上的說明文字。
+ *
+ * [2026-08-18 修正] 這裡以前直接寫 `t.desc`，但建卡產生的特質物件是
+ * `{ id, name, description, effect }`（見 content/chargen/lifePath.js 的 collectTraits），
+ * 根本沒有 desc 這個欄位——所以特質分頁的說明**永遠是空字串**，
+ * 玩家看到的一直是「[資源] + 一個名字」，那張卡等於只有一半。
+ * 兩個名字都收下：日後從商店買進來的資源如果用的是 desc，也不會再壞一次。
+ */
+function traitDescription(trait) {
+  return trait?.description ?? trait?.desc ?? "";
+}
+
 function renderTraitStage() {
   const stage = document.getElementById("trait-carousel");
   const empty = document.getElementById("trait-empty");
@@ -637,10 +650,10 @@ function renderTraitStage() {
     else if (rel === 1) posClass = "trait-card-next";
     else if (rel === n - 1) posClass = "trait-card-prev";
     return `
-      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile hud-corners rounded p-3 flex flex-col justify-between cursor-pointer">
-        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || "資源")}]</span>
+      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile rounded p-3 flex flex-col justify-between cursor-pointer">
+        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || t.kind || "特質")}]</span>
         <div class="font-bold text-zinc-100 text-sm">${escapeHtml(t.name || "未命名")}</div>
-        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-2">${escapeHtml(t.desc || "")}</div>
+        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-3" title="${escapeHtml(traitDescription(t))}">${escapeHtml(traitDescription(t))}</div>
       </div>`;
   }).join("");
 }
@@ -932,7 +945,7 @@ async function renderCheckResult(r) {
   appendFeedBlock(
     `<span class="${outcomeColor}">SYSTEM.CHECK // ${r.autoFail ? "自動失敗" : (r.success ? "SUCCESS" : "FAILURE")}</span>`,
     `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
-    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border hud-corners"
+    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border"
   );
 }
 
@@ -1126,7 +1139,7 @@ function updateScenarioHud(scenario) {
     appendFeedBlock(
       `<span class="text-emerald-300">劇情節點完成</span>`,
       `「${escapeHtml(n.title)}」已達成 · 扭轉度 ${n.divergenceTier} 級 · 獲得 <span class="text-emerald-300 font-bold">${n.reward}</span> 點經驗`,
-      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 hud-corners pulse-glow"
+      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 pulse-glow"
     );
   }
 
@@ -1341,7 +1354,7 @@ function renderOptions(options) {
         </span>`;
 
     return `
-    <button onclick="selectOption(${i})" class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
       <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
       <span class="flex flex-col gap-1 flex-1 min-w-0">
         <span class="font-bold text-zinc-100 flex items-start justify-between gap-2">
@@ -1393,6 +1406,62 @@ function playDiceRollAnimation(checkResult) {
       resolve();
     }, 1500);
   });
+}
+
+// ---------------------------------------------------------------------------
+// 畫面內通知（toast）
+//
+// [2026-08-18] 取代三處原生的 alert()（讀檔失敗 ×2、刪檔失敗 ×1）。
+// alert() 有兩個實際的問題，不只是好不好看：它會**卡住整個 JS 執行緒**
+// （後面的重試、狀態更新全部要等玩家按掉），而且在已安裝的 PWA 裡跳出來的
+// 系統對話框看起來就像網頁當掉了。
+//
+// 錯誤類的通知不自動消失——玩家可能正在看別的地方，錯過了就再也不知道發生什麼事；
+// 訊息類的會自己收掉。兩種都可以手動關。
+// ---------------------------------------------------------------------------
+
+const TOAST_STYLES = {
+  error: { box: "border-red-500/40 bg-red-500/10 text-red-200", icon: "fa-circle-exclamation", role: "alert" },
+  warn: { box: "border-yellow-500/40 bg-yellow-500/10 text-yellow-200", icon: "fa-triangle-exclamation", role: "status" },
+  info: { box: "border-emerald-500/40 bg-emerald-500/10 text-emerald-200", icon: "fa-circle-info", role: "status" },
+};
+
+/**
+ * @param {string} message 要顯示的文字（純文字，會被跳脫）
+ * @param {object} [options]
+ * @param {"error"|"warn"|"info"} [options.kind] 預設 error
+ * @param {number|null} [options.timeout] 幾毫秒後自動收掉。null＝不自動收（錯誤的預設）
+ */
+function showToast(message, { kind = "error", timeout } = {}) {
+  const tray = document.getElementById("toast-tray");
+  if (!tray) {
+    console.warn("[TOAST] 找不到 #toast-tray，改用 console 輸出：", message);
+    return;
+  }
+  const style = TOAST_STYLES[kind] ?? TOAST_STYLES.error;
+  const autoHide = timeout === undefined ? (kind === "error" ? null : 4000) : timeout;
+
+  const el = document.createElement("div");
+  el.className =
+    `pointer-events-auto feed-block-enter flex items-start gap-2.5 rounded border p-3 ` +
+    `font-mono text-xs leading-relaxed shadow-lg backdrop-blur ${style.box}`;
+  el.setAttribute("role", style.role);
+  el.innerHTML =
+    `<i class="fas ${style.icon} mt-0.5 shrink-0"></i>` +
+    `<span class="flex-1 whitespace-pre-line">${escapeHtml(message)}</span>` +
+    `<button type="button" aria-label="關閉這則通知" class="shrink-0 px-1 opacity-70 hover:opacity-100 transition-opacity">` +
+    `<i class="fas fa-times"></i></button>`;
+
+  const dismiss = () => {
+    clearTimeout(timer);
+    el.remove();
+  };
+  el.querySelector("button").addEventListener("click", dismiss);
+  const timer = autoHide == null ? null : setTimeout(dismiss, autoHide);
+
+  tray.appendChild(el);
+  // 疊太多會蓋掉畫面，只留最近的三則。
+  while (tray.children.length > 3) tray.firstElementChild.remove();
 }
 
 function appendFeedBlock(title, content, extraClass = "") {
@@ -1719,7 +1788,9 @@ async function resumeLocalSession() {
     await resumeSession(savedId);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
-    alert(`讀取存檔失敗：${err.message}\n\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`);
+    showToast(
+      `讀取存檔失敗：${err.message}\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`
+    );
   }
 }
 
@@ -2101,7 +2172,7 @@ async function combatAttack(weaponKey) {
     if (res.scenario?.nodeCompleted) {
       const n = res.scenario.nodeCompleted;
       const block = document.createElement("div");
-      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold hud-corners pulse-glow";
+      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold pulse-glow";
       block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
       document.getElementById("combat-log").appendChild(block);
     }
@@ -2166,7 +2237,7 @@ async function handleResumeFromModal() {
     await resumeSession(id);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
-    alert(`讀取存檔失敗：${err.message}`);
+    showToast(`讀取存檔失敗：${err.message}`);
   }
 }
 
@@ -2302,7 +2373,7 @@ async function deleteSession(id) {
     await checkLocalSession();
   } catch (err) {
     console.error("[SESSION_DELETE_FAILURE]", err);
-    alert(`刪除存檔失敗：${err.message}`);
+    showToast(`刪除存檔失敗：${err.message}`);
   }
 }
 
@@ -2461,6 +2532,32 @@ document.addEventListener("DOMContentLoaded", async () => {
       input.value = "";
       runTurn({ playerAction: text });
     }
+  });
+
+  // 數字鍵直接選選項。
+  //
+  // [2026-08-18] 每一顆選項卡左邊本來就印著 1/2/3/4 的編號，但那個編號沒有綁任何按鍵，
+  // 純粹是裝飾。玩家一局要按幾十次選項，鍵盤上一個鍵能解決的事沒有理由要移動滑鼠。
+  //
+  // 幾個必要的但書：
+  //   - 焦點在輸入框裡的時候不能攔（玩家正在打自訂行動，數字是內容不是指令）
+  //   - 有 modal 開著的時候不能攔（那時畫面焦點在商店或設定上）
+  //   - 帶了 Ctrl/Alt/Meta 的組合鍵不攔，那些是瀏覽器自己的快捷鍵
+  //   - 送出中（turnInFlight）不攔，理由跟選項被鎖住時不能點是同一個
+  document.addEventListener("keydown", (event) => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.key < "1" || event.key > "9") return;
+
+    const active = document.activeElement;
+    const tag = active?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || active?.isContentEditable) return;
+    if (document.querySelector(".modal-backdrop.modal-open")) return;
+    if (turnInFlight) return;
+
+    const index = Number(event.key) - 1;
+    if (!currentOptions?.[index]) return;
+    event.preventDefault();
+    selectOption(index);
   });
 });
 
