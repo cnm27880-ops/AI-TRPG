@@ -67,6 +67,22 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * @property {string} span 這次副本橫跨的時間長度(自由文字描述)
  */
 
+/**
+ * @typedef {string} ArrivalNarration 選填的**副本層級**欄位 `pack.arrivalNarration`。
+ *
+ * 玩家按下建卡最後一題之後會先經過一段「甦醒」的過場（見 content/chargen/awakening.js）：
+ * 通用的墜落與睜眼那一段所有副本共用，但**你醒在哪個房間**是副本自己的事，就是這個欄位。
+ *
+ * 兩條硬性要求：
+ *   1. 必須以「你被一層半透明的防護罩罩住、暫時動不了」收尾——主神系統接著要在那裡
+ *      唸出掃描結果與 5 點自由屬性，沒有這個收尾，那段對話會沒有地方站。
+ *   2. **不可以跟本章的 openingNarration 重複同一個節拍**。這兩段是連著播的，
+ *      如果 arrivalNarration 寫「你從休眠艙醒來」而 openingNarration 又寫一次
+ *      「艙蓋在你上方彈開」，玩家會被叫醒兩次。openingNarration 應該從防護罩散開之後接下去。
+ *
+ * 不填的話會退回 content/chargen/awakening.js 的 DEFAULT_ARRIVAL（通用的主神空間白光房間）。
+ */
+
 /** 驗證一個副本包(type="副本")的 entries 是否符合章節/節點結構的基本要求 */
 export function validateScenarioPack(pack) {
   const errors = [];
@@ -77,6 +93,14 @@ export function validateScenarioPack(pack) {
   if (pack.difficulty != null && !SCENARIO_DIFFICULTIES.includes(pack.difficulty)) {
     errors.push(`difficulty必須是${SCENARIO_DIFFICULTIES.join("/")}其中之一，實際是「${pack.difficulty}」`);
   }
+  // 甦醒過場的房間描述。內容是自由文字（沒辦法自動驗「有沒有以防護罩收尾」），
+  // 但型別要擋——寫成物件或空字串的話，玩家會在那一幕看到一段空白而不是錯誤。
+  if (pack.arrivalNarration != null && typeof pack.arrivalNarration !== "string") {
+    errors.push("arrivalNarration 必須是字串");
+  } else if (typeof pack.arrivalNarration === "string" && !pack.arrivalNarration.trim()) {
+    errors.push("arrivalNarration 不可以是空字串（不需要就整個不要寫，會退回通用的過場）");
+  }
+
   const nodeIds = new Set();
   for (const chapter of pack.entries) {
     if (!chapter.name && !chapter.title) errors.push("章節缺少 name/title");

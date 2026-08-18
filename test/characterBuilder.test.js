@@ -1,15 +1,14 @@
 // content/characterBuilder.js 與 content/chargen/* 的測試。
 //
-// [2026-08-16 改版] 這份檔案原本測的是「四個身分模板 + 二選一背景故事」那套建卡。
-// 那套整組被拿掉了（理由見 content/characterBuilder.js 檔頭），所以測試也整份重寫——
-// 留著測一個已經不存在的系統沒有意義，而測試檔案的內容就是這個專案「現在到底有什麼」
-// 最誠實的一份說明。
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答，建卡多出一個「甦醒」階段。
+// 美德惡德本身的計分、分布與甦醒那一幕在 test/virtueVice.test.js，這裡只測建卡流程。
 //
-// 現在測三件事：
-//   1. 生平問答的**資料**本身合法（題目/選項/權重/小傳片段都齊全）
+// 現在測四件事：
+//   1. 建卡問答的**資料**本身合法（題目/選項/權重/小傳片段/掃描引用句都齊全）
 //   2. 自動配點的**性質**（決定性、不超支、不極端、保證廣度）——不是鎖死某一組數字，
 //      因為權重是草案、之後一定會調；鎖性質才不會每次微調文案都要改測試。
-//   3. 組出來的角色卡真的合法，而且玩家寫的故事真的有進到角色卡裡
+//   3. 肉體重塑那 5 點真的疊得上去，而且不會被當成「屬性超支」
+//   4. 組出來的角色卡真的合法，而且玩家的答案真的有進到角色卡裡
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -17,6 +16,7 @@ import {
   buildCharacterFromLifePath,
   chargenRules,
   narrativeFeatHints,
+  moralityHints,
   ATTRIBUTE_BUDGET,
   SKILL_BUDGET,
 } from "../content/characterBuilder.js";
@@ -26,6 +26,8 @@ import {
   composeBackground,
   questionsForClient,
 } from "../content/chargen/lifePath.js";
+import { VIRTUE_KEYS, VICE_KEYS } from "../content/chargen/virtueVice.js";
+import { RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP, suggestReshape } from "../content/chargen/reshape.js";
 import {
   allocateFromWeights,
   AUTO_ATTRIBUTE_CAP,
@@ -44,7 +46,7 @@ function answersByIndex(n) {
   );
 }
 
-/** 走訪所有可能的答案組合（目前 6×4×4×4×4×4 = 6144 種，跑得完）。 */
+/** 走訪所有可能的答案組合（目前 4×4×4×3×3 = 576 種，跑得完）。 */
 function forEachCombination(fn) {
   const walk = (index, acc) => {
     if (index === LIFE_PATH_QUESTIONS.length) return fn(acc);
@@ -59,14 +61,29 @@ function forEachCombination(fn) {
 // 1. 題目資料本身
 // ---------------------------------------------------------------------------
 
-test("每一題都有足夠的選項，每個選項都有小傳片段與權重", () => {
+test("每一題都有足夠的選項，每個選項都有小傳片段、掃描引用句與權重", () => {
   assert.ok(LIFE_PATH_QUESTIONS.length >= 5, "問答太短撐不起「逐步建立一個角色」");
   for (const q of LIFE_PATH_QUESTIONS) {
     assert.ok(q.title && q.subtitle, `題目「${q.id}」缺標題或說明`);
-    assert.ok(q.options.length >= 4, `題目「${q.id}」的選項少於4個`);
+    // 門檻是3不是4：美德那邊天然就是 4+3 的切法（七項分兩題），硬湊第四個選項
+    // 只會生出一個沒有人會選的填充選項，那比少一個選項更糟。
+    assert.ok(q.options.length >= 3, `題目「${q.id}」的選項少於3個`);
     for (const o of q.options) {
       assert.ok(o.label && o.detail, `${q.id}/${o.id} 缺 label 或 detail`);
       assert.ok(o.story.length > 10, `${q.id}/${o.id} 的小傳片段太短`);
+      // echo 是主神掃描時要唸的那一句。少了它，那一幕就會出現一個沒有理由的結論。
+      assert.ok(o.echo && o.echo.length > 5, `${q.id}/${o.id} 缺 echo（主神掃描的引用句）`);
+      const morality = { ...(o.virtues ?? {}), ...(o.vices ?? {}) };
+      assert.ok(
+        Object.keys(morality).length > 0,
+        `${q.id}/${o.id} 沒有任何美德惡德分數——五題是總分制，不給分的選項等於沒參與判定`
+      );
+      for (const key of Object.keys(o.virtues ?? {})) {
+        assert.ok(VIRTUE_KEYS.includes(key), `${q.id}/${o.id} 的「${key}」不在七美德裡`);
+      }
+      for (const key of Object.keys(o.vices ?? {})) {
+        assert.ok(VICE_KEYS.includes(key), `${q.id}/${o.id} 的「${key}」不在七惡德裡`);
+      }
       const w = { ...(o.weights.attributes ?? {}), ...(o.weights.skills ?? {}) };
       assert.ok(Object.keys(w).length > 0, `${q.id}/${o.id} 沒有任何權重，選了等於沒選`);
       for (const key of Object.keys(o.weights.attributes ?? {})) {
@@ -93,13 +110,19 @@ test("每一題的選項不可以有明顯的「最強解」：各選項總權�
   }
 });
 
-test("送給前端的題目資料不含權重（看得到權重就會變成選數字）", () => {
+test("送給前端的題目資料不含權重與美德惡德分表（看得到就會變成反推答案）", () => {
   const client = questionsForClient();
   const serialized = JSON.stringify(client);
   assert.equal(client.length, LIFE_PATH_QUESTIONS.length);
   assert.equal(serialized.includes("weights"), false);
+  assert.equal(serialized.includes("echo"), false, "掃描引用句要留到甦醒那一幕才出現");
   for (const attr of ATTRIBUTE_KEYS) {
     assert.equal(serialized.includes(`"${attr}"`), false, `前端資料不該出現屬性名「${attr}」`);
+  }
+  // 美德惡德是總分制。玩家看得到哪個選項偏哪一項，就能直接把想要的結果湊出來，
+  // 主神掃描那一幕的意義就沒了——這比看得到屬性權重更嚴重。
+  for (const key of [...VIRTUE_KEYS, ...VICE_KEYS]) {
+    assert.equal(serialized.includes(key), false, `前端資料不該出現美德/惡德「${key}」`);
   }
 });
 
@@ -126,7 +149,7 @@ test("同樣的答案一定配出同樣的角色（不可以有隨機成分）",
   assert.deepEqual(a.character.skills, b.character.skills);
 });
 
-test("所有 6144 種答案組合都配得出合法角色，且不超支、不極端、保證廣度", () => {
+test("所有 576 種答案組合都配得出合法角色，且不超支、不極端、保證廣度", () => {
   // 全走訪而不是抽樣：組合數還在跑得完的範圍內，而「某一組答案會配出壞卡」
   // 正是那種抽樣測試永遠抓不到、但玩家一定會踩到的問題。
   let count = 0;
@@ -158,7 +181,7 @@ test("所有 6144 種答案組合都配得出合法角色，且不超支、不�
 
 test("權重高的方向真的會拿到比較多點數（配點不是亂給的）", () => {
   // 權重要給得像真的答案一樣分散。只給兩個方向的話，預算會多到把兩邊都推到上限——
-  // 那不是配點錯了，是那種輸入在真實問答裡不會出現（六題一定會指向五、六個方向）。
+  // 那不是配點錯了，是那種輸入在真實問答裡不會出現（五題一定會指向五、六個方向）。
   const allocated = allocateFromWeights({
     attributes: { 力量: 10, 敏捷: 5, 耐力: 4, 感知: 3, 智力: 1 },
     skills: { 格鬥: 10, 體魄: 6, 求生: 4, 偵察: 3, 交涉: 2, 秘識: 1 },
@@ -247,5 +270,90 @@ test("chargenRules：把題目與預算一起給前端，前端不用自己抄�
   assert.equal(rules.skills.freePoints, SKILL_BUDGET);
   assert.equal(rules.attributes.cap, 5);
   assert.equal(rules.skills.cap, 3);
+  assert.equal(rules.reshape.points, RESHAPE_POINTS, "前端要靠這個數字畫甦醒那一幕的配點介面");
+  assert.equal(rules.reshape.cap, RESHAPE_ATTRIBUTE_CAP);
   assert.equal("archetypes" in rules, false, "身分模板已經整組拿掉了，不該還留在規則裡");
+});
+
+// ---------------------------------------------------------------------------
+// 4. 肉體重塑（主神在甦醒那一幕給的 5 點自由屬性）
+// ---------------------------------------------------------------------------
+
+test("沒送重塑分配時只回預覽：屬性停在自動配點的結果，並附上甦醒那一幕", () => {
+  const preview = buildCharacterFromLifePath({ concept: { name: "測試" }, answers: answersByIndex(0) });
+  assert.equal(preview.valid, true);
+  assert.ok(preview.awakening, "五題答完就該拿得到甦醒那一幕的內容");
+  assert.equal(preview.budgets.attributes.totalBudget, ATTRIBUTE_BUDGET, "預覽階段不該有額外預算");
+  for (const key of ATTRIBUTE_KEYS) {
+    assert.ok(preview.character.attributes[key] <= AUTO_ATTRIBUTE_CAP);
+  }
+});
+
+test("重塑的點數不吃建卡預算，而且只有它能把屬性推到 5", () => {
+  const answers = answersByIndex(0);
+  const preview = buildCharacterFromLifePath({ concept: { name: "測試" }, answers });
+  const reshape = preview.awakening.reshape.suggestion;
+
+  const final = buildCharacterFromLifePath({ concept: { name: "測試" }, answers, reshape });
+  assert.equal(final.valid, true, final.errors?.join("；"));
+  assert.equal(
+    final.budgets.attributes.totalBudget,
+    ATTRIBUTE_BUDGET + RESHAPE_POINTS,
+    "重塑的點數要另外加進預算，否則玩家配完會被自己的角色卡判定成超支"
+  );
+  assert.equal(final.awakening, null, "重塑送出之後那一幕不用再演一次");
+
+  // 疊上去的值真的變高了，而且沒有任何一項超過建卡上限
+  const before = preview.character.attributes;
+  const after = final.character.attributes;
+  const grew = ATTRIBUTE_KEYS.filter((k) => after[k] > before[k]);
+  assert.ok(grew.length > 0, "重塑之後應該至少有一個屬性變高");
+  for (const key of ATTRIBUTE_KEYS) {
+    assert.ok(after[key] >= before[key], `${key} 只能加不能減`);
+    assert.ok(after[key] <= RESHAPE_ATTRIBUTE_CAP, `${key} 不該超過 ${RESHAPE_ATTRIBUTE_CAP}`);
+  }
+});
+
+test("重塑沒用完、超支、或加到不存在的屬性，都會被擋下來", () => {
+  const answers = answersByIndex(0);
+  const base = { concept: { name: "測試" }, answers };
+
+  const unspent = buildCharacterFromLifePath({ ...base, reshape: {} });
+  assert.equal(unspent.valid, false);
+  assert.match(unspent.errors.join(), /沒有分配/);
+
+  const overspent = buildCharacterFromLifePath({ ...base, reshape: { 意志: 4, 力量: 4 } });
+  assert.equal(overspent.valid, false);
+
+  const bogus = buildCharacterFromLifePath({ ...base, reshape: { 幸運: 1 } });
+  assert.equal(bogus.valid, false);
+  assert.match(bogus.errors.join(), /不是六維屬性/);
+});
+
+test("美德/惡德與性格核心會寫進角色卡", () => {
+  const answers = answersByIndex(0);
+  const preview = buildCharacterFromLifePath({ concept: { name: "測試" }, answers });
+  const result = buildCharacterFromLifePath({
+    concept: { name: "測試" },
+    answers,
+    reshape: preview.awakening.reshape.suggestion,
+  });
+
+  const m = result.character.morality;
+  assert.ok(VIRTUE_KEYS.includes(m.virtue), "美德必須是七美德之一");
+  assert.ok(VICE_KEYS.includes(m.vice), "惡德必須是七惡德之一");
+  assert.notEqual(m.virtue, m.shadowVirtue, "亞軍不可以跟冠軍是同一個");
+  assert.notEqual(m.vice, m.shadowVice);
+  assert.ok(m.core.name && m.core.description, "性格核心要組得出名字與說明");
+
+  const hints = moralityHints(result.character);
+  assert.ok(hints.some((h) => h.includes(m.virtue)), "AI的性格提示要帶到美德");
+  assert.ok(hints.some((h) => h.includes(m.vice)), "AI的性格提示要帶到惡德");
+});
+
+test("低階入口 buildCharacter 不給 morality 時，角色卡維持空殼而不是塞一個假的", () => {
+  const result = buildCharacter({ concept: { name: "測試" }, attributes: { 力量: 2 }, skills: {} });
+  assert.equal(result.valid, true);
+  assert.equal(result.character.morality.virtue, null);
+  assert.equal(result.character.morality.core, null);
 });

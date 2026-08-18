@@ -11,6 +11,14 @@
 // 所以整套模板資料是刪掉而不是留著不用——留著等於留一條隨時會被叫回來的舊路。
 // 需要回顧的話在 git 歷史裡。
 //
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答（見 content/chargen/lifePath.js），
+// 建卡多出一個「甦醒」階段：五題答完之後主神系統會唸出掃描結果，再給 5 點自由屬性
+// 讓玩家自己完成肉體重塑（見 content/chargen/reshape.js 與 awakening.js）。
+// 於是 buildCharacterFromLifePath() 有兩種呼叫方式，差別只在有沒有帶 reshape：
+//   不帶 —— 給建卡畫面預覽用，屬性停在自動配點的結果，另外回傳 awakening 那一幕的內容
+//   有帶 —— 玩家配完 5 點之後的最終送出，屬性 = 自動配點 + 重塑
+// 兩者走的是同一條驗證，不會出現「預覽跟實際不一樣」。
+//
 // 現在只剩兩層：
 //   buildCharacterFromLifePath()  玩家實際走的入口：六個答案 -> 權重 -> 自動配點 -> 下面這層
 //   buildCharacter()              低階入口：拿一份現成的 attributes/skills 草稿驗證並組卡
@@ -32,6 +40,9 @@ import {
 } from "./chargen/pointCosts.js";
 import { collectLifePath, composeBackground, collectTraits, questionsForClient } from "./chargen/lifePath.js";
 import { allocateFromWeights, describeCharacterTendency } from "./chargen/allocate.js";
+import { composeCore, getVirtue, getVice } from "./chargen/virtueVice.js";
+import { applyReshape, RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP } from "./chargen/reshape.js";
+import { composeAwakening } from "./chargen/awakening.js";
 import { computeDerivedStats, DEFAULT_SIZE } from "../core/derivedStats.js";
 
 const ATTRIBUTE_KEYS = ATTRIBUTES.map((a) => a.key);
@@ -74,6 +85,9 @@ export function chargenRules() {
       freePoints: SKILL_BUDGET,
       cumulativeCost: Object.fromEntries([0, 1, 2, 3].map((v) => [v, skillCost(v)])),
     },
+    // 主神在甦醒那一幕給的自由屬性點。前端要靠這兩個數字畫配點介面，
+    // 一樣不自己抄常數——改 RESHAPE_POINTS 的人只要改一個地方。
+    reshape: { points: RESHAPE_POINTS, cap: RESHAPE_ATTRIBUTE_CAP },
   };
 }
 
@@ -89,36 +103,67 @@ export function chargenRules() {
  * @returns buildCharacter() 的回傳值，外加 lifePath（小傳與傾向描述，給前端顯示用）
  */
 export function buildCharacterFromLifePath(input = {}) {
-  const { concept = {}, answers = {} } = input;
-  const { weights, options, errors: pathErrors } = collectLifePath(answers);
+  const { concept = {}, answers = {}, reshape, arrivalNarration } = input;
+  const { weights, options, morality, errors: pathErrors } = collectLifePath(answers);
 
   // 問答還沒答完就先回報，不要往下算——半套答案配出來的點數對玩家沒有意義，
-  // 而且會讓建卡畫面顯示一個他還沒決定的角色。
+  // 而且會讓建卡畫面顯示一個他還沒決定的角色。美德/惡德是五題總分制，
+  // 答到一半算出來的贏家更是純粹的誤導（見 content/chargen/virtueVice.js）。
   if (pathErrors.length > 0) {
-    return { valid: false, errors: pathErrors, budgets: null, lifePath: null };
+    return { valid: false, errors: pathErrors, budgets: null, lifePath: null, awakening: null };
   }
 
   const allocated = allocateFromWeights(weights);
   const background = composeBackground(options);
+  const traits = collectTraits(options);
+
+  // 肉體重塑：主神在甦醒那一幕給的 5 點自由屬性。
+  // 沒帶 reshape 就是**預覽**（玩家還沒配），屬性停在自動配點的結果；
+  // 帶了就是最終送出，必須剛好用完（理由見 content/chargen/reshape.js 檔頭）。
+  let attributes = allocated.attributes;
+  let extraAttributePoints = 0;
+  if (reshape !== undefined && reshape !== null) {
+    const applied = applyReshape(allocated.attributes, reshape, { requireExact: true });
+    if (!applied.valid) {
+      return { valid: false, errors: applied.errors, budgets: null, lifePath: null, awakening: null };
+    }
+    attributes = applied.attributes;
+    extraAttributePoints = applied.cost;
+  }
 
   const result = buildCharacter({
     concept: { ...concept, background },
-    attributes: allocated.attributes,
+    attributes,
     skills: allocated.skills,
-    feats: collectTraits(options),
+    feats: traits,
+    morality,
+    // 重塑的點數不吃 ATTRIBUTE_BUDGET，是另一個池——不加這一筆的話，
+    // 玩家配完 5 點之後會被自己的角色卡判定成「屬性點數超支」。
+    extraAttributePoints,
     // 生平問答自己就是背景故事，不再走身分模板那一套(archetypeId/backstoryChoiceId)。
     backgroundText: background,
   });
 
-  if (!result.valid) return { ...result, lifePath: null };
+  if (!result.valid) return { ...result, lifePath: null, awakening: null };
 
   return {
     ...result,
     lifePath: {
       background,
-      tendency: describeCharacterTendency(allocated.attributes, allocated.skills),
+      tendency: describeCharacterTendency(attributes, allocated.skills),
       answers: options.map((o) => ({ questionId: o.questionId, optionId: o.id, label: o.label })),
     },
+    // 甦醒那一幕的完整內容。重塑已經送出的話就不用再演一次，回 null。
+    awakening:
+      extraAttributePoints > 0
+        ? null
+        : composeAwakening({
+            options,
+            morality,
+            traits,
+            attributes: allocated.attributes,
+            arrivalNarration,
+          }),
   };
 }
 
@@ -129,6 +174,38 @@ export function narrativeFeatHints(character) {
   return feats
     .filter((f) => f?.effect?.type === "narrative" && typeof f.description === "string")
     .map((f) => f.description);
+}
+
+/**
+ * 把角色的美德/惡德翻成幾句給AI看的性格提示。
+ *
+ * 這是美德惡德在本引擎的**主要出口**。使用者的要求(逐字)：
+ *   「讓美德/惡德給的什麼回復意志力變成別的東西，老實說我覺得這個更像是敘事類特質」
+ *
+ * 這個判斷是對的，而且專案裡早就有人記過同一件事——content/packs/shopStarterPacks.js
+ * 有一條註記寫著「意志力的『基礎用法』在本引擎沒有實作，character.derived.willpower
+ * 只有數字沒有消費端」。把規則書那套「觸發美德回意志力」接上來，等於接到一根沒有出口的水管。
+ * 所以美德惡德在這裡走敘事層（本函式），XP 結算那條路另外走 core/campaignXp.js 的
+ * virtueTriggers/viceTriggers。
+ *
+ * shadowVirtue/shadowVice 也一起餵，但措辭刻意寫成「還有」而不是列成第二個美德惡德——
+ * 規則上它們不存在，只是這個人身上還有的東西。
+ */
+export function moralityHints(character) {
+  const m = character?.morality;
+  if (!m?.virtue || !m?.vice) return [];
+
+  const hints = [];
+  const virtue = getVirtue(m.virtue);
+  const vice = getVice(m.vice);
+  if (virtue) hints.push(`美德【${virtue.key}】：${virtue.description}`);
+  if (vice) hints.push(`惡德【${vice.key}】：${vice.description}`);
+  if (m.core?.description) hints.push(`性格核心「${m.core.name}」：${m.core.description}`);
+  if (m.shadowVirtue || m.shadowVice) {
+    const rest = [m.shadowVirtue, m.shadowVice].filter(Boolean).join("、");
+    hints.push(`他身上還有一點${rest}，但那不是他真正靠著活下來的東西。`);
+  }
+  return hints;
 }
 
 /**
@@ -167,7 +244,15 @@ export function buildCharacter(draft = {}) {
     skills = {},
     size = DEFAULT_SIZE,
     feats: rawFeats,
+    morality: rawMorality,
+    // 建卡預算之外**額外**的屬性點（目前唯一的來源是主神的肉體重塑，見 chargen/reshape.js）。
+    // 做成參數而不是把 ATTRIBUTE_BUDGET 直接調高，是因為這兩池的意義不同：
+    // 8 點是「你這輩子活成的樣子」，額外的那些是別人加在你身上的。日後血統/商店的
+    // 自由屬性點也走同一個入口，不用再開第三種預算。
+    extraAttributePoints = 0,
   } = draft;
+
+  const attributeBudget = ATTRIBUTE_BUDGET + Math.max(0, extraAttributePoints);
 
   const name = typeof concept.name === "string" ? concept.name.trim() : "";
   if (!name) errors.push("角色必須有名稱");
@@ -192,11 +277,11 @@ export function buildCharacter(draft = {}) {
   }
 
   const budgets = {
-    attributes: { totalCost: attrCost, totalBudget: ATTRIBUTE_BUDGET, remaining: ATTRIBUTE_BUDGET - attrCost },
+    attributes: { totalCost: attrCost, totalBudget: attributeBudget, remaining: attributeBudget - attrCost },
     skills: { totalCost: skillPointCost, totalBudget: SKILL_BUDGET, remaining: SKILL_BUDGET - skillPointCost },
   };
 
-  if (attrCost > ATTRIBUTE_BUDGET) errors.push(`屬性點數超支（已用 ${attrCost} / ${ATTRIBUTE_BUDGET} 點）`);
+  if (attrCost > attributeBudget) errors.push(`屬性點數超支（已用 ${attrCost} / ${attributeBudget} 點）`);
   if (skillPointCost > SKILL_BUDGET) errors.push(`技能點數超支（已用 ${skillPointCost} / ${SKILL_BUDGET} 點）`);
 
   if (errors.length > 0) {
@@ -225,6 +310,19 @@ export function buildCharacter(draft = {}) {
     const { skill, amount } = feat.effect;
     if (!ALL_SKILLS.includes(skill)) continue;
     character.skills[skill] = (character.skills[skill] ?? 0) + amount;
+  }
+
+  // 美德/惡德。呼叫端沒給就維持 emptyCharacter() 的空殼（低階入口與匯入功能可能沒有），
+  // 給了就連性格核心一起組好——core 是算出來的，不接受外部傳進來的版本，
+  // 免得存檔裡出現一個跟 virtue/vice 對不起來的核心描述。
+  if (rawMorality?.virtue && rawMorality?.vice) {
+    character.morality = {
+      virtue: rawMorality.virtue,
+      vice: rawMorality.vice,
+      shadowVirtue: rawMorality.shadowVirtue ?? null,
+      shadowVice: rawMorality.shadowVice ?? null,
+      core: composeCore(rawMorality.virtue, rawMorality.vice),
+    };
   }
 
   character.derived = computeDerivedStats(character.attributes, { size });
