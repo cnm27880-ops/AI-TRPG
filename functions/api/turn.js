@@ -91,7 +91,7 @@ const EVENT_MEMORY_LIMIT = 12;
  * `npx wrangler pages deployment tail` 是完全查不到的，只能靠玩家回報「畫面怪怪的」。
  * 這裡刻意用 console.error 印出單行前綴 [LLM_FAILURE]，方便之後直接在 tail 輸出裡 grep。
  */
-function logLlmFailure(err, { provider, sessionId }) {
+function logLlmFailure(err, { provider, sessionId, note }) {
   console.error("[LLM_FAILURE]", JSON.stringify({
     where: "POST /api/turn",
     sessionId: sessionId ?? null,
@@ -101,6 +101,7 @@ function logLlmFailure(err, { provider, sessionId }) {
     httpStatus: err?.status ?? null,
     message: err?.message ?? String(err),
     bodySnippet: err?.bodySnippet ?? null,
+    ...(note ? { note } : {}),
   }));
 }
 
@@ -545,16 +546,58 @@ export async function onRequestPost(context) {
   // ---------------------------------------------------------------------
   // 第三段：拆解AI回覆、查驗選項。
   // ---------------------------------------------------------------------
-  const parsed = parseTurnResponse(text);
+  let parsed = parseTurnResponse(text);
+  // finish_reason = "length"(OpenAI相容) / "MAX_TOKENS"(Gemini) 代表模型是「寫到一半被切斷」，
+  // 不是「不會寫JSON」。這兩件事的處理方式完全不同(前者調高上限就好，後者要換模型或加schema)，
+  // 所以不能對玩家講同一句話——先前就是因為只說「不是合法JSON」，害我第一次診斷猜錯方向。
+  let truncated = isTruncated(finishReason);
+  let retriedForInvalidJson = false;
+
+  // [2026-08-18] 偶發性不合法JSON的自動重試。
+  //
+  // 起因：即使換成能力強得多的模型，也還是實測回報「十幾次才發生一次」的不合法JSON——
+  // 不是輸出被截斷(那個情況上面已經用 finishReason 單獨判斷、單獨處理)，是模型這一次
+  // 剛好吐出格式壞掉的內容(常見成因是字串裡混進了沒跳脫的引號/控制字元)。這種情況重講
+  // 一次通常就會好，機率是獨立事件，「連續兩次都壞」的機率遠低於「一次壞」，比起直接
+  // 讓玩家看到保底選項，先花一次額外呼叫換取多數情況下不用降級划算得多。
+  // 只重試一次：這不是要跟模型的機率奮戰到底，只是把「單次運氣不好」這個最常見的成因濾掉，
+  // 重試了還是壞，就代表問題不是運氣，直接照原本的降級流程處理，不要無止盡重試。
+  if (!parsed.ok && !truncated) {
+    try {
+      const retryPrompt =
+        `${prompt}\n\n【重試：上一次的回覆解析失敗】\n` +
+        `解析錯誤：${parsed.error}\n` +
+        `你剛才的回覆開頭是：${String(text).slice(0, 300)}\n` +
+        `請重新產生這一回合的完整內容（劇情與判定不變，只是要把格式寫對）：` +
+        `必須是單一個合法的JSON物件，不要有多餘的文字、Markdown或未跳脫的引號/換行。`;
+      const retryRes = await callLlm({
+        provider,
+        env,
+        systemInstruction,
+        prompt: retryPrompt,
+        apiKey: bodyApiKey || undefined,
+        baseUrl: bodyBaseUrl || undefined,
+        model: bodyModel || undefined,
+        maxTokens: bodyMaxTokens || undefined,
+        responseSchema: TURN_RESPONSE_SCHEMA,
+      });
+      text = retryRes.text;
+      model = retryRes.model;
+      finishReason = retryRes.finishReason ?? null;
+      truncated = isTruncated(finishReason);
+      parsed = parseTurnResponse(text);
+      retriedForInvalidJson = true;
+    } catch (retryErr) {
+      // 重試呼叫本身失敗（網路/額度等）：不要讓這個當掉整個請求，保留原本的解析失敗結果，
+      // 照舊往下走既有的降級流程。
+      logLlmFailure(retryErr, { provider, sessionId: session?.id, note: "JSON重試呼叫失敗" });
+    }
+  }
+
   let narration = text;
   let options = [];
   // 這一輪的「內容來源」摘要。會原封不動回傳給前端，讓玩家/開發者一眼看出
   // 這一輪到底是AI生的還是引擎墊的，不用再靠肉眼比對選項文字有沒有重複。
-  // finish_reason = "length"(OpenAI相容) / "MAX_TOKENS"(Gemini) 代表模型是「寫到一半被切斷」，
-  // 不是「不會寫JSON」。這兩件事的處理方式完全不同(前者調高上限就好，後者要換模型或加schema)，
-  // 所以不能對玩家講同一句話——先前就是因為只說「不是合法JSON」，害我第一次診斷猜錯方向。
-  const truncated = isTruncated(finishReason);
-
   const degraded = {
     parseFailed: !parsed.ok,
     narrationSource: "ai",
@@ -563,6 +606,9 @@ export async function onRequestPost(context) {
     freeOptionCount: 0,
     truncated,
     finishReason,
+    // 這一輪是不是靠「重講一次」才拿到（或還是沒拿到）合法JSON——用來觀察重試機制
+    // 實際的救援率，之後要不要拉高重試次數/加別的修復手段，有這個數字才有依據。
+    retriedForInvalidJson,
   };
 
   // [2026-08-18] 思維鏈欄位（見 content/turnOptions.js 的 TURN_RESPONSE_SCHEMA）。
@@ -606,7 +652,7 @@ export async function onRequestPost(context) {
         ? `AI的回覆在寫到一半時被切斷（finish_reason=${finishReason}），所以JSON不完整。` +
             `這通常代表輸出長度上限太小——請調高 LLM_MAX_TOKENS，或在「系統與文筆設定」把「單次回覆長度上限」調大。` +
             `（會思考的模型特別吃這個額度，因為思考的token也算在上限裡）`
-        : `${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項）`
+        : `${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項${retriedForInvalidJson ? "；已自動重試一次仍失敗" : ""}）`
     );
     // 解析失敗時把AI原文的前段帶回前端。
     // [2026-08-16] 這一格是被實際經驗逼出來的：先前查這個bug時，回應裡只有「解析失敗」
