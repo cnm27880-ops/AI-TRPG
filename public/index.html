@@ -176,12 +176,25 @@
         }
         .stat-tile-star { font-size: .6rem; font-weight: 700; color: var(--accent); vertical-align: top; margin-left: .1rem; }
 
-        /* 等級點：五顆是建卡上限那條線，超過的（傳奇屬性）多畫幾顆並換色——
-           「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是同樣一排滿點。 */
-        .pip-track { display: inline-flex; gap: 3px; align-items: center; }
-        .pip { width: 6px; height: 6px; border-radius: 1px; background: rgba(255,255,255,.16); }
-        .pip-on { background: var(--accent); box-shadow: 0 0 5px rgba(16,185,129,.45); }
-        .pip-over { background: #facc15; box-shadow: 0 0 5px rgba(250,204,21,.5); }
+        /* [2026-08-18 修正] 小磚右側的迷你進度條，取代舊版「一顆一顆的等級點」。
+           屬性最高可以長到30、技能到15，逐點計數的畫法在那個範圍下不是擠成一長條看不出刻度，
+           就是把小磚撐爆——換成連續填色的迷你條，同一個元件同時撐得住兩種上限。
+           滿足加值門檻（傳奇屬性/技能附加成功開始生效）之後變色，呼應舊版「超過上限要長得
+           不一樣」的用意，只是門檻改成「拿到加值」而不是「畫面上的第5個點」。 */
+        .stat-meter {
+            position: relative; display: inline-block; width: 42px; height: 5px;
+            border-radius: 3px; overflow: hidden; background: rgba(255,255,255,.12); flex-shrink: 0;
+        }
+        .stat-meter-fill {
+            position: absolute; left: 0; top: 0; bottom: 0; width: var(--fill-pct, 0%);
+            background: linear-gradient(90deg, var(--accent), var(--accent-alt));
+            box-shadow: 0 0 5px rgba(16,185,129,.4);
+            transition: width .35s cubic-bezier(.2,.8,.2,1);
+        }
+        .stat-meter-fill.stat-meter-legendary {
+            background: linear-gradient(90deg, #facc15, #f59e0b);
+            box-shadow: 0 0 6px rgba(250,204,21,.5);
+        }
 
         /* 生命傷勢軌分段 */
         .hp-seg { border-radius: 2px; transition: background-color .3s ease; }
@@ -745,11 +758,9 @@
         html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); box-shadow: 0 4px 12px rgba(15,23,42,.08); }
         html[data-theme="light"] .stat-tile-rail::before { background: rgba(15,23,42,.08); }
         html[data-theme="light"] .stat-tile-rail::after { box-shadow: 0 0 8px rgba(37,99,235,.3); }
-        /* 只覆寫「沒點亮」的那幾顆——直接寫 .pip 的話，這條 (0,2,0) 的特異度會蓋過
-           點亮用的 .pip-on (0,1,0)，淺色主題下整排點就會全部變成灰的。 */
-        html[data-theme="light"] .pip:not(.pip-on):not(.pip-over) { background: rgba(15,23,42,.14); }
-        html[data-theme="light"] .pip-on { box-shadow: 0 0 5px rgba(37,99,235,.35); }
-        html[data-theme="light"] .pip-over { background: #b45309; box-shadow: 0 0 5px rgba(180,83,9,.35); }
+        html[data-theme="light"] .stat-meter { background: rgba(15,23,42,.1); }
+        html[data-theme="light"] .stat-meter-fill { box-shadow: 0 0 5px rgba(37,99,235,.3); }
+        html[data-theme="light"] .stat-meter-fill.stat-meter-legendary { background: linear-gradient(90deg, #b45309, #d97706); box-shadow: 0 0 5px rgba(180,83,9,.35); }
         html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(37,99,235,.08), #ffffff 70%); border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .scene-bar-tint { background: #ffffff; border-bottom-color: rgba(15,23,42,.08); }
         html[data-theme="light"] .folder-tab { color: #64748b; }

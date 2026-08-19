@@ -55,28 +55,34 @@ function legendaryAttributeBonus(val) {
 }
 
 // --- 屬性／技能小磚的視覺換算 ---------------------------------------------
-// 兩者共用同一條刻度：5 是建卡的上限，也是玩家心裡「滿級」的那條線。
-// 傳奇屬性（>5）不會把軌道撐爆，改成整條填滿再多亮幾顆點——
-// 「超過上限」本來就該長得跟「剛好到上限」不一樣，而不是看起來一樣滿。
-const STAT_TILE_SCALE = 5;
+// [2026-08-18 修正] 舊版把屬性跟技能共用同一條「5」刻度（建卡當下的分配上限），
+// 用一顆一顆的點畫等級，超過5顆之後用溢出點接下去。實際遊戲裡屬性可以一路長到
+// 30、技能長到15（core/dice.js 的 legendaryAttributeBonus()/skillBonusSuccesses()
+// 兩條加值曲線都是照這個範圍設計的），一顆一顆的點在那個尺度下要嘛擠成一長條完全
+// 看不出刻度，要嘛乾脆把版面撐爆——不是「畫錯」，是這個畫法本身撐不起這個數值範圍。
+// 改成一條連續的迷你進度條，按「目前值 / 真正上限」算填多少，兩種屬性/技能各自用
+// 各自的真實上限，不再共用同一把尺；滿足加值門檻（傳奇屬性/技能附加成功開始生效）
+// 之後變色，讓「已經開始拿到加值」這件事還是一眼看得出來，不會因為改用連續條就消失。
+const ATTRIBUTE_MAX = 30;
+const SKILL_MAX = 15;
+/** 超過這個值就在條上變色：屬性6開始有傳奇屬性加值，技能5開始有第一個附加成功門檻。 */
+const ATTRIBUTE_BONUS_FLOOR = 5;
+const SKILL_BONUS_FLOOR = 5;
 
-/** 等級軌要填多高。回傳可以直接塞進 CSS 的百分比字串。 */
-function levelPercent(value) {
-  const pct = Math.max(0, Math.min(1, (Number(value) || 0) / STAT_TILE_SCALE)) * 100;
+/** 等級軌（小磚左緣的上升條）要填多高。回傳可以直接塞進 CSS 的百分比字串。 */
+function levelPercent(value, max) {
+  const pct = Math.max(0, Math.min(1, (Number(value) || 0) / max)) * 100;
   return `${pct}%`;
 }
 
-/** 等級點：滿刻度五顆，超出的部分用不同顏色接在後面。 */
-function pipTrackHtml(value) {
-  const lv = Math.max(0, Number(value) || 0);
-  const pips = [];
-  for (let i = 1; i <= STAT_TILE_SCALE; i++) {
-    pips.push(`<span class="pip ${i <= lv ? "pip-on" : ""}"></span>`);
-  }
-  for (let i = STAT_TILE_SCALE + 1; i <= lv; i++) {
-    pips.push(`<span class="pip pip-over"></span>`);
-  }
-  return `<span class="pip-track">${pips.join("")}</span>`;
+/** 小磚右側的迷你進度條：連續填色，不是逐點計數，才撐得住 0~30／0~15 這種範圍。 */
+function miniMeterHtml(value, max, bonusFloor) {
+  const v = Math.max(0, Number(value) || 0);
+  const pct = Math.max(0, Math.min(1, v / max)) * 100;
+  const legendary = v > bonusFloor;
+  return `<span class="stat-meter" title="${v} / ${max}">` +
+    `<span class="stat-meter-fill${legendary ? " stat-meter-legendary" : ""}" style="--fill-pct:${pct}%"></span>` +
+    `</span>`;
 }
 
 // --- 建卡初始化 ---
@@ -534,14 +540,14 @@ function adoptCharacter(charData) {
     const bonus = legendaryAttributeBonus(val);
     const bonusTag = bonus > 0 ? `<span class="stat-tile-star">+${bonus}★</span>` : "";
     return `
-      <div class="stat-tile stat-tile-rail pl-3 pr-2.5 py-1.5 rounded space-y-1" style="--lv-pct:${levelPercent(val)}">
+      <div class="stat-tile stat-tile-rail pl-3 pr-2.5 py-1.5 rounded space-y-1" style="--lv-pct:${levelPercent(val, ATTRIBUTE_MAX)}">
         <div class="flex items-baseline justify-between gap-2">
           <span class="stat-tile-en">${en}</span>
           <span class="stat-tile-value">${val}${bonusTag}</span>
         </div>
         <div class="flex items-center justify-between gap-2">
           <span class="stat-tile-cn">${key}</span>
-          ${pipTrackHtml(val)}
+          ${miniMeterHtml(val, ATTRIBUTE_MAX, ATTRIBUTE_BONUS_FLOOR)}
         </div>
       </div>`;
   }).join("");
@@ -554,10 +560,10 @@ function adoptCharacter(charData) {
       : "";
     return `
     <div class="stat-tile stat-tile-rail ${lv > 0 ? "" : "stat-tile-empty"} pl-3 pr-2.5 py-1.5 rounded flex justify-between items-center gap-2"
-         style="--lv-pct:${levelPercent(lv)}">
+         style="--lv-pct:${levelPercent(lv, SKILL_MAX)}">
       <span class="text-xs text-zinc-300 truncate">${escapeHtml(skill)}${specText}</span>
       <span class="flex items-center gap-2 shrink-0">
-        ${pipTrackHtml(lv)}
+        ${miniMeterHtml(lv, SKILL_MAX, SKILL_BONUS_FLOOR)}
         <span class="font-mono font-bold text-sm ${lv > 0 ? "text-emerald-300" : "text-zinc-500"}">${lv}</span>
       </span>
     </div>`;
@@ -1203,12 +1209,25 @@ function updateScenarioHud(scenario) {
   // 後端會直接用副本自己的追兵樣板開戰（見 functions/api/combat/start.js），
   // 不是憑空跳出一隻佔位怪物，所以不違反上面那個「不要破壞沉浸感」的原則。
   const combatBtn = document.getElementById("combat-start-btn");
+  const cornered = Boolean(scenario.threat?.contact);
   if (combatBtn) {
     const isFinale = Boolean(node?.isFinale);
-    const cornered = Boolean(scenario.threat?.contact);
     const canFight = isFinale || cornered;
     combatBtn.style.display = canFight ? "" : "none";
     combatBtn.classList.toggle("pulse-glow", canFight);
+  }
+
+  // [2026-08-18] 迫近度到頂時自動切進戰鬥畫面，不再只讓玩家自己注意到右上角那顆小按鈕。
+  //
+  // 起因：實際測玩回報「遭遇戰鬥不要只有出現在右上方」——「接觸」代表威脅已經欺到臉前，
+  // 這種時候還要玩家自己發現角落多了一顆按鈕、手動點下去才會進戰鬥畫面，等同於系統已經
+  // 知道玩家被逮到了，卻假裝沒事、繼續顯示敘事選項。上面那顆按鈕保留不拿掉——玩家仍然
+  // 可以在最終戰節點手動觸發，這裡只是多加一條「不用等他自己按」的路徑。
+  // 用 combatInFlight 跟 currentCombat.active 擋兩層重複觸發：同一次 contact 只會開一次戰，
+  // 戰鬥開始後 functions/api/combat/start.js 會呼叫 dischargeThreat() 把迫近度降回去，
+  // 之後的畫面就不會再帶著 contact:true 回來，不需要在前端額外記一個「這次打過了」的旗標。
+  if (cornered && !combatInFlight && !(currentCombat && currentCombat.active)) {
+    startCombat();
   }
 }
 

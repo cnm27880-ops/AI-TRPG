@@ -32,9 +32,11 @@ test("成功會拉開距離、失敗會逼近：兩者一定走向不同的迫�
   assert.notEqual(success.after, failure.after);
 });
 
-test("分級表的每一個分級都要有對應的迫近度增減(漏一個就等於那個分級沒有後果)", () => {
+test("分級表的每一個分級都要有對應的迫近度增減條目(漏一個就等於那個分級沒有後果)", () => {
   // 這些字串必須跟 core/narration.js 的 TIERS id 完全一致，對不上就是靜默失效：
   // threatDeltaForOutcome() 會回0，那個分級的成敗從此對世界沒有任何影響，而且不會報錯。
+  // 例外：「驚險成功」刻意設計成0（見 threat.js 的設計註解）——判定結果是成功，
+  // 就不該讓追蹤格上升，只是沒有像乾淨的成功一樣把威脅推遠。
   const allTiers = [
     classifyOutcome({ margin: 9 }),
     classifyOutcome({ margin: 2 }),
@@ -50,7 +52,22 @@ test("分級表的每一個分級都要有對應的迫近度增減(漏一個就�
       Object.prototype.hasOwnProperty.call(OUTCOME_THREAT_DELTA, outcome.tier),
       `分級「${outcome.tier}」在 OUTCOME_THREAT_DELTA 裡沒有對應的增減值`
     );
-    assert.notEqual(threatDeltaForOutcome(outcome), 0, `分級「${outcome.tier}」的迫近度增減不該是0`);
+    if (outcome.tier === "驚險成功") {
+      assert.equal(threatDeltaForOutcome(outcome), 0, "驚險成功是成功，不應該推高迫近度");
+    } else {
+      assert.notEqual(threatDeltaForOutcome(outcome), 0, `分級「${outcome.tier}」的迫近度增減不該是0`);
+    }
+  }
+});
+
+test("只有低於DC(margin<0)的分級才會讓迫近度上升；margin>=0一律不上升", () => {
+  const successMargins = [9, 2, 0]; // 大成功/成功/驚險成功
+  for (const margin of successMargins) {
+    const outcome = classifyOutcome({ margin });
+    assert.ok(
+      threatDeltaForOutcome(outcome) <= 0,
+      `margin=${margin}(分級「${outcome.tier}」)是成功，迫近度增減不該是正數`
+    );
   }
 });
 

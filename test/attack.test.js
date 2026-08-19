@@ -19,12 +19,12 @@ test("resolveAttack：effectiveDP = 攻擊DP - 距離減值（防御不再扣DP�
   assert.equal(capturedDP, 10 - 2);
 });
 
-test("resolveAttack：原始成功數必須嚴格大於防御DC才算命中", () => {
-  const miss = resolveAttack({ attackDP: 10, defenseDC: 3, rollFn: fixedRoll(3) }); // 3 不大於 3
+test("resolveAttack：原始成功數必須大於等於防御DC才算命中（2026-08-18修正，原本要求嚴格大於）", () => {
+  const miss = resolveAttack({ attackDP: 10, defenseDC: 3, rollFn: fixedRoll(2) }); // 2 小於 3
   assert.equal(miss.hit, false);
   assert.equal(miss.baseDamage, 0);
 
-  const hit = resolveAttack({ attackDP: 10, defenseDC: 3, rollFn: fixedRoll(4) }); // 4 大於 3
+  const hit = resolveAttack({ attackDP: 10, defenseDC: 3, rollFn: fixedRoll(3) }); // 3 等於 3，算命中
   assert.equal(hit.hit, true);
 });
 
