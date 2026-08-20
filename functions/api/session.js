@@ -198,7 +198,10 @@ async function summarizeSessions(store, ids) {
       id: session.id,
       name: session.character?.concept?.name ?? "未命名輪迴者",
       updatedAt: session.updatedAt ?? session.createdAt ?? null,
-      turnCount: session.log?.events?.length ?? 0,
+      // 這個數字在畫面上寫的是「N 筆紀錄」，本來就是事件日誌的長度，不是回合數。
+      // 舊欄位名叫 turnCount，跟 /api/turn 回的那個「回合數」同名卻是兩回事，容易看錯。
+      eventCount: session.log?.events?.length ?? 0,
+      turns: session.turns ?? 0,
       scenarioId: session.scenario?.packId ?? null,
       // 死掉的角色也要看得出來，否則玩家會讀進一張已經不能動的卡才發現
       dead: Boolean(session.character?.derived?.hp?.dead),

@@ -293,6 +293,7 @@ export async function onRequestPost(context) {
     const options = scripted.options.map((o) => (o.source === "ai" ? { ...o, source: "scripted" } : o));
 
     session.history = pushHistory(session.history, { action: null, narration: currentChapter.openingNarration });
+    session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     await store.put(session);
 
@@ -319,7 +320,7 @@ export async function onRequestPost(context) {
       downState,
       // HUD 那一份形狀跟 /api/session 共用同一個組裝函式，兩邊各寫一份遲早會長歪。
       scenario: scenarioHudView(scenarioPack, scenarioProgress),
-      turnCount: session.log?.events?.length ?? 0,
+      turnCount: session.turns ?? 0,
       warnings,
     });
   }
@@ -816,6 +817,8 @@ export async function onRequestPost(context) {
       );
     }
     session.history = pushHistory(session.history, { action: actionText, narration });
+    // 「回合」是敘事推進了一輪，不是日誌多了幾筆——頂欄那個數字用的就是這個。
+    session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     await store.put(session);
   }
@@ -839,7 +842,7 @@ export async function onRequestPost(context) {
     // 而不是只有在玩家撞到閘門的那一次才知道。
     downState: getDownState(character),
     scenario: scenarioResult,
-    turnCount: session?.log?.events?.length ?? 0,
+    turnCount: session?.turns ?? 0,
     warnings,
   });
 }

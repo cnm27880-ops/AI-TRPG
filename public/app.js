@@ -2451,7 +2451,7 @@ function renderSessionList(sessions) {
             ${s.dead ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-red-500/40 text-red-300">已死亡</span>` : ""}
             ${active ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-emerald-500/40 text-emerald-300">進行中</span>` : ""}
           </div>
-          <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turnCount} 筆紀錄</div>
+          <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turns ?? 0} 回合 · ${s.eventCount ?? 0} 筆紀錄</div>
         </div>
         <button data-load-session="${escapeHtml(s.id)}" class="shrink-0 px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/25 transition-all">讀取</button>
         <button data-delete-session="${escapeHtml(s.id)}" title="刪除這份存檔" class="shrink-0 px-2 py-1 rounded border hairline-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-all">

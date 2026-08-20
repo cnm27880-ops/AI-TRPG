@@ -802,6 +802,25 @@
         }
         html[data-theme="light"] #story-feed { border-left-color: rgba(37,99,235,.2); }
 
+        /* [2026-08-20 修正] 迫近度指示燈「還沒亮」的那幾格。
+           原本只有深色主題的寫法：半透明白底＋半透明白框，在白色背景上等於完全消失，
+           於是淺色主題只看得到已經亮起來的格子——玩家看不出「這條軌道總共幾格、
+           我離接觸還有多遠」，而那正是這個元件唯一的功能。 */
+        html[data-theme="light"] .threat-pip {
+            background: rgba(15,23,42,.06);
+            border-color: rgba(15,23,42,.15);
+        }
+        /* 亮起來的格子沿用深色主題的號誌色（綠→黃→橘→紅），只把綠壓深一階：
+           #34d399 在白底上偏淡，跟「還沒亮」的灰格分不太開。 */
+        html[data-theme="light"] .threat-pip.on-1 { background: #059669; border-color: #059669; }
+        html[data-theme="light"] .threat-pip.on-2 { background: #ca8a04; border-color: #ca8a04; }
+
+        /* [2026-08-20 修正] 深色主題用一層黑色 drop-shadow 讓白色標題浮起來；
+           淺色主題底下字色被覆寫成近黑的深藍，那層黑影就變成字緣的一圈髒污
+           （在手機的小字級上特別明顯，看起來像沒對焦）。淺色主題直接關掉這層影子。 */
+        html[data-theme="light"] #char-name,
+        html[data-theme="light"] #portal-title { filter: none; }
+
         /* ================= 減少動態 =================
            [2026-08-18 新增] 這個介面同時有五個無限循環的動畫在跑：背景呼吸光暈
            (ambientBreathe)、存檔提示的 pulse-glow、連線指示燈的 animate-ping、
@@ -875,7 +894,7 @@
         <!-- 主選單旗幟橫幅 -->
         <div class="menu-banner anim-fade-up">
             <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">主神空間 · INFINITE TERROR</div>
-            <h1 class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
+            <h1 id="portal-title" class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
         </div>
 
         <p class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">

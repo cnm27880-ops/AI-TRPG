@@ -27,9 +27,10 @@ export const HISTORY_LIMIT = 8;
  * 存檔格式版本。
  *   1 —— 初版
  *   2 —— 2026-08-17 加入 wallet(主神商店錢包) 與 forms(進行中的型態)
+ *   3 —— 2026-08-20 加入 turns(真正的回合數，見下面 ensureSessionShape 的說明)
  * 舊版存檔由 ensureSessionShape() 就地補欄位，不需要離線遷移。
  */
-export const SESSION_VERSION = 2;
+export const SESSION_VERSION = 3;
 
 /** 存檔在KV裡的key前綴。 */
 const KEY_PREFIX = "session:";
@@ -51,6 +52,11 @@ export function ensureSessionShape(session) {
   const next = { ...session };
   if (!next.wallet) next.wallet = createWallet();
   if (!next.forms) next.forms = createFormsState();
+  // [2026-08-20] 畫面頂欄那個「回合：N」以前顯示的是**事件日誌的筆數**，不是回合數——
+  // 一場戰鬥打十下就會讓它跳十幾格，玩家看到的數字跟他實際玩過幾輪完全對不上。
+  // 這裡開一個真的只在「敘事推進一輪」時 +1 的計數。舊存檔沒有這個欄位，
+  // 用 history 的長度當近似值(它有上限，所以只是個下限)，總比從 0 重來合理。
+  if (typeof next.turns !== "number") next.turns = next.history?.length ?? 0;
   next.version = SESSION_VERSION;
   return next;
 }
@@ -69,6 +75,8 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     log: createEventLog(),
     history: [],
     scene: { context: sceneContext, options: [] },
+    // 真正的回合數：只有「敘事推進了一輪」才 +1（見 functions/api/turn.js）。
+    turns: 0,
     // 主神商店的錢包(支線/獎勵點數/XP)。空的——怎麼賺錢見 content/scenario/settlement.js：
     // 副本節點完成給獎勵點數，副本通關給XP。
     wallet: createWallet(),
