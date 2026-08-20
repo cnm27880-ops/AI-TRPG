@@ -64,9 +64,9 @@
 | `LLM_API_KEY` | 通用金鑰欄位（`custom` 用這個） |
 | `GEMINI_API_KEY` | Gemini 金鑰 |
 | `DEEPSEEK_API_KEY` | DeepSeek 金鑰 |
-| `SILICONFLOW_API_KEY` | SiliconFlow 硅基流動 金鑰 |
+| `SILICONFLOW_API_KEY` | SiliconFlow 硅基流動 金鑰（也吃舊名 `SiliconFlow_API_KEY`） |
 | `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) 金鑰 |
-| `OPENROUTER_API_KEY` | OpenRouter 金鑰 |
+| `OPENROUTER_API_KEY` | OpenRouter 金鑰（也吃舊名 `API_KEY`） |
 | `LLM_MAX_TOKENS` | 輸出長度上限，預設 2048。**不要調到 1000 以下**，原因見下方 |
 | `NARRATIVE_STYLE` | 文筆設定檔名稱：`白描`（預設）/`標準`/`恐怖懸疑`/`冷硬寫實`/`電影感` |
 | `NARRATOR_PERSONA` | 敘事者人格面具：`RUTHLESS_JUDGE`（預設）/`GENTLE_GOD`/`PANIC_SURVIVOR` |
@@ -92,7 +92,7 @@
 | DeepSeek | 必填 | 內建 | 選填 |
 | SiliconFlow 硅基流動 | 必填 | 內建 | 選填（免費模型 slug 會輪替，建議自己填） |
 | NVIDIA NIM | 必填（免費免卡） | 內建 | 選填 |
-| OpenRouter | 必填 | 內建 | **必填**（免費模型 slug 常變動，沒有預設值） |
+| OpenRouter | 必填 | 內建 | 選填（有預設值，但 `:free` 的 slug 常變動，收到 404 就自己填一個） |
 | Cloudflare Workers AI | 不需要 | 不適用 | 選填 |
 | 自訂（相容OpenAI） | 必填 | **必填** | **必填** |
 
@@ -170,7 +170,7 @@ NARRATIVE_STYLE=恐怖懸疑
 ### Gemini（官方）
 
 - 端點：`https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
-- 預設模型：`gemini-3.6-flash`
+- 預設模型：`gemini-3.7-flash`
 - 認證：`x-goog-api-key` header（不是 Bearer）
 - 文件：https://ai.google.dev/gemini-api/docs/pricing
 
@@ -192,7 +192,7 @@ Google 已把 Interactions API 列為 GA 並建議新專案採用，`generateCon
 ### SiliconFlow 硅基流動（聚合，含免費模型）
 
 - 端點：`https://api.siliconflow.com/v1/chat/completions`（OpenAI相容）
-- 預設模型：`Qwen/Qwen3-8B`
+- 預設模型：`Qwen/Qwen3-30B-A3B-Instruct`
 - 認證：`Authorization: Bearer <key>`
 - 文件：https://docs.siliconflow.com/en/userguide/quickstart
 
@@ -219,7 +219,7 @@ SILICONFLOW_API_KEY=你的金鑰
    > 網路上有些第三方追蹤站寫「免費模型未儲值 50 次/日」，但主控台的限流頁沒有這一欄。
    > 如果你之後遇到跟次數有關的 429，再回主控台確認一次是不是有另外一層日配額。
 
-3. **免費模型清單會輪替。** `Qwen/Qwen3-8B` 是查證當下（2026-08-16）第三方追蹤站列出的常駐免費
+3. **免費模型清單會輪替。** `Qwen/Qwen3-30B-A3B-Instruct` 是查證當下（2026-08-16）第三方追蹤站列出的常駐免費
    模型之一，官方沒有「保證永遠免費」的承諾。部署前對一次目前真的免費的 slug，要換設 `LLM_MODEL`。
 
 **選模型時的注意事項**：官方的 [JSON schema 說明頁](https://docs.siliconflow.cn/en/userguide/guides/json-mode)
@@ -248,16 +248,17 @@ NVIDIA_API_KEY=你的金鑰
 ### OpenRouter（聚合）
 
 - 端點：`https://openrouter.ai/api/v1/chat/completions`（OpenAI相容）
-- 模型：**沒有預設值**，必須自己設 `LLM_MODEL`
+- 預設模型：`z-ai/glm-5.2:free`（2026-08-18 由使用者指定，2026-08-20 對過型錄確認當下存在）
 - 文件：https://openrouter.ai/models
 
-程式刻意不給預設模型：免費模型的slug每週在變，寫死一個等於保證未來某天壞掉。
-沒設 `LLM_MODEL` 時會直接報錯並告訴你要去哪裡挑。
+這裡原本**刻意不給預設模型**：免費模型的slug每週在變，寫死一個等於保證未來某天壞掉。
+現在有預設值了，所以那個風險是真的存在的——收到 404／`No endpoints found` 這類錯誤時，
+到 [models頁](https://openrouter.ai/models) 挑一個當下存在的，設 `LLM_MODEL` 即可（不用改程式碼）。
 
 ### Cloudflare Workers AI（免金鑰）
 
 - 不走HTTP，走 `wrangler.toml` 的 `[ai] binding = "AI"`
-- 預設模型：`@cf/meta/llama-3.1-8b-instruct`
+- 預設模型：`@cf/meta/llama-3.1-8b-instruct-fast`（`-fast` 之前的那一檔已被 Cloudflare 下架）
 - 文件：https://developers.cloudflare.com/workers-ai/models/
 
 **注意**：這個binding只在Cloudflare上執行時存在。直接用瀏覽器開 `public/index.html` 是沒有的，

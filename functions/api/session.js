@@ -14,6 +14,7 @@ import {
 } from "../../content/storage/sessionStore.js";
 import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
+import { scenarioHudView } from "../../content/scenario/hudView.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
 import { combatOptions } from "../../content/combat/encounterState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
@@ -150,6 +151,12 @@ export async function onRequestGet(context) {
     // 前端只好退回那兩顆寫死的按鈕，於是買到的武器與身上的型態在續戰時全部按不到。
     // 症狀跟上一輪修掉的完全一樣，只是躲在另一條路徑上。
     combatOptions: session.combat?.active ? combatOptions(session.combat, session.character) : null,
+    // [2026-08-20] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在讀取存檔時
+    // 一起算出來。先前只有 /api/turn 會回這一份，所以重整頁面接續遊戲的玩家會看到一條空的
+    // 頂欄，得再打一個回合才知道自己現在的目標是什麼——狀態一直都在存檔裡，只是沒人讀。
+    scenario: session.scenario
+      ? scenarioHudView(getScenarioPack(session.scenario.packId), session.scenario.progress)
+      : null,
   });
 }
 

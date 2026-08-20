@@ -125,14 +125,14 @@ test("NVIDIA NIM：打到 /chat/completions，帶Bearer金鑰，走OpenAI相容�
   assert.equal(options.headers.authorization, "Bearer nv-key");
 });
 
-test("OpenRouter：帶上官方建議的HTTP-Referer/X-Title，且未指定模型時要明確報錯", async () => {
+test("OpenRouter：帶上官方建議的HTTP-Referer/X-Title，LLM_MODEL 蓋得過預設模型", async () => {
   const ff = fakeFetch(OPENAI_OK);
 
-  // OpenRouter沒有預設模型(免費模型slug會變動)，沒指定就該報錯而不是亂猜一個
-  await assert.rejects(
-    () => callLlm({ provider: "openrouter", env: { OPENROUTER_API_KEY: "k" }, prompt: "x", fetchFn: ff }),
-    /LLM_MODEL/
-  );
+  // [2026-08-18] OpenRouter原本刻意沒有預設模型，後來由使用者指定了一個。
+  // `:free` 系列的slug會輪替，所以「環境變數蓋得過預設值」這條路必須一直有效——
+  // 型錄上的名字變了的時候，那是唯一不用改程式碼就能救回來的方式。
+  await callLlm({ provider: "openrouter", env: { OPENROUTER_API_KEY: "k" }, prompt: "x", fetchFn: ff });
+  assert.equal(JSON.parse(ff.calls[0].options.body).model, PROVIDERS.openrouter.defaultModel);
 
   await callLlm({
     provider: "openrouter",
@@ -140,8 +140,38 @@ test("OpenRouter：帶上官方建議的HTTP-Referer/X-Title，且未指定模�
     prompt: "x",
     fetchFn: ff,
   });
-  assert.equal(ff.calls[0].options.headers["X-Title"], "AI-TRPG");
-  assert.equal(JSON.parse(ff.calls[0].options.body).model, "some-model:free");
+  assert.equal(ff.calls[1].options.headers["X-Title"], "AI-TRPG");
+  assert.equal(JSON.parse(ff.calls[1].options.body).model, "some-model:free");
+});
+
+test("沒有預設模型的供應商(custom)：沒指定模型時要報錯而不是亂猜一個", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await assert.rejects(
+    () =>
+      callLlm({
+        provider: "custom",
+        env: { LLM_API_KEY: "k", LLM_BASE_URL: "https://中轉.example/v1" },
+        prompt: "x",
+        fetchFn: ff,
+      }),
+    /LLM_MODEL/
+  );
+});
+
+test("金鑰環境變數：舊名稱(別名)也讀得到，已經照舊名設好secret的部署不會斷掉", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  // 這兩個舊名是2026-08-18那次手改留下來的，正名之後仍然要能動——
+  // 環境變數設在Cloudflare主控台裡，改程式碼不會同步改到那一份。
+  await callLlm({ provider: "siliconflow", env: { SiliconFlow_API_KEY: "sf" }, prompt: "x", fetchFn: ff });
+  assert.equal(ff.calls[0].options.headers.authorization, "Bearer sf");
+
+  await callLlm({ provider: "openrouter", env: { API_KEY: "or" }, prompt: "x", fetchFn: ff });
+  assert.equal(ff.calls[1].options.headers.authorization, "Bearer or");
+});
+
+test("pickProvider：金鑰用舊名稱設的部署也要挑得到同一家", () => {
+  assert.equal(pickProvider({ SiliconFlow_API_KEY: "k" }), "siliconflow");
+  assert.equal(pickProvider({ API_KEY: "k" }), "openrouter");
 });
 
 test("custom：任意第三方OpenAI相容接口只靠環境變數就能接上，不用改程式碼", async () => {

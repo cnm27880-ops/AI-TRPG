@@ -274,13 +274,20 @@ test("custom 供應商沒填 baseUrl 時要在最前面擋下，錯誤訊息要�
   assert.equal(env.calls.length, 0);
 });
 
-test("openrouter 沒有預設模型，沒填模型名稱時要擋下並附上型錄連結", async () => {
+test("沒有預設模型的供應商，沒填模型名稱時要擋下並附上型錄連結", async () => {
+  // [2026-08-18] 這條原本用 openrouter 當例子（它當時刻意沒有預設模型），
+  // 後來 openrouter 被指定了預設模型，這個請求就會**真的打到網路上**——
+  // 單元測試打外網不但慢，還會因為別人的服務回401而變成假的失敗。
+  // 改用同樣沒有預設模型、而且一定不會連線的 custom，測的規則完全一樣。
   const env = scriptedEnv([goodReply(1)]);
   const sessionId = await newSession(env);
   const { status, body } = await readJson(
-    await turnPost(req(env, { sessionId, provider: "openrouter", apiKey: "k" }))
+    await turnPost(
+      req(env, { sessionId, provider: "custom", apiKey: "k", baseUrl: "https://中轉.example/v1" })
+    )
   );
   assert.equal(status, 400);
   assert.match(body.error, /模型/);
-  assert.match(body.error, /openrouter\.ai\/models/);
+  assert.match(body.error, /沒有預設模型/);
+  assert.equal(env.calls.length, 0);
 });

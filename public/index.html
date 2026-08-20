@@ -1639,7 +1639,7 @@
             deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
             siliconflow:   { key: true,  baseUrl: false, model: false, modelHint: '留空＝用預設的免費模型。免費模型清單會輪替，請到 cloud.siliconflow.com/models 確認目前可用的 slug。注意：DeepSeek R1／V3 系列不支援 JSON 結構化輸出，選了會讓保底選項變多。' },
             nvidia:        { key: true,  baseUrl: false, model: false, modelHint: '金鑰請自己到 build.nvidia.com 申請。留空＝用預設模型。' },
-            openrouter:    { key: true,  baseUrl: false, model: true,  modelHint: '必填：OpenRouter 沒有預設模型（免費模型的 slug 常變動），請到 openrouter.ai/models 挑一個目前存在的貼上。' },
+            openrouter:    { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡指定的預設模型。免費模型（:free 結尾）的 slug 會輪替，收到 404 時請到 openrouter.ai/models 挑一個目前存在的貼上。' },
             'workers-ai':  { key: false, baseUrl: false, model: false, modelHint: '免金鑰，用你自己 Cloudflare 帳號的額度。留空＝用預設模型。' },
             custom:        { key: true,  baseUrl: true,  model: true,  modelHint: '必填：自訂接口沒有預設模型，請填你的服務接受的模型名稱。' },
         };
@@ -1758,6 +1758,9 @@
                     b?.setAttribute('aria-selected', 'false');
                 }
             });
+            // 日誌是唯一需要去伺服器拿資料的分頁（其餘三個畫的都是手上已經有的角色卡）。
+            // 只在真的切過去的時候抓，不要每回合都預抓一份沒有人在看的日誌。
+            if (tabKey === 'journal') window.loadJournal?.();
         }
         function copySessionId() {
             const val = document.getElementById('modal-session-id').value;

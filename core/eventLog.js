@@ -98,6 +98,29 @@ function journalSummary(event) {
         `${p.actor === "player" ? "玩家" : p.actor ?? "未知"}攻擊${p.hit ? `命中，造成${p.damage ?? 0}點傷害` : "未命中"}` +
         `${p.damageSeverityTag ? ` ${p.damageSeverityTag}` : ""}`
       );
+    // [2026-08-20 修正] 下面四種是後來才加進 EVENT_TYPES 的（購買/獎勵點數/型態/休息），
+    // 當時只加了常數與寫入端，沒有回來補這裡的分支，於是它們全部落到 default 變成「未知事件」。
+    // 這不只是日誌畫面難看：summarizeForJournal() 同時是**餵給AI的事實記憶**
+    // （functions/api/turn.js 只取最近 EVENT_MEMORY_LIMIT 筆），所以每買一件裝備、
+    // 每休息一次，就有一行「未知事件」擠掉一筆真的事實，AI 也就不知道玩家做過那些事。
+    case EVENT_TYPES.PURCHASE:
+      return (
+        `在${p.location ?? "主神空間"}購買「${p.name ?? p.goodId ?? "未知商品"}」` +
+        `${p.pricePaid != null ? `，花費 ${p.pricePaid} 點` : ""}` +
+        `${p.droppedTraits?.length ? `（換下：${p.droppedTraits.join("、")}）` : ""}`
+      );
+    case EVENT_TYPES.POINTS_GRANT:
+      return `獲得 ${p.total ?? "?"} 點獎勵點數${p.reason ? `（${p.reason}）` : ""}`;
+    case EVENT_TYPES.FORM:
+      return (
+        `型態「${p.label ?? p.formId ?? "未知型態"}」${p.event ?? "變動"}` +
+        `${p.reason ? `：${p.reason}` : ""}`
+      );
+    case EVENT_TYPES.REST:
+      return (
+        `休息（${p.kind ?? "未知方式"}${p.location ? `於${p.location}` : ""}）` +
+        `${p.summary ? `：${p.summary}` : ""}`
+      );
     default:
       return "未知事件";
   }
