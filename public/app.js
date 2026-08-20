@@ -634,7 +634,9 @@ const JOURNAL_TYPE_STYLE = {
   node_complete: { label: "節點", color: "text-emerald-300" },
   death: { label: "死亡", color: "text-red-400" },
   revival: { label: "復活", color: "text-violet-300" },
-  affection_change: { label: "好感", color: "text-pink-300" },
+  // 用 rose 而不是 pink：淺色主題的色票對照表(index.html)有 rose 的覆寫、沒有 pink，
+  // 用 pink 會變成白底上的淺粉字。
+  affection_change: { label: "好感", color: "text-rose-300" },
   time_spent: { label: "時間", color: "text-zinc-400" },
 };
 
@@ -1164,6 +1166,7 @@ async function attemptRevive() {
     }
 
     adoptCharacter(res.character);
+    refreshJournalIfOpen();
     appendFeedBlock(
       `<span class="text-emerald-300">SYSTEM.REVIVE</span>`,
       `主神修復完成 · 花費 ${res.cost} 點 · 這是第 ${res.reviveCount} 次復活`,
@@ -2295,6 +2298,7 @@ async function combatAttack(weaponKey) {
     // 這種事以前是完全靜音的：玩家打贏boss、沒有XP、沒有提示，跟沒打贏長得一樣。
     (res.scenario?.warnings || []).forEach((w) => appendCombatSystemLine(w, "text-yellow-300"));
     renderCombat();
+    refreshJournalIfOpen();
   } catch (err) {
     console.error("[COMBAT_FAILURE] /api/combat/act 呼叫失敗", err);
     appendCombatSystemLine(`行動失敗（連線失敗）：${err.message}。請確認網路後再按一次。`);
