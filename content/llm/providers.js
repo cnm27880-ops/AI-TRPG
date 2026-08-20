@@ -88,7 +88,7 @@ export const PROVIDERS = {
 
   // --- SiliconFlow 硅基流動（聚合平台，有一批常駐免費模型） ---
   siliconflow: {
-    label: "SiliconFlow 硅基流動 ",
+    label: "SiliconFlow 硅基流動",
     protocol: PROTOCOLS.OPENAI_CHAT,
     // 查證2026-08-16官方 quickstart：https://docs.siliconflow.com/en/userguide/quickstart
     // 官方英文站給的是 .com；另有 .cn 站(api.siliconflow.cn/v1)，兩邊帳號與金鑰是分開的。
@@ -99,7 +99,13 @@ export const PROVIDERS = {
     // 官方沒有一個「保證永遠免費」的承諾，所以**部署前請自己到 cloud.siliconflow.com/models
     // 對一次目前真的免費的 slug**，不要假設這一行永遠有效。要換設 LLM_MODEL 即可。
     defaultModel: "Qwen/Qwen3-30B-A3B-Instruct",
-    apiKeyEnv: "SiliconFlow_API_KEY",
+    // [2026-08-20 修正] 這裡一度被改成 "SiliconFlow_API_KEY"（大小寫混寫），
+    // 但 pickProvider() 與 LLM_PROVIDERS.md／DEPLOYMENT.md 全都寫 SILICONFLOW_API_KEY。
+    // 環境變數名稱是大小寫敏感的，於是「自動挑到 siliconflow → 卻讀不到金鑰」，
+    // 每一回合都以「需要API金鑰，但沒有讀到」收場。正名回全大寫，
+    // 舊名留在 apiKeyEnvAliases 裡，已經照舊名設好secret的部署不會因為這次修正而斷掉。
+    apiKeyEnv: "SILICONFLOW_API_KEY",
+    apiKeyEnvAliases: ["SiliconFlow_API_KEY"],
     docs: "https://docs.siliconflow.com/en/userguide/quickstart",
     // 2026-08-16 由使用者的主控台截圖確認(不是第三方轉述)：免費模型的限流是
     // 500 RPM / 2,000,000 TPM，而且 L0~L5 六個用量級別完全相同——官方文件說
@@ -142,8 +148,16 @@ export const PROVIDERS = {
     label: "OpenRouter",
     protocol: PROTOCOLS.OPENAI_CHAT,
     baseUrl: "https://openrouter.ai/api/v1",
+    // [2026-08-18] 這裡原本刻意留空(免費模型的slug會變動)，由使用者自己指定；
+    // 現在填的是使用者選定的預設值。2026-08-20 對過 openrouter.ai/api/v1/models
+    // 確認這個slug當下存在，但 `:free` 系列本來就會輪替——之後若收到 404，
+    // 到 https://openrouter.ai/models 挑一個新的改這裡，或直接設環境變數 LLM_MODEL。
     defaultModel: "z-ai/glm-5.2:free",
-    apiKeyEnv: "API_KEY",
+    // [2026-08-20 修正] 這裡一度被改成泛用的 "API_KEY"，跟 pickProvider() 與文件
+    // 用的 OPENROUTER_API_KEY 對不起來，結果是自動挑到 openrouter 卻讀不到金鑰。
+    // 正名回 OPENROUTER_API_KEY，並把 "API_KEY" 留作相容別名。
+    apiKeyEnv: "OPENROUTER_API_KEY",
+    apiKeyEnvAliases: ["API_KEY"],
     docs: "https://openrouter.ai/models",
     jsonMode: "openai-schema",
     freeTier: "有一批 `:free` 結尾的免費模型，但slug會變動，需自行到models頁確認",
@@ -207,10 +221,7 @@ export function resolveProvider(providerId, env = {}, overrides = {}) {
 
   const model = overrides.model ?? env.LLM_MODEL ?? provider.defaultModel;
   const baseUrl = trimTrailingSlash(overrides.baseUrl ?? env.LLM_BASE_URL ?? provider.baseUrl);
-  const apiKey =
-    overrides.apiKey ??
-    (provider.apiKeyEnv ? env[provider.apiKeyEnv] : undefined) ??
-    env.LLM_API_KEY;
+  const apiKey = overrides.apiKey ?? readApiKey(provider, env) ?? env.LLM_API_KEY;
 
   return { id: providerId, ...provider, model, baseUrl, apiKey, jsonMode: resolveJsonMode(provider, env) };
 }
@@ -250,14 +261,36 @@ function defaultJsonModeForProtocol(protocol) {
  */
 export function pickProvider(env = {}) {
   if (env.LLM_PROVIDER) return env.LLM_PROVIDER;
-  if (env.GEMINI_API_KEY) return "gemini";
-  if (env.DEEPSEEK_API_KEY) return "deepseek";
-  if (env.SILICONFLOW_API_KEY) return "siliconflow";
-  if (env.NVIDIA_API_KEY) return "nvidia";
-  if (env.OPENROUTER_API_KEY) return "openrouter";
+  // 順序固定，不是照物件宣告順序——先問「使用者到底設了哪一把金鑰」。
+  // 每一家都連別名一起看，這樣照舊名(例如 SiliconFlow_API_KEY)設好的部署也挑得到。
+  for (const id of ["gemini", "deepseek", "siliconflow", "nvidia", "openrouter"]) {
+    if (readApiKey(PROVIDERS[id], env)) return id;
+  }
   if (env.LLM_API_KEY && env.LLM_BASE_URL) return "custom";
   if (env.AI) return "workers-ai";
   return null;
+}
+
+/**
+ * 這一家的金鑰可以放在哪幾個環境變數名底下。
+ *
+ * 為什麼需要「別名」：環境變數名稱是大小寫敏感的，而部署到 Cloudflare 之後
+ * 那些 secret 是設在主控台／wrangler 裡的，改程式碼裡的名字等於要求對方
+ * 同步去改一份看不見的設定——沒改到就是整站的敘事全部失敗，而且錯誤訊息
+ * 只會說「沒有讀到金鑰」。所以正名之後把舊名留著一起讀，兩邊都能動。
+ */
+export function apiKeyEnvNames(provider) {
+  if (!provider?.apiKeyEnv) return [];
+  return [provider.apiKeyEnv, ...(provider.apiKeyEnvAliases ?? [])];
+}
+
+/** 從 env 依序試每一個可用的名稱，回傳第一個真的有值的金鑰。 */
+function readApiKey(provider, env) {
+  for (const name of apiKeyEnvNames(provider)) {
+    const value = env[name];
+    if (typeof value === "string" && value.trim()) return value;
+  }
+  return undefined;
 }
 
 function trimTrailingSlash(url) {

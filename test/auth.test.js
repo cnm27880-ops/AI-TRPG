@@ -387,7 +387,10 @@ test("存檔清單回傳的是摘要，前端才畫得出「我的存檔」", as
   assert.ok(summary, "清單裡要找得到剛建立的存檔");
   assert.equal(summary.name, DRAFT.concept.name, "要帶角色名字——只給一串UUID玩家認不出是哪一份");
   assert.ok(summary.updatedAt, "要帶時間，玩家靠它分辨哪一份是最近在玩的");
-  assert.equal(typeof summary.turnCount, "number");
+  // [2026-08-20] 舊欄位 turnCount 在這裡本來就是「事件日誌有幾筆」，跟 /api/turn 回的
+  // 「回合數」同名卻是兩回事。正名成 eventCount，另外帶一個真的回合數 turns。
+  assert.equal(typeof summary.eventCount, "number");
+  assert.equal(typeof summary.turns, "number");
   assert.equal(summary.dead, false);
   // 摘要不該把整份存檔倒出來（清單一次可能有二十份，全帶等於每次開視窗都下載整個進度）
   assert.equal("history" in summary, false);

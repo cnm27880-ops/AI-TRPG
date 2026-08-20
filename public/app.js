@@ -21,7 +21,10 @@ const PROVIDER_UI_META = {
   deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
   siliconflow: { label: "SiliconFlow 硅基流動", needsKey: true, needsBaseUrl: false, needsModel: false },
   nvidia: { label: "NVIDIA NIM（build.nvidia.com）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  openrouter: { label: "OpenRouter（聚合）", needsKey: true, needsBaseUrl: false, needsModel: true },
+  // [2026-08-20] openrouter 在 2026-08-18 被指定了預設模型，所以 needsModel 從 true 改成 false——
+  // 留著 true 的話，前端會擋下「選了 OpenRouter 但沒填模型」的回合，
+  // 但後端其實有預設模型可以用，變成前端自己擋自己。
+  openrouter: { label: "OpenRouter（聚合）", needsKey: true, needsBaseUrl: false, needsModel: false },
   "workers-ai": { label: "Cloudflare Workers AI（免金鑰）", needsKey: false, needsBaseUrl: false, needsModel: false },
   custom: { label: "自訂（相容OpenAI）", needsKey: true, needsBaseUrl: true, needsModel: true },
 };
@@ -610,6 +613,94 @@ function flashElement(el) {
   el.classList.add("hp-flash");
 }
 
+// --- 側欄「日誌」分頁 ------------------------------------------------------
+//
+// [2026-08-20 新增] 這個分頁的版面(index.html 的 #journal-feed)與資料層
+// (core/eventLog.js 的 summarizeForJournal，有測試)一直都在，但**沒有任何程式碼
+// 把兩邊接起來**——所以它從上線起就是一片空白，連「目前沒有紀錄」都不寫，
+// 玩家點進去只會以為畫面壞掉了。
+//
+// 摘要文字一律由伺服器產生(GET /api/journal)，前端不自己組字串：日誌上寫的
+// 跟餵給AI當事實記憶的必須是同一份，兩邊各寫一次遲早會對不起來。
+const JOURNAL_TYPE_STYLE = {
+  check: { label: "判定", color: "text-emerald-300" },
+  damage: { label: "傷害", color: "text-red-300" },
+  combat_action: { label: "戰鬥", color: "text-red-300" },
+  xp_grant: { label: "經驗", color: "text-amber-300" },
+  points_grant: { label: "點數", color: "text-amber-300" },
+  purchase: { label: "購買", color: "text-sky-300" },
+  form: { label: "型態", color: "text-violet-300" },
+  rest: { label: "休息", color: "text-sky-300" },
+  node_complete: { label: "節點", color: "text-emerald-300" },
+  death: { label: "死亡", color: "text-red-400" },
+  revival: { label: "復活", color: "text-violet-300" },
+  // 用 rose 而不是 pink：淺色主題的色票對照表(index.html)有 rose 的覆寫、沒有 pink，
+  // 用 pink 會變成白底上的淺粉字。
+  affection_change: { label: "好感", color: "text-rose-300" },
+  time_spent: { label: "時間", color: "text-zinc-400" },
+};
+
+/** 日誌分頁目前是不是被打開著。關著就不用每回合去抓（省一次請求）。 */
+function journalTabIsOpen() {
+  const panel = document.getElementById("sidebar-tab-journal");
+  return Boolean(panel) && !panel.classList.contains("hidden");
+}
+
+function renderJournalMessage(text) {
+  const feed = document.getElementById("journal-feed");
+  if (!feed) return;
+  feed.innerHTML = `<div class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">${escapeHtml(text)}</div>`;
+}
+
+function renderJournalEntries(entries) {
+  const feed = document.getElementById("journal-feed");
+  if (!feed) return;
+  if (!entries.length) {
+    renderJournalMessage("目前還沒有任何紀錄。判定、傷害、購買、休息都會記在這裡。");
+    return;
+  }
+  // 最新的放最上面：日誌是拿來回頭確認「剛剛發生了什麼」的，不是從頭讀的日記。
+  feed.innerHTML = [...entries]
+    .reverse()
+    .map((e) => {
+      const style = JOURNAL_TYPE_STYLE[e.type] ?? { label: "事件", color: "text-zinc-400" };
+      return `<div class="p-2 rounded bg-panel/70 border hairline-border leading-snug">
+        <span class="${style.color} font-bold">[${escapeHtml(style.label)}]</span>
+        <span class="text-zinc-300">${escapeHtml(e.summary ?? "")}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+/**
+ * 去伺服器拿目前這份存檔的日誌並畫出來。
+ * 沒有存檔、或請求失敗時都要寫一句話——空白畫面跟壞掉的畫面長得一模一樣。
+ */
+async function loadJournal() {
+  const feed = document.getElementById("journal-feed");
+  if (!feed) return;
+  if (!currentSessionId) {
+    renderJournalMessage("還沒有進行中的存檔。");
+    return;
+  }
+  try {
+    const res = await (await fetch(`/api/journal?sessionId=${encodeURIComponent(currentSessionId)}`)).json();
+    if (!res.ok) {
+      renderJournalMessage(`讀取日誌失敗：${res.error ?? "未知錯誤"}`);
+      return;
+    }
+    renderJournalEntries(res.entries ?? []);
+  } catch (err) {
+    console.error("[JOURNAL_FAILURE] /api/journal 呼叫失敗", err);
+    renderJournalMessage(`讀取日誌失敗（連線問題）：${err.message}`);
+  }
+}
+
+/** 回合／戰鬥／購物結束後呼叫：只有分頁真的開著才去抓，關著的時候不浪費請求。 */
+function refreshJournalIfOpen() {
+  if (journalTabIsOpen()) loadJournal();
+}
+
 // --- 特質 / 資源卡 3D 堆疊抽屜 ---
 let currentTraits = [];
 let traitIndex = 0;
@@ -933,6 +1024,8 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
     if (res.scenario) updateScenarioHud(res.scenario);
+    // 日誌分頁開著的時候要跟著這一回合更新，不然玩家會看到一份停在上一回合的日誌。
+    refreshJournalIfOpen();
   } catch (err) {
     console.error("[TURN_FAILURE] /api/turn 呼叫失敗", err);
     appendTurnError(`回合執行失敗: ${err.message}`, null);
@@ -1073,6 +1166,7 @@ async function attemptRevive() {
     }
 
     adoptCharacter(res.character);
+    refreshJournalIfOpen();
     appendFeedBlock(
       `<span class="text-emerald-300">SYSTEM.REVIVE</span>`,
       `主神修復完成 · 花費 ${res.cost} 點 · 這是第 ${res.reviveCount} 次復活`,
@@ -1559,6 +1653,7 @@ async function doRest() {
     }
     // 恢復會改角色卡的生命、意志力與能量池，側邊欄要跟著更新
     if (res.character) adoptCharacter(res.character);
+    refreshJournalIfOpen();
   } catch (err) {
     appendFeedBlock("休息", escapeHtml(`連線失敗：${err.message}`), "text-red-300");
   } finally {
@@ -1833,6 +1928,10 @@ async function resumeSession(id) {
   });
 
   renderOptions(res.session.scene?.options || []);
+  // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
+  // 讀取存檔時就畫出來。先前這一份只有 /api/turn 的回應才有，於是重整頁面接續遊戲的人
+  // 會看到一條空的頂欄，一直到他再送出一個回合為止——那正是最需要「我現在要幹嘛」的時刻。
+  if (res.scenario) updateScenarioHud(res.scenario);
   renderDownState(res.downState, res.revival);
 
   // [2026-08-16 修正] 還原「重整頁面時人在戰鬥中」的狀態。
@@ -2199,6 +2298,7 @@ async function combatAttack(weaponKey) {
     // 這種事以前是完全靜音的：玩家打贏boss、沒有XP、沒有提示，跟沒打贏長得一樣。
     (res.scenario?.warnings || []).forEach((w) => appendCombatSystemLine(w, "text-yellow-300"));
     renderCombat();
+    refreshJournalIfOpen();
   } catch (err) {
     console.error("[COMBAT_FAILURE] /api/combat/act 呼叫失敗", err);
     appendCombatSystemLine(`行動失敗（連線失敗）：${err.message}。請確認網路後再按一次。`);
@@ -2355,7 +2455,7 @@ function renderSessionList(sessions) {
             ${s.dead ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-red-500/40 text-red-300">已死亡</span>` : ""}
             ${active ? `<span class="shrink-0 text-[9px] px-1 py-0.5 rounded border border-emerald-500/40 text-emerald-300">進行中</span>` : ""}
           </div>
-          <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turnCount} 筆紀錄</div>
+          <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turns ?? 0} 回合 · ${s.eventCount ?? 0} 筆紀錄</div>
         </div>
         <button data-load-session="${escapeHtml(s.id)}" class="shrink-0 px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/25 transition-all">讀取</button>
         <button data-delete-session="${escapeHtml(s.id)}" title="刪除這份存檔" class="shrink-0 px-2 py-1 rounded border hairline-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-all">
@@ -2860,6 +2960,7 @@ async function buyGood(goodId) {
     toast.textContent = `已兌換「${res.receipt.name}」，付出 ${res.receipt.pricePaid}`;
     // 買到的東西會改角色卡（屬性/技能/生命上限），側邊欄要跟著更新
     if (res.character) adoptCharacter(res.character);
+    refreshJournalIfOpen();
   } catch (err) {
     toast.style.display = "block";
     toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
@@ -2894,4 +2995,5 @@ window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到
 window.refreshSessionList = refreshSessionList;
+window.loadJournal = loadJournal;
 window.googleLogout = googleLogout;

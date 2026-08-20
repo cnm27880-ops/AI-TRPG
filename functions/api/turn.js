@@ -74,6 +74,7 @@ import {
 import { buildRetreadDirective, retreadLabel } from "../../content/scenario/repetition.js";
 import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
 import { buildThreatDirective, threatSummary } from "../../content/scenario/threat.js";
+import { scenarioHudView } from "../../content/scenario/hudView.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
@@ -292,6 +293,7 @@ export async function onRequestPost(context) {
     const options = scripted.options.map((o) => (o.source === "ai" ? { ...o, source: "scripted" } : o));
 
     session.history = pushHistory(session.history, { action: null, narration: currentChapter.openingNarration });
+    session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     await store.put(session);
 
@@ -316,23 +318,9 @@ export async function onRequestPost(context) {
         finishReason: null,
       },
       downState,
-      scenario: scenarioPack
-        ? {
-            activeNode: activeNode
-              ? {
-                  id: activeNode.id,
-                  title: activeNode.title,
-                  goal: activeNode.playerGoal ?? null,
-                  isFinale: Boolean(activeNode.isFinale),
-                }
-              : null,
-            nodeCompleted: null,
-            progress: getProgressSummary(scenarioPack, scenarioProgress),
-            threat: threatSummary(scenarioProgress?.threat, scenarioPack.threatTrack),
-            briefing: scenarioPack.briefing ?? null,
-          }
-        : null,
-      turnCount: session.log?.events?.length ?? 0,
+      // HUD 那一份形狀跟 /api/session 共用同一個組裝函式，兩邊各寫一份遲早會長歪。
+      scenario: scenarioHudView(scenarioPack, scenarioProgress),
+      turnCount: session.turns ?? 0,
       warnings,
     });
   }
@@ -787,23 +775,13 @@ export async function onRequestPost(context) {
     // 注意：這裡重新用「結算完這回合之後」的 progress 算一次 activeNode，不是沿用
     // 這回合開頭那個(拿去組prompt指引的)舊值——如果這回合剛好完成了一個節點，
     // 玩家應該立刻在這次回應裡看到「下一個節點/最終戰」，不用再多打一輪才看到更新。
-    const nextActiveNode = findActiveNode(scenarioPack, progress);
     scenarioResult = {
-      activeNode: nextActiveNode
-        ? {
-            id: nextActiveNode.id,
-            title: nextActiveNode.title,
-            // 玩家看得到的目標。節點標題（「母親的特別指令」）對還沒玩到那裡的人
-            // 是一句謎語，光看標題不知道要幹嘛——測玩回饋正是卡在這裡。
-            goal: nextActiveNode.playerGoal ?? null,
-            isFinale: Boolean(nextActiveNode.isFinale),
-          }
-        : null,
-      // 副本簡介：常駐顯示，讓玩家玩到第十回合還記得自己在哪艘船上、為什麼不能待著不動。
-      briefing: scenarioPack.briefing ?? null,
+      // 基本形狀（當前目標／簡介／主線進度／迫近度）跟 /api/session 共用同一個組裝函式。
+      // 注意這裡餵的是「結算完這回合之後」的 progress，不是回合開頭那個舊值——
+      // 這回合剛好完成一個節點時，玩家要立刻在這次回應裡看到下一個節點，不用再多打一輪。
+      ...scenarioHudView(scenarioPack, progress),
       nodeCompleted,
-      progress: getProgressSummary(scenarioPack, progress),
-      // 迫近度：前端拿它畫HUD，玩家看得到「這一格是我剛剛失敗推上來的」。
+      // 迫近度多帶這一回合的變化量：前端拿它畫「這一格是我剛剛失敗推上來的」。
       threat: {
         ...threatSummary(progress.threat, scenarioPack.threatTrack),
         ...(threatChange
@@ -839,6 +817,8 @@ export async function onRequestPost(context) {
       );
     }
     session.history = pushHistory(session.history, { action: actionText, narration });
+    // 「回合」是敘事推進了一輪，不是日誌多了幾筆——頂欄那個數字用的就是這個。
+    session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     await store.put(session);
   }
@@ -862,7 +842,7 @@ export async function onRequestPost(context) {
     // 而不是只有在玩家撞到閘門的那一次才知道。
     downState: getDownState(character),
     scenario: scenarioResult,
-    turnCount: session?.log?.events?.length ?? 0,
+    turnCount: session?.turns ?? 0,
     warnings,
   });
 }

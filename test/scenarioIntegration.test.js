@@ -6,8 +6,9 @@
 // LLM呼叫透過假的 env.AI binding 注入固定腳本，不需要真的網路呼叫也不需要金鑰。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { onRequestPost as sessionPost } from "../functions/api/session.js";
+import { onRequestPost as sessionPost, onRequestGet as sessionGet } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
+import { onRequestPost as restPost } from "../functions/api/rest.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore, newSessionId } from "../content/storage/sessionStore.js";
@@ -172,4 +173,49 @@ test("副本整合：指定不存在的scenarioId要被明確擋下，不會靜�
   const r = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: "scenario.not-exist" })));
   assert.equal(r.ok, false);
   assert.match(r.error, /找不到副本/);
+});
+
+test("副本整合：讀取存檔時就要一起回副本HUD，不能等到玩家再打一個回合才長出來", async () => {
+  // [2026-08-20] 這是重整頁面按「接續輪迴任務」那條路徑。先前 /api/session 只回存檔本身，
+  // HUD 需要的形狀（當前目標／簡介／主線進度／迫近度）只有 /api/turn 才會算，
+  // 於是接續遊戲的玩家看到的是一條空的頂欄——最需要「我現在要幹嘛」的那一刻反而沒有。
+  const env = makeEnv([{ narration: "開場" }]);
+  const created = await readJson(await sessionPost(req(env, { draft: DRAFT })));
+  const sessionId = created.session.id;
+
+  const res = await readJson(
+    await sessionGet({ request: { url: `https://x/api/session?id=${sessionId}`, headers: { get: () => null } }, env })
+  );
+
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.ok(res.scenario, "讀取存檔時沒有回副本HUD");
+  assert.ok(res.scenario.activeNode?.goal, "HUD 要有玩家看得懂的當前目標，不是只有節點標題");
+  assert.ok(res.scenario.briefing, "HUD 要有副本簡介");
+  assert.ok(res.scenario.progress, "HUD 要有主線進度");
+  assert.ok(res.scenario.threat, "HUD 要有迫近度");
+});
+
+test("回合數：頂欄那個「回合」要數敘事推進了幾輪，不是事件日誌有幾筆", async () => {
+  // [2026-08-20] 原本回的是 session.log.events.length。一場戰鬥打十下、休息一次，
+  // 那個數字就跳十幾格，跟玩家實際玩過幾輪完全對不上（休息甚至根本不是一個回合）。
+  const env = makeEnv([{ narration: "第一輪" }, { narration: "第二輪" }]);
+  const created = await readJson(await sessionPost(req(env, { draft: DRAFT })));
+  const sessionId = created.session.id;
+
+  const t1 = await readJson(await turnPost(req(env, { sessionId })));
+  const t2 = await readJson(await turnPost(req(env, { sessionId, playerAction: "推開艙門" })));
+  assert.equal(t1.turnCount, 1);
+  assert.equal(t2.turnCount, 2);
+
+  // 休息會寫進事件日誌，但它不是一個敘事回合——計數不可以被它推上去。
+  await restPost(req(env, { sessionId }));
+  const t3 = await readJson(await turnPost(req(env, { sessionId, playerAction: "繼續往前" })));
+  assert.equal(t3.turnCount, 3, "休息不該讓回合數多跳");
+
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  assert.ok(
+    session.log.events.length > session.turns,
+    "這則測試要有意義，事件筆數本來就該多於回合數（否則兩者分不出差別）"
+  );
 });

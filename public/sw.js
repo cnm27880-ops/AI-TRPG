@@ -13,13 +13,18 @@
 //
 // 版本號寫死在快取名稱裡：改這個檔案裡快取的內容(APP_SHELL)時，記得把 CACHE_NAME
 // 的版號也往上加一，否則舊版 Service Worker 還在跑的使用者不會拿到新檔案。
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const CACHE_NAME = `echoes-shell-${CACHE_VERSION}`;
 
 const APP_SHELL = [
   "./",
   "./index.html",
   "./app.js",
+  // [2026-08-20 修正] 樣式表在 2026-08-18 從 cdn.tailwindcss.com 換成同源的
+  // ./tailwind.css 之後，一直沒有被加進 App 殼。它是 render-blocking 的樣式表，
+  // 漏掉它等於「離線時打得開，但整頁沒有樣式」——安裝成PWA之後第一次離線開啟
+  // 就會踩到。加進來的同時把 CACHE_VERSION 往上加一（見檔頭說明）。
+  "./tailwind.css",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
