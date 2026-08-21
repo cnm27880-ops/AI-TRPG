@@ -1231,6 +1231,77 @@
             html[data-theme="dark"] #char-hud { background: rgba(27,25,21,.98); }
             html[data-theme="light"] #char-hud { background: rgba(250,249,246,.98); }
         }
+        /* ================= 白色平台 Hub／輪迴者手錶 HUD =================
+           這一層只負責視覺與排版，不讀取、不改寫規則資料。
+           擲骰子覆蓋層 #dice-roll-overlay 完全不在這組選擇器範圍內。 */
+        body.portal-main-active #portal-screen { background: radial-gradient(ellipse 70% 62% at 50% 2%, rgba(255,255,255,.96), transparent 66%), #e8e5de; color: #25231f; }
+        .portal-platform { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 58rem); min-height: 100%; padding: 1.4rem .8rem 2rem; gap: 1.1rem; color: #27251f; }
+        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(232,229,222,.72) 62%, rgba(207,202,192,.62)); }
+        .platform-backdrop::before { content: ''; position: absolute; inset: 0; opacity: .34; background-image: radial-gradient(rgba(72,67,59,.12) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 1px, transparent 1px 5px); background-size: 8px 8px, 100% 5px; mix-blend-mode: multiply; }
+        .platform-orb { position: absolute; top: 7%; left: 50%; width: clamp(12rem, 28vw, 21rem); aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 50% 48%, rgba(255,255,255,.98) 0 8%, rgba(255,255,255,.72) 18%, rgba(248,247,243,.33) 42%, transparent 70%); filter: blur(2px); opacity: .82; box-shadow: 0 0 90px rgba(255,255,255,.72), 0 0 180px rgba(214,207,194,.45); animation: platformOrbBreath 8s ease-in-out infinite; }
+        .platform-orb::after { content: ''; position: absolute; inset: 18%; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; box-shadow: inset 0 0 35px rgba(255,255,255,.6); }
+        .platform-horizon { position: absolute; right: -12%; bottom: 9%; left: -12%; height: 38%; transform: perspective(22rem) rotateX(58deg); transform-origin: bottom; border-top: 1px solid rgba(99,91,79,.24); background: repeating-linear-gradient(90deg, rgba(99,91,79,.10) 0 1px, transparent 1px 4.8rem), repeating-linear-gradient(0deg, rgba(99,91,79,.08) 0 1px, transparent 1px 3.4rem); opacity: .62; }
+        .platform-arrival-mark { display: inline-flex; align-items: center; gap: .6rem; color: #7d776d; font: 700 .54rem/1 'JetBrains Mono', monospace; letter-spacing: .2em; text-transform: uppercase; }
+        .platform-arrival-line { width: 2.3rem; height: 1px; background: #b9b2a7; }
+        .platform-heading { z-index: 1; padding: 1.35rem 2.8rem; border: 1px solid rgba(124,116,103,.25); border-radius: 3px; background: rgba(250,249,246,.68) !important; box-shadow: 0 20px 55px rgba(91,82,70,.10), inset 0 0 0 1px rgba(255,255,255,.7); backdrop-filter: blur(10px); }
+        body.portal-main-active #site-header { background: rgba(232,229,222,.92) !important; border-bottom-color: rgba(126,116,98,.22) !important; color: #625d54 !important; box-shadow: 0 5px 18px rgba(77,69,58,.06); }
+        body.portal-main-active #site-header button { background: rgba(255,255,255,.38) !important; border-color: rgba(126,116,98,.22) !important; color: #625d54 !important; box-shadow: none !important; }
+        body.portal-main-active #site-header button:hover { background: rgba(255,255,255,.78) !important; border-color: rgba(140,118,81,.42) !important; color: #6e5632 !important; }
+        body.portal-main-active #site-header button i { color: #8c7651 !important; }
+        .portal-platform .menu-banner::after { display: none; }
+        .portal-platform .action-tile.primary { animation: platformTileBreath 4.8s ease-in-out infinite; }
+        @keyframes platformTileBreath { 0%,100% { box-shadow: 0 9px 24px rgba(91,82,70,.08), inset 0 0 0 1px rgba(255,255,255,.64); } 50% { box-shadow: 0 14px 30px rgba(140,118,81,.16), inset 0 0 0 1px rgba(255,255,255,.9); } }
+        .portal-platform .menu-banner-tagline { color: #817768 !important; }
+        .portal-platform #portal-title { color: #25231f !important; text-shadow: none !important; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .18em; }
+        .portal-platform #portal-subtitle { color: #625d54 !important; font-family: 'Noto Serif TC', serif; font-weight: 500; line-height: 1.9; }
+        .portal-platform .hub-object { min-height: 7.2rem; border-color: rgba(115,106,93,.25) !important; background: rgba(250,249,246,.74) !important; box-shadow: 0 9px 24px rgba(91,82,70,.08), inset 0 0 0 1px rgba(255,255,255,.64); color: #292720; }
+        .portal-platform .hub-object:hover, .portal-platform .hub-object:focus-visible { border-color: rgba(91,82,70,.52) !important; background: rgba(255,255,255,.92) !important; box-shadow: 0 16px 32px rgba(91,82,70,.14), inset 0 0 0 1px rgba(255,255,255,.92); transform: translateY(-3px); }
+        .portal-platform .hub-object .action-tile-icon { color: #8c7651 !important; filter: none !important; }
+        .portal-platform .hub-object .action-tile-label { color: #322e27 !important; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .08em; }
+        .portal-platform .hub-object .action-tile-sub { color: #817b70 !important; font-family: 'Noto Serif TC', serif; }
+        .portal-platform .hub-object-mission { min-height: 8.6rem; border-color: rgba(140,118,81,.48) !important; background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(226,218,204,.76)) !important; }
+        .portal-platform .hub-object-mission .action-tile-icon { color: #8b6d3f !important; }
+        .portal-platform .platform-status { color: #6f675a !important; border-color: rgba(115,106,93,.28) !important; background: rgba(255,255,255,.42) !important; }
+        .portal-platform .platform-status > span:first-child { background: #8c7651 !important; }
+        .portal-platform .platform-footnote { color: #91897d !important; }
+        .portal-platform #portal-resume-box { border-color: rgba(140,118,81,.38); background: rgba(255,255,255,.52); box-shadow: 0 14px 32px rgba(91,82,70,.10); }
+        .portal-platform #portal-resume-box button { border-color: rgba(140,118,81,.6); background: rgba(140,118,81,.12); color: #6e5632; }
+        .portal-platform #portal-resume-box button:hover { background: rgba(140,118,81,.2); }
+        @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .72; } 50% { transform: translateX(-50%) scale(1.04); opacity: .9; } }
+
+        .watch-hud { position: relative; display: flex; align-items: center; gap: .7rem; padding: .55rem .8rem .6rem; border-bottom: 1px solid rgba(126,116,98,.28); background: linear-gradient(90deg, rgba(250,249,246,.96), rgba(232,229,222,.9) 58%, rgba(219,214,205,.74)); box-shadow: inset 0 -1px 0 rgba(255,255,255,.72), 0 6px 18px rgba(77,69,58,.06); }
+        .watch-hud::before, .watch-hud::after { content: ''; position: absolute; top: .34rem; bottom: .34rem; width: .2rem; border: 1px solid rgba(128,117,98,.22); background: rgba(255,255,255,.45); pointer-events: none; }
+        .watch-hud::before { left: .3rem; border-right: 0; } .watch-hud::after { right: .3rem; border-left: 0; }
+        .watch-crown { display: flex; align-items: center; gap: .42rem; flex: 0 0 auto; padding: .25rem .45rem; color: #807668; font: 700 .53rem/1.15 'JetBrains Mono', monospace; letter-spacing: .08em; writing-mode: vertical-rl; transform: rotate(180deg); }
+        .watch-crown-mark { display: inline-flex; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; border: 1px solid rgba(140,118,81,.42); border-radius: 50%; color: #8c7651; background: rgba(140,118,81,.08); writing-mode: horizontal-tb; }
+        .watch-crown-label { white-space: nowrap; }
+        .watch-hud .mission-objective { padding: .2rem .7rem; border-left: 1px solid rgba(128,117,98,.22); }
+        .watch-hud .mission-objective-mark { width: 1.65rem; height: 1.65rem; border-color: rgba(140,118,81,.44); border-radius: 50%; color: #8c7651; background: rgba(140,118,81,.09); box-shadow: none; animation: none; }
+        .watch-hud .mission-eyebrow { color: #938a7d; letter-spacing: .16em; }
+        .watch-hud .mission-objective-title { color: #302d27; font-family: 'Noto Serif TC', serif; font-weight: 600; }
+        .watch-hud .mission-metrics { gap: .65rem; }
+        .watch-hud .mission-metric-header { color: #8f877a; }
+        .watch-hud .mission-metric-value { color: #625d54; }
+        .watch-hud .mission-progress-track { border-color: rgba(126,116,98,.24); background: rgba(91,82,70,.1); }
+        .watch-hud .mission-progress-fill { background: linear-gradient(90deg, #9c8258, #c4a776); box-shadow: 0 0 8px rgba(140,118,81,.24); }
+        .watch-hud .mission-threat-pips .threat-pip { box-shadow: none; }
+        .watch-hud .mission-time-badge { color: #6d6457; background: rgba(255,255,255,.52); border-color: rgba(126,116,98,.25) !important; }
+        .watch-hud .mission-threat-metric .mission-metric-value { color: #8c5e4d; }
+        @media (max-width: 767px) {
+            .portal-platform { padding: 1rem .55rem 1.6rem; }
+            .platform-heading { padding: 1.15rem 1rem; }
+            .platform-arrival-mark { letter-spacing: .12em; }
+            .platform-arrival-line { width: 1.1rem; }
+            .platform-orb { top: 10%; width: 12rem; }
+            .watch-hud { display: grid; grid-template-columns: auto 1fr; align-items: stretch; gap: .45rem; padding: .5rem .65rem; }
+            .watch-crown { writing-mode: horizontal-tb; transform: none; padding: .1rem .25rem; }
+            .watch-crown-label { display: none; }
+            .watch-hud .mission-objective { padding: .1rem .45rem; }
+            .watch-hud .mission-metrics { grid-column: 1 / -1; width: 100%; justify-content: space-between; padding: .25rem .25rem 0; border-top: 1px solid rgba(126,116,98,.18); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .platform-orb { animation: none !important; }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -1313,16 +1384,27 @@
         </div>
 
         <!-- 第二階段：主神空間。延續既有功能，但在邀請完成後才緩慢顯現。 -->
-        <div id="portal-main-content" class="portal-main-content" aria-hidden="true">
+        <div id="portal-main-content" class="portal-main-content portal-platform" aria-hidden="true">
+
+        <!-- 白色平台 hub：純視覺層，不新增規則狀態。 -->
+        <div class="platform-backdrop" aria-hidden="true">
+            <div class="platform-orb"></div>
+            <div class="platform-horizon"></div>
+        </div>
+        <div class="platform-arrival-mark" aria-hidden="true">
+            <span class="platform-arrival-line"></span>
+            <span>主神空間 / 白色平台</span>
+            <span class="platform-arrival-line"></span>
+        </div>
 
         <!-- 主選單旗幟橫幅 -->
-        <div class="menu-banner anim-fade-up">
-            <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">主神空間 · INFINITE TERROR</div>
-            <h1 id="portal-title" class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
+        <div class="menu-banner platform-heading anim-fade-up">
+            <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">輪迴者待命 · 2.35</div>
+            <h1 id="portal-title" class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">主神空間</h1>
         </div>
 
         <p id="portal-subtitle" class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
-            你已經收到邀請。從現在起，每一個選擇都會留下記錄，而骰子只負責證明你還能不能繼續。
+            白色平台沒有出口。下一場恐怖片開始前，你還有一段時間可以準備。
         </p>
 
         <!-- 剛登入回來時的一句話（見 app.js 的 consumeLoginRedirect） -->
@@ -1331,7 +1413,7 @@
         <!-- 檢測到存檔 -->
         <div id="portal-resume-box" style="display:none" class="w-full max-w-sm hud-float border border-emerald-500/40 text-left font-mono text-xs space-y-2.5 pulse-glow p-3.5">
             <div class="flex justify-between items-center text-zinc-300 text-[11px]">
-                <span class="section-tag">檢測到上次存檔</span>
+                <span class="section-tag">讀取到一份輪迴記錄</span>
                 <span class="text-emerald-300 font-bold" id="resume-char-name">輪迴者</span>
             </div>
             <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px flex items-center justify-center gap-2">
@@ -1349,29 +1431,34 @@
         </div>
 
         <!-- 主選單功能磚 -->
-        <div class="w-full max-w-md grid grid-cols-3 gap-3 font-mono anim-fade-up" style="animation-delay:.16s">
-            <button onclick="startNewChargen()" class="action-tile primary col-span-3 sm:col-span-1">
-                <i class="fas fa-dna action-tile-icon"></i>
-                <span class="action-tile-label">建立新檔案</span>
-                <span class="action-tile-sub">開始新輪迴</span>
+        <div class="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono anim-fade-up" style="animation-delay:.16s">
+            <button onclick="startNewChargen()" class="action-tile primary hub-object hub-object-mission col-span-2 sm:col-span-1">
+                <i class="fas fa-door-open action-tile-icon"></i>
+                <span class="action-tile-label">開始輪迴</span>
+                <span class="action-tile-sub">建立輪迴者檔案</span>
             </button>
-            <button onclick="openModal('sessionModal')" class="action-tile">
-                <i class="fas fa-key action-tile-icon"></i>
-                <span class="action-tile-label">讀取存檔</span>
-                <span class="action-tile-sub">輸入 ID</span>
+            <button onclick="openModal('sessionModal')" class="action-tile hub-object hub-object-records">
+                <i class="fas fa-file-lines action-tile-icon"></i>
+                <span class="action-tile-label">輪迴記錄</span>
+                <span class="action-tile-sub">讀取既有存檔</span>
             </button>
-            <button onclick="openModal('settingsModal')" class="action-tile">
+            <button onclick="openHubExchange()" class="action-tile hub-object hub-object-shop">
+                <i class="fas fa-gem action-tile-icon"></i>
+                <span class="action-tile-label">主神兌換</span>
+                <span class="action-tile-sub">支線與獎勵點數</span>
+            </button>
+            <button onclick="openModal('settingsModal')" class="action-tile hub-object hub-object-settings">
                 <i class="fas fa-sliders-h action-tile-icon"></i>
-                <span class="action-tile-label">系統設定</span>
-                <span class="action-tile-sub">文筆風格</span>
+                <span class="action-tile-label">調整介面</span>
+                <span class="action-tile-sub">文筆與顯示</span>
             </button>
         </div>
 
-        <div id="portal-connection-signal" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
+        <div id="portal-connection-signal" class="platform-status inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>主神已接管 · 輪迴編號 2.35</span>
+            <span>輪迴者待命 · 主神空間</span>
         </div>
-        <div class="text-[10px] font-mono text-zinc-500">主神記錄 // 輪迴等待開始</div>
+        <div class="platform-footnote text-[10px] font-mono text-zinc-500">主神記錄：下一場輪迴尚未開始</div>
         </div>
     </div>
 
@@ -1607,18 +1694,22 @@
             </div>
 
             <!-- 任務狀態列：把「現在在哪裡／要做什麼／世界正在逼近什麼」集中成第一級資訊。 -->
-            <div id="scenario-hud" style="display:none" class="mission-state-bar scenario-hud-tint shrink-0" role="status" aria-live="polite">
+            <div id="scenario-hud" style="display:none" class="mission-state-bar scenario-hud-tint watch-hud shrink-0" role="status" aria-live="polite">
+                <div class="watch-crown" aria-hidden="true">
+                    <span class="watch-crown-mark"><i class="fas fa-stopwatch"></i></span>
+                    <span class="watch-crown-label">輪迴者手錶</span>
+                </div>
                 <div class="mission-objective min-w-0">
                     <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
                     <div class="min-w-0">
-                        <div class="mission-eyebrow">此刻</div>
+                        <div class="mission-eyebrow">目前目標</div>
                         <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
                     </div>
                 </div>
                 <div class="mission-metrics">
                     <div class="mission-metric mission-progress-metric" title="目前副本的主線完成度">
                         <div class="mission-metric-header">
-                            <span>主線進度</span>
+                            <span>主線</span>
                             <span id="scenario-progress-text" class="mission-metric-value">0%</span>
                         </div>
                         <div class="mission-progress-track">
@@ -1628,7 +1719,7 @@
                     <!-- 迫近度（見 content/scenario/threat.js）：判定成敗會累積在這條軌道上。 -->
                     <div id="scenario-threat" style="display:none" class="mission-metric mission-threat-metric" title="">
                         <div class="mission-metric-header">
-                            <span class="mission-metric-label">迫近</span>
+                            <span class="mission-metric-label">威脅</span>
                             <span id="scenario-threat-label" class="mission-metric-value">—</span>
                         </div>
                         <span id="scenario-threat-pips" class="mission-threat-pips"></span>

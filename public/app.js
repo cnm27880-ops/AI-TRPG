@@ -2800,6 +2800,14 @@ let shopState = null;
 let shopCategory = "全部";
 let shopBusy = false;
 
+async function openHubExchange() {
+  if (!currentSessionId) {
+    showToast("先建立輪迴者檔案，主神才會開放兌換。", { kind: "warning" });
+    return;
+  }
+  await openShop();
+}
+
 async function openShop() {
   if (!currentSessionId) return;
   openModal("shopModal");
