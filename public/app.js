@@ -1031,7 +1031,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
   const overrides = buildLlmOverrides();
   if (!overrides.ok) {
     appendFeedBlock(
-      "SYSTEM.CONFIG",
+      "主神設定",
       escapeHtml(overrides.message),
       "text-xs text-yellow-300 font-mono bg-yellow-500/5 p-2.5 rounded border border-yellow-500/40"
     );
@@ -1089,7 +1089,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
       if (httpRes.status === 409 && res.downState) {
         appendFeedBlock(
-          `<span class="text-red-400">SYSTEM.DOWN // 無法行動</span>`,
+          `<span class="text-red-400">身體拒絕行動</span>`,
           escapeHtml(res.error),
           "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
         );
@@ -1135,7 +1135,7 @@ async function renderCheckResult(r) {
   await playDiceRollAnimation(r);
   const outcomeColor = r.autoFail || !r.success ? "text-red-400" : "text-emerald-400";
   appendFeedBlock(
-    `<span class="${outcomeColor}">SYSTEM.CHECK // ${r.autoFail ? "自動失敗" : (r.success ? "SUCCESS" : "FAILURE")}</span>`,
+    `<span class="${outcomeColor}">命運擲骰 · ${r.autoFail ? "命運拒絕" : (r.success ? "驚險成功" : "失敗")}</span>`,
     `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
     "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border"
   );
@@ -1190,7 +1190,7 @@ function renderTurnQuality(degraded) {
   }
 
   appendFeedBlock(
-    `<span class="text-yellow-300">SYSTEM.FALLBACK // 保底內容</span>`,
+    `<span class="text-yellow-300">主神提供的退路</span>`,
     `${escapeHtml(detail)}${cause ? " " + escapeHtml(cause) : ""}`,
     "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
   );
@@ -1254,14 +1254,14 @@ async function attemptRevive() {
 
     renderDownState(res.downState, res.revival);
     if (!res.ok) {
-      appendFeedBlock("SYSTEM.REVIVE", `復活失敗：${escapeHtml(res.error)}`, "text-xs text-red-300 font-mono");
+      appendFeedBlock("主神修復失敗", `復活失敗：${escapeHtml(res.error)}`, "text-xs text-red-300 font-mono");
       return;
     }
 
     adoptCharacter(res.character);
     refreshJournalIfOpen();
     appendFeedBlock(
-      `<span class="text-emerald-300">SYSTEM.REVIVE</span>`,
+      `<span class="text-emerald-300">主神修復完成</span>`,
       `主神修復完成 · 花費 ${res.cost} 點 · 這是第 ${res.reviveCount} 次復活`,
       "font-mono text-xs text-emerald-200 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30"
     );
@@ -1275,7 +1275,7 @@ async function attemptRevive() {
     await runTurn({ opening: true });
   } catch (err) {
     console.error("[REVIVE_FAILURE]", err);
-    appendFeedBlock("SYSTEM.ERROR", `復活請求失敗：${escapeHtml(err.message)}`, "text-xs text-red-300 font-mono");
+    appendFeedBlock("主神訊息中斷", `復活請求失敗：${escapeHtml(err.message)}`, "text-xs text-red-300 font-mono");
   }
 }
 
@@ -1294,7 +1294,7 @@ function appendTurnError(message, res) {
   setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
   block.className = "space-y-1 feed-block-enter text-xs font-mono text-red-300 bg-red-500/5 p-2.5 rounded border border-red-500/40";
   block.innerHTML =
-    `<div class="text-[11px] font-bold opacity-80">SYSTEM.ERROR</div>` +
+    `<div class="text-[11px] font-bold opacity-80">主神訊息中斷</div>` +
     `<div>${escapeHtml(message)}</div>` +
     (hint ? `<div class="text-yellow-300/80">${escapeHtml(hint)}</div>` : "") +
     `<button data-turn-retry class="mt-1 px-3 py-1 rounded border border-red-400/50 bg-red-500/10 hover:bg-red-500/20 transition text-red-200 font-bold">重試這一回合</button>`;
@@ -1322,7 +1322,7 @@ function updateScenarioHud(scenario) {
   // 這種事以前只進 warnings 陣列(沒人讀)，現在直接寫進故事流講清楚原因。
   (scenario.warnings || []).forEach((w) => {
     appendFeedBlock(
-      `<span class="text-yellow-300">SYSTEM.SCENARIO</span>`,
+      `<span class="text-yellow-300">副本異常</span>`,
       escapeHtml(w),
       "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
     );
@@ -1489,7 +1489,7 @@ function renderThreatMeter(threat) {
   if (threat.stage !== lastThreatStage && lastThreatStage !== null && threat.delta) {
     const worse = threat.delta > 0;
     appendFeedBlock(
-      `<span class="${worse ? "text-orange-300" : "text-emerald-300"}">SYSTEM.THREAT // ${escapeHtml(threat.stage)}</span>`,
+      `<span class="${worse ? "text-orange-300" : "text-emerald-300"}">迫近度變化 · ${escapeHtml(threat.stage)}</span>`,
       `${escapeHtml(threat.name)}${worse ? "上升" : "下降"}至「${escapeHtml(threat.stage)}」：${escapeHtml(threat.summary ?? "")}`,
       `font-mono text-[11px] p-2 rounded border ${
         worse ? "text-orange-200/90 bg-orange-500/5 border-orange-500/30" : "text-emerald-200/90 bg-emerald-500/5 border-emerald-500/30"
@@ -2108,7 +2108,7 @@ async function startCombat() {
 
     if (!res.ok) {
       appendFeedBlock(
-        "SYSTEM.ERROR",
+        "主神訊息中斷",
         `無法開始戰鬥：${escapeHtml(res.error)}`,
         "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
       );
@@ -2138,7 +2138,7 @@ async function startCombat() {
     // rejection，按鈕解鎖但畫面毫無反應，玩家不知道自己按了到底有沒有用。
     console.error("[COMBAT_FAILURE] /api/combat/start 呼叫失敗", err);
     appendFeedBlock(
-      "SYSTEM.ERROR",
+      "主神訊息中斷",
       `無法開始戰鬥（連線失敗）：${escapeHtml(err.message)}。請確認網路後再試一次。`,
       "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
     );
@@ -2440,7 +2440,7 @@ async function refreshDownStateThenContinue(enemyName) {
     if (res.ok && res.downState && !res.downState.canAct) {
       renderDownState(res.downState, res.revival);
       appendFeedBlock(
-        `<span class="text-red-400">SYSTEM.DOWN</span>`,
+        `<span class="text-red-400">倒下</span>`,
         `在與${escapeHtml(enemyName)}的戰鬥中倒下。${escapeHtml(res.downState.reason ?? "")}`,
         "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
       );
