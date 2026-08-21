@@ -536,6 +536,69 @@
         .decision-card-enter { animation: decisionCardEnter .38s cubic-bezier(.2,.8,.2,1) both; }
         @keyframes decisionCardEnter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
+        /* ================= 黑白邀請頁 → 主神接管過場 =================
+           初始頁面刻意脫離現有黑綠終端：它是一個看似普通的網站。
+           主神只在玩家接受邀請後才進入畫面，避免整站從第一秒就像工程控制台。 */
+        body.portal-invite-active { background-color: #f1f0ec !important; background-image: none !important; color: #171717; }
+        body.portal-invite-active::before { display: none; }
+        body.portal-invite-active #site-header { visibility: hidden; pointer-events: none; }
+        #portal-screen.portal-invite-active { background: #f1f0ec; color: #171717; }
+        .portal-invitation-view { display: flex; width: min(100%, 68rem); min-height: min(43rem, 100%); flex-direction: column; justify-content: center; padding: 2rem 1.2rem; color: #161616; text-align: left; animation: invitationPageIn .9s cubic-bezier(.2,.8,.2,1) both; }
+        .portal-invitation-view.is-leaving { animation: invitationPageOut .55s ease forwards; }
+        .invitation-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #c8c6c0; color: #5f5d58; font: 600 .64rem/1 'JetBrains Mono', monospace; letter-spacing: .04em; }
+        .invitation-site-nav nav { display: flex; gap: 1.3rem; color: #77746d; font-size: .58rem; }
+        .invitation-site-nav nav span:first-child { color: #171717; border-bottom: 1px solid #171717; padding-bottom: .45rem; }
+        .invitation-clock { letter-spacing: .12em; }
+        .invitation-site-body { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; padding: 3rem 0 1rem; text-align: center; }
+        .invitation-site-mark { color: #76736b; font: .58rem/1.4 'JetBrains Mono', monospace; letter-spacing: .24em; text-transform: lowercase; }
+        .invitation-site-body h1 { margin: 1.4rem 0 1rem; color: #101010; font: 500 clamp(2.25rem, 6vw, 5.4rem)/1.05 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .04em; }
+        .invitation-rule { width: min(22rem, 45vw); height: 1px; background: #b8b5ae; }
+        .invitation-site-body > p { margin-top: 1rem; color: #4e4c47; font: 500 clamp(.9rem, 1.5vw, 1.1rem)/1.6 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .12em; }
+        .invitation-card { display: flex; width: min(24rem, 92vw); flex-direction: column; align-items: center; gap: .9rem; margin-top: 2.2rem; padding: 1.45rem 1.4rem 1.35rem; border: 1px solid #282724; background: #121212; color: #f2f0eb; box-shadow: 0 18px 35px rgba(35,33,29,.18); transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease; }
+        .invitation-card:hover { transform: translateY(-3px); box-shadow: 0 24px 42px rgba(35,33,29,.24); }
+        .invitation-card-kicker { color: #aaa79f; font: .58rem/1.4 'JetBrains Mono', monospace; letter-spacing: .16em; }
+        .invitation-card-copy { font: 500 1.05rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .1em; }
+        .invitation-accept-btn { margin-top: .35rem; padding: .68rem 2rem; border: 1px solid #f2f0eb; background: transparent; color: #f2f0eb; font: 600 .76rem/1 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .14em; cursor: pointer; transition: background .24s ease, color .24s ease, transform .24s ease; }
+        .invitation-accept-btn:hover, .invitation-accept-btn:focus-visible { background: #f2f0eb; color: #121212; transform: translateY(-1px); }
+        .invitation-accept-btn:disabled { cursor: wait; opacity: .58; }
+        .invitation-secondary-row { display: flex; align-items: center; justify-content: center; gap: 1.1rem; margin-top: 1.25rem; }
+        .invitation-secondary-btn { color: #77746d; border: 0; background: transparent; font: .62rem/1.4 'JetBrains Mono', monospace; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+        .invitation-secondary-btn:hover { color: #171717; }
+        .invitation-footnote { color: #929089; font: .58rem/1.4 'JetBrains Mono', monospace; }
+        .portal-takeover { position: fixed; inset: 0; z-index: 60; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 1rem; background: #050505; color: #f2f0eb; opacity: 0; pointer-events: none; text-align: center; }
+        .portal-takeover.is-active { display: flex; pointer-events: auto; animation: takeoverDarken 1.35s cubic-bezier(.2,.8,.2,1) forwards; }
+        .takeover-kicker { color: #908e88; font: .6rem/1 'JetBrains Mono', monospace; letter-spacing: .3em; }
+        .takeover-title { font: 500 clamp(1.4rem, 4vw, 2.7rem)/1.2 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .12em; }
+        .takeover-line { width: min(13rem, 35vw); height: 1px; background: #e4e1da; transform: scaleX(0); transform-origin: center; animation: takeoverLineIn 1.05s .42s cubic-bezier(.2,.8,.2,1) forwards; }
+        .takeover-caption { color: #c1beb6; font: .85rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .16em; opacity: 0; animation: takeoverCaptionIn .8s .8s ease forwards; }
+        .portal-main-content { display: none; width: min(100%, 40rem); flex-direction: column; align-items: center; gap: 1.75rem; opacity: 0; }
+        .portal-main-content.is-visible { display: flex; animation: portalMainReveal 1.65s cubic-bezier(.2,.8,.2,1) both; }
+        .portal-main-content.is-visible .menu-banner { animation-delay: .15s; }
+        .portal-main-content.is-visible > * { animation: portalChildReveal .9s cubic-bezier(.2,.8,.2,1) both; }
+        .portal-main-content.is-visible > *:nth-child(2) { animation-delay: .14s; }
+        .portal-main-content.is-visible > *:nth-child(3) { animation-delay: .26s; }
+        .portal-main-content.is-visible > *:nth-child(4) { animation-delay: .38s; }
+        #portal-screen.portal-main-active { background: radial-gradient(ellipse 60% 50% at 50% 15%, rgba(16,185,129,.09), transparent 70%), var(--bg-void); }
+        @keyframes invitationPageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes invitationPageOut { from { opacity: 1; filter: grayscale(0); transform: scale(1); } to { opacity: 0; filter: grayscale(1) contrast(1.22); transform: scale(.985); } }
+        @keyframes takeoverDarken { 0% { opacity: 0; } 25% { opacity: .12; } 100% { opacity: 1; } }
+        @keyframes takeoverLineIn { to { transform: scaleX(1); } }
+        @keyframes takeoverCaptionIn { to { opacity: 1; } }
+        @keyframes portalMainReveal { 0% { opacity: 0; transform: translateY(16px); filter: blur(5px); } 45% { opacity: .35; } 100% { opacity: 1; transform: translateY(0); filter: blur(0); } }
+        @keyframes portalChildReveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @media (max-width: 767px) {
+            .portal-invitation-view { min-height: 100%; padding: 1rem .4rem; }
+            .invitation-site-nav nav { gap: .65rem; }
+            .invitation-site-body { padding-top: 2rem; }
+            .invitation-site-body h1 { font-size: clamp(2rem, 11vw, 3.6rem); letter-spacing: .02em; }
+            .invitation-secondary-row { align-items: center; flex-direction: column; gap: .65rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .portal-invitation-view, .portal-invitation-view.is-leaving, .portal-takeover.is-active, .takeover-line, .takeover-caption, .portal-main-content.is-visible, .portal-main-content.is-visible > * { animation: none !important; }
+            .portal-main-content.is-visible { opacity: 1; filter: none; }
+            .invitation-card, .invitation-accept-btn { transition: none !important; }
+        }
+
         /* ================= 首頁／建卡微互動 ================= */
         .menu-banner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, transparent 0%, rgba(110,231,183,.1) 48%, transparent 52%); transform: translateY(-120%); animation: bannerScan 7s ease-in-out infinite; }
         .menu-banner:hover { box-shadow: 0 0 45px rgba(16,185,129,.22), inset 0 0 18px rgba(16,185,129,.1); }
@@ -976,7 +1039,7 @@
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
-    <header class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
+    <header id="site-header" class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
         <div class="flex items-center gap-2">
             <!-- 登入區：未登入顯示「以 Google 登入」，登入後顯示頭像與名字。
                  沒設定好 Google 登入的部署會整塊隱藏（見 /api/auth/me 的 enabled 欄位），
@@ -1014,7 +1077,46 @@
     </header>
 
     <!-- 1. 登入/啟動首頁 (Portal Screen) — 遊戲主選單風格，非儀表板卡片 -->
-    <div id="portal-screen" class="flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 gap-7 text-center">
+    <div id="portal-screen" class="flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 gap-7 text-center portal-invite-active">
+
+        <!-- 第一階段：普通黑白網站。主神尚未接管畫面，玩家只看見一封不應該存在的邀請。 -->
+        <section id="portal-invitation-view" class="portal-invitation-view" aria-labelledby="invitation-title">
+            <div class="invitation-site-nav">
+                <span>無題網站</span>
+                <nav aria-label="網站導覽">
+                    <span>首頁</span><span>文章</span><span>關於</span>
+                </nav>
+                <span class="invitation-clock">03:17</span>
+            </div>
+            <div class="invitation-site-body">
+                <div class="invitation-site-mark">/ tonight /</div>
+                <h1 id="invitation-title">想明白生命的意義嗎？</h1>
+                <div class="invitation-rule"></div>
+                <p>你對生命感到無趣嗎？</p>
+                <div class="invitation-card">
+                    <div class="invitation-card-kicker">一封沒有寄件人的邀請</div>
+                    <div class="invitation-card-copy">參與一場無法拒絕的遊戲。</div>
+                    <button id="accept-invitation-btn" class="invitation-accept-btn" onclick="acceptMainGodInvitation()">
+                        打開邀請
+                    </button>
+                </div>
+                <div class="invitation-secondary-row">
+                    <button class="invitation-secondary-btn" onclick="revealMainGodSpace('resume')">我已經收到過邀請</button>
+                    <span class="invitation-footnote">此頁面不應該存在</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 接管階段：只短暫出現，讓「主神」成為一次事件而非整站皮膚。 -->
+        <div id="portal-takeover" class="portal-takeover" aria-hidden="true">
+            <div class="takeover-kicker">INVITATION ACCEPTED</div>
+            <div class="takeover-title">主神正在接管此頁面</div>
+            <div class="takeover-line"></div>
+            <div class="takeover-caption">你仍然活著。</div>
+        </div>
+
+        <!-- 第二階段：主神空間。延續既有功能，但在邀請完成後才緩慢顯現。 -->
+        <div id="portal-main-content" class="portal-main-content" aria-hidden="true">
 
         <!-- 主選單旗幟橫幅 -->
         <div class="menu-banner anim-fade-up">
@@ -1073,6 +1175,7 @@
             <span>主神核心連線中 · 無限恐怖 2.35</span>
         </div>
         <div class="text-[10px] font-mono text-zinc-500">HOSTED ON CLOUDFLARE PAGES // POWERED BY GEMINI</div>
+        </div>
     </div>
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
@@ -1733,6 +1836,9 @@
             const portal = document.getElementById('portal-screen');
             const chargen = document.getElementById('chargen-screen');
             const game = document.getElementById('app-viewport');
+            if (screen === 'portal' && typeof window.resetPortalInvitation === 'function') {
+                window.resetPortalInvitation();
+            }
             portal.style.display = (screen === 'portal') ? 'flex' : 'none';
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';

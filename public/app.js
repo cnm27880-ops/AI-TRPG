@@ -122,6 +122,88 @@ function awakeningStepIndex() {
   return lifePathQuestions().length + 1;
 }
 
+let portalMode = "invitation";
+let portalTransitionTimer = null;
+
+function resetPortalInvitation() {
+  window.clearTimeout(portalTransitionTimer);
+  portalMode = "invitation";
+  const portal = document.getElementById("portal-screen");
+  const invitation = document.getElementById("portal-invitation-view");
+  const takeover = document.getElementById("portal-takeover");
+  const main = document.getElementById("portal-main-content");
+  const acceptButton = document.getElementById("accept-invitation-btn");
+  if (!portal || !invitation || !takeover || !main) return;
+
+  document.body.classList.add("portal-invite-active");
+  document.body.classList.remove("portal-main-active");
+  portal.classList.add("portal-invite-active");
+  portal.classList.remove("portal-main-active");
+  invitation.style.display = "flex";
+  invitation.classList.remove("is-leaving");
+  invitation.removeAttribute("aria-hidden");
+  takeover.classList.remove("is-active");
+  takeover.setAttribute("aria-hidden", "true");
+  main.classList.remove("is-visible");
+  main.setAttribute("aria-hidden", "true");
+  if (acceptButton) {
+    acceptButton.disabled = false;
+    acceptButton.removeAttribute("aria-busy");
+  }
+}
+
+function finishPortalReveal(reason = "new") {
+  const portal = document.getElementById("portal-screen");
+  const invitation = document.getElementById("portal-invitation-view");
+  const takeover = document.getElementById("portal-takeover");
+  const main = document.getElementById("portal-main-content");
+  if (!portal || !invitation || !takeover || !main) return;
+
+  portalMode = "main";
+  window.clearTimeout(portalTransitionTimer);
+  document.body.classList.remove("portal-invite-active");
+  document.body.classList.add("portal-main-active");
+  portal.classList.remove("portal-invite-active");
+  portal.classList.add("portal-main-active");
+  invitation.style.display = "none";
+  invitation.setAttribute("aria-hidden", "true");
+  takeover.classList.remove("is-active");
+  takeover.setAttribute("aria-hidden", "true");
+  main.classList.add("is-visible");
+  main.setAttribute("aria-hidden", "false");
+
+  if (reason === "new") {
+    window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 600);
+  }
+}
+
+function revealMainGodSpace(reason = "new") {
+  if (portalMode === "main") return;
+  const portal = document.getElementById("portal-screen");
+  const invitation = document.getElementById("portal-invitation-view");
+  const takeover = document.getElementById("portal-takeover");
+  const main = document.getElementById("portal-main-content");
+  if (!portal || !invitation || !takeover || !main) return;
+
+  if (reason !== "new") {
+    finishPortalReveal(reason);
+    return;
+  }
+
+  portalMode = "transition";
+  document.getElementById("accept-invitation-btn")?.setAttribute("aria-busy", "true");
+  const acceptButton = document.getElementById("accept-invitation-btn");
+  if (acceptButton) acceptButton.disabled = true;
+  invitation.classList.add("is-leaving");
+  takeover.classList.add("is-active");
+  takeover.setAttribute("aria-hidden", "false");
+  portalTransitionTimer = window.setTimeout(() => finishPortalReveal(reason), 2500);
+}
+
+function acceptMainGodInvitation() {
+  revealMainGodSpace("new");
+}
+
 async function startNewChargen() {
   showScreen("chargen");
 
@@ -1827,6 +1909,8 @@ async function checkLocalSession() {
     if (res.ok && res.session) {
       resumeTargetId = targetId;
       if (box) box.style.display = "block";
+      // 有有效存檔的回訪玩家已經被主神選中，不必再次觀看初次邀請過場。
+      revealMainGodSpace("resume");
       document.getElementById("resume-char-name").textContent =
         res.session.character?.concept?.name || "未命名輪迴者";
 
@@ -3007,6 +3091,9 @@ document.addEventListener("click", (e) => {
 
 window.showScreen = showScreen;
 window.startNewChargen = startNewChargen;
+window.acceptMainGodInvitation = acceptMainGodInvitation;
+window.revealMainGodSpace = revealMainGodSpace;
+window.resetPortalInvitation = resetPortalInvitation;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
