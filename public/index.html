@@ -554,10 +554,14 @@
         .invitation-site-body h1 { margin: 1.4rem 0 1rem; color: #101010; font: 500 clamp(2.25rem, 6vw, 5.4rem)/1.05 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .04em; }
         .invitation-rule { width: min(22rem, 45vw); height: 1px; background: #b8b5ae; }
         .invitation-site-body > p { margin-top: 1rem; color: #4e4c47; font: 500 clamp(.9rem, 1.5vw, 1.1rem)/1.6 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .12em; }
-        .invitation-card { display: flex; width: min(24rem, 92vw); flex-direction: column; align-items: center; gap: .9rem; margin-top: 2.2rem; padding: 1.45rem 1.4rem 1.35rem; border: 1px solid #282724; background: #121212; color: #f2f0eb; box-shadow: 0 18px 35px rgba(35,33,29,.18); transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease; }
-        .invitation-card:hover { transform: translateY(-3px); box-shadow: 0 24px 42px rgba(35,33,29,.24); }
+        .invitation-card { position: relative; isolation: isolate; overflow: hidden; display: flex; width: min(24rem, 92vw); flex-direction: column; align-items: center; gap: .9rem; margin-top: 2.2rem; padding: 1.45rem 1.4rem 1.35rem; border: 0; background: linear-gradient(112deg, #0d0d0c 0%, #171614 43%, #10100f 100%); color: #f2f0eb; clip-path: polygon(.2% .8%, 99.6% 0, 100% 99.2%, .35% 100%); box-shadow: 0 18px 35px rgba(35,33,29,.18), 0 3px 8px rgba(0,0,0,.12), inset 0 0 0 1px rgba(242,240,235,.16), inset 0 0 30px rgba(242,240,235,.035); transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease, filter .35s ease; }
+        .invitation-card::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .36; background-image: radial-gradient(rgba(255,255,255,.22) .42px, transparent .7px), radial-gradient(rgba(0,0,0,.52) .48px, transparent .8px), repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); background-size: 7px 7px, 11px 11px, 100% 4px; mix-blend-mode: soft-light; }
+        .invitation-card::after { content: ''; position: absolute; inset: .45rem; z-index: -1; pointer-events: none; border: 1px solid rgba(242,240,235,.08); box-shadow: inset 0 0 24px rgba(242,240,235,.045); opacity: .82; }
+        .invitation-card > * { position: relative; z-index: 1; }
+        .invitation-card:hover { transform: translateY(-3px) rotate(-.15deg); box-shadow: 0 24px 42px rgba(35,33,29,.24), 0 5px 12px rgba(0,0,0,.16), inset 0 0 0 1px rgba(242,240,235,.23), inset 0 0 34px rgba(242,240,235,.055); }
+        .portal-invitation-view.is-leaving .invitation-card { animation: invitationPaperTaken .62s cubic-bezier(.2,.8,.2,1) forwards; }
         .invitation-card-kicker { color: #aaa79f; font: .58rem/1.4 'JetBrains Mono', monospace; letter-spacing: .16em; }
-        .invitation-card-copy { font: 500 1.05rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .1em; }
+        .invitation-card-copy { color: #eeeae1; text-shadow: 0 1px 0 rgba(0,0,0,.3); font: 500 1.05rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .1em; }
         .invitation-accept-btn { margin-top: .35rem; padding: .68rem 2rem; border: 1px solid #f2f0eb; background: transparent; color: #f2f0eb; font: 600 .76rem/1 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .14em; cursor: pointer; transition: background .24s ease, color .24s ease, transform .24s ease; }
         .invitation-accept-btn:hover, .invitation-accept-btn:focus-visible { background: #f2f0eb; color: #121212; transform: translateY(-1px); }
         .invitation-accept-btn:disabled { cursor: wait; opacity: .58; }
@@ -593,6 +597,7 @@
         #portal-screen.portal-main-active { background: radial-gradient(ellipse 60% 50% at 50% 15%, rgba(196,188,171,.08), transparent 70%), var(--bg-void); }
         @keyframes invitationPageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes invitationPageOut { from { opacity: 1; filter: grayscale(0); transform: scale(1); } to { opacity: 0; filter: grayscale(1) contrast(1.22); transform: scale(.985); } }
+        @keyframes invitationPaperTaken { 0% { opacity: 1; transform: rotate(0deg) scale(1); filter: blur(0) brightness(1); } 55% { opacity: .72; transform: rotate(-.9deg) scale(.96) translateY(3px); filter: blur(.5px) brightness(.72); } 100% { opacity: 0; transform: rotate(-1.8deg) scale(.84) translateY(-3px); filter: blur(3px) brightness(.3); } }
         @keyframes takeoverDarken { 0% { opacity: 0; } 25% { opacity: .12; } 100% { opacity: 1; } }
         @keyframes takeoverLineIn { to { transform: scaleX(1); } }
         @keyframes takeoverCaptionIn { to { opacity: 1; } }
@@ -609,6 +614,7 @@
             .portal-invitation-view, .portal-invitation-view.is-leaving, .portal-takeover.is-active, .takeover-line, .takeover-caption, .portal-main-content.is-visible, .portal-main-content.is-visible > * { animation: none !important; }
             .portal-main-content.is-visible { opacity: 1; filter: none; }
             .invitation-card, .invitation-accept-btn { transition: none !important; }
+            .portal-invitation-view.is-leaving .invitation-card { animation: none !important; opacity: 0; }
         }
 
         /* ================= 首頁／建卡微互動 ================= */
