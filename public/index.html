@@ -1205,10 +1205,31 @@
         html[data-theme="light"] #scenario-briefing { background: rgba(250,249,246,.8); }
         html[data-theme="light"] #cg-main-god-panel { background: rgba(194,154,98,.11) !important; }
         html[data-theme="light"] .portal-main-content .menu-banner { background: linear-gradient(135deg, rgba(255,255,255,.76), rgba(250,249,246,.95) 60%, rgba(241,240,236,.92)); }
+
+        /* 動態元件的 archive 映射：JavaScript 會依規則產生 class，不能只覆蓋固定 HTML。
+           d20 區塊刻意排除，保留玩家指定的原版擲骰動畫與其綠色光效。 */
+        body:not(.portal-invite-active) [class*="text-emerald-"]:not(#dice-star):not(#dice-d20):not(#dice-d20-number) { color: var(--accent) !important; }
+        body:not(.portal-invite-active) [class*="bg-emerald-"]:not(#dice-star):not(#dice-d20) { background-color: rgba(166,176,162,.1) !important; background-image: none !important; }
+        body:not(.portal-invite-active) [class*="border-emerald-"]:not(#dice-star):not(#dice-d20) { border-color: rgba(166,176,162,.34) !important; }
+        body:not(.portal-invite-active) [class*="text-violet-"] { color: #c9a66f !important; }
+        body:not(.portal-invite-active) [class*="bg-violet-"] { background-color: rgba(194,154,98,.1) !important; background-image: none !important; }
+        body:not(.portal-invite-active) [class*="border-violet-"] { border-color: rgba(194,154,98,.34) !important; }
+        body:not(.portal-invite-active) [class*="text-amber-"], body:not(.portal-invite-active) [class*="text-yellow-"] { color: #c9a66f !important; }
+        body:not(.portal-invite-active) [class*="bg-amber-"], body:not(.portal-invite-active) [class*="bg-yellow-"] { background-color: rgba(194,154,98,.1) !important; background-image: none !important; }
+        body:not(.portal-invite-active) [class*="border-amber-"], body:not(.portal-invite-active) [class*="border-yellow-"] { border-color: rgba(194,154,98,.34) !important; }
+        body:not(.portal-invite-active) [class*="text-sky-"], body:not(.portal-invite-active) [class*="text-cyan-"] { color: #9db3bd !important; }
+        body:not(.portal-invite-active) [class*="bg-sky-"], body:not(.portal-invite-active) [class*="bg-cyan-"] { background-color: rgba(157,179,189,.1) !important; background-image: none !important; }
+        body:not(.portal-invite-active) [class*="border-sky-"], body:not(.portal-invite-active) [class*="border-cyan-"] { border-color: rgba(157,179,189,.34) !important; }
+        body:not(.portal-invite-active) [class*="text-red-"], body:not(.portal-invite-active) [class*="text-orange-"] { color: #d99a8c !important; }
+        body:not(.portal-invite-active) [class*="bg-red-"], body:not(.portal-invite-active) [class*="bg-orange-"] { background-color: rgba(173,89,73,.11) !important; background-image: none !important; }
+        body:not(.portal-invite-active) [class*="border-red-"], body:not(.portal-invite-active) [class*="border-orange-"] { border-color: rgba(173,89,73,.38) !important; }
+        body:not(.portal-invite-active) [class*="hover\\:text-emerald-"]:hover { color: var(--ink-100) !important; }
+
         @media (max-width: 767px) {
             #story-feed { padding-left: 1rem !important; padding-right: 1rem; }
             #story-feed .feed-block-dm { font-size: .93rem; line-height: 1.9; }
-            #char-hud { background: rgba(27,25,21,.98); }
+            html[data-theme="dark"] #char-hud { background: rgba(27,25,21,.98); }
+            html[data-theme="light"] #char-hud { background: rgba(250,249,246,.98); }
         }
     </style>
 </head>
@@ -1359,7 +1380,7 @@
         <div class="hud-box p-6 rounded-lg space-y-5">
             <div class="flex items-center justify-between hairline-b pb-3">
                 <div>
-                    <div class="ribbon-banner ribbon-sm">Character Creation</div>
+                    <div class="ribbon-banner ribbon-sm">輪迴者建檔</div>
                     <h2 class="text-lg font-bold text-zinc-100 mt-2">你被拉進來之前，是什麼樣的人？</h2>
                 </div>
                 <button onclick="showScreen('portal')" class="text-xs font-mono text-zinc-300 hover:text-emerald-300 transition-colors flex items-center gap-1.5">
