@@ -128,6 +128,18 @@
             /* 陰影用低飽和暖灰而不是純黑——這是紙質感與廉價感的分界 */
             --c-shadow: 24 20 15;
 
+            /* 材質層。所有「有厚度」的面共用同一組紙紋與邊光——
+               顏色取自 --c-line，所以深色舞台自動變成浮塵、紙白舞台自動變成墨點，
+               不需要每個舞台各寫一份。想調整質感強弱只改這裡。 */
+            --grain:
+                radial-gradient(rgb(var(--c-line) / .055) .5px, transparent .8px),
+                repeating-linear-gradient(0deg, rgb(var(--c-line) / .022) 0 1px, transparent 1px 4px);
+            --grain-size: 7px 7px, 100% 4px;
+            /* 受光邊：深色舞台只要一絲白就夠，紙白舞台要接近實白才看得出壓凸 */
+            --edge-light: rgb(255 255 255 / .055);
+            /* 拉絲紋的濃度。墨點打在紙上比浮塵打在暗處更搶眼，紙白舞台要再淡一半。 */
+            --brush-alpha: .022;
+
             /* 以下是既有元件在用的名字，改成由上面的通道推導出來 */
             --bg-void: rgb(var(--c-surface-0));
             --bg-panel: rgb(var(--c-surface-1));
@@ -181,6 +193,8 @@
             --line-soft: rgb(var(--c-line) / .09);
             --line: rgb(var(--c-line) / .16);
             --line-strong: rgb(var(--c-line) / .42);
+            --edge-light: rgb(255 255 255 / .85);
+            --brush-alpha: .011;
         }
 
         /* ---- 第一幕：邀請頁。一個普通到不像遊戲的網站，永遠是紙白，不跟隨主題。 ---- */
@@ -197,6 +211,8 @@
             --c-surface-3: 255 255 255;
             --c-line: 23 23 23;
             --c-shadow: 35 33 29;
+            --edge-light: rgb(255 255 255 / .85);
+            --brush-alpha: .011;
         }
 
         /* ---- 第三幕：主神空間。過曝的白色平台，同樣不跟隨主題。
@@ -234,6 +250,8 @@
             --line-soft: rgb(var(--c-line) / .10);
             --line: rgb(var(--c-line) / .18);
             --line-strong: rgb(var(--c-line) / .45);
+            --edge-light: rgb(255 255 255 / .85);
+            --brush-alpha: .011;
         }
 
         /* 兩個 Tailwind 工具類沒辦法靠色階映射處理，各補一條：
@@ -635,7 +653,6 @@
         .menu-banner-tagline { color: #6ee7b7; font-weight: 600; }
 
         .scene-bar-tint { background: rgba(24, 24, 27, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.08); }
-        .scenario-hud-tint { background: linear-gradient(90deg, rgba(16,185,129,.1), rgba(9,9,11,.6), transparent); }
 
         /* ================= 任務狀態列 =================
            這條列只承擔「現在要做什麼」與「世界狀態」兩件事，避免把角色數值再搬到中央。
@@ -710,7 +727,16 @@
         /* ================= 黑白邀請頁 → 主神接管過場 =================
            初始頁面刻意脫離現有黑綠終端：它是一個看似普通的網站。
            主神只在玩家接受邀請後才進入畫面，避免整站從第一秒就像工程控制台。 */
-        html[data-stage="invitation"] body { background-color: #f1f0ec !important; background-image: none !important; color: #171717; }
+        html[data-stage="invitation"] body {
+            background-color: #f1f0ec !important;
+            /* 紙纖維：橫向的細絲加上細微的顆粒。這一頁沒有任何裝飾，
+               它唯一的說服力來自「看起來真的是一張紙」。 */
+            background-image:
+                repeating-linear-gradient(0deg, rgba(23,23,23,.018) 0 1px, transparent 1px 3px),
+                radial-gradient(rgba(23,23,23,.05) .5px, transparent .8px) !important;
+            background-size: 100% 3px, 6px 6px;
+            color: #171717;
+        }
         html[data-stage="invitation"] body::before { display: none; }
         html[data-stage="invitation"] #site-header { visibility: hidden; pointer-events: none; }
         html[data-stage="invitation"] #portal-screen { background: #f1f0ec; color: #171717; }
@@ -728,8 +754,52 @@
         .invitation-card { position: relative; isolation: isolate; overflow: hidden; display: flex; width: min(24rem, 92vw); flex-direction: column; align-items: center; gap: .9rem; margin-top: 2.2rem; padding: 1.45rem 1.4rem 1.35rem; border: 0; background: linear-gradient(112deg, #0d0d0c 0%, #171614 43%, #10100f 100%); color: #f2f0eb; clip-path: polygon(.2% .8%, 99.6% 0, 100% 99.2%, .35% 100%); box-shadow: 0 18px 35px rgba(35,33,29,.18), 0 3px 8px rgba(0,0,0,.12), inset 0 0 0 1px rgba(242,240,235,.16), inset 0 0 30px rgba(242,240,235,.035); transition: transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s ease, filter .35s ease; }
         .invitation-card::before { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .36; background-image: radial-gradient(rgba(255,255,255,.22) .42px, transparent .7px), radial-gradient(rgba(0,0,0,.52) .48px, transparent .8px), repeating-linear-gradient(0deg, rgba(255,255,255,.025) 0 1px, transparent 1px 4px); background-size: 7px 7px, 11px 11px, 100% 4px; mix-blend-mode: soft-light; }
         .invitation-card::after { content: ''; position: absolute; inset: .45rem; z-index: -1; pointer-events: none; border: 1px solid rgba(242,240,235,.08); box-shadow: inset 0 0 24px rgba(242,240,235,.045); opacity: .82; }
-        .invitation-card > * { position: relative; z-index: 1; }
+        .invitation-card > * { position: relative; z-index: 2; }
         .invitation-card:hover { transform: translateY(-3px) rotate(-.15deg); box-shadow: 0 24px 42px rgba(35,33,29,.24), 0 5px 12px rgba(0,0,0,.16), inset 0 0 0 1px rgba(242,240,235,.23), inset 0 0 34px rgba(242,240,235,.055); }
+        /* ---- 信紙細節 ----
+           ::before 與 ::after 已經被紙紋與內框用掉了，所以這兩層各自是一個元素。 */
+        /* 四角的刻線。用八段線畫出角括號，比整圈細框更像印刷品上的壓框，
+           而且四個角各自斷開，不會在圓角上糊掉。 */
+        .invitation-card-corners {
+            position: absolute; inset: .78rem; z-index: 1; pointer-events: none;
+            color: rgba(242,240,235,.3);
+            background-repeat: no-repeat;
+            background-image:
+                linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor),
+                linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor),
+                linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor),
+                linear-gradient(currentColor, currentColor), linear-gradient(currentColor, currentColor);
+            background-size: 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px, 11px 1px, 1px 11px;
+            background-position:
+                left top, left top, right top, right top,
+                left bottom, left bottom, right bottom, right bottom;
+        }
+        /* 寄件人的印。這張卡片上沒有署名，所以角落壓一枚幾乎看不清的鈐印——
+           湊近才看得出是「主」。
+           （原本這裡放的是墨漬，但墨漬打在近乎全黑的卡片上只會變成幾顆灰點，
+             看起來像髒污或算圖瑕疵，不像墨；印章靠的是形狀不是明度，才立得住。） */
+        .invitation-card-seal {
+            position: absolute; right: 1.15rem; bottom: .95rem; z-index: 1;
+            display: flex; align-items: center; justify-content: center;
+            width: 2.05rem; height: 2.05rem; pointer-events: none;
+            border: 1px solid rgba(242,240,235,.26); border-radius: 50%;
+            color: rgba(242,240,235,.3);
+            font: 600 .95rem/1 'Noto Serif TC', 'Songti TC', serif;
+            box-shadow: inset 0 0 0 3px rgba(242,240,235,.05);
+            transform: rotate(-8deg);
+        }
+        /* 紙面反光：22 秒掃過一次。慢到不會有人「看到動畫」，
+           但盯著這張卡片猶豫的時候，它不是完全靜止的。 */
+        .invitation-card-sheen {
+            position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none;
+        }
+        .invitation-card-sheen::before {
+            content: ''; position: absolute; top: -60%; bottom: -60%; width: 30%;
+            background: linear-gradient(100deg, transparent, rgba(242,240,235,.07), transparent);
+            transform: translateX(-280%) rotate(10deg);
+            animation: invitationSheen 22s cubic-bezier(.45,0,.55,1) infinite;
+        }
+        @keyframes invitationSheen { 0%, 70% { transform: translateX(-280%) rotate(10deg); } 92%, 100% { transform: translateX(520%) rotate(10deg); } }
         .portal-invitation-view.is-leaving .invitation-card { animation: invitationPaperTaken .62s cubic-bezier(.2,.8,.2,1) forwards; }
         .invitation-card-kicker { color: #aaa79f; font: .58rem/1.4 'JetBrains Mono', monospace; letter-spacing: .16em; }
         .invitation-card-copy { color: #eeeae1; text-shadow: 0 1px 0 rgba(0,0,0,.3); font: 500 1.05rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .1em; }
@@ -1070,6 +1140,82 @@
             html[data-theme="dark"] #char-hud { background: rgba(27,25,21,.98); }
             html[data-theme="light"] #char-hud { background: rgba(250,249,246,.98); }
         }
+        /* ================= 材質與微動作 =================
+           [2026-08-21] 這一層不改任何顏色、版面或資料，只負責讓畫面「摸起來有東西」。
+
+           兩個原則：
+             1. 質感來自材質與層次，不是來自更多顏色。紙紋、受光邊、低飽和暖灰陰影，
+                全部從 --grain / --edge-light / --c-shadow 推導，所以四個舞台自動適配——
+                深色舞台是浮塵與微光，紙白舞台是墨點與壓凸。
+             2. 會動的東西必須有理由。這裡的動畫不是裝飾，而是回答
+                「這個東西還活著嗎」「剛才變的是哪一個」「我按到的是哪一顆」。
+           所有循環動畫都會被檔案末端的「減少動態」整段停掉。 */
+
+        /* ---- 紙紋：所有有厚度的面共用同一層 ----
+           用 background-image 疊在既有底色上（而不是 ::before），
+           這樣不會跟已經用掉 ::before/::after 的元件打架。 */
+        .hud-box, .hud-float, .stat-tile, .trait-card, .action-tile,
+        .decision-card, .modal-panel, #story-feed, #scenario-briefing, #story-action-panel {
+            background-image: var(--grain);
+            background-size: var(--grain-size);
+        }
+
+        /* ---- 受光邊：上緣一道細光，讓面看起來是被打光的紙／金屬而不是一塊填色 ---- */
+        .hud-box, .hud-float, .stat-tile, .action-tile, .decision-card, .modal-panel {
+            box-shadow: inset 0 1px 0 var(--edge-light), 0 10px 26px -18px rgb(var(--c-shadow) / .5);
+        }
+
+        /* ---- 故事流：加一層很淡的暈影，讓長文字有「頁面」的邊界感 ---- */
+        #story-feed {
+            box-shadow: inset 0 22px 30px -30px rgb(var(--c-shadow) / .55),
+                        inset 0 -22px 30px -30px rgb(var(--c-shadow) / .55);
+        }
+
+        /* ---- 選項卡：hover 時一道斜向反光掃過 ----
+           原本 ::after 是一塊靜態的色塊，換成掃光之後「這一張被我指到了」是看得出來的動作，
+           而不只是換了個底色。 */
+        .decision-card::after {
+            background: linear-gradient(105deg, transparent 30%, var(--edge-light) 50%, transparent 70%);
+            opacity: 0;
+            transform: translateX(-45%);
+            transition: opacity .2s ease, transform .55s cubic-bezier(.2,.8,.2,1);
+        }
+        .decision-card:hover::after, .decision-card:focus-visible::after { opacity: 1; transform: translateX(45%); }
+        /* 按下去的那一瞬間要有實體回饋：整張卡往下沉 1px。 */
+        .decision-card:active { transform: translateY(1px) scale(.997); }
+        .action-tile:active, .hub-object:active { transform: translateY(1px); }
+
+        /* ---- 主線進度條：填色後面跟著一道流光，讓「有在前進」這件事在餘光裡看得到 ---- */
+        .mission-progress-fill { position: relative; overflow: hidden; }
+        .mission-progress-fill::after {
+            content: ''; position: absolute; inset: 0;
+            background: linear-gradient(90deg, transparent, rgb(255 255 255 / .38), transparent);
+            transform: translateX(-100%);
+            animation: progressSheen 4.5s ease-in-out infinite;
+        }
+        @keyframes progressSheen { 0%, 55% { transform: translateX(-100%); } 85%, 100% { transform: translateX(200%); } }
+
+        /* ---- 迫近度：只有走到「接觸」才會跳動。
+               前三階保持靜止是刻意的——每一階都在動的話，最後一階就不再是警訊。 ---- */
+        .threat-pip.on-4 { animation: threatContact 1.1s ease-in-out infinite; }
+        @keyframes threatContact {
+            0%, 100% { box-shadow: 0 0 6px rgb(var(--c-danger-base) / .45); }
+            50% { box-shadow: 0 0 12px rgb(var(--c-danger-base) / .85); }
+        }
+
+        /* ---- 邀請頁：時鐘後面一個閃動的游標。
+               整頁刻意沒有任何動靜，只有這一個東西在動——那正是它讓人不安的原因。 ---- */
+        .invitation-clock::after {
+            content: ''; display: inline-block; width: .42em; height: 1em; margin-left: .35em;
+            vertical-align: -.14em; background: currentColor;
+            animation: invitationCaret 1.15s steps(1, end) infinite;
+        }
+        @keyframes invitationCaret { 0%, 49% { opacity: .8; } 50%, 100% { opacity: 0; } }
+
+        /* ---- 主神空間：地平線的光緩慢橫移，讓下半部那片空白不再是死的 ---- */
+        .platform-horizon { animation: horizonDrift 24s linear infinite; }
+        @keyframes horizonDrift { from { background-position: 0 0, 0 0; } to { background-position: 4.8rem 0, 0 3.4rem; } }
+
         /* ================= 白色平台 Hub／輪迴者手錶 HUD =================
            這一層只負責視覺與排版，不讀取、不改寫規則資料。
            擲骰子覆蓋層 #dice-roll-overlay 完全不在這組選擇器範圍內。 */
@@ -1126,24 +1272,66 @@
         .portal-platform #portal-resume-box button:hover { background: rgb(var(--c-accent-base) / .2); }
         @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .78; } 50% { transform: translateX(-50%) scale(1.04); opacity: .95; } }
 
-        .watch-hud { position: relative; display: flex; align-items: center; gap: .7rem; padding: .55rem .8rem .6rem; border-bottom: 1px solid rgba(126,116,98,.28); background: linear-gradient(90deg, rgba(250,249,246,.96), rgba(232,229,222,.9) 58%, rgba(219,214,205,.74)); box-shadow: inset 0 -1px 0 rgba(255,255,255,.72), 0 6px 18px rgba(77,69,58,.06); }
-        .watch-hud::before, .watch-hud::after { content: ''; position: absolute; top: .34rem; bottom: .34rem; width: .2rem; border: 1px solid rgba(128,117,98,.22); background: rgba(255,255,255,.45); pointer-events: none; }
+        /* ---- 輪迴者手錶 HUD ----
+           [2026-08-21] 這一整組原本寫死成紙白（rgba(250,249,246,.96) 之類），
+           於是深色副本裡永遠橫著一條發亮的白條，比它底下的故事還搶眼。
+           改成吃 token：深色副本是一面壓暗的金屬錶盤、淺色副本是紙、主神空間是白，
+           三種情況共用同一組規則。錶的識別度改由「材質」承擔而不是「亮度」——
+           拉絲紋、錶耳、錶冠、以及一道很慢的鏡面反光。 */
+        .watch-hud {
+            position: relative; display: flex; align-items: center; gap: .7rem;
+            padding: .55rem .8rem .6rem;
+            border-bottom: 1px solid rgb(var(--c-warn-base) / .3);
+            background-color: rgb(var(--c-surface-2));
+            /* 拉絲金屬：一層很細的直紋 + 一道橫向的明暗落差，讓它是「一個物件」而不是一條底色 */
+            background-image:
+                repeating-linear-gradient(90deg, rgb(var(--c-line) / var(--brush-alpha)) 0 1px, transparent 1px 2px),
+                linear-gradient(100deg, rgb(var(--c-line) / .05), transparent 34%, rgb(var(--c-shadow) / .13));
+            box-shadow: inset 0 1px 0 var(--edge-light), 0 6px 18px rgb(var(--c-shadow) / .18);
+        }
+        /* 兩側的錶耳 */
+        .watch-hud::before, .watch-hud::after { content: ''; position: absolute; top: .34rem; bottom: .34rem; width: .2rem; border: 1px solid rgb(var(--c-warn-base) / .28); background: rgb(var(--c-line) / .07); pointer-events: none; }
         .watch-hud::before { left: .3rem; border-right: 0; } .watch-hud::after { right: .3rem; border-left: 0; }
-        .watch-crown { display: flex; align-items: center; gap: .42rem; flex: 0 0 auto; padding: .25rem .45rem; color: #807668; font: 700 .53rem/1.15 'JetBrains Mono', monospace; letter-spacing: .08em; writing-mode: vertical-rl; transform: rotate(180deg); }
-        .watch-crown-mark { display: inline-flex; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; border: 1px solid rgba(140,118,81,.42); border-radius: 50%; color: #8c7651; background: rgba(140,118,81,.08); writing-mode: horizontal-tb; }
-        .watch-crown-label { white-space: nowrap; }
-        .watch-hud .mission-objective { padding: .2rem .7rem; border-left: 1px solid rgba(128,117,98,.22); }
-        .watch-hud .mission-objective-mark { width: 1.65rem; height: 1.65rem; border-color: rgba(140,118,81,.44); border-radius: 50%; color: #8c7651; background: rgba(140,118,81,.09); box-shadow: none; animation: none; }
-        .watch-hud .mission-eyebrow { color: #938a7d; letter-spacing: .16em; }
-        .watch-hud .mission-objective-title { color: #302d27; font-family: 'Noto Serif TC', serif; font-weight: 600; }
-        .watch-hud .mission-metrics { gap: .65rem; }
-        .watch-hud .mission-metric-header { color: #8f877a; }
-        .watch-hud .mission-metric-value { color: #625d54; }
-        .watch-hud .mission-progress-track { border-color: rgba(126,116,98,.24); background: rgba(91,82,70,.1); }
-        .watch-hud .mission-progress-fill { background: linear-gradient(90deg, #9c8258, #c4a776); box-shadow: 0 0 8px rgba(140,118,81,.24); }
+        /* 鏡面反光：18 秒掃過一次，慢到不會吵，但餘光裡看得出這是一片玻璃。 */
+        .watch-glass {
+            position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden;
+            border-radius: inherit;
+        }
+        .watch-glass::before {
+            content: ''; position: absolute; top: -60%; bottom: -60%; width: 22%;
+            background: linear-gradient(100deg, transparent, var(--edge-light), transparent);
+            transform: translateX(-260%) rotate(8deg);
+            animation: watchGlassSweep 18s cubic-bezier(.5,0,.5,1) infinite;
+        }
+        @keyframes watchGlassSweep { 0%, 62% { transform: translateX(-260%) rotate(8deg); } 88%, 100% { transform: translateX(620%) rotate(8deg); } }
+
+        /* [2026-08-21 修正] 錶冠原本是 writing-mode: vertical-rl 的直書標籤，
+           但那行字量出來永遠只有 1.5px 高——等寬字沒有中日韓字符，直書時
+           後備字型的縱向字幅算不出來，於是整條標籤等於不存在（試過 flex-shrink:0、
+           min-inline-size:max-content、min-height:max-content 都沒有用）。
+           改成直向堆疊的正常橫書：圖示在上、刻字在下，一樣是錶圈上的字，
+           但它真的會出現。 */
+        .watch-crown { position: relative; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .25rem; flex: 0 0 auto; padding: .1rem .3rem; color: var(--ink-500); font: 700 .53rem/1.15 'JetBrains Mono', monospace; letter-spacing: .08em; }
+        .watch-crown-mark { display: inline-flex; align-items: center; justify-content: center; width: 1.45rem; height: 1.45rem; border: 1px solid rgb(var(--c-warn-base) / .45); border-radius: 50%; color: rgb(var(--c-warn-text)); background: rgb(var(--c-warn-base) / .1); writing-mode: horizontal-tb; animation: watchCrownTick 2s steps(1, end) infinite; }
+        /* 錶冠每兩秒亮一下，像秒針走過——它不傳達任何數值，只負責讓這隻錶看起來還在走。 */
+        @keyframes watchCrownTick {
+            0%, 48% { box-shadow: 0 0 0 0 rgb(var(--c-warn-base) / .22); }
+            50%, 100% { box-shadow: 0 0 0 2px rgb(var(--c-warn-base) / 0); }
+        }
+        .watch-crown-label { flex-shrink: 0; white-space: nowrap; font-family: 'Noto Serif TC', serif; font-size: .5rem; font-weight: 600; letter-spacing: .1em; }
+
+        .watch-hud .mission-objective { position: relative; z-index: 3; padding: .2rem .7rem; border-left: 1px solid rgb(var(--c-line) / .18); }
+        .watch-hud .mission-objective-mark { width: 1.65rem; height: 1.65rem; border-color: rgb(var(--c-warn-base) / .46); border-radius: 50%; color: rgb(var(--c-warn-text)); background: rgb(var(--c-warn-base) / .1); box-shadow: none; animation: none; }
+        .watch-hud .mission-eyebrow { color: var(--ink-500); letter-spacing: .16em; }
+        .watch-hud .mission-objective-title { color: var(--ink-100); font-family: 'Noto Serif TC', serif; font-weight: 600; }
+        .watch-hud .mission-metrics { position: relative; z-index: 3; gap: .65rem; }
+        .watch-hud .mission-metric-header { color: var(--ink-500); }
+        .watch-hud .mission-metric-value { color: var(--ink-400); }
+        .watch-hud .mission-progress-track { border-color: rgb(var(--c-line) / .22); background: rgb(var(--c-shadow) / .22); }
+        .watch-hud .mission-progress-fill { background: linear-gradient(90deg, rgb(var(--c-warn-base)), rgb(var(--c-warn-text))); box-shadow: 0 0 8px rgb(var(--c-warn-base) / .28); }
         .watch-hud .mission-threat-pips .threat-pip { box-shadow: none; }
-        .watch-hud .mission-time-badge { color: #6d6457; background: rgba(255,255,255,.52); border-color: rgba(126,116,98,.25) !important; }
-        .watch-hud .mission-threat-metric .mission-metric-value { color: #8c5e4d; }
+        .watch-hud .mission-time-badge { color: var(--ink-400); background: rgb(var(--c-line) / .07); border-color: rgb(var(--c-line) / .22) !important; }
+        .watch-hud .mission-threat-metric .mission-metric-value { color: rgb(var(--c-time-text)); }
         @media (max-width: 767px) {
             .portal-platform { padding: 1rem .55rem 1.6rem; }
             .platform-heading { padding: 1.15rem 1rem; }
@@ -1151,7 +1339,7 @@
             .platform-arrival-line { width: 1.1rem; }
             .platform-orb { top: 10%; width: 12rem; }
             .watch-hud { display: grid; grid-template-columns: auto 1fr; align-items: stretch; gap: .45rem; padding: .5rem .65rem; }
-            .watch-crown { writing-mode: horizontal-tb; transform: none; padding: .1rem .25rem; }
+            .watch-crown { flex-direction: row; gap: .3rem; padding: .1rem .25rem; }
             .watch-crown-label { display: none; }
             .watch-hud .mission-objective { padding: .1rem .45rem; }
             .watch-hud .mission-metrics { grid-column: 1 / -1; width: 100%; justify-content: space-between; padding: .25rem .25rem 0; border-top: 1px solid rgba(126,116,98,.18); }
@@ -1219,6 +1407,9 @@
                 <div class="invitation-rule"></div>
                 <p>你對生命感到無趣嗎？</p>
                 <div class="invitation-card">
+                    <span class="invitation-card-sheen" aria-hidden="true"></span>
+                    <span class="invitation-card-corners" aria-hidden="true"></span>
+                    <span class="invitation-card-seal" aria-hidden="true">主</span>
                     <div class="invitation-card-kicker">一封沒有寄件人的邀請</div>
                     <div class="invitation-card-copy">參與一場無法拒絕的遊戲。</div>
                     <button id="accept-invitation-btn" class="invitation-accept-btn" onclick="acceptMainGodInvitation()">
@@ -1551,10 +1742,11 @@
             </div>
 
             <!-- 任務狀態列：把「現在在哪裡／要做什麼／世界正在逼近什麼」集中成第一級資訊。 -->
-            <div id="scenario-hud" style="display:none" class="mission-state-bar scenario-hud-tint watch-hud shrink-0" role="status" aria-live="polite">
-                <div class="watch-crown" aria-hidden="true">
+            <div id="scenario-hud" style="display:none" class="mission-state-bar watch-hud shrink-0" role="status" aria-live="polite">
+                <span class="watch-glass" aria-hidden="true"></span>
+                <div class="watch-crown" title="輪迴者手錶" aria-hidden="true">
                     <span class="watch-crown-mark"><i class="fas fa-stopwatch"></i></span>
-                    <span class="watch-crown-label">輪迴者手錶</span>
+                    <span class="watch-crown-label">輪迴者</span>
                 </div>
                 <div class="mission-objective min-w-0">
                     <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
