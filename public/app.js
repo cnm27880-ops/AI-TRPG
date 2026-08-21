@@ -156,6 +156,8 @@ function renderChargenStep() {
   question.style.display = chargenStep >= 1 && chargenStep <= questions.length ? "" : "none";
   awakening.style.display = chargenStep === awakeningStepIndex() ? "" : "none";
   back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
+  const activeStep = chargenStep === 0 ? basic : chargenStep <= questions.length ? question : awakening;
+  replayEnterAnim(activeStep);
   document.getElementById("cg-errors").innerHTML = "";
 
   const done = Math.min(chargenStep, total);
@@ -216,7 +218,9 @@ function chooseLifePathOption(optionId) {
 
   chargenAnswers[q.id] = optionId;
   renderQuestionOptions(q);
-  setTimeout(() => advanceChargen(), 160); // 讓玩家看得到自己選中的那一格亮起來
+  const selected = document.querySelector(`[data-lifepath-option="${CSS.escape(optionId)}"]`);
+  selected?.classList.add("lifepath-option-confirmed");
+  setTimeout(() => advanceChargen(), 240); // 讓玩家看得到自己選中的那一格亮起來
 }
 
 async function advanceChargen() {
@@ -284,6 +288,12 @@ async function loadAwakening() {
     }
 
     chargenAwakening = res;
+    const scanPanel = document.getElementById("cg-main-god-panel");
+    scanPanel?.classList.remove("awakening-scan-active");
+    if (scanPanel) {
+      void scanPanel.offsetWidth;
+      scanPanel.classList.add("awakening-scan-active");
+    }
     // 預設先填後端算好的建議分配，玩家想改再改。三十秒的緊張感底下，
     // 逼一個沒看過規則的人從零開始配點是很糟的第一印象。
     chargenReshape = { ...res.awakening.reshape.suggestion };
@@ -854,6 +864,7 @@ const SLOW_TURN_HINT_SECONDS = 15;
 let pendingTimer = null;
 
 function showNarratorPending() {
+  setDecisionContext("說書人書寫中 · 這些選項已鎖定");
   const feed = document.getElementById("story-feed");
   if (!feed) return;
   hideNarratorPending();
@@ -906,9 +917,9 @@ function setTurnInputLocked(locked, pressedIndex) {
   if (grid) {
     grid.classList.toggle("options-locked", locked);
     if (locked && pressedIndex != null && pressedIndex >= 0) {
-      grid.children[pressedIndex]?.classList.add("option-pending");
+      grid.children[pressedIndex]?.classList.add("decision-card-pending");
     } else if (!locked) {
-      grid.querySelectorAll(".option-pending").forEach((el) => el.classList.remove("option-pending"));
+      grid.querySelectorAll(".decision-card-pending").forEach((el) => el.classList.remove("decision-card-pending"));
     }
   }
 
@@ -1198,6 +1209,7 @@ function appendTurnError(message, res) {
 
   const feed = document.getElementById("story-feed");
   const block = document.createElement("div");
+  setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
   block.className = "space-y-1 feed-block-enter text-xs font-mono text-red-300 bg-red-500/5 p-2.5 rounded border border-red-500/40";
   block.innerHTML =
     `<div class="text-[11px] font-bold opacity-80">SYSTEM.ERROR</div>` +
@@ -1261,22 +1273,25 @@ function updateScenarioHud(scenario) {
   const titleEl = document.getElementById("scenario-node-title");
   const goalText = node?.goal || node?.title || "";
   if (scenario.progress?.scenarioComplete) {
-    titleEl.innerHTML = `<i class="fas fa-flag-checkered"></i> 主線已完成`;
+    titleEl.textContent = "主線已完成";
     titleEl.title = "";
   } else if (node.isFinale) {
-    titleEl.innerHTML = `<i class="fas fa-skull-crossbones text-red-400"></i> 當前目標：${escapeHtml(goalText)}`;
+    titleEl.textContent = `最終目標：${goalText}`;
     titleEl.title = node.title;
   } else {
-    titleEl.textContent = `當前目標：${goalText}`;
+    titleEl.textContent = goalText;
     titleEl.title = node.title;
   }
 
   const pct = scenario.progress?.overallCompletionPct ?? 0;
   const currentChapter = scenario.progress?.chapters?.[scenario.progress?.currentChapterIndex ?? 0];
-  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
-  document.getElementById("scenario-progress-text").textContent = currentChapter
+  const progressDetail = currentChapter
     ? `主線進度：節點 ${currentChapter.completedNodes}/${currentChapter.totalNodes}（${pct}%）`
     : `主線進度：${pct}%`;
+  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
+  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
+  const progressMetric = document.querySelector(".mission-progress-metric");
+  if (progressMetric) progressMetric.title = progressDetail;
 
   renderThreatMeter(scenario.threat);
 
@@ -1291,10 +1306,10 @@ function updateScenarioHud(scenario) {
       text += ` (${remain}/${timeBudget.totalRounds})`;
     }
     badge.textContent = text;
-    badge.className = `px-2 py-0.5 rounded border text-[10px] font-bold shrink-0 ${TIME_STATUS_STYLE[status] ?? ""}`;
+    badge.className = `mission-time-badge border ${TIME_STATUS_STYLE[status] ?? ""}`;
   } else {
     badge.textContent = "";
-    badge.className = "px-2 py-0.5 rounded border text-[10px] font-bold shrink-0";
+    badge.className = "mission-time-badge";
   }
 
   // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
@@ -1380,7 +1395,7 @@ function renderThreatMeter(threat) {
   box.style.display = "flex";
   box.title = `${threat.name}：${threat.stage} — ${threat.summary ?? ""}`;
   label.textContent = threat.stage;
-  label.className = `text-[10px] font-bold ${
+  label.className = `mission-metric-value text-[10px] font-bold ${
     tone >= 4 ? "text-red-400" : tone === 3 ? "text-orange-300" : tone === 2 ? "text-yellow-300" : "text-emerald-300"
   }`;
 
@@ -1402,15 +1417,25 @@ function renderThreatMeter(threat) {
   lastThreatStage = threat.stage;
 }
 
+function setDecisionContext(text) {
+  const el = document.getElementById("decision-context");
+  if (el) el.textContent = text;
+}
+
 function renderOptions(options) {
-  currentOptions = options;
   const grid = document.getElementById("option-grid");
-  if (!options || options.length === 0) {
-    grid.innerHTML = `<div class="col-span-2 text-xs font-mono text-zinc-400 p-2.5 border hairline-border border-dashed text-center rounded">本回合無預設選項，請於下方自訂行動。</div>`;
+  const safeOptions = Array.isArray(options) ? options : [];
+  currentOptions = safeOptions;
+  if (!safeOptions.length) {
+    setDecisionContext("沒有預設方案 · 請描述自己的行動");
+    grid.innerHTML = `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`;
     return;
   }
 
-  grid.innerHTML = options.map((opt, i) => {
+  const freeCount = safeOptions.filter((opt) => opt.requiresCheck === false).length;
+  setDecisionContext(`${safeOptions.length} 個可行方案${freeCount ? ` · ${freeCount} 個無需檢定` : " · 選擇會改變局勢"}`);
+
+  grid.innerHTML = safeOptions.map((opt, i) => {
     // 純敘事選項（requiresCheck === false，見 content/turnOptions.js）：沒有屬性、
     // 沒有技能、沒有DC，所以底下那一整行檢定資訊全部不畫——畫出來會是「null+null DCnull」。
     // 改成一個明確的「無需檢定」標籤：玩家有權在按下去之前就知道這一手不會擲骰。
@@ -1426,25 +1451,25 @@ function renderOptions(options) {
     if (!isFreeAction && opt.skill && skillVal === 0) {
       const category = SKILL_CATEGORY[opt.skill];
       warningHtml = category === "心智"
-        ? `<span class="text-red-400 font-bold whitespace-nowrap">⚠ 自動失敗</span>`
-        : `<span class="text-yellow-400 whitespace-nowrap">⚠ 未受訓 ${category === "社交" ? "-2" : "-1"}成功</span>`;
+        ? `<span class="decision-card-risk decision-card-risk-danger whitespace-nowrap">⚠ 自動失敗</span>`
+        : `<span class="decision-card-risk whitespace-nowrap">⚠ 未受訓 ${category === "社交" ? "-2" : "-1"}成功</span>`;
     }
 
     // 引擎墊出來的保底選項標一個小標籤：它跟這一輪的敘事完全無關（見 content/turnOptions.js
     // 的 FALLBACK_OPTIONS），玩家有權知道自己按下去的是不是AI真的替這個場景想出來的行動。
     const isFallback = opt.source === "fallback";
     const fallbackTag = isFallback
-      ? `<span class="shrink-0 text-yellow-300/90 text-[10px] font-mono border border-yellow-500/40 px-1.5 py-0.5 rounded bg-yellow-500/10" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
+      ? `<span class="decision-card-tag decision-card-tag-fallback" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
       : "";
 
     // 套路懲罰預告（見 content/scenario/repetition.js）。玩家必須在**按下去之前**就看到
     // 「這是連續第3次用潛行，DC會+1」，這個標籤才有意義——按完才知道等於在罰他，不是在設計。
     const freeTag = isFreeAction
-      ? `<span class="shrink-0 text-sky-300 text-[10px] font-mono border border-sky-500/40 px-1.5 py-0.5 rounded bg-sky-500/10" title="這個行動不需要擲骰，不會失敗，但場景仍然會推進">無需檢定</span>`
+      ? `<span class="decision-card-tag decision-card-tag-free" title="這個行動不需要擲骰，不會失敗，但場景仍然會推進">無需檢定</span>`
       : "";
 
     const retreadTag = opt.retread
-      ? `<span class="shrink-0 text-orange-300 text-[10px] font-mono border border-orange-500/40 px-1.5 py-0.5 rounded bg-orange-500/10" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
+      ? `<span class="decision-card-tag decision-card-tag-retread" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
       : "";
     const shownDc = opt.effectiveDc ?? opt.dc;
 
@@ -1453,32 +1478,29 @@ function renderOptions(options) {
     // 唯一醒目的資訊做成了數字。現在最醒目的是「做這件事想得到什麼」，
     // 檢定組合與DP退到最後一行的灰字。
     const hintHtml = opt.hint
-      ? `<span class="text-[11px] text-zinc-300 leading-snug">↳ ${escapeHtml(opt.hint)}</span>`
+      ? `<span class="decision-card-hint">${escapeHtml(opt.hint)}</span>`
       : "";
 
-    // 最後一行：檢定選項給「屬性+技能 · 難度 DC · 骰池」，純敘事選項給一句「不擲骰」。
+    // 玩家先看行動意義，再看規則細節；這裡只負責把後端已算好的資訊分層呈現。
     const metaHtml = isFreeAction
-      ? `<span class="text-[10px] font-mono text-sky-300/80 flex items-center gap-1.5 flex-wrap">
-          <i class="fas fa-comment-dots"></i><span>純敘事行動 · 不擲骰</span>
-        </span>`
-      : `<span class="text-[10px] font-mono text-zinc-500 flex items-center gap-1.5 flex-wrap">
-          <span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc} · 骰池${dp}</span>
-          ${warningHtml}
-        </span>`;
+      ? `<span class="decision-card-meta"><i class="fas fa-comment-dots"></i><span>純敘事行動 · 不擲骰 · 場景仍會推進</span></span>`
+      : `<span class="decision-card-meta"><span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''}</span><span>·</span><span>${escapeHtml(opt.difficulty)} DC${shownDc}</span><span>·</span><span>骰池 ${dp}</span>${warningHtml ? `<span>·</span>${warningHtml}` : ""}</span>`;
+
+    const cardTone = isFallback ? "decision-card-fallback" : isFreeAction ? "decision-card-free" : "";
 
     return `
-    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="anim-fade-up text-left p-2.5 pl-3 rounded bg-panel hover:bg-zinc-800 border ${isFallback ? "border-yellow-500/30" : "hairline-border"} hover:border-emerald-500/40 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-10px_rgba(16,185,129,0.4)] flex items-start gap-2.5 text-xs" style="animation-delay:${i * .06}s">
-      <span class="shrink-0 w-5 h-5 mt-0.5 flex items-center justify-center rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 font-mono text-[11px] font-bold">${i+1}</span>
-      <span class="flex flex-col gap-1 flex-1 min-w-0">
-        <span class="font-bold text-zinc-100 flex items-start justify-between gap-2">
-          <span class="flex-1">${escapeHtml(opt.label)}</span>
-          <span class="shrink-0 flex items-center gap-1.5">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${cardTone}" style="animation-delay:${i * .06}s">
+      <span class="decision-card-key">${i + 1}</span>
+      <span class="decision-card-main">
+        <span class="decision-card-head">
+          <span class="decision-card-label">${escapeHtml(opt.label)}</span>
+          <span class="decision-card-tags">
             ${freeTag}
             ${fallbackTag}
             ${retreadTag}
           </span>
         </span>
-        ${hintHtml}
+        ${hintHtml || `<span class="decision-card-hint">描述這個行動可能帶來的改變</span>`}
         ${metaHtml}
       </span>
     </button>`;

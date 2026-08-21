@@ -466,6 +466,114 @@
         .scene-bar-tint { background: rgba(24, 24, 27, 0.85); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.08); }
         .scenario-hud-tint { background: linear-gradient(90deg, rgba(16,185,129,.1), rgba(9,9,11,.6), transparent); }
 
+        /* ================= 任務狀態列 =================
+           這條列只承擔「現在要做什麼」與「世界狀態」兩件事，避免把角色數值再搬到中央。
+           左邊是當前目標，右邊是主線／迫近／時間三個決策訊號；手機版會自然折成兩行。 */
+        .mission-state-bar {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            padding: .65rem 1rem; border-bottom: 1px solid rgba(16,185,129,.2);
+            min-height: 4.35rem; overflow: hidden;
+        }
+        .mission-objective { display: flex; align-items: center; gap: .7rem; flex: 1 1 auto; }
+        .mission-objective-mark {
+            display: flex; align-items: center; justify-content: center; width: 1.8rem; height: 1.8rem;
+            flex: 0 0 auto; border: 1px solid rgba(16,185,129,.45); border-radius: 5px;
+            color: #6ee7b7; background: rgba(16,185,129,.1); box-shadow: 0 0 15px rgba(16,185,129,.12);
+            animation: missionMarkPulse 3.4s ease-in-out infinite;
+        }
+        .mission-eyebrow { color: var(--ink-500); font-size: .56rem; font-weight: 700; letter-spacing: .2em; line-height: 1; }
+        .mission-objective-title {
+            margin-top: .28rem; color: var(--ink-100); font-size: .8rem; font-weight: 700; line-height: 1.35;
+            max-width: min(38rem, 45vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .mission-metrics { display: flex; align-items: center; gap: .85rem; flex: 0 0 auto; }
+        .mission-metric { min-width: 7rem; }
+        .mission-metric-header { display: flex; align-items: center; justify-content: space-between; gap: .7rem; color: var(--ink-500); font-size: .58rem; font-weight: 700; }
+        .mission-metric-value { color: var(--ink-400); font-weight: 700; white-space: nowrap; }
+        .mission-progress-track { width: 8.25rem; height: .32rem; margin-top: .35rem; overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; background: rgba(0,0,0,.28); }
+        .mission-progress-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, #10b981, #34d399); box-shadow: 0 0 8px rgba(16,185,129,.45); transition: width .65s cubic-bezier(.2,.8,.2,1); }
+        .mission-threat-metric { min-width: 6.3rem; }
+        .mission-threat-pips { display: flex; align-items: center; gap: .18rem; margin-top: .35rem; }
+        .mission-threat-pips .threat-pip { width: .45rem; height: .34rem; border-radius: 999px; }
+        .mission-time-badge { padding: .35rem .55rem; border-radius: 5px; white-space: nowrap; }
+        @keyframes missionMarkPulse { 0%, 100% { box-shadow: 0 0 0 rgba(16,185,129,0); } 50% { box-shadow: 0 0 18px rgba(16,185,129,.28); } }
+
+        /* ================= Decision Card v2 =================
+           卡片的主視覺順序固定為：行動意圖 → 預期結果 → 規則／風險。 */
+        .decision-panel-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; padding: 0 .15rem .2rem; }
+        .decision-kicker { color: var(--accent); font-size: .56rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: .18em; }
+        .decision-title { margin-top: .22rem; color: var(--ink-100); font-size: .88rem; font-weight: 700; }
+        .decision-context { color: var(--ink-500); font: 600 .62rem/1.35 'JetBrains Mono', monospace; text-align: right; }
+        .decision-grid { transition: opacity .2s ease; }
+        .decision-card {
+            position: relative; display: flex; align-items: stretch; gap: .7rem; min-height: 6.85rem; padding: .75rem .8rem;
+            overflow: hidden; border: 1px solid rgba(255,255,255,.1); border-radius: 7px; background: rgba(24,24,27,.78);
+            color: var(--ink-100); text-align: left; cursor: pointer;
+            transition: transform .22s cubic-bezier(.2,.8,.2,1), border-color .22s ease, background .22s ease, box-shadow .22s ease, opacity .22s ease;
+        }
+        .decision-card::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(120deg, rgba(16,185,129,.08), transparent 42%); opacity: 0; transition: opacity .22s ease; }
+        .decision-card:hover { transform: translateY(-2px); border-color: rgba(16,185,129,.55); background: rgba(30,30,35,.92); box-shadow: 0 10px 24px -14px rgba(16,185,129,.65); }
+        .decision-card:hover::after, .decision-card:focus-visible::after { opacity: 1; }
+        .decision-card:active { transform: translateY(0); }
+        .decision-card-key { display: flex; align-items: center; justify-content: center; width: 1.55rem; height: 1.55rem; flex: 0 0 auto; border: 1px solid rgba(16,185,129,.45); border-radius: 5px; color: #6ee7b7; background: rgba(16,185,129,.12); font: 700 .68rem 'JetBrains Mono', monospace; }
+        .decision-card-main { position: relative; z-index: 1; display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .28rem; }
+        .decision-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+        .decision-card-label { color: var(--ink-100); font-size: .77rem; font-weight: 700; line-height: 1.35; }
+        .decision-card-tags { display: flex; align-items: center; justify-content: flex-end; gap: .28rem; flex-wrap: wrap; }
+        .decision-card-tag { display: inline-flex; align-items: center; padding: .16rem .36rem; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; color: var(--ink-400); font: 700 .54rem 'JetBrains Mono', monospace; white-space: nowrap; }
+        .decision-card-tag-free { border-color: rgba(14,165,233,.45); color: #7dd3fc; background: rgba(14,165,233,.08); }
+        .decision-card-tag-fallback { border-color: rgba(234,179,8,.45); color: #fde047; background: rgba(234,179,8,.08); }
+        .decision-card-tag-retread { border-color: rgba(249,115,22,.45); color: #fdba74; background: rgba(249,115,22,.08); }
+        .decision-card-hint { color: var(--ink-300, #d4d4d8); font-size: .7rem; line-height: 1.45; }
+        .decision-card-hint::before { content: '→ '; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+        .decision-card-meta { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-top: auto; padding-top: .32rem; color: var(--ink-500); font: .58rem/1.35 'JetBrains Mono', monospace; }
+        .decision-card-risk { color: #fbbf24; }
+        .decision-card-risk-danger { color: #f87171; font-weight: 700; }
+        .decision-card-free { border-color: rgba(14,165,233,.28); }
+        .decision-card-fallback { border-color: rgba(234,179,8,.3); }
+        .decision-card-pending { border-color: rgba(16,185,129,.75) !important; background: rgba(16,185,129,.13) !important; box-shadow: 0 0 0 1px rgba(16,185,129,.18), 0 0 24px -10px rgba(16,185,129,.9); }
+        .decision-grid-empty { grid-column: 1 / -1; padding: .75rem; border: 1px dashed rgba(255,255,255,.15); border-radius: 6px; color: var(--ink-400); text-align: center; font: .65rem/1.45 'JetBrains Mono', monospace; }
+        .decision-card-enter { animation: decisionCardEnter .38s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes decisionCardEnter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+        /* ================= 首頁／建卡微互動 ================= */
+        .menu-banner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, transparent 0%, rgba(110,231,183,.1) 48%, transparent 52%); transform: translateY(-120%); animation: bannerScan 7s ease-in-out infinite; }
+        .menu-banner:hover { box-shadow: 0 0 45px rgba(16,185,129,.22), inset 0 0 18px rgba(16,185,129,.1); }
+        .action-tile.primary { animation: portalCtaGlow 4s ease-in-out infinite; }
+        .action-tile.primary:hover { animation-play-state: paused; }
+        #portal-connection-signal { transition: border-color .25s ease, background .25s ease, transform .25s ease; }
+        #portal-connection-signal:hover { transform: translateY(-1px); border-color: rgba(16,185,129,.65); background: rgba(16,185,129,.16); }
+        #cg-step-basic, #cg-step-question, #cg-step-awakening { animation-duration: .48s; }
+        #cg-question-options button { position: relative; overflow: hidden; transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+        #cg-question-options button::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.09) 50%, transparent 65%); transform: translateX(-120%); transition: transform .55s ease; }
+        #cg-question-options button:hover::after { transform: translateX(120%); }
+        .lifepath-option-confirmed { animation: lifepathConfirm .42s cubic-bezier(.2,.8,.2,1) both; }
+        .awakening-scan-active { animation: awakeningScan .9s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes bannerScan { 0%, 35% { transform: translateY(-120%); } 65%, 100% { transform: translateY(120%); } }
+        @keyframes portalCtaGlow { 0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.25); } 50% { box-shadow: 0 8px 28px -8px rgba(16,185,129,.48); } }
+        @keyframes lifepathConfirm { 0% { transform: scale(1); } 45% { transform: scale(1.015); box-shadow: 0 0 0 3px rgba(16,185,129,.14); } 100% { transform: scale(1); } }
+        @keyframes awakeningScan { from { opacity: .45; transform: translateY(5px); filter: saturate(.55); } to { opacity: 1; transform: translateY(0); filter: saturate(1); } }
+
+        @media (max-width: 767px) {
+            .mission-state-bar { align-items: stretch; flex-direction: column; gap: .65rem; padding: .6rem .8rem; }
+            .mission-objective-title { max-width: none; font-size: .76rem; white-space: normal; }
+            .mission-metrics { width: 100%; justify-content: space-between; gap: .45rem; }
+            .mission-metric { min-width: 0; flex: 1 1 0; }
+            .mission-progress-track { width: 100%; }
+            .mission-threat-metric { min-width: 4.2rem; }
+            .mission-time-badge { align-self: flex-end; }
+            .decision-panel-heading { align-items: flex-start; flex-direction: column; gap: .25rem; }
+            .decision-context { text-align: left; }
+            .decision-card { min-height: 5.9rem; padding: .68rem .7rem; }
+            .decision-card-label { font-size: .73rem; }
+            .decision-card-hint { font-size: .66rem; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .mission-objective-mark, .menu-banner::after, .action-tile.primary, .decision-card-enter, .lifepath-option-confirmed, .awakening-scan-active { animation: none !important; }
+            .decision-card, .action-tile, #portal-connection-signal { transition: none !important; }
+        }
+
         /* 分頁按鈕 */
         .folder-tab {
             position: relative; flex: 1; padding: .55rem .25rem;
@@ -846,6 +954,23 @@
             /* hover 的位移在減少動態下也一併拿掉：它是「動」的一種，只是很短。 */
             .action-tile:hover, .stat-tile:hover { transform: none !important; }
         }
+        /* ================= 新版決策元件的淺色主題覆寫 ================= */
+        html[data-theme="light"] .mission-state-bar { background: linear-gradient(90deg, rgba(37,99,235,.08), rgba(248,250,252,.94), transparent); border-bottom-color: rgba(37,99,235,.18); }
+        html[data-theme="light"] .mission-objective-mark { color: #1d4ed8; border-color: rgba(37,99,235,.38); background: rgba(37,99,235,.08); box-shadow: 0 0 15px rgba(37,99,235,.12); }
+        html[data-theme="light"] .mission-progress-track { background: #e2e8f0; border-color: rgba(15,23,42,.12); }
+        html[data-theme="light"] .mission-progress-fill { background: linear-gradient(90deg, #2563eb, #1d4ed8); box-shadow: 0 0 8px rgba(37,99,235,.35); }
+        html[data-theme="light"] .mission-threat-pips .threat-pip { background: rgba(15,23,42,.08); border-color: rgba(15,23,42,.14); }
+        html[data-theme="light"] .decision-card { background: rgba(255,255,255,.92); border-color: rgba(15,23,42,.13); box-shadow: 0 4px 14px rgba(15,23,42,.06); }
+        html[data-theme="light"] .decision-card::after { background: linear-gradient(120deg, rgba(37,99,235,.07), transparent 42%); }
+        html[data-theme="light"] .decision-card:hover { background: #f8fafc; border-color: rgba(37,99,235,.55); box-shadow: 0 10px 24px -14px rgba(37,99,235,.45); }
+        html[data-theme="light"] .decision-card-key { color: #1d4ed8; border-color: rgba(37,99,235,.38); background: rgba(37,99,235,.08); }
+        html[data-theme="light"] .decision-card-hint { color: #334155; }
+        html[data-theme="light"] .decision-card-tag-free { color: #0369a1; border-color: rgba(3,105,161,.4); background: rgba(3,105,161,.07); }
+        html[data-theme="light"] .decision-card-tag-fallback { color: #a16207; border-color: rgba(161,98,7,.4); background: rgba(161,98,7,.07); }
+        html[data-theme="light"] .decision-card-tag-retread { color: #c2410c; border-color: rgba(194,65,12,.4); background: rgba(194,65,12,.07); }
+        html[data-theme="light"] .decision-card-risk { color: #a16207; }
+        html[data-theme="light"] .decision-card-risk-danger { color: #b91c1c; }
+        html[data-theme="light"] .decision-grid-empty { border-color: rgba(15,23,42,.18); }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -897,7 +1022,7 @@
             <h1 id="portal-title" class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">想明白生命的意義嗎？</h1>
         </div>
 
-        <p class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
+        <p id="portal-subtitle" class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
             進入輪迴世界，在無盡的恐懼與殺戮中進化。骰子將決定你的生死，AI 說書人將見證你的命運。
         </p>
 
@@ -943,7 +1068,7 @@
             </button>
         </div>
 
-        <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
+        <div id="portal-connection-signal" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
             <span>主神核心連線中 · 無限恐怖 2.35</span>
         </div>
@@ -1009,7 +1134,7 @@
             <section id="cg-step-awakening" style="display:none" class="space-y-4 anim-fade-up">
                 <div id="cg-awakening-narration" class="text-xs leading-relaxed text-zinc-200 bg-zinc-950/60 border hairline-border rounded p-4 whitespace-pre-line"></div>
 
-                <div class="rounded border border-violet-500/40 bg-violet-500/[0.07] p-4 space-y-3">
+                <div id="cg-main-god-panel" class="rounded border border-violet-500/40 bg-violet-500/[0.07] p-4 space-y-3">
                     <div class="text-[10px] font-mono font-bold text-violet-300 tracking-[0.25em]">主神系統 / MAIN GOD</div>
                     <div id="cg-scan-header" class="text-xs font-mono text-violet-100 leading-snug"></div>
                     <div id="cg-scan-echoes" class="space-y-1 border-l-2 border-violet-500/40 pl-3"></div>
@@ -1181,22 +1306,35 @@
                 </div>
             </div>
 
-            <!-- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 -->
-            <div id="scenario-hud" style="display:none" class="scenario-hud-tint border-b border-emerald-500/20 px-4 py-1.5 text-[11px] font-mono flex items-center gap-3 shrink-0">
-                <i class="fas fa-bookmark text-emerald-400 shrink-0"></i>
-                <span id="scenario-node-title" class="text-emerald-200 font-semibold whitespace-nowrap">—</span>
-                <div class="flex-1 h-1.5 bg-zinc-900 rounded overflow-hidden border hairline-border max-w-[180px]">
-                    <div id="scenario-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500" style="width:0%"></div>
+            <!-- 任務狀態列：把「現在在哪裡／要做什麼／世界正在逼近什麼」集中成第一級資訊。 -->
+            <div id="scenario-hud" style="display:none" class="mission-state-bar scenario-hud-tint shrink-0" role="status" aria-live="polite">
+                <div class="mission-objective min-w-0">
+                    <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
+                    <div class="min-w-0">
+                        <div class="mission-eyebrow">CURRENT OBJECTIVE</div>
+                        <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
+                    </div>
                 </div>
-                <span id="scenario-progress-text" class="text-zinc-400 shrink-0">0%</span>
-                <!-- 迫近度（見 content/scenario/threat.js）：判定成敗會累積在這條軌道上，
-                     所以它必須看得見——玩家要能一眼看出「剛剛那次失敗把它推近了一格」，
-                     否則成敗的差異又變回只存在於敘事語氣裡的東西。 -->
-                <span id="scenario-threat" style="display:none" class="ml-auto flex items-center gap-1.5 shrink-0" title="">
-                    <span id="scenario-threat-label" class="text-[10px] font-bold">迫近</span>
-                    <span id="scenario-threat-pips" class="flex items-center gap-0.5"></span>
-                </span>
-                <span id="scenario-time-badge" class="px-2 py-0.5 rounded border text-[10px] font-bold shrink-0"></span>
+                <div class="mission-metrics">
+                    <div class="mission-metric mission-progress-metric" title="目前副本的主線完成度">
+                        <div class="mission-metric-header">
+                            <span>主線進度</span>
+                            <span id="scenario-progress-text" class="mission-metric-value">0%</span>
+                        </div>
+                        <div class="mission-progress-track">
+                            <div id="scenario-progress-bar" class="mission-progress-fill" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <!-- 迫近度（見 content/scenario/threat.js）：判定成敗會累積在這條軌道上。 -->
+                    <div id="scenario-threat" style="display:none" class="mission-metric mission-threat-metric" title="">
+                        <div class="mission-metric-header">
+                            <span class="mission-metric-label">迫近</span>
+                            <span id="scenario-threat-label" class="mission-metric-value">—</span>
+                        </div>
+                        <span id="scenario-threat-pips" class="mission-threat-pips"></span>
+                    </div>
+                    <span id="scenario-time-badge" class="mission-time-badge"></span>
+                </div>
             </div>
 
             <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
@@ -1306,7 +1444,14 @@
             </div>
 
             <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
-                <div id="option-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                <div class="decision-panel-heading">
+                    <div>
+                        <div class="decision-kicker">DECISION CONSOLE</div>
+                        <div class="decision-title">你現在要怎麼做？</div>
+                    </div>
+                    <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
+                </div>
+                <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
                         <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
