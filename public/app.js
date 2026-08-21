@@ -135,10 +135,9 @@ function resetPortalInvitation() {
   const acceptButton = document.getElementById("accept-invitation-btn");
   if (!portal || !invitation || !takeover || !main) return;
 
-  document.body.classList.add("portal-invite-active");
-  document.body.classList.remove("portal-main-active");
-  portal.classList.add("portal-invite-active");
-  portal.classList.remove("portal-main-active");
+  // 第一幕：邀請頁。舞台由 <html data-stage> 決定，色彩全部跟著它走
+  // （見 index.html 的「舞台與主題的色彩 token」）。
+  document.documentElement.setAttribute("data-stage", "invitation");
   invitation.style.display = "flex";
   invitation.classList.remove("is-leaving");
   invitation.removeAttribute("aria-hidden");
@@ -161,10 +160,8 @@ function finishPortalReveal(reason = "new") {
 
   portalMode = "main";
   window.clearTimeout(portalTransitionTimer);
-  document.body.classList.remove("portal-invite-active");
-  document.body.classList.add("portal-main-active");
-  portal.classList.remove("portal-invite-active");
-  portal.classList.add("portal-main-active");
+  // 第三幕：主神空間。過場結束才切，讓黑色接管畫面成為兩幕之間真正的斷點。
+  document.documentElement.setAttribute("data-stage", "godspace");
   invitation.style.display = "none";
   invitation.setAttribute("aria-hidden", "true");
   takeover.classList.remove("is-active");

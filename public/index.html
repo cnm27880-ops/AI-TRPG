@@ -31,6 +31,10 @@
             html.setAttribute('data-theme', theme);
             html.classList.toggle('light', theme === 'light');
             html.classList.toggle('dark', theme === 'dark');
+            // 舞台（data-stage）跟主題是兩件事：主題是玩家的偏好，舞台是劇情所在的位置。
+            // 第一幕永遠是紙白的邀請頁，所以在畫任何東西之前就先標上，
+            // 不然會先閃一下副本的深色再跳成白色。
+            html.setAttribute('data-stage', 'invitation');
         })();
     </script>
     <!-- Tailwind：事先編譯好的靜態 CSS（來源 src/tailwind.css，設定見根目錄的 tailwind.config.js）。
@@ -66,17 +70,184 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..700&family=Noto+Serif+TC:wght@600&display=swap" rel="stylesheet">
     <style>
+        /* ================= 舞台與主題的色彩 token（單一來源） =================
+           [2026-08-21 重構] 這份檔案的顏色以前是三代疊在一起的：
+             第一代 黑底螢光綠終端；
+             第二代 白藍戰術模式，用兩百多行 `html[data-theme="light"] .text-emerald-300 {…}`
+                   這種「工具類對照表」把第一代蓋掉；
+             第三代 生存檔案（暖墨／紙），用 `[class*="text-emerald-"] { … !important }`
+                   這種整片覆蓋把前兩代一起蓋掉。
+           第三代那組覆蓋同時寫了 `background-image: none !important`，於是所有漸層
+           被抹平、七種語意色被壓成同一個灰調——畫面「看起來很單調」的直接原因就是它，
+           而不是顏色選得太少。
+
+           現在改成單層：顏色只在這裡定義成變數，元件與 Tailwind 工具類一律讀變數
+           （Tailwind 的色階映射見 tailwind.config.js）。要換一個舞台的色調，
+           就重新定義下面這組變數，不需要再寫任何一條覆蓋。
+
+           變數分兩種：
+             --c-*    純通道值（`R G B`），給需要自訂透明度的地方用 `rgb(var(--c-x) / .4)`。
+             其餘     可直接使用的完成色，給元件的一般情況用。
+
+           語意色一共七種，刻意讓它們彼此分得開——這是「不單調」的來源：
+             accent 系統／行動   danger 傷害／死亡   warn 資源／保底
+             time   時間／套路   info   休息／免檢定  arcane 主神系統
+             vice   惡德
+
+           預設值＝副本舞台的深色（生存檔案）。其他舞台在下面各自覆寫。 */
         :root {
-            --bg-void: #09090b;
-            --bg-panel: #121215;
-            --bg-card: #18181b;
-            --ink-100: #f4f4f5;
-            --ink-400: #a1a1aa;
-            --ink-500: #71717a;
-            --accent: #10b981;
-            --accent-alt: #22c55e;
-            --danger: #ef4444;
+            /* 中性：文字四階 + 面四階 */
+            --c-ink-100: 222 214 200;
+            --c-ink-200: 197 189 176;
+            --c-ink-300: 176 168 156;
+            --c-ink-400: 165 157 145;
+            --c-ink-500: 118 111 101;
+            --c-ink-700: 74 69 62;
+            --c-surface-0: 18 17 15;
+            --c-surface-1: 27 25 21;
+            --c-surface-2: 33 30 26;
+            --c-surface-3: 48 44 38;
+            --c-line: 222 214 200;
+
+            /* 語意色：每種都有「文字階」與「實色階」 */
+            --c-accent-text: 178 188 174;
+            --c-accent-base: 166 176 162;
+            --c-danger-text: 217 154 140;
+            --c-danger-base: 173 89 73;
+            --c-warn-text: 201 166 111;
+            --c-warn-base: 194 154 98;
+            --c-time-text: 197 139 112;
+            --c-time-base: 189 118 81;
+            --c-info-text: 157 179 189;
+            --c-info-base: 128 155 168;
+            --c-arcane-text: 181 163 194;
+            --c-arcane-base: 148 126 168;
+            --c-vice-text: 199 143 160;
+            --c-vice-base: 176 108 130;
+
+            /* 陰影用低飽和暖灰而不是純黑——這是紙質感與廉價感的分界 */
+            --c-shadow: 24 20 15;
+
+            /* 以下是既有元件在用的名字，改成由上面的通道推導出來 */
+            --bg-void: rgb(var(--c-surface-0));
+            --bg-panel: rgb(var(--c-surface-1));
+            --bg-card: rgb(var(--c-surface-2));
+            --ink-100: rgb(var(--c-ink-100));
+            --ink-400: rgb(var(--c-ink-400));
+            --ink-500: rgb(var(--c-ink-500));
+            --accent: rgb(var(--c-accent-base));
+            --accent-alt: rgb(var(--c-accent-text));
+            --danger: rgb(var(--c-danger-text));
+
+            /* 描邊三階。元件一律用這三個，不要再自己寫 rgba(255,255,255,.08)——
+               那個寫法在紙白舞台上是看不見的。 */
+            --line-soft: rgb(var(--c-line) / .10);
+            --line: rgb(var(--c-line) / .17);
+            --line-strong: rgb(var(--c-line) / .44);
         }
+
+        /* ---- 副本舞台的淺色版（使用者把介面切成淺色時的紙質檔案） ---- */
+        html[data-theme="light"] {
+            --c-ink-100: 37 35 31;
+            --c-ink-200: 58 54 48;
+            --c-ink-300: 77 72 64;
+            --c-ink-400: 93 88 79;
+            --c-ink-500: 122 116 106;
+            --c-ink-700: 179 173 162;
+            --c-surface-0: 241 240 236;
+            --c-surface-1: 250 249 246;
+            --c-surface-2: 255 255 255;
+            --c-surface-3: 255 255 255;
+            --c-line: 37 35 31;
+
+            /* 白底上全部 ≥4.5:1（WCAG AA）。深色主題可以靠亮字＋透明度拉層次，
+               白底不行——同樣的做法只會讓字越來越接近背景。 */
+            --c-accent-text: 79 92 76;
+            --c-accent-base: 104 114 103;
+            --c-danger-text: 160 63 46;
+            --c-danger-base: 167 79 64;
+            --c-warn-text: 140 98 40;
+            --c-warn-base: 176 138 85;
+            --c-time-text: 166 74 38;
+            --c-time-base: 189 118 81;
+            --c-info-text: 46 90 114;
+            --c-info-base: 110 140 158;
+            --c-arcane-text: 92 68 116;
+            --c-arcane-base: 132 108 158;
+            --c-vice-text: 150 52 78;
+            --c-vice-base: 176 108 130;
+            --c-shadow: 91 82 70;
+
+            --line-soft: rgb(var(--c-line) / .09);
+            --line: rgb(var(--c-line) / .16);
+            --line-strong: rgb(var(--c-line) / .42);
+        }
+
+        /* ---- 第一幕：邀請頁。一個普通到不像遊戲的網站，永遠是紙白，不跟隨主題。 ---- */
+        html[data-stage="invitation"] {
+            --c-ink-100: 22 22 22;
+            --c-ink-200: 42 41 39;
+            --c-ink-300: 78 76 71;
+            --c-ink-400: 95 93 88;
+            --c-ink-500: 119 116 109;
+            --c-ink-700: 184 181 174;
+            --c-surface-0: 241 240 236;
+            --c-surface-1: 246 245 241;
+            --c-surface-2: 255 255 255;
+            --c-surface-3: 255 255 255;
+            --c-line: 23 23 23;
+            --c-shadow: 35 33 29;
+        }
+
+        /* ---- 第三幕：主神空間。過曝的白色平台，同樣不跟隨主題。
+               重點色只有一個：主神的暖銅。這一幕刻意把中性面全部推到接近純白，
+               層次改由描邊、陰影與字級表達，而不是靠底色深淺。 ---- */
+        html[data-stage="godspace"] {
+            --c-ink-100: 31 29 25;
+            --c-ink-200: 52 48 42;
+            --c-ink-300: 74 69 61;
+            --c-ink-400: 95 89 79;
+            --c-ink-500: 130 123 112;
+            --c-ink-700: 186 180 169;
+            --c-surface-0: 255 255 255;
+            --c-surface-1: 255 255 255;
+            --c-surface-2: 255 255 255;
+            --c-surface-3: 255 255 255;
+            --c-line: 60 55 47;
+            --c-shadow: 91 82 70;
+
+            --c-accent-text: 122 99 61;
+            --c-accent-base: 140 118 81;
+            --c-danger-text: 160 63 46;
+            --c-danger-base: 167 79 64;
+            --c-warn-text: 140 98 40;
+            --c-warn-base: 176 138 85;
+            --c-time-text: 166 74 38;
+            --c-time-base: 189 118 81;
+            --c-info-text: 46 90 114;
+            --c-info-base: 110 140 158;
+            --c-arcane-text: 92 68 116;
+            --c-arcane-base: 132 108 158;
+            --c-vice-text: 150 52 78;
+            --c-vice-base: 176 108 130;
+
+            --line-soft: rgb(var(--c-line) / .10);
+            --line: rgb(var(--c-line) / .18);
+            --line-strong: rgb(var(--c-line) / .45);
+        }
+
+        /* 兩個 Tailwind 工具類沒辦法靠色階映射處理，各補一條：
+           text-zinc-700 在版面上的角色是「幾乎看不見的佔位字」，但 bg-zinc-700
+           是一個面，兩者在色階上必須指向不同的東西。 */
+        /* 這三個原本是寫死螢光綠的任意值陰影（focus:shadow-[…rgba(16,185,129,…)] 之類）。
+           任意值沒辦法透過色階映射跟著舞台走，所以收成三個吃 token 的 class；
+           不然主神空間的白色輸入框一被聚焦，就會亮出一圈上一代的終端綠。 */
+        .focus-ring-accent:focus { box-shadow: 0 0 0 3px rgb(var(--c-accent-base) / .16); }
+        .hover-glow-accent:hover { box-shadow: 0 4px 14px -4px rgb(var(--c-accent-base) / .4); }
+        .hover-glow-accent-strong:hover { box-shadow: 0 8px 20px -8px rgb(var(--c-accent-base) / .5); }
+        .text-white { color: rgb(var(--c-ink-100)); }
+        .text-zinc-700 { color: rgb(var(--c-ink-700)); }
+        .border-zinc-600, .border-zinc-700, .border-zinc-700\/60, .border-zinc-800 { border-color: var(--line); }
         body { font-family: 'Inter', sans-serif; background-color: var(--bg-void); color: var(--ink-100); }
         .bg-tech-grid { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 24px 24px; }
         /* [2026-08-16 修正] hairline-border 只負責「顏色」，寬度交給 Tailwind 的 border / border-t 決定。
@@ -124,9 +295,9 @@
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
         .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
         .archetype-card.active {
-            border-color: #10b981 !important;
-            background-color: rgba(16, 185, 129, 0.12) !important;
-            box-shadow: 0 0 16px rgba(16,185,129,0.2) !important;
+            border-color: rgb(var(--c-accent-base)) !important;
+            background-color: rgb(var(--c-accent-base) / .12) !important;
+            box-shadow: 0 0 16px rgb(var(--c-accent-base) / .2) !important;
         }
 
         /* ================= 屬性／技能／特質小磚 =================
@@ -369,8 +540,8 @@
 
         /* 按下去的那一顆選項：立刻標起來，讓玩家知道系統收到的是哪一個 */
         .option-pending {
-            border-color: rgba(16,185,129,.7) !important;
-            background: rgba(16,185,129,.12) !important;
+            border-color: rgb(var(--c-accent-base) / .7) !important;
+            background: rgb(var(--c-accent-base) / .12) !important;
         }
         /* 送出中，整組選項變成不可點：避免玩家以為沒反應而連按，送出重複的回合 */
         .options-locked { opacity: .45; pointer-events: none; filter: saturate(.5); }
@@ -539,10 +710,10 @@
         /* ================= 黑白邀請頁 → 主神接管過場 =================
            初始頁面刻意脫離現有黑綠終端：它是一個看似普通的網站。
            主神只在玩家接受邀請後才進入畫面，避免整站從第一秒就像工程控制台。 */
-        body.portal-invite-active { background-color: #f1f0ec !important; background-image: none !important; color: #171717; }
-        body.portal-invite-active::before { display: none; }
-        body.portal-invite-active #site-header { visibility: hidden; pointer-events: none; }
-        #portal-screen.portal-invite-active { background: #f1f0ec; color: #171717; }
+        html[data-stage="invitation"] body { background-color: #f1f0ec !important; background-image: none !important; color: #171717; }
+        html[data-stage="invitation"] body::before { display: none; }
+        html[data-stage="invitation"] #site-header { visibility: hidden; pointer-events: none; }
+        html[data-stage="invitation"] #portal-screen { background: #f1f0ec; color: #171717; }
         .portal-invitation-view { display: flex; width: min(100%, 68rem); min-height: min(43rem, 100%); flex-direction: column; justify-content: center; padding: 2rem 1.2rem; color: #161616; text-align: left; animation: invitationPageIn .9s cubic-bezier(.2,.8,.2,1) both; }
         .portal-invitation-view.is-leaving { animation: invitationPageOut .55s ease forwards; }
         .invitation-site-nav { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 0; border-bottom: 1px solid #c8c6c0; color: #5f5d58; font: 600 .64rem/1 'JetBrains Mono', monospace; letter-spacing: .04em; }
@@ -582,19 +753,11 @@
         .portal-main-content.is-visible > *:nth-child(2) { animation-delay: .14s; }
         .portal-main-content.is-visible > *:nth-child(3) { animation-delay: .26s; }
         .portal-main-content.is-visible > *:nth-child(4) { animation-delay: .38s; }
-        .portal-main-content .menu-banner { width: min(100%, 42rem); background: linear-gradient(135deg, rgba(196,188,171,.1), rgba(27,25,21,.84) 55%, rgba(18,17,15,.9)); border-color: rgba(222,214,200,.28); box-shadow: 0 18px 50px rgba(0,0,0,.14), inset 0 0 22px rgba(222,214,200,.035); }
-        .portal-main-content .menu-banner:hover { box-shadow: 0 18px 54px rgba(0,0,0,.2), inset 0 0 26px rgba(222,214,200,.055); }
-        .portal-main-content .menu-banner-tagline { color: var(--accent) !important; }
-        .portal-main-content #portal-title { color: var(--ink-100) !important; text-shadow: none !important; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .07em; }
-        .portal-main-content #portal-subtitle { color: var(--ink-400) !important; font-family: 'Noto Serif TC', serif; font-weight: 600; line-height: 1.8; }
-        .portal-main-content .action-tile { background: rgba(32,29,25,.72); border-color: rgba(222,214,200,.17); }
-        .portal-main-content .action-tile-icon { color: var(--accent) !important; filter: none !important; }
-        .portal-main-content .action-tile-label { color: var(--ink-100) !important; font-family: 'Noto Serif TC', serif; font-weight: 600; }
-        .portal-main-content .action-tile-sub { color: var(--ink-500) !important; }
-        .portal-main-content #portal-connection-signal { background: rgba(166,176,162,.08) !important; border-color: rgba(222,214,200,.25) !important; color: var(--ink-400) !important; }
-        .portal-main-content #portal-connection-signal > span:first-child { background: var(--accent) !important; }
-        .portal-main-content > .text-\[10px\] { color: var(--ink-500) !important; }
-        #portal-screen.portal-main-active { background: radial-gradient(ellipse 60% 50% at 50% 15%, rgba(196,188,171,.08), transparent 70%), var(--bg-void); }
+        /* [2026-08-21] 這裡原本有 12 行把主神空間畫成深色的規則，下面的白色平台
+           再用 !important 一條一條蓋回白色——同一個元素上兩套顏色互相打架。
+           主神空間現在是一個獨立的舞台（html[data-stage="godspace"]），
+           顏色由 token 決定，這一層只留寬度。 */
+        .portal-main-content .menu-banner { width: min(100%, 42rem); }
         @keyframes invitationPageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes invitationPageOut { from { opacity: 1; filter: grayscale(0); transform: scale(1); } to { opacity: 0; filter: grayscale(1) contrast(1.22); transform: scale(.985); } }
         @keyframes invitationPaperTaken { 0% { opacity: 1; transform: rotate(0deg) scale(1); filter: blur(0) brightness(1); } 55% { opacity: .72; transform: rotate(-.9deg) scale(.96) translateY(3px); filter: blur(.5px) brightness(.72); } 100% { opacity: 0; transform: rotate(-1.8deg) scale(.84) translateY(-3px); filter: blur(3px) brightness(.3); } }
@@ -619,11 +782,11 @@
 
         /* ================= 首頁／建卡微互動 ================= */
         .menu-banner::after { content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, transparent 0%, rgba(110,231,183,.1) 48%, transparent 52%); transform: translateY(-120%); animation: bannerScan 7s ease-in-out infinite; }
-        .menu-banner:hover { box-shadow: 0 0 45px rgba(16,185,129,.22), inset 0 0 18px rgba(16,185,129,.1); }
+        .menu-banner:hover { box-shadow: 0 0 45px rgb(var(--c-accent-base) / .22), inset 0 0 18px rgb(var(--c-accent-base) / .1); }
         .action-tile.primary { animation: portalCtaGlow 4s ease-in-out infinite; }
         .action-tile.primary:hover { animation-play-state: paused; }
         #portal-connection-signal { transition: border-color .25s ease, background .25s ease, transform .25s ease; }
-        #portal-connection-signal:hover { transform: translateY(-1px); border-color: rgba(16,185,129,.65); background: rgba(16,185,129,.16); }
+        #portal-connection-signal:hover { transform: translateY(-1px); border-color: rgb(var(--c-accent-base) / .65); background: rgb(var(--c-accent-base) / .16); }
         #cg-step-basic, #cg-step-question, #cg-step-awakening { animation-duration: .48s; }
         #cg-question-options button { position: relative; overflow: hidden; transition: transform .2s cubic-bezier(.2,.8,.2,1), border-color .2s ease, background .2s ease, box-shadow .2s ease; }
         #cg-question-options button::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.09) 50%, transparent 65%); transform: translateX(-120%); transition: transform .55s ease; }
@@ -631,8 +794,8 @@
         .lifepath-option-confirmed { animation: lifepathConfirm .42s cubic-bezier(.2,.8,.2,1) both; }
         .awakening-scan-active { animation: awakeningScan .9s cubic-bezier(.2,.8,.2,1) both; }
         @keyframes bannerScan { 0%, 35% { transform: translateY(-120%); } 65%, 100% { transform: translateY(120%); } }
-        @keyframes portalCtaGlow { 0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,.25); } 50% { box-shadow: 0 8px 28px -8px rgba(16,185,129,.48); } }
-        @keyframes lifepathConfirm { 0% { transform: scale(1); } 45% { transform: scale(1.015); box-shadow: 0 0 0 3px rgba(16,185,129,.14); } 100% { transform: scale(1); } }
+        @keyframes portalCtaGlow { 0%, 100% { box-shadow: 0 4px 14px rgb(var(--c-shadow) / .25); } 50% { box-shadow: 0 8px 28px -8px rgb(var(--c-accent-base) / .48); } }
+        @keyframes lifepathConfirm { 0% { transform: scale(1); } 45% { transform: scale(1.015); box-shadow: 0 0 0 3px rgb(var(--c-accent-base) / .14); } 100% { transform: scale(1); } }
         @keyframes awakeningScan { from { opacity: .45; transform: translateY(5px); filter: saturate(.55); } to { opacity: 1; transform: translateY(0); filter: saturate(1); } }
 
         @media (max-width: 767px) {
@@ -709,304 +872,18 @@
         .terminal-strip { position: relative; }
         .terminal-strip::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(16,185,129,.4), transparent);
+            background: linear-gradient(90deg, transparent, rgb(var(--c-accent-base) / .4), transparent);
         }
 
-        /* ================= 明暗主題切換（白藍戰術模式） ================= */
-        html[data-theme="light"] {
-            --bg-void: #f8fafc;
-            --bg-panel: #ffffff;
-            --bg-card: #ffffff;
-            --ink-100: #0f172a;
-            /* 這兩階與下方 .text-zinc-400 / .text-zinc-500 的覆寫值一致（7.4:1 / 4.6:1）。
-               先前是 #64748b / #94a3b8，後者在白底上只有 2.6:1，低於 WCAG AA。 */
-            --ink-400: #475569;
-            --ink-500: #64748b;
-            --accent: #2563eb;
-            --accent-alt: #1d4ed8;
-            --danger: #dc2626;
-        }
-        html[data-theme="light"] body { background-color: var(--bg-void); color: var(--ink-100); }
-        html[data-theme="light"] body::before {
-            background:
-                radial-gradient(ellipse 60% 40% at 12% -5%, rgba(37,99,235,0.06), transparent 60%),
-                radial-gradient(ellipse 50% 35% at 105% 105%, rgba(220,38,38,0.03), transparent 60%);
-        }
-        html[data-theme="light"] .bg-tech-grid { background-image: radial-gradient(rgba(15,23,42,0.06) 1px, transparent 1px); }
-        html[data-theme="light"] * { scrollbar-color: #cbd5e1 transparent; }
-        html[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
-        html[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-        html[data-theme="light"] .hairline-border { border-color: rgba(15,23,42,0.1); }
-        html[data-theme="light"] .hairline-b { border-bottom-color: rgba(15,23,42,0.1); }
-        html[data-theme="light"] .hairline-t { border-top-color: rgba(15,23,42,0.1); }
-        html[data-theme="light"] .hairline-r { border-right-color: rgba(15,23,42,0.1); }
-
-        /* ================= 淺色主題的顏色對照表（單一來源） =================
-           [2026-08-18 重寫] 這一段以前是分三輪補出來的：先補純色、再補一部分透明度變體，
-           每次都只補「當下看到壞掉的那幾個」，於是永遠有漏網的（使用者最後一次回報的
-           主選單白字、主神掃描面板的淡紫字、商店的琥珀/天藍字都在漏網名單裡）。
-
-           現在改成一次把**畫面上真的有用到的每一個顏色工具**都列出來（來源是對
-           public/index.html 與 public/app.js 直接掃 class 字串），並且照色系分組。
-           新增一個顏色類別時請同時在這裡補一行——這是唯一的規則。
-
-           色系對照（深色 → 淺色）：
-             emerald 綠（主色）→ #2563eb 藍          violet 紫 → #6d28d9
-             yellow/amber 黃 → #b45309 琥珀           orange 橘 → #c2410c
-             red 紅 → #b91c1c                        rose 玫瑰 → #be123c
-             sky 天藍 → #0369a1                      cyan 青 → #0e7490
-           全部都是在白底上 ≥4.5:1（WCAG AA）的深色版本。
-
-           一條重要原則：**淺色主題不用透明度做文字層次**。深色主題可以靠
-           「亮字 × 透明度」拉出層次，白底上同樣的做法只會讓字越來越接近背景。
-           所以所有 /70、/80、/90 的文字變體在這裡一律拉回不透明的深色，層次改用
-           字級與粗細表達。底色與邊框則相反——它們本來就該是很淡的一層，維持透明度。 */
-
-        /* ---- 底色：深色主題的各級「更暗的面」在淺色主題全部收斂成白/極淺灰 ---- */
-        html[data-theme="light"] .bg-zinc-950,
-        html[data-theme="light"] .bg-zinc-900,
-        html[data-theme="light"] .bg-zinc-800,
-        html[data-theme="light"] .bg-zinc-700,
-        html[data-theme="light"] .bg-panel { background-color: #ffffff; }
-        html[data-theme="light"] .bg-panel\/70 { background-color: rgba(255,255,255,.7); }
-        html[data-theme="light"] .bg-zinc-700\/40,
-        html[data-theme="light"] .bg-zinc-700\/60 { background-color: #e2e8f0; }
-        html[data-theme="light"] .hover\:bg-zinc-800:hover,
-        html[data-theme="light"] .hover\:bg-zinc-700:hover,
-        html[data-theme="light"] .hover\:bg-zinc-700\/60:hover { background-color: #f1f5f9; }
-        html[data-theme="light"] .bg-zinc-950\/40,
-        html[data-theme="light"] .bg-zinc-950\/60,
-        html[data-theme="light"] .bg-zinc-900\/50,
-        html[data-theme="light"] .bg-zinc-900\/30 { background-color: #f8fafc; }
-        html[data-theme="light"] .bg-zinc-950\/90,
-        html[data-theme="light"] .bg-zinc-950\/95 { background-color: rgba(255,255,255,0.95); }
-
-        /* ---- 中性文字：往下壓一級，讓每一階在白底上都站得住 ----
-           #1e293b 13:1 / #334155 10:1 / #475569 7.4:1 / #64748b 4.6:1
-           placeholder 與 zinc-700 維持較淺是刻意的——它們本來就該比實際內容弱一階。 */
-        html[data-theme="light"] .text-zinc-100,
-        html[data-theme="light"] .text-white { color: #0f172a; }
-        html[data-theme="light"] .text-zinc-200 { color: #1e293b; }
-        html[data-theme="light"] .text-zinc-300 { color: #334155; }
-        html[data-theme="light"] .hover\:text-zinc-200:hover { color: #1e293b; }
-        html[data-theme="light"] .text-zinc-400 { color: #475569; }
-        /* zinc-500/600 在深色主題都是「更暗的註解灰」；淺色主題不能照抄那個relation，
-           但也不該淡到讀不出來——兩級都收在 4.6:1 這條線上。 */
-        html[data-theme="light"] .text-zinc-500,
-        html[data-theme="light"] .text-zinc-600 { color: #64748b; }
-        /* zinc-700 在深色主題是「幾乎看不見的佔位灰」；淺色主題不覆寫的話會變成
-           白底上的深灰＝反而最醒目，把視覺層次整個倒過來。 */
-        html[data-theme="light"] .text-zinc-700 { color: #cbd5e1; }
-        html[data-theme="light"] .placeholder-zinc-500::placeholder { color: #94a3b8; }
-        html[data-theme="light"] .border-zinc-600,
-        html[data-theme="light"] .border-zinc-700,
-        html[data-theme="light"] .border-zinc-700\/60,
-        html[data-theme="light"] .border-zinc-800 { border-color: #e2e8f0; }
-
-        /* ---- emerald 綠（主色）→ 藍 ---- */
-        html[data-theme="light"] .text-emerald-200,
-        html[data-theme="light"] .text-emerald-200\/80,
-        html[data-theme="light"] .text-emerald-200\/85,
-        html[data-theme="light"] .text-emerald-200\/90,
-        html[data-theme="light"] .text-emerald-300,
-        html[data-theme="light"] .text-emerald-300\/70,
-        html[data-theme="light"] .text-emerald-300\/90,
-        html[data-theme="light"] .text-emerald-400,
-        html[data-theme="light"] .text-emerald-400\/80,
-        html[data-theme="light"] .text-emerald-500,
-        html[data-theme="light"] .hover\:text-emerald-200:hover,
-        html[data-theme="light"] .hover\:text-emerald-300:hover { color: #2563eb; }
-        /* emerald-100 是「深色底上的亮字」，淺色主題底下同一格會變成淺藍底，要換成深藍字 */
-        html[data-theme="light"] .text-emerald-100 { color: #1e3a8a; }
-        html[data-theme="light"] .text-emerald-500\/25 { color: rgba(37,99,235,.25); }
-
-        html[data-theme="light"] .bg-emerald-400 { background-color: #2563eb; }
-        html[data-theme="light"] .bg-emerald-500\/\[0\.04\],
-        html[data-theme="light"] .bg-emerald-500\/5 { background-color: rgba(37,99,235,.05); }
-        html[data-theme="light"] .bg-emerald-500\/10,
-        html[data-theme="light"] .bg-emerald-500\/15,
-        html[data-theme="light"] .bg-emerald-500\/20,
-        html[data-theme="light"] .bg-emerald-500\/25,
-        html[data-theme="light"] .bg-emerald-500\/30 { background-color: rgba(37,99,235,.09); }
-        html[data-theme="light"] .hover\:bg-emerald-500\/20:hover,
-        html[data-theme="light"] .hover\:bg-emerald-500\/25:hover,
-        html[data-theme="light"] .hover\:bg-emerald-500\/30:hover { background-color: rgba(37,99,235,.16); }
-        html[data-theme="light"] .border-emerald-500,
-        html[data-theme="light"] .border-emerald-500\/60,
-        html[data-theme="light"] .border-emerald-500\/50,
-        html[data-theme="light"] .border-emerald-500\/40,
-        html[data-theme="light"] .border-emerald-400\/50 { border-color: rgba(37,99,235,.45); }
-        html[data-theme="light"] .border-emerald-500\/30,
-        html[data-theme="light"] .border-emerald-500\/20,
-        html[data-theme="light"] .border-emerald-500\/15 { border-color: rgba(37,99,235,.25); }
-        html[data-theme="light"] .hover\:border-emerald-500\/40:hover,
-        html[data-theme="light"] .hover\:border-emerald-500\/50:hover { border-color: rgba(37,99,235,.5); }
-
-        /* ---- 警告色（黃／琥珀）----------------------------------------------
-           深色主題的亮黃 yellow-300(#fde047) 落在白底上只有約 1.2:1，幾乎讀不到；
-           而且保底標籤、未受訓提示、存檔警告條、商店價格同時都是整塊亮黃，版面會很吵。
-           文字改用琥珀 #b45309（5.9:1），底色幾乎去掉只留一點暖調——
-           「警告」仍然看得出來是警告，但不會整片黃到蓋過畫面本身。 */
-        html[data-theme="light"] .text-yellow-200,
-        html[data-theme="light"] .text-yellow-200\/80,
-        html[data-theme="light"] .text-yellow-300,
-        html[data-theme="light"] .text-yellow-300\/80,
-        html[data-theme="light"] .text-yellow-300\/90,
-        html[data-theme="light"] .text-yellow-400,
-        html[data-theme="light"] .text-yellow-500,
-        html[data-theme="light"] .text-amber-200,
-        html[data-theme="light"] .text-amber-300,
-        html[data-theme="light"] .text-amber-300\/80,
-        html[data-theme="light"] .text-amber-300\/90 { color: #b45309; }
-
-        html[data-theme="light"] .bg-yellow-500\/5,
-        html[data-theme="light"] .bg-yellow-500\/10,
-        html[data-theme="light"] .bg-amber-500\/10 { background-color: #fdf6ec; }
-        html[data-theme="light"] .bg-amber-500\/20,
-        html[data-theme="light"] .bg-amber-500\/30 { background-color: rgba(180,83,9,.14); }
-        html[data-theme="light"] .hover\:bg-amber-500\/20:hover,
-        html[data-theme="light"] .hover\:bg-amber-500\/30:hover { background-color: rgba(180,83,9,.2); }
-        html[data-theme="light"] .border-yellow-500\/30,
-        html[data-theme="light"] .border-yellow-500\/40,
-        html[data-theme="light"] .border-amber-500\/40,
-        html[data-theme="light"] .border-amber-500\/50 { border-color: rgba(180,83,9,.28); }
-
-        /* ---- 橘（時間吃緊）：跟黃分開，否則同一條 HUD 上黃橘紅會糊成一片 ---- */
-        html[data-theme="light"] .text-orange-200\/90,
-        html[data-theme="light"] .text-orange-300,
-        html[data-theme="light"] .text-orange-300\/90 { color: #c2410c; }
-        html[data-theme="light"] .bg-orange-500\/5,
-        html[data-theme="light"] .bg-orange-500\/10 { background-color: #fff7ed; }
-        html[data-theme="light"] .border-orange-500\/30,
-        html[data-theme="light"] .border-orange-500\/40 { border-color: rgba(194,65,12,.28); }
-
-        /* ---- 紅（傷害／死亡／錯誤）與玫瑰（惡德）---- */
-        html[data-theme="light"] .text-red-200,
-        html[data-theme="light"] .text-red-300,
-        html[data-theme="light"] .text-red-400,
-        html[data-theme="light"] .hover\:text-red-400:hover { color: #b91c1c; }
-        html[data-theme="light"] .text-rose-200,
-        html[data-theme="light"] .text-rose-300 { color: #be123c; }
-        html[data-theme="light"] .bg-red-500\/5,
-        html[data-theme="light"] .bg-red-500\/10,
-        html[data-theme="light"] .bg-rose-500\/10 { background-color: #fef5f5; }
-        html[data-theme="light"] .bg-red-500\/20,
-        html[data-theme="light"] .hover\:bg-red-500\/20:hover { background-color: rgba(185,28,28,.12); }
-        html[data-theme="light"] .border-red-500\/30,
-        html[data-theme="light"] .border-red-500\/40,
-        html[data-theme="light"] .border-red-500\/50,
-        html[data-theme="light"] .border-red-400\/50,
-        html[data-theme="light"] .hover\:border-red-500\/40:hover,
-        html[data-theme="light"] .hover\:border-red-500\/50:hover { border-color: rgba(185,28,28,.3); }
-        html[data-theme="light"] .border-rose-500\/30,
-        html[data-theme="light"] .border-rose-500\/40 { border-color: rgba(190,18,60,.3); }
-
-        /* ---- 紫（主神系統／特性／型態）----
-           主神掃描面板整塊都是紫系：標題 violet-300、內文 violet-100、
-           五句引用 violet-200/70、結語 violet-200/90。淺色主題以前只覆寫了
-           violet-200 與 violet-300 兩個純色，於是那塊面板上真正的內文全部是淡紫色
-           落在淡紫底上，等於一片空白——使用者截圖裡讀不到字的就是這一塊。 */
-        html[data-theme="light"] .text-violet-200,
-        html[data-theme="light"] .text-violet-200\/70,
-        html[data-theme="light"] .text-violet-200\/90,
-        html[data-theme="light"] .text-violet-300,
-        html[data-theme="light"] .text-violet-300\/80,
-        html[data-theme="light"] .hover\:text-violet-200:hover { color: #6d28d9; }
-        /* violet-100 是面板主要內文，底又是淡紫，要比標題再深一階才拉得開 */
-        html[data-theme="light"] .text-violet-100 { color: #4c1d95; }
-        html[data-theme="light"] .bg-violet-500\/\[0\.07\],
-        html[data-theme="light"] .bg-violet-500\/10 { background-color: #f7f3ff; }
-        html[data-theme="light"] .bg-violet-500\/20,
-        html[data-theme="light"] .bg-violet-500\/30 { background-color: rgba(109,40,217,.12); }
-        html[data-theme="light"] .hover\:bg-violet-500\/20:hover,
-        html[data-theme="light"] .hover\:bg-violet-500\/30:hover { background-color: rgba(109,40,217,.18); }
-        html[data-theme="light"] .border-violet-400,
-        html[data-theme="light"] .border-violet-500\/50,
-        html[data-theme="light"] .border-violet-500\/40,
-        html[data-theme="light"] .hover\:border-violet-400:hover { border-color: rgba(109,40,217,.4); }
-        html[data-theme="light"] .border-violet-500\/30,
-        html[data-theme="light"] .border-violet-500\/25 { border-color: rgba(109,40,217,.25); }
-
-        /* ---- 天藍（休息／無需檢定／吸收）與青（支線代幣）---- */
-        html[data-theme="light"] .text-sky-300,
-        html[data-theme="light"] .text-sky-300\/80 { color: #0369a1; }
-        html[data-theme="light"] .text-cyan-300 { color: #0e7490; }
-        html[data-theme="light"] .bg-sky-500\/10 { background-color: #f0f9ff; }
-        html[data-theme="light"] .bg-sky-500\/20,
-        html[data-theme="light"] .hover\:bg-sky-500\/20:hover { background-color: rgba(3,105,161,.12); }
-        html[data-theme="light"] .border-sky-500\/40 { border-color: rgba(3,105,161,.3); }
-
-        html[data-theme="light"] .hud-box { background: #ffffff; border-color: rgba(15,23,42,.1); box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
-        html[data-theme="light"] .hud-float { background: rgba(255,255,255,0.9); border-right-color: rgba(15,23,42,.08); }
-        html[data-theme="light"] .stat-tile {
-            background: linear-gradient(150deg, rgba(15,23,42,.03), rgba(255,255,255,0) 60%), #ffffff;
-            border-color: rgba(15,23,42,.08);
-            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-        }
-        html[data-theme="light"] .stat-tile:hover { border-color: rgba(37,99,235,.45); box-shadow: 0 4px 12px rgba(15,23,42,.08); }
-        html[data-theme="light"] .stat-tile-rail::before { background: rgba(15,23,42,.08); }
-        html[data-theme="light"] .stat-tile-rail::after { box-shadow: 0 0 8px rgba(37,99,235,.3); }
-        html[data-theme="light"] .stat-meter { background: rgba(15,23,42,.1); }
-        html[data-theme="light"] .stat-meter-fill { box-shadow: 0 0 5px rgba(37,99,235,.3); }
-        html[data-theme="light"] .stat-meter-fill.stat-meter-legendary { background: linear-gradient(90deg, #b45309, #d97706); box-shadow: 0 0 5px rgba(180,83,9,.35); }
-        html[data-theme="light"] .name-plate { background: linear-gradient(115deg, rgba(37,99,235,.08), #ffffff 70%); border-bottom-color: rgba(15,23,42,.08); }
-        html[data-theme="light"] .scene-bar-tint { background: #ffffff; border-bottom-color: rgba(15,23,42,.08); }
-        html[data-theme="light"] .folder-tab { color: #64748b; }
-        html[data-theme="light"] .folder-tab:hover { color: #0f172a; }
-        html[data-theme="light"] .folder-tab.active { background: rgba(37,99,235,.08); color: #2563eb; border-bottom-color: #2563eb; }
-
-        html[data-theme="light"] .ribbon-banner {
-            background: rgba(37,99,235,0.08); border-color: rgba(37,99,235,0.3); border-left-color: #2563eb; color: #2563eb;
-        }
-        html[data-theme="light"] .ribbon-banner.ribbon-danger {
-            background: rgba(220,38,38,0.08); border-color: rgba(220,38,38,0.3); border-left-color: #dc2626; color: #dc2626;
-        }
-
-        html[data-theme="light"] .menu-banner {
-            background: linear-gradient(135deg, rgba(239, 246, 255, 0.95) 0%, rgba(219, 234, 254, 0.6) 50%, rgba(239, 246, 255, 0.95) 100%);
-            border-color: rgba(37, 99, 235, 0.35);
-            box-shadow: 0 0 35px rgba(37, 99, 235, 0.12);
-        }
-        html[data-theme="light"] .menu-banner-tagline { color: #2563eb; }
-        html[data-theme="light"] .action-tile {
-            background: #ffffff;
-            border-color: rgba(15,23,42,.09);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }
-        html[data-theme="light"] .action-tile:hover {
-            background: #f8fafc;
-            border-color: rgba(37,99,235,.4);
-            box-shadow: 0 6px 18px rgba(37,99,235,.15);
-        }
-        html[data-theme="light"] .action-tile-icon { color: #2563eb; }
-        html[data-theme="light"] .action-tile.primary {
-            background: linear-gradient(160deg, rgba(37,99,235,.07), #ffffff);
-            border-color: rgba(37,99,235,.35);
-        }
-        html[data-theme="light"] .section-tag {
-            background: rgba(37,99,235,.08);
-            border-left-color: #2563eb;
-            color: #2563eb;
-        }
-        html[data-theme="light"] #story-feed { border-left-color: rgba(37,99,235,.2); }
-
-        /* [2026-08-20 修正] 迫近度指示燈「還沒亮」的那幾格。
-           原本只有深色主題的寫法：半透明白底＋半透明白框，在白色背景上等於完全消失，
-           於是淺色主題只看得到已經亮起來的格子——玩家看不出「這條軌道總共幾格、
-           我離接觸還有多遠」，而那正是這個元件唯一的功能。 */
-        html[data-theme="light"] .threat-pip {
-            background: rgba(15,23,42,.06);
-            border-color: rgba(15,23,42,.15);
-        }
-        /* 亮起來的格子沿用深色主題的號誌色（綠→黃→橘→紅），只把綠壓深一階：
-           #34d399 在白底上偏淡，跟「還沒亮」的灰格分不太開。 */
-        html[data-theme="light"] .threat-pip.on-1 { background: #059669; border-color: #059669; }
-        html[data-theme="light"] .threat-pip.on-2 { background: #ca8a04; border-color: #ca8a04; }
-
-        /* [2026-08-20 修正] 深色主題用一層黑色 drop-shadow 讓白色標題浮起來；
-           淺色主題底下字色被覆寫成近黑的深藍，那層黑影就變成字緣的一圈髒污
-           （在手機的小字級上特別明顯，看起來像沒對焦）。淺色主題直接關掉這層影子。 */
+        /* [2026-08-21] 這裡原本是「淺色主題的顏色對照表」，兩百多行，
+           把每一個用到的 Tailwind 顏色工具類逐一覆寫成藍白色票。
+           它整段移除的理由有兩個：
+             1. 已經失效——下面的生存檔案主題用 `[class*="…"] { … !important }`
+                把同樣那批工具類再蓋了一次，這份對照表實際上只在少數
+                沒被蓋到的角落漏出來，造成同一個畫面上一半暖墨、一半冷藍。
+             2. 層級錯了——顏色不該在工具類上覆寫。現在色階直接指向 token
+                （見本檔開頭與 tailwind.config.js），換主題＝換變數。
+           唯一需要保留的是「淺色主題不要那層黑色 drop-shadow」，補在下面。 */
         html[data-theme="light"] #char-name,
         html[data-theme="light"] #portal-title { filter: none; }
 
@@ -1035,56 +912,28 @@
             /* hover 的位移在減少動態下也一併拿掉：它是「動」的一種，只是很短。 */
             .action-tile:hover, .stat-tile:hover { transform: none !important; }
         }
-        /* ================= 新版決策元件的淺色主題覆寫 ================= */
-        html[data-theme="light"] .mission-state-bar { background: linear-gradient(90deg, rgba(37,99,235,.08), rgba(248,250,252,.94), transparent); border-bottom-color: rgba(37,99,235,.18); }
-        html[data-theme="light"] .mission-objective-mark { color: #1d4ed8; border-color: rgba(37,99,235,.38); background: rgba(37,99,235,.08); box-shadow: 0 0 15px rgba(37,99,235,.12); }
-        html[data-theme="light"] .mission-progress-track { background: #e2e8f0; border-color: rgba(15,23,42,.12); }
-        html[data-theme="light"] .mission-progress-fill { background: linear-gradient(90deg, #2563eb, #1d4ed8); box-shadow: 0 0 8px rgba(37,99,235,.35); }
-        html[data-theme="light"] .mission-threat-pips .threat-pip { background: rgba(15,23,42,.08); border-color: rgba(15,23,42,.14); }
-        html[data-theme="light"] .decision-card { background: rgba(255,255,255,.92); border-color: rgba(15,23,42,.13); box-shadow: 0 4px 14px rgba(15,23,42,.06); }
-        html[data-theme="light"] .decision-card::after { background: linear-gradient(120deg, rgba(37,99,235,.07), transparent 42%); }
-        html[data-theme="light"] .decision-card:hover { background: #f8fafc; border-color: rgba(37,99,235,.55); box-shadow: 0 10px 24px -14px rgba(37,99,235,.45); }
-        html[data-theme="light"] .decision-card-key { color: #1d4ed8; border-color: rgba(37,99,235,.38); background: rgba(37,99,235,.08); }
-        html[data-theme="light"] .decision-card-hint { color: #334155; }
-        html[data-theme="light"] .decision-card-tag-free { color: #0369a1; border-color: rgba(3,105,161,.4); background: rgba(3,105,161,.07); }
-        html[data-theme="light"] .decision-card-tag-fallback { color: #a16207; border-color: rgba(161,98,7,.4); background: rgba(161,98,7,.07); }
-        html[data-theme="light"] .decision-card-tag-retread { color: #c2410c; border-color: rgba(194,65,12,.4); background: rgba(194,65,12,.07); }
-        html[data-theme="light"] .decision-card-risk { color: #a16207; }
-        html[data-theme="light"] .decision-card-risk-danger { color: #b91c1c; }
-        html[data-theme="light"] .decision-grid-empty { border-color: rgba(15,23,42,.18); }
+        /* [2026-08-21] 決策元件的淺色主題覆寫整段移除：這些規則寫死了上一代的藍白色票
+           (#2563eb / #1d4ed8 / #0369a1…)，而元件本身現在讀的是語意 token，
+           換主題與換舞台都由 token 處理，不需要第二份色票。 */
 
         /* ================= 生存檔案主題 / ARCHIVE SKIN =================
            封面是普通網站，遊戲內則像那個網站被保存成一份倖存者檔案。
-           不改規則、不改資料、不改 d20 動畫；只重新安排材質、留白、字體與色彩。 */
-        html[data-theme="dark"] {
-            --bg-void: #12110f;
-            --bg-panel: #1a1815;
-            --bg-card: #211e1a;
-            --ink-100: #ded6c8;
-            --ink-400: #a59d91;
-            --ink-500: #766f65;
-            --accent: #a6b0a2;
-            --accent-alt: #c5c0b4;
-            --danger: #ad5949;
-        }
-        html[data-theme="light"] {
-            --bg-void: #f1f0ec;
-            --bg-panel: #e7e5df;
-            --bg-card: #faf9f6;
-            --ink-100: #25231f;
-            --ink-400: #6b665e;
-            --ink-500: #8c877f;
-            --accent: #687267;
-            --accent-alt: #8d978b;
-            --danger: #a74f40;
-        }
-        body:not(.portal-invite-active) { background-color: var(--bg-void) !important; background-image: radial-gradient(rgba(198,190,176,.07) .6px, transparent .6px) !important; background-size: 28px 28px; color: var(--ink-100); }
-        body:not(.portal-invite-active)::before { background: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(177,167,149,.09), transparent 68%); animation: archiveBreath 16s ease-in-out infinite; }
+           不改規則、不改資料、不改 d20 動畫；只重新安排材質、留白、字體與色彩。
+
+           [2026-08-21] 這裡原本再宣告一次 html[data-theme="dark"] / ["light"] 的
+           --bg-void / --ink-100 / --accent…，色票直接寫死。那組宣告跟本檔開頭的 token
+           同名同權重、位置又更後面，於是任何一個新舞台（邀請頁、主神空間）設好的顏色
+           都會在這裡被打回副本的暖墨——主神空間的字之所以是淡米色而不是墨黑，就是它。
+           色票統一回開頭那一份，這一段只留材質與版面。 */
+        html:not([data-stage="invitation"]) body { background-color: var(--bg-void) !important; background-image: radial-gradient(rgb(var(--c-line) / .07) .6px, transparent .6px) !important; background-size: 28px 28px; color: var(--ink-100); }
+        html:not([data-stage="invitation"]) body::before { background: radial-gradient(ellipse 70% 45% at 50% -10%, rgba(177,167,149,.09), transparent 68%); animation: archiveBreath 16s ease-in-out infinite; }
         @keyframes archiveBreath { 0%,100% { opacity: .55; } 50% { opacity: .85; } }
-        body:not(.portal-invite-active) .panel-glow-top::before { background: linear-gradient(90deg, transparent, rgba(202,193,177,.26), transparent); }
-        #site-header:not(.portal-invite-active) { background: rgba(18,17,15,.88) !important; border-color: rgba(222,214,200,.12); }
-        #site-header button { border-color: rgba(222,214,200,.16) !important; background: rgba(32,29,25,.72) !important; color: var(--ink-100) !important; box-shadow: none !important; }
-        #site-header button:hover { border-color: rgba(222,214,200,.42) !important; background: rgba(48,44,38,.86) !important; }
+        html:not([data-stage="invitation"]) body .panel-glow-top::before { background: linear-gradient(90deg, transparent, rgba(202,193,177,.26), transparent); }
+        /* 頁首吃 token：深色副本是暖墨、淺色副本是紙、主神空間是白，都由同一組規則長出來。
+           先前這三行寫死深色又加了 !important，於是白色的主神空間頂上永遠橫著一條黑槓。 */
+        html:not([data-stage="invitation"]) #site-header { background: rgb(var(--c-surface-1) / .9); border-color: var(--line-soft); }
+        #site-header button { border-color: var(--line); background: rgb(var(--c-surface-2) / .72); color: var(--ink-400); box-shadow: none; }
+        #site-header button:hover { border-color: var(--line-strong); background: rgb(var(--c-surface-3) / .86); color: var(--ink-100); }
         .hud-box, .hud-float { background: rgba(27,25,21,.86); border-color: rgba(222,214,200,.14); box-shadow: 0 14px 42px rgba(0,0,0,.13); backdrop-filter: blur(10px); }
         .name-plate { background: linear-gradient(120deg, rgba(195,187,172,.09), rgba(27,25,21,.7) 75%); border-color: rgba(222,214,200,.13); }
         #char-hud #char-name { color: var(--ink-100) !important; text-shadow: none !important; }
@@ -1192,7 +1041,6 @@
         .modal-panel button { box-shadow: none !important; }
         .pulse-glow { animation: archivePulse 3.6s ease-in-out infinite; }
         @keyframes archivePulse { 0%,100% { box-shadow: 0 0 0 rgba(222,214,200,0); } 50% { box-shadow: 0 0 22px rgba(222,214,200,.14); } }
-        html[data-theme="light"] body:not(.portal-invite-active) { background-image: radial-gradient(rgba(62,58,51,.08) .6px, transparent .6px) !important; }
         html[data-theme="light"] #site-header { background: rgba(241,240,236,.9) !important; border-color: rgba(37,35,31,.14); }
         html[data-theme="light"] #site-header button { background: rgba(250,249,246,.82) !important; color: var(--ink-100) !important; border-color: rgba(37,35,31,.16) !important; }
         html[data-theme="light"] .hud-box, html[data-theme="light"] .hud-float, html[data-theme="light"] #chargen-screen > .hud-box, html[data-theme="light"] .modal-panel { background: rgba(250,249,246,.94) !important; border-color: rgba(37,35,31,.16); color: var(--ink-100); }
@@ -1204,26 +1052,17 @@
         html[data-theme="light"] #story-action-panel input, html[data-theme="light"] #chargen-screen input, html[data-theme="light"] #chargen-screen select, html[data-theme="light"] .modal-panel input, html[data-theme="light"] .modal-panel select, html[data-theme="light"] .modal-panel textarea { background: rgba(255,255,255,.86) !important; border-color: rgba(37,35,31,.18) !important; color: var(--ink-100) !important; }
         html[data-theme="light"] #scenario-briefing { background: rgba(250,249,246,.8); }
         html[data-theme="light"] #cg-main-god-panel { background: rgba(194,154,98,.11) !important; }
-        html[data-theme="light"] .portal-main-content .menu-banner { background: linear-gradient(135deg, rgba(255,255,255,.76), rgba(250,249,246,.95) 60%, rgba(241,240,236,.92)); }
 
-        /* 動態元件的 archive 映射：JavaScript 會依規則產生 class，不能只覆蓋固定 HTML。
-           d20 區塊刻意排除，保留玩家指定的原版擲骰動畫與其綠色光效。 */
-        body:not(.portal-invite-active) [class*="text-emerald-"]:not(#dice-star):not(#dice-d20):not(#dice-d20-number) { color: var(--accent) !important; }
-        body:not(.portal-invite-active) [class*="bg-emerald-"]:not(#dice-star):not(#dice-d20) { background-color: rgba(166,176,162,.1) !important; background-image: none !important; }
-        body:not(.portal-invite-active) [class*="border-emerald-"]:not(#dice-star):not(#dice-d20) { border-color: rgba(166,176,162,.34) !important; }
-        body:not(.portal-invite-active) [class*="text-violet-"] { color: #c9a66f !important; }
-        body:not(.portal-invite-active) [class*="bg-violet-"] { background-color: rgba(194,154,98,.1) !important; background-image: none !important; }
-        body:not(.portal-invite-active) [class*="border-violet-"] { border-color: rgba(194,154,98,.34) !important; }
-        body:not(.portal-invite-active) [class*="text-amber-"], body:not(.portal-invite-active) [class*="text-yellow-"] { color: #c9a66f !important; }
-        body:not(.portal-invite-active) [class*="bg-amber-"], body:not(.portal-invite-active) [class*="bg-yellow-"] { background-color: rgba(194,154,98,.1) !important; background-image: none !important; }
-        body:not(.portal-invite-active) [class*="border-amber-"], body:not(.portal-invite-active) [class*="border-yellow-"] { border-color: rgba(194,154,98,.34) !important; }
-        body:not(.portal-invite-active) [class*="text-sky-"], body:not(.portal-invite-active) [class*="text-cyan-"] { color: #9db3bd !important; }
-        body:not(.portal-invite-active) [class*="bg-sky-"], body:not(.portal-invite-active) [class*="bg-cyan-"] { background-color: rgba(157,179,189,.1) !important; background-image: none !important; }
-        body:not(.portal-invite-active) [class*="border-sky-"], body:not(.portal-invite-active) [class*="border-cyan-"] { border-color: rgba(157,179,189,.34) !important; }
-        body:not(.portal-invite-active) [class*="text-red-"], body:not(.portal-invite-active) [class*="text-orange-"] { color: #d99a8c !important; }
-        body:not(.portal-invite-active) [class*="bg-red-"], body:not(.portal-invite-active) [class*="bg-orange-"] { background-color: rgba(173,89,73,.11) !important; background-image: none !important; }
-        body:not(.portal-invite-active) [class*="border-red-"], body:not(.portal-invite-active) [class*="border-orange-"] { border-color: rgba(173,89,73,.38) !important; }
-        body:not(.portal-invite-active) [class*="hover\\:text-emerald-"]:hover { color: var(--ink-100) !important; }
+        /* [2026-08-21] 這裡原本有 16 行 `[class*="text-emerald-"] { … !important }` 形式的
+           整片覆蓋，把七種語意色壓成五個灰調，而且每一條都帶著
+           `background-image: none !important`——畫面上所有漸層都是被這一行刪掉的。
+           色階改成指向 token 之後，JavaScript 動態產生的 class 也會自動跟著舞台走，
+           不需要再攔截，整段移除。
+
+           只有擲骰覆蓋層要留下原本的螢光綠：它是刻意保留的原版動畫，
+           不屬於任何一個舞台的色彩語言。 */
+        #dice-star { color: rgba(16,185,129,.25); }
+        #dice-d20 { color: #f4f4f5; }
 
         @media (max-width: 767px) {
             #story-feed { padding-left: 1rem !important; padding-right: 1rem; }
@@ -1234,40 +1073,58 @@
         /* ================= 白色平台 Hub／輪迴者手錶 HUD =================
            這一層只負責視覺與排版，不讀取、不改寫規則資料。
            擲骰子覆蓋層 #dice-roll-overlay 完全不在這組選擇器範圍內。 */
-        body.portal-main-active #portal-screen { background: radial-gradient(ellipse 70% 62% at 50% 2%, rgba(255,255,255,.96), transparent 66%), #e8e5de; color: #25231f; }
-        .portal-platform { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 58rem); min-height: 100%; padding: 1.4rem .8rem 2rem; gap: 1.1rem; color: #27251f; }
-        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.9), rgba(232,229,222,.72) 62%, rgba(207,202,192,.62)); }
-        .platform-backdrop::before { content: ''; position: absolute; inset: 0; opacity: .34; background-image: radial-gradient(rgba(72,67,59,.12) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 1px, transparent 1px 5px); background-size: 8px 8px, 100% 5px; mix-blend-mode: multiply; }
-        .platform-orb { position: absolute; top: 7%; left: 50%; width: clamp(12rem, 28vw, 21rem); aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 50% 48%, rgba(255,255,255,.98) 0 8%, rgba(255,255,255,.72) 18%, rgba(248,247,243,.33) 42%, transparent 70%); filter: blur(2px); opacity: .82; box-shadow: 0 0 90px rgba(255,255,255,.72), 0 0 180px rgba(214,207,194,.45); animation: platformOrbBreath 8s ease-in-out infinite; }
+        /* 第三幕的底：過曝的白。中心接近純白、往外只掉一階暖灰，
+           讓「站在一個沒有邊界的白色空間裡」這件事靠亮度講，而不是靠一塊米色的底。 */
+        html[data-stage="godspace"] #portal-screen {
+            background:
+                radial-gradient(ellipse 78% 66% at 50% 0%, #ffffff, rgba(255,255,255,0) 70%),
+                linear-gradient(180deg, #fbfaf8 0%, #f2f0ea 100%);
+            color: var(--ink-100);
+        }
+        /* 標題上那層黑色 drop-shadow 是給深色底用的；打在白底上只會變成字緣的一圈髒污。 */
+        html[data-stage="godspace"] #portal-title { filter: none; }
+
+        .portal-platform { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 58rem); min-height: 100%; padding: 1.4rem .8rem 2rem; gap: 1.1rem; color: var(--ink-100); }
+        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.55) 58%, rgba(233,229,221,.5)); }
+        /* 紙纖維與印刷網點。這一層是「質感」真正的來源——它不加任何顏色，
+           只讓大片白不再是一塊死掉的色塊。 */
+        .platform-backdrop::before { content: ''; position: absolute; inset: 0; opacity: .3; background-image: radial-gradient(rgba(72,67,59,.12) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 1px, transparent 1px 5px); background-size: 8px 8px, 100% 5px; mix-blend-mode: multiply; }
+        .platform-orb { position: absolute; top: 7%; left: 50%; width: clamp(12rem, 28vw, 21rem); aspect-ratio: 1; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(circle at 50% 48%, #ffffff 0 10%, rgba(255,255,255,.82) 20%, rgba(248,247,243,.36) 44%, transparent 70%); filter: blur(2px); opacity: .9; box-shadow: 0 0 110px rgba(255,255,255,.9), 0 0 200px rgba(214,207,194,.5); animation: platformOrbBreath 8s ease-in-out infinite; }
         .platform-orb::after { content: ''; position: absolute; inset: 18%; border: 1px solid rgba(255,255,255,.55); border-radius: 50%; box-shadow: inset 0 0 35px rgba(255,255,255,.6); }
-        .platform-horizon { position: absolute; right: -12%; bottom: 9%; left: -12%; height: 38%; transform: perspective(22rem) rotateX(58deg); transform-origin: bottom; border-top: 1px solid rgba(99,91,79,.24); background: repeating-linear-gradient(90deg, rgba(99,91,79,.10) 0 1px, transparent 1px 4.8rem), repeating-linear-gradient(0deg, rgba(99,91,79,.08) 0 1px, transparent 1px 3.4rem); opacity: .62; }
-        .platform-arrival-mark { display: inline-flex; align-items: center; gap: .6rem; color: #7d776d; font: 700 .54rem/1 'JetBrains Mono', monospace; letter-spacing: .2em; text-transform: uppercase; }
-        .platform-arrival-line { width: 2.3rem; height: 1px; background: #b9b2a7; }
-        .platform-heading { z-index: 1; padding: 1.35rem 2.8rem; border: 1px solid rgba(124,116,103,.25); border-radius: 3px; background: rgba(250,249,246,.68) !important; box-shadow: 0 20px 55px rgba(91,82,70,.10), inset 0 0 0 1px rgba(255,255,255,.7); backdrop-filter: blur(10px); }
-        body.portal-main-active #site-header { background: rgba(232,229,222,.92) !important; border-bottom-color: rgba(126,116,98,.22) !important; color: #625d54 !important; box-shadow: 0 5px 18px rgba(77,69,58,.06); }
-        body.portal-main-active #site-header button { background: rgba(255,255,255,.38) !important; border-color: rgba(126,116,98,.22) !important; color: #625d54 !important; box-shadow: none !important; }
-        body.portal-main-active #site-header button:hover { background: rgba(255,255,255,.78) !important; border-color: rgba(140,118,81,.42) !important; color: #6e5632 !important; }
-        body.portal-main-active #site-header button i { color: #8c7651 !important; }
+        .platform-horizon { position: absolute; right: -12%; bottom: 9%; left: -12%; height: 38%; transform: perspective(22rem) rotateX(58deg); transform-origin: bottom; border-top: 1px solid rgb(var(--c-line) / .22); background: repeating-linear-gradient(90deg, rgb(var(--c-line) / .09) 0 1px, transparent 1px 4.8rem), repeating-linear-gradient(0deg, rgb(var(--c-line) / .07) 0 1px, transparent 1px 3.4rem); opacity: .62; }
+        .platform-arrival-mark { display: inline-flex; align-items: center; gap: .6rem; color: var(--ink-500); font: 700 .54rem/1 'JetBrains Mono', monospace; letter-spacing: .2em; text-transform: uppercase; }
+        .platform-arrival-line { width: 2.3rem; height: 1px; background: var(--line-strong); }
+
+        /* 頂部工具列在這一幕也要是白的，不然會有一條深色的橫槓浮在神域上面。 */
+        /* 這一幕唯一要額外交代的是重點色：頁首的圖示與 hover 都用主神的暖銅。 */
+        html[data-stage="godspace"] #site-header { box-shadow: 0 5px 18px rgb(var(--c-shadow) / .06); }
+        html[data-stage="godspace"] #site-header button:hover { border-color: rgb(var(--c-accent-base) / .45); color: var(--accent); }
+        html[data-stage="godspace"] #site-header button i { color: var(--accent); }
+
+        /* 標題匾。白底上的層次靠描邊＋一道很淺的暖灰陰影，不靠底色深淺。 */
+        .platform-heading { z-index: 1; padding: 1.35rem 2.8rem; border: 1px solid var(--line); border-radius: 3px; background: rgba(255,255,255,.72); box-shadow: 0 20px 55px rgb(var(--c-shadow) / .10), inset 0 0 0 1px rgba(255,255,255,.8); backdrop-filter: blur(10px); }
         .portal-platform .menu-banner::after { display: none; }
+        .portal-platform .menu-banner-tagline { color: var(--ink-500); }
+        .portal-platform #portal-title { color: var(--ink-100); text-shadow: none; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .18em; }
+        .portal-platform #portal-subtitle { color: var(--ink-400); font-family: 'Noto Serif TC', serif; font-weight: 500; line-height: 1.9; }
+
         .portal-platform .action-tile.primary { animation: platformTileBreath 4.8s ease-in-out infinite; }
-        @keyframes platformTileBreath { 0%,100% { box-shadow: 0 9px 24px rgba(91,82,70,.08), inset 0 0 0 1px rgba(255,255,255,.64); } 50% { box-shadow: 0 14px 30px rgba(140,118,81,.16), inset 0 0 0 1px rgba(255,255,255,.9); } }
-        .portal-platform .menu-banner-tagline { color: #817768 !important; }
-        .portal-platform #portal-title { color: #25231f !important; text-shadow: none !important; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .18em; }
-        .portal-platform #portal-subtitle { color: #625d54 !important; font-family: 'Noto Serif TC', serif; font-weight: 500; line-height: 1.9; }
-        .portal-platform .hub-object { min-height: 7.2rem; border-color: rgba(115,106,93,.25) !important; background: rgba(250,249,246,.74) !important; box-shadow: 0 9px 24px rgba(91,82,70,.08), inset 0 0 0 1px rgba(255,255,255,.64); color: #292720; }
-        .portal-platform .hub-object:hover, .portal-platform .hub-object:focus-visible { border-color: rgba(91,82,70,.52) !important; background: rgba(255,255,255,.92) !important; box-shadow: 0 16px 32px rgba(91,82,70,.14), inset 0 0 0 1px rgba(255,255,255,.92); transform: translateY(-3px); }
-        .portal-platform .hub-object .action-tile-icon { color: #8c7651 !important; filter: none !important; }
-        .portal-platform .hub-object .action-tile-label { color: #322e27 !important; font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .08em; }
-        .portal-platform .hub-object .action-tile-sub { color: #817b70 !important; font-family: 'Noto Serif TC', serif; }
-        .portal-platform .hub-object-mission { min-height: 8.6rem; border-color: rgba(140,118,81,.48) !important; background: linear-gradient(145deg, rgba(255,255,255,.92), rgba(226,218,204,.76)) !important; }
-        .portal-platform .hub-object-mission .action-tile-icon { color: #8b6d3f !important; }
-        .portal-platform .platform-status { color: #6f675a !important; border-color: rgba(115,106,93,.28) !important; background: rgba(255,255,255,.42) !important; }
-        .portal-platform .platform-status > span:first-child { background: #8c7651 !important; }
-        .portal-platform .platform-footnote { color: #91897d !important; }
-        .portal-platform #portal-resume-box { border-color: rgba(140,118,81,.38); background: rgba(255,255,255,.52); box-shadow: 0 14px 32px rgba(91,82,70,.10); }
-        .portal-platform #portal-resume-box button { border-color: rgba(140,118,81,.6); background: rgba(140,118,81,.12); color: #6e5632; }
-        .portal-platform #portal-resume-box button:hover { background: rgba(140,118,81,.2); }
-        @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .72; } 50% { transform: translateX(-50%) scale(1.04); opacity: .9; } }
+        @keyframes platformTileBreath { 0%,100% { box-shadow: 0 9px 24px rgb(var(--c-shadow) / .08), inset 0 0 0 1px rgba(255,255,255,.64); } 50% { box-shadow: 0 14px 30px rgb(var(--c-accent-base) / .16), inset 0 0 0 1px rgba(255,255,255,.9); } }
+        .portal-platform .hub-object { min-height: 7.2rem; border-color: var(--line); background: rgba(255,255,255,.78); box-shadow: 0 9px 24px rgb(var(--c-shadow) / .08), inset 0 0 0 1px rgba(255,255,255,.64); color: var(--ink-100); }
+        .portal-platform .hub-object:hover, .portal-platform .hub-object:focus-visible { border-color: var(--line-strong); background: #ffffff; box-shadow: 0 16px 32px rgb(var(--c-shadow) / .14), inset 0 0 0 1px rgba(255,255,255,.92); transform: translateY(-3px); }
+        .portal-platform .hub-object .action-tile-icon { color: var(--accent); filter: none; }
+        .portal-platform .hub-object .action-tile-label { color: var(--ink-100); font-family: 'Noto Serif TC', serif; font-weight: 600; letter-spacing: .08em; }
+        .portal-platform .hub-object .action-tile-sub { color: var(--ink-500); font-family: 'Noto Serif TC', serif; }
+        /* 主要行動（開始輪迴）是這一幕唯一帶顏色的東西：主神的暖銅。 */
+        .portal-platform .hub-object-mission { min-height: 8.6rem; border-color: rgb(var(--c-accent-base) / .48); background: linear-gradient(145deg, #ffffff, rgb(var(--c-accent-base) / .12)); }
+        .portal-platform .hub-object-mission .action-tile-icon { color: var(--accent); }
+        .portal-platform .platform-status { color: var(--ink-400); border-color: var(--line); background: rgba(255,255,255,.5); }
+        .portal-platform .platform-status > span:first-child { background: var(--accent); }
+        .portal-platform .platform-footnote { color: var(--ink-500); }
+        .portal-platform #portal-resume-box { border-color: rgb(var(--c-accent-base) / .38); background: rgba(255,255,255,.62); box-shadow: 0 14px 32px rgb(var(--c-shadow) / .10); }
+        .portal-platform #portal-resume-box button { border-color: rgb(var(--c-accent-base) / .6); background: rgb(var(--c-accent-base) / .12); color: var(--accent); }
+        .portal-platform #portal-resume-box button:hover { background: rgb(var(--c-accent-base) / .2); }
+        @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .78; } 50% { transform: translateX(-50%) scale(1.04); opacity: .95; } }
 
         .watch-hud { position: relative; display: flex; align-items: center; gap: .7rem; padding: .55rem .8rem .6rem; border-bottom: 1px solid rgba(126,116,98,.28); background: linear-gradient(90deg, rgba(250,249,246,.96), rgba(232,229,222,.9) 58%, rgba(219,214,205,.74)); box-shadow: inset 0 -1px 0 rgba(255,255,255,.72), 0 6px 18px rgba(77,69,58,.06); }
         .watch-hud::before, .watch-hud::after { content: ''; position: absolute; top: .34rem; bottom: .34rem; width: .2rem; border: 1px solid rgba(128,117,98,.22); background: rgba(255,255,255,.45); pointer-events: none; }
@@ -1326,18 +1183,18 @@
             </div>
             <!-- 安裝到手機主畫面：只有真的可以安裝（或需要手動教學）時才會顯示，見 initPwaInstall()。
                  已經是安裝後全螢幕模式在跑（standalone/fullscreen）就沒有意義，一律藏起來。 -->
-            <button id="pwa-install-btn" onclick="handlePwaInstallClick()" style="display:none" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+            <button id="pwa-install-btn" onclick="handlePwaInstallClick()" style="display:none" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i class="fas fa-mobile-screen-button text-emerald-400 text-[11px]"></i>
                 <span class="hidden sm:inline">安裝App</span>
             </button>
-            <button onclick="toggleTheme()" title="切換明暗主題" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+            <button onclick="toggleTheme()" title="切換明暗主題" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i id="theme-toggle-icon" class="fas fa-moon text-emerald-300 text-[11px]"></i>
             </button>
-            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+            <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
                 <span>存檔管理</span>
             </button>
-            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover:shadow-[0_4px_14px_-4px_rgba(16,185,129,0.4)]">
+            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
                 <span>設定</span>
             </button>
@@ -1345,7 +1202,7 @@
     </header>
 
     <!-- 1. 登入/啟動首頁 (Portal Screen) — 遊戲主選單風格，非儀表板卡片 -->
-    <div id="portal-screen" class="flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 gap-7 text-center portal-invite-active">
+    <div id="portal-screen" class="flex-1 overflow-y-auto flex flex-col items-center justify-center p-4 sm:p-8 gap-7 text-center">
 
         <!-- 第一階段：普通黑白網站。主神尚未接管畫面，玩家只看見一封不應該存在的邀請。 -->
         <section id="portal-invitation-view" class="portal-invitation-view" aria-labelledby="invitation-title">
@@ -1496,8 +1353,8 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500">
-                    <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100">
+                    <input id="cg-name" type="text" placeholder="姓名（必填）" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500">
+                    <select id="cg-gender" class="bg-zinc-950 border hairline-border px-3 py-2.5 text-xs font-mono rounded focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100">
                         <option value="男">男</option>
                         <option value="女">女</option>
                         <option value="未知">未知</option>
@@ -1577,7 +1434,7 @@
                 <button id="cg-back" style="visibility:hidden" class="px-4 py-2.5 rounded border hairline-border text-zinc-300 font-mono text-xs hover:border-emerald-500/40 hover:text-emerald-300 transition-all">
                     <i class="fas fa-arrow-left text-[10px]"></i> 上一步
                 </button>
-                <button id="cg-submit" class="bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover:shadow-[0_8px_20px_-8px_rgba(16,185,129,0.5)] rounded font-bold">
+                <button id="cg-submit" class="bg-emerald-500/20 border border-emerald-500 text-emerald-200 px-6 py-2.5 font-mono text-xs hover:bg-emerald-500/30 transition-all hover:-translate-y-px hover-glow-accent-strong rounded font-bold">
                     下一步
                 </button>
             </div>
@@ -1845,7 +1702,7 @@
                 <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite"></div>
                 <div class="flex gap-2 items-center">
                     <div class="relative flex-1">
-                        <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition text-zinc-100 placeholder-zinc-500 rounded">
+                        <input type="text" data-action-input placeholder="> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）..." class="w-full bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded">
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
                     <button data-send-custom class="bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
@@ -1888,7 +1745,7 @@
                 <div class="pt-2 hairline-t">
                     <label class="text-zinc-300 block mb-1">輸入 Session ID 讀取存檔</label>
                     <div class="flex gap-2">
-                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition font-mono">
+                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition font-mono">
                         <button onclick="handleResumeFromModal()" class="px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px">讀取</button>
                     </div>
                 </div>
@@ -1949,7 +1806,7 @@
             <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
                 <div>
                     <label class="text-zinc-300 block mb-1">介面色彩主題</label>
-                    <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                    <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <option value="dark">夜色 · 生存檔案（Archive Night）</option>
                         <option value="light">白頁 · 邀請檔案（Invitation Paper）</option>
                     </select>
@@ -1959,7 +1816,7 @@
                     <!-- 這幾個 value 必須跟 content/narrativeStyle.js 的 STYLE_PROFILES 的 key 一字不差：
                          後端查不到就直接回 400、整個回合不會有敘事也不會有選項。
                          (先前這裡列的「熱血漫」「賽博朋克」後端根本沒有，選下去等於讓遊戲停擺) -->
-                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <option value="白描">白描（沉浸冷峻、動詞優先）</option>
                         <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
                         <option value="冷硬寫實">冷硬寫實（軍事／戰術、克制精準）</option>
@@ -1972,7 +1829,7 @@
                     <!-- value 必須跟 content/narrativeStyle.js 的 NARRATOR_PERSONAS 的 key 一字不差，
                          理由同上面的文筆風格：後端查不到就是 400，整個回合停擺。
                          面具管「誰在講這個故事」，文筆管「怎麼寫字」，兩個可以自由搭配。 -->
-                    <select id="setting-persona" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                    <select id="setting-persona" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <option value="RUTHLESS_JUDGE">主神的冷酷裁判（冷酷簡練、強調代價）</option>
                         <option value="GENTLE_GOD">溫柔的異界神明（悲憫旁觀、詠嘆調）</option>
                         <option value="PANIC_SURVIVOR">崩潰的倖存者（神經質、陰影與血）</option>
@@ -1985,7 +1842,7 @@
                     <div>
                         <label class="text-zinc-300 block mb-1">API 設定檔</label>
                         <div class="flex gap-2">
-                            <select id="setting-profile" onchange="onProfileSwitch()" class="flex-1 min-w-0 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition"></select>
+                            <select id="setting-profile" onchange="onProfileSwitch()" class="flex-1 min-w-0 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition"></select>
                             <button onclick="newProfile()" title="新增一組設定檔" class="px-2.5 bg-zinc-800 hover:bg-zinc-700 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-plus text-[11px]"></i></button>
                             <button onclick="deleteProfile()" title="刪除目前這組設定檔" class="px-2.5 bg-zinc-800 hover:bg-red-500/20 hover:border-red-500/50 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-trash text-[11px]"></i></button>
                         </div>
@@ -1993,14 +1850,14 @@
                     </div>
                     <div>
                         <label class="text-zinc-300 block mb-1">設定檔名稱</label>
-                        <input id="setting-profile-name" type="text" placeholder="例：SiliconFlow 免費版" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <input id="setting-profile-name" type="text" placeholder="例：SiliconFlow 免費版" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                     </div>
                     <div>
                         <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
                         <!-- 新增一家OpenAI相容的供應商 = 在這裡加一行 <option>，再到 app.js 的
                              PROVIDER_UI_META 與 content/llm/providers.js 的 PROVIDERS 各加一列資料。
                              後端不需要為任何一家多寫整合邏輯（見 providers.js 檔頭的線路格式說明）。 -->
-                        <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                             <option value="">（使用伺服器預設）</option>
                             <option value="gemini">Google Gemini（官方）</option>
                             <option value="deepseek">DeepSeek（官方）</option>
@@ -2013,22 +1870,22 @@
                     </div>
                     <div id="setting-api-key-row">
                         <label class="text-zinc-300 block mb-1">此供應商的 API Key</label>
-                        <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <p class="text-[10px] text-zinc-500 mt-1">選了供應商才需要填，Cloudflare Workers AI 不需要金鑰。金鑰只存在你瀏覽器的localStorage，只在你送出這把金鑰時才會經由本次請求送到伺服器。</p>
                     </div>
                     <div id="setting-base-url-row">
                         <label class="text-zinc-300 block mb-1">Base URL</label>
-                        <input id="setting-base-url" type="text" placeholder="https://你的服務/v1" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <input id="setting-base-url" type="text" placeholder="https://你的服務/v1" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <p class="text-[10px] text-zinc-500 mt-1">只有「自訂」需要填。要包含 <span class="text-zinc-400">/v1</span>，不要包含 /chat/completions。Azure OpenAI 每個人的資源名稱都不同，沒有共用網址，必須自己填。</p>
                     </div>
                     <div id="setting-model-row">
                         <label class="text-zinc-300 block mb-1">模型名稱（選填）</label>
-                        <input id="setting-model" type="text" placeholder="留空＝用該供應商的預設模型" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <input id="setting-model" type="text" placeholder="留空＝用該供應商的預設模型" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <p id="setting-model-hint" class="text-[10px] text-zinc-500 mt-1"></p>
                     </div>
                     <div id="setting-max-tokens-row">
                         <label class="text-zinc-300 block mb-1">單次回覆長度上限（選填）</label>
-                        <input id="setting-max-tokens" type="number" min="256" step="256" placeholder="留空＝2048" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.15)] transition">
+                        <input id="setting-max-tokens" type="number" min="256" step="256" placeholder="留空＝2048" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                         <p class="text-[10px] text-zinc-500 mt-1">敘事寫到一半就斷掉時把這個調大。<span class="text-zinc-400">會思考的模型（例如 Gemini 3 Flash Preview）要調到 8192 以上</span>——思考用掉的 token 也算在這個額度裡，太小的話模型還沒開始寫選項就被切斷。</p>
                     </div>
                 </div>
@@ -2130,6 +1987,9 @@
             portal.style.display = (screen === 'portal') ? 'flex' : 'none';
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';
+            // 建卡與遊戲都發生在副本裡（深色檔案）；回到 portal 則退回第一幕，
+            // 若該玩家已經接受過邀請，revealMainGodSpace('resume') 會馬上再把舞台推到主神空間。
+            document.documentElement.setAttribute('data-stage', screen === 'portal' ? 'invitation' : 'instance');
             replayEnterAnim({ portal, chargen, game }[screen]);
         }
         // =====================================================================
