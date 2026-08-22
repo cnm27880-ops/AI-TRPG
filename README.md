@@ -1,184 +1,187 @@
-# 無限恐怖 TRPG 2.35 —— 核心引擎
+# 無限恐怖 TRPG 2.35 —— AI 文字遊戲與核心規則引擎
 
-依照你的規則書(`rules2.35.txt`)實作、並且用書中自帶的範例反向驗證過的「純運算」核心引擎。
-不含任何 AI/LLM 呼叫——這是刻意的：AI 只負責讀這個引擎吐出的結果去做敘事判斷，
-所有骰子、成功數、生命值轉換、經驗值花費、劇情獎勵倍率全部是這裡的程式碼在算，AI 不做任何算術。
+這個專案將《無限恐怖》2.35 規則整理成可測試的純運算核心，並在其上提供 AI 敘事、Cloudflare Pages Functions API 與單頁文字遊戲介面。**骰子、成功數、生命值轉換、經驗值、商店價格與戰鬥結果由程式碼計算；AI 只負責依照引擎結果產生敘事與下一輪選項。**
 
-**這個 repo 現在有兩份文件，用途不同：**
+> **文件對照基準：** `main` 分支，commit `bb4fa9d`（2026-08-22）。README 的測試數量、目錄與功能描述應以目前工作樹為準；規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
 
-- `ARCHITECTURE.md` —— **給接手這個專案的下一個人(或下一個AI，例如未來的 Claude Code)看的**。
-  記錄了目前為止所有你做過的關鍵決策、最高原則、每個模組的用途、Phase進度。
-  之後要轉移到 GitHub 交給 Claude Code 接手，**請先讓它讀這份文件**，不用再重新解釋一次背景。
-- `README.md`(這份) —— 一般說明，怎麼跑測試、目錄結構長什麼樣。
+## 專案定位
+
+專案分成三層。`core/` 是不依賴 AI、內容包或 Cloudflare 的規則引擎；`content/` 是副本、建卡、商店、LLM、登入與存檔等可替換內容／服務層；`functions/api/` 與 `public/` 則把這些能力接成 Cloudflare Pages 上可使用的 API 與瀏覽器遊戲。
+
+前端不重新計算規則數值。它只負責讀取 API 回應、呈現角色卡與故事流、發送玩家行動，以及在戰鬥、商店、型態、休息、日誌與存檔功能之間切換。這個分工是專案最重要的邊界：**任何必須與規則一致的數字，都應由引擎或 API 回傳。**
+
+## 快速開始
+
+先安裝 Node.js 與 npm，再在專案根目錄執行：
+
+```bash
+npm install
+npm test
+```
+
+目前測試套件共有 **56 個測試檔案、772 個測試案例**，正常結果應為 `# pass 772`、`# fail 0`。
+
+若要重新產生前端使用的 Tailwind 靜態 CSS，執行：
+
+```bash
+npm run build:css
+```
+
+開發期間可使用監看模式：
+
+```bash
+npm run watch:css
+```
+
+若要在本機同時預覽 `public/` 與 `functions/`，應使用 Cloudflare Pages 的本機開發伺服器。Wrangler 目前不是 `package.json` 的固定依賴，因此第一次使用時先安裝到本專案：
+
+```bash
+npm install -D wrangler
+npx wrangler pages dev
+```
+
+部署前請先閱讀 `DEPLOYMENT.md`，因為 Cloudflare 帳號、KV namespace、AI binding、登入密鑰與外部 LLM 金鑰都需要在使用者自己的環境設定。
+
+可用的 npm scripts 如下：
+
+| 指令 | 用途 |
+|---|---|
+| `npm test` | 執行 Node 內建測試跑者的全部測試 |
+| `npm run build:css` | 由 `src/tailwind.css` 產生 `public/tailwind.css` |
+| `npm run watch:css` | 監看 CSS 來源並持續產生靜態 CSS |
+| `npm run deploy` | 執行 `wrangler pages deploy`；正式部署前請先完成 Cloudflare 設定 |
 
 ## 目錄結構
 
-```
-core/               核心規則引擎(跟哪個資源包/副本包無關，永遠會用到的底層規則)
-  schema.js         九維屬性、三大分類技能表、空白人物卡骨架
-  dice.js           骰池判定引擎(D10、加骰、機運骰、傳奇屬性/技能附加成功、DC比較)
-  health.js         生命值傷勢引擎(完好/衝擊B/嚴重L/惡性A 四階層疊轉換)
-  xp.js             建卡/成長XP花費公式(屬性/技能/專業/專長)
-  check.js          「組一次判定」的組裝層，串起屬性+技能+專業+傳奇加值，回傳完整結果
-  campaignXp.js     跑團後的經驗值發放(固定分配/動態分配兩種公式，含RP精彩度獎勵)
-  narration.js      敘事結果分級契約——把骰子margin轉成固定的敘事語氣指令，AI不能自己判斷贏得多漂亮
-  deathAndRevival.js 死亡判定與復活費用公式(書中「特殊兌換」機制+使用者決定的簡化版門檻)
-  eventLog.js       append-only事件日誌，「角色日誌回顧」功能的資料層
-  legendaryAttributes.js 九個屬性的傳奇效果總表(檢定附加成功/防御/傷害上限/先攻/XP紅利/重骰等)
-  character.js      戰鬥用角色檔案資料形狀(emptyCombatProfile)，橋接屬性/技能與combat/模組
-  derivedStats.js   衍生屬性：生命值=耐力+體積、意志值=決心+沉著+傳奇決心+傳奇沉著、
-                     先攻=敏捷+沉著、基礎防御=min(敏捷,感知)、敏感範圍=感知×10米
+```text
+core/                       純規則運算核心，不呼叫 AI
+  schema.js                 九維屬性、技能表與角色骨架
+  dice.js                   D10 骰池、加骰、機運骰、DC 與傳奇附加成功
+  check.js                  屬性、技能、專業與傳奇加值的判定組裝層
+  health.js                 完好／衝擊 B／嚴重 L／惡性 A 傷勢轉換
+  derivedStats.js           生命、意志、先攻、基礎防禦等衍生數值
+  xp.js                     建卡與成長的 XP 花費
+  campaignXp.js             跑團後經驗值與 RP 表現獎勵
+  narration.js              將判定 margin 轉為固定敘事結果契約
+  deathAndRevival.js        死亡與復活費用
+  eventLog.js               append-only 事件日誌
+  legendaryAttributes.js    傳奇屬性與附加成功規則
+  energyPools.js            能量池與相關資源
+  rest.js                   休息與恢復規則
+  character.js              戰鬥角色檔案形狀
+  combat/                   先攻、防禦、攻擊、護甲、行動經濟與完整攻擊流程
 
-content/            內容包(plug-and-play)系統，血統/瞳術/副本/契約都走同一套機制
-  templates.js      [規則書]「資源模板」的DCBA分級定價表(血統/改造/瞳術/稱號流派/技藝/法術)
-  loader.js         內容包結構驗證、跨包撞名偵測、拿模板稽核實際資源條目的價格是否合理
-  affection.js      NPC好感度分級表與判定加值(草案，數值待使用者確認)
-  packs/
-    example-bloodline-wolverine.json   血統包範例(金剛狼)，含真實抓到的定價落差案例
-    example-scenario-judge1.json       副本包範例(審判者1，3個劇情節點)
-    example-contract-placeholder.json  契約包骨架範例(數值全部留白)
-    d-tier-samples-*.json              7個資源分類(血統/改造/瞳術/稱號/流派/技藝/法術)各3個D級
-                                        真實條目，直接從rules2.35.txt摘錄轉換(不是自編內容)，
-                                        供建卡流程測試時選用，含3組真實發現的定價落差，見ARCHITECTURE.md
-  checkIntent.js  [設計] 玩家自然語言行動 -> 檢定參數(屬性/技能/專業)的對照層。放在引擎層而不是
-                   前端的理由見檔頭註解：「這個行動該擲什麼」是規則決定，必須有測試蓋住
-  narrativeStyle.js [設計] 文筆風格層。跟「規則契約層」刻意分開的第二層系統提示，
-                   換文筆永遠碰不到規則，見 LLM_PROVIDERS.md 與檔頭註解
-  characterBuilder.js [設計] 建卡組裝層：把四個預算驗證器 + 衍生屬性串成「驗證並組出一張合法角色卡」
-  storage/
-    sessionStore.js [設計] 存檔層(Cloudflare KV，無binding時退到記憶體版並標記persistent:false)。
-                     存檔含 角色卡/事件日誌/最近幾輪敘事/場景，AI的記憶就是從這裡讀的
-  turnOptions.js  [規則書授權+設計] 回合選項系統。AI為每個選項挑「屬性+技能」組合
-                   (規則書第686~686行明文把這件事指派給ST)，難度只能從五級量表挑，
-                   引擎逐項查驗後才採用——技能名不在規則書技能表裡就不算數
-  llm/
-    providers.js  [設計] LLM供應商註冊表(Gemini/DeepSeek/OpenRouter/Workers AI/任意OpenAI相容中轉)
-    client.js     [設計] 統一呼叫層，市面上的API其實只有兩種線路格式，這裡各實作一份
-  scenario/
-    schema.js       副本包的章節/節點結構驗證(含選填的timeLimitRounds時間預算欄位)
-    divergence.js   劇情扭轉度系統——0~4級分級表、獎勵倍率、難度加值、進度條彙總計算
-    timeBudget.js   劇情時間預算——主線推進與NPC好感度養成共用同一筆倒數時間池
-  contracts/
-    schema.js       主神商店奴隸/員工契約包的結構驗證(骨架，數值留白)
+content/                    可替換內容與服務層
+  characterBuilder.js       建卡組裝與預算驗證
+  chargen/                  人生路徑、甦醒、點數分配、重塑與美德／惡德
+  turnOptions.js             AI 選項查驗與保底選項
+  checkIntent.js             自然語言行動到檢定參數的對照層
+  narrativeStyle.js          說書人文筆與人格設定
+  scenario/                  副本註冊、節點、進度、迫近度、時間預算與結算
+  combat/                    遭遇狀態與目前的單敵人戰鬥內容
+  shop/                      商店目錄、價格、錢包、購買、型態與存取規則
+  contracts/                 契約內容包結構
+  auth/                      Google OIDC、登入票、所有權與匿名存檔認領
+  storage/                   Cloudflare KV 存檔與無 binding 時的記憶體 fallback
+  llm/                       LLM 供應商註冊與統一呼叫層
+  gemini/                    Gemini 整合與敘事 prompt contract
+  packs/                     副本、資源、商店與範例內容包
 
-core/combat/        戰鬥引擎(Phase 2)，只做「引擎本身」，不含任何怪物/武器實際資料
-  turnOrder.js      先攻排序(1d10+先攻值)，同分時沉著->敏捷->玩家/隨機決定
-  defense.js        四層防御值組裝(基礎/閃避/洞察/格擋)+盔甲/天生防御+防御附加成功
-  attackTypes.js    七種攻擊方式(肉搏/白刃/投擲輕/投擲重/弓箭/槍械/炮)的DP與傷害上限公式表
-  attack.js         命中判定核心：目標防御扣減攻擊方DP -> 原始成功數vs防御附加成功數決定命中
-                     -> 命中後總成功數(封頂)當傷害
-  actionEconomy.js  自由/迅捷/移動/標準/整輪/全回合/反射/專注的額度追蹤與轉化鏈
-  damageTypes.js    物理/能量/精神/力場/毒素/墜落六大類傷害的8步驟減免流程(免疫->忽略->硬度->
-                     吸收->轉化->抗力/減免->抵消)
-  resolveCombatAction.js 把攻擊判定+傷害減免+生命值扣減接成一次完整攻擊行動
+functions/api/               Cloudflare Pages Functions API
+  auth/login.js              啟動 Google 登入
+  auth/callback.js           Google 登入回呼
+  auth/logout.js             登出
+  auth/me.js                 查詢登入狀態
+  character.js               取得建卡規則並驗證建卡
+  check.js                   執行單次判定
+  turn.js                    主遊戲回合：讀檔、查驗、擲骰、敘事、產生選項、寫回
+  narrate.js                 判定與敘事，不產生下一輪選項
+  session.js                 建立、讀取、刪除與列出存檔
+  journal.js                 讀取事件日誌摘要
+  scenario.js                副本與節點相關資料
+  rest.js                    休息與恢復
+  revive.js                  復活
+  shop.js                    商店貨架與購買
+  forms.js                   型態／資源啟動
+  combat/start.js            開始遭遇戰
+  combat/act.js              執行戰鬥回合行動
+  combat/resolve.js          執行完整攻擊行動
 
-functions/api/       Cloudflare Pages Functions範例端點，直接呼叫上面的引擎(見DEPLOYMENT.md)
-  turn.js             POST /api/turn —— **遊戲主迴圈**：讀存檔->查驗選項->擲骰->帶記憶敘事->
-                       產生下一輪4個選項->寫回存檔
-  session.js          /api/session —— 存檔的建立/讀取/刪除/列表
-  character.js        /api/character —— GET拿建卡規則常數、POST驗證建卡草稿並組出角色卡
-  check.js            POST /api/check —— 只跑一次判定(給params，或只給playerAction讓引擎推導)
-  combat/resolve.js   POST /api/combat/resolve —— 跑一次完整攻擊行動
-  narrate.js          POST /api/narrate —— 只要判定+敘事、不要選項時用這個
-wrangler.toml         Cloudflare Pages設定骨架
+public/                      Cloudflare Pages 靜態資源
+  index.html                 單頁遊戲介面、建卡、角色 HUD、故事流與戰鬥面板
+  app.js                     前端應用層與 API 呼叫，不做規則運算
+  tailwind.css               預先編譯的靜態 CSS
+  manifest.webmanifest       PWA 安裝資訊
+  sw.js                      Service Worker
 
-public/              前端UI(Cloudflare Pages的靜態資源根目錄，`pages_build_output_dir`指向這裡)
-  index.html          單頁UI：建卡畫面/角色HUD/敘事流/行動主控台/骰子動畫/手機抽屜
-  app.js              應用層：渲染角色卡、呼叫/api/*、把引擎算出的結果畫成敘事區塊
-                       **不做任何規則運算**，數字一律來自後端
-
-test/                198個測試，node內建測試跑者，`node --test` 全跑
-  engine.test.js, health.test.js, statistics.test.js, invariants.test.js, integration.test.js
-  campaignXp.test.js, narration.test.js, loader.test.js, divergence.test.js
-  eventLog.test.js, deathAndRevival.test.js, affection.test.js, timeBudget.test.js, contracts.test.js
-  turnOrder.test.js, defense.test.js, attackTypes.test.js, attack.test.js, legendaryAttributes.test.js
-  actionEconomy.test.js, damageTypes.test.js, resolveCombatAction.test.js, characterBuilder.test.js
-  gemini.test.js
-
-TEST_PLAN.md         規則條文 → 程式碼 → 驗證方式 → 狀態 的對照表，每加新模組就加新的一列
-ARCHITECTURE.md       給接手者看的架構總覽與決策紀錄(見上)
-RULES_DIGEST.md       規則精要單頁參考：實際數值/公式速查表，不用翻 rules-2.35.txt 全文；
-                       文末附「想找模組去哪查」快速索引
-CONVERSION_RULES.md   **要把型錄條目變成商店商品的人，先讀這份**。上半部是轉換規則(硬性/判斷
-                       兩種強度)，下半部是「目前的簡化規則總表」分門別類，告訴你哪些機制存在、
-                       哪些不存在，所以哪些原文特性接得上、哪些一定要丟掉
-RULES_TRIM.md         rules-2.35.txt 的精簡紀錄：哪些頁面因為「已經簡化完成」而被刪掉、
-                       刪掉的內容現在住在哪、以及**行號怎麼對**(重要，動到行號引用前先讀)
-DEPLOYMENT.md         Cloudflare Pages部署步驟(給你自己看的操作手冊，不是給接手AI看的架構文件)
-GEMINI_INTEGRATION.md Gemini API金鑰申請與串接步驟(同上)
-LLM_PROVIDERS.md      怎麼切換敘事AI(Gemini/DeepSeek/OpenRouter/免金鑰的Workers AI/第三方中轉)
-                       與文筆設定檔的用法，含各家端點的查證日期與出處
+src/tailwind.css             Tailwind CSS 輸入來源
+test/                        56 個測試檔案，共 772 個測試案例
+rules-2.35.txt               原始規則書資料
+wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 ```
 
-## 已對照規則書驗證的部分
+## 目前的玩家流程
 
-- **生命值傷勢範例**：規則書「生命.htm」裡有一段完整的逐步計算範例(20點生命的角色一路挨打到
-  0完好+0B+14L+6A)，`test/health.test.js` 把這個範例完整重現，代表 B/L/A 三種傷害各自的轉換優先順序
-  (包含「A傷可以跳過L直接把B轉A」這個容易漏掉的細節)都是對的。
-- **傳奇屬性公式**：n = floor((屬性值-1)/5)，用規則書裡屬性11→2點、16→3點的範例驗證。
-- **技能附加成功門檻**：5/10/11/13/15，最多5個。
-- **XP花費公式**：屬性 目前值×4、技能 (目前等級-1)×2(0→1固定3)、專業固定1、專長 等級×3(輪回隊×6)。
-- **附加成功規則**：擲骰成功數為0時附加成功不生效；但技能為0導致的「損失1/2成功數」是獨立的扣減，
-  即使擲骰成功數是0也照樣扣(這是規則書原文兩條不同的規則，容易搞混，已分開處理)。
-- **跑團後經驗值發放**：固定分配(基礎10 + 逐項RP/表現獎勵)與動態分配(五段式公式)都對照書中範例驗證過，
-  固定分配是目前單人遊戲的主要路徑，也是「RP精彩度獎勵」的落地機制。
-- **資源模板稽核**：拿真實條目(金剛狼血統)實測 `auditAgainstTemplate`，**實測抓到書中D級定價(500)
-  與目前血統模板(600)不符**，證實你提醒過的「舊資源亂寫」現象確實存在，也證明稽核工具真的有用——
-  這就是未來把500+頁資源型錄轉成JSON時要用的檢查機制。
-- **死亡與復活公式**：規則書「特殊兌換」章節本來就有完整的復活機制，用書中範例(D+1000未花+D+600
-  血統+3000屬性=DD+4600)驗證過公式無誤；已依你的決定拿掉「第二次復活需要特定劇情道具」的門檻，
-  兩次復活都直接照公式收費，額度用完第三次死亡就是真死。
-- **完整攻擊行動接線**：`resolveCombatAction()` 把命中判定、傷害減免、生命值扣減三個先前分開驗證
-  過的模組實際串起來，用「空手空防具」的角色骨架(`core/character.js`)就能跑完整套流程，不用等
-  Phase 3真實裝備資料。
-- **建卡點數預算驗證**：用規則書「羅蘭」完整建卡範例反向驗證，屬性總花費(9點)、技能總花費(20點)、
-  免費專業(3個)、專長點數(5點)、語言專長點數(智力×2)全部精確對上範例數字。
-- **7個資源分類各3個D級真實條目**：直接從500+頁資源型錄摘錄(不是自編)，用`auditAgainstTemplate`
-  稽核，**抓到3組真實的定價落差**：改造類3個D級範例書中原文都是D+1000，模板規定應為500；
-  技藝類「太玄鑲華劍譜」書中D+600，模板規定500；法術類「阿尼馬格斯」書中D+1000，模板規定500——
-  再次印證你提醒過的「舊資源常常沒跟上模板」，數字保留原始寫法不覆蓋，落差留給稽核工具呈現。
+前端目前提供從邀請頁、建卡、主神空間到副本回合的完整主路徑。玩家可以建立角色、進行人生路徑問答與肉體重塑，建立存檔後進入回合循環；每輪由 API 回傳最多四個經過查驗的選項，玩家也可以輸入第五種自訂行動。
 
-完整的驗證方式(📖書內範例/🧮數學推導/🔧內部一致性)與每一條規則的狀態，請看 `TEST_PLAN.md`。
+遊戲主畫面包含角色 HUD、任務與副本狀態、故事流、決策卡、休息、存檔、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板。故事流支援「全部／敘事／事件」檢視、回合分隔與回到最新位置；寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
 
-## 怎麼跑測試
+登入不是遊戲的必要條件。未登入時可以使用匿名存檔；登入後，新存檔會綁定帳號，既有的瀏覽器匿名存檔也會在登入後嘗試認領。存檔、登入與 KV 的詳細取捨請看 `DEPLOYMENT.md` 與 `ARCHITECTURE.md`。
 
-```bash
-node --test
-```
+## 已對照規則書或引擎契約驗證的部分
 
-目前 312 個測試，全部通過。
+下列項目已透過書中範例、數學推導、模組不變量或整合測試驗證：
 
-## `[規則書]` 與 `[設計]` 標記
+| 領域 | 已驗證內容 |
+|---|---|
+| 骰池與判定 | D10 骰池、成功數、DC 比較、機運骰、傳奇屬性／技能附加成功與未受訓扣減 |
+| 生命與傷勢 | 完好、衝擊 B、嚴重 L、惡性 A 的轉換順序與書中 20 點生命範例 |
+| 衍生數值 | 生命、意志、先攻、基礎防禦、敏感範圍與傳奇效果 |
+| XP 與建卡 | 屬性、技能、專業、專長、語言與重塑預算驗證，包括書中角色建卡範例 |
+| 敘事契約 | 判定 margin 到固定敘事方向的分級，避免 AI 自己改判定結果 |
+| 選項查驗 | 屬性／技能／難度／DC、純敘事選項、保底選項與回合輸出 schema |
+| 劇本狀態 | 副本節點、進度、迫近度、時間預算、重複行動與結算 |
+| 戰鬥 | 先攻、防禦、攻擊類型、護甲、行動經濟、傷害減免與完整攻擊流程 |
+| 內容包 | 結構驗證、跨包撞名、資源模板稽核、商店目錄與價格檢查 |
+| API 與服務 | session、journal、shop、forms、rest、auth、scenario、combat 與 LLM 整合路徑的測試 |
 
-看程式碼註解時會看到這兩種標記：
+完整的「規則條文／程式碼／驗證方式／狀態」對照請看 `TEST_PLAN.md`；目前所有自動化測試均通過。
 
-- `[規則書]`：直接來自 `rules2.35.txt` 的規則，可以在書裡找到出處。
-- `[設計]`：規則書沒有的東西，是這次開發過程中為了滿足你的需求(內容包架構、劇情扭轉度、
-  敘事分級契約)新設計的機制，數值(倍率/門檻)都是草案，可以之後再調整，但**調整方式是改表格常數，
-  不是讓AI自己決定**。
+## 測試與開發約定
 
-## 這一版刻意「還沒做」的部分
+修改規則時，應先確認數值的唯一來源，再同步更新對應測試；不要在前端、AI prompt 或內容包中複製一份未受測試保護的公式。修改前端 class 或 HTML 後，若涉及 Tailwind utility，請執行 `npm run build:css` 並把產生的 `public/tailwind.css` 一起檢查。
 
-- 500+ 頁血統/技能樹/道具型錄的批量轉換(資源模板 → JSON 的轉換工具/腳本本身)。
-- 戰鬥引擎的命中判定、行動經濟、傷害減免、完整攻擊行動接線都做了(見 `core/combat/`)，但全力
-  一擊/衝鋒等進階戰鬥動作、範圍攻擊(AoE)、混合傷害類型、不良狀態(暈眩/流血等)、載具戰鬥都還沒做。
-- 建卡走 `content/characterBuilder.js` 的輕量化版本(6屬性/10技能)。原始規則書的完整版曾實作於
-  `core/characterCreation.js`，因為只維護單一建卡路徑已移除，內容保留在 git 歷史，見 `ARCHITECTURE.md`。
-- Cloudflare Pages 部署骨架、Gemini 敘事整合骨架都做了(`wrangler.toml`/`functions/api/`/
-  `content/gemini/`)，**但沒有實際部署過、沒有實際打過Gemini的API**(這個開發環境沒有帳號/金鑰/
-  網路)，你拿到後要自己走一次 `DEPLOYMENT.md`/`GEMINI_INTEGRATION.md` 才能確認真的接得上。
-- 前端UI已經接上引擎(`public/`)：建卡→存檔→回合迴圈(AI給4個選項+第5種自訂行動)→重整後接續
-  都可以跑了，AI也有記憶(最近8輪敘事+完整事件日誌摘要)。仍缺：
-  劇本節點推進、戰鬥介面(`/api/combat/resolve` 還沒有任何UI在呼叫)、XP升級介面、
-  資源包套用到角色身上、NPC好感度。
-  另外UI目前依賴Tailwind Play CDN，官方明講那不是給正式環境用的，見下方說明。
+新增 API 時，應先確認它呼叫的核心模組是否已有測試，再補上端點輸入、錯誤與存檔狀態的測試。新增 LLM 供應商時，請同步檢查 `content/llm/providers.js`、`content/llm/client.js`、設定介面、`LLM_PROVIDERS.md` 與相關測試。
 
-這些都记录在 `ARCHITECTURE.md` 的 Phase 進度表裡，不是遺漏，是刻意分期。
+程式碼註解中的 `[規則書]` 表示直接來自 `rules-2.35.txt` 的規則；`[設計]` 表示為本專案需求新增的機制。設計數值可以調整，但應修改集中式常數或表格並補測試，不應讓 AI 自己決定。
 
-## AI 在這個架構裡的角色(照你的設計)
+## 目前刻意保留的未完成範圍
 
-AI(未來會是 Gemini)只會收到這個引擎算好的結果，例如：
-「玩家用 力量8+白刃3 對 DC5 做攻擊判定，骰出3個成功+1個傳奇力量附加成功=4，總成功數4 ≥ DC5？不，判定失敗。」
-`core/narration.js` 會把這個結果轉成固定的敘事語氣指令(例如「些微失敗」對應的固定敘事方向)，
-AI 要做的事只是把這個結果變成一段有畫面的敘事文字，**不需要、也不被允許自己編數字或自己判斷這次表現有多好**——
-這是為了防止玩家用話術引導AI(自稱很厲害但骰子其實慘敗)。
+本專案仍在分期開發，以下內容不是 README 遺漏，而是目前明確保留的工作：
+
+- 500+ 頁資源型錄的全面批量轉換工具，以及更完整的血統、技能樹與道具資料。
+- 戰鬥的進階動作、範圍攻擊、混合傷害、不良狀態、載具與多敵人內容仍需擴充；目前的戰鬥 UI 與單敵人 MVP 不代表完整戰鬥內容已完成。
+- 建卡目前使用輕量化的角色建立路徑；完整規則書建卡模型與遊戲內 XP 升級流程仍需視產品方向補齊。
+- 資源包套用、NPC 好感度的完整遊戲流程，以及更完整的副本內容包仍在擴充；部分規則模組與 API 骨架已存在，但不代表所有玩家流程都已接上。
+- Cloudflare Pages 正式部署、KV binding、Google 登入與各家 LLM 供應商的實際連線，仍必須在使用者自己的帳號、網域與金鑰環境驗證。Repository 內的 `wrangler.toml` 與相關文件是部署骨架與操作指南，不是本地測試已完成的部署證明。
+
+## 重要文件
+
+| 文件 | 用途 |
+|---|---|
+| `ARCHITECTURE.md` | 給接手開發者或 Claude Code 的架構、設計原則與 Phase 進度 |
+| `TEST_PLAN.md` | 規則條文、程式模組、驗證方式與目前狀態的對照 |
+| `RULES_DIGEST.md` | 規則數值與公式的速查表 |
+| `CONVERSION_RULES.md` | 把規則書資源轉成內容包／商店商品時的轉換規則 |
+| `DEPLOYMENT.md` | Cloudflare Pages、KV、AI binding、登入與正式部署步驟 |
+| `GEMINI_INTEGRATION.md` | Gemini 金鑰與整合設定說明 |
+| `LLM_PROVIDERS.md` | Gemini、DeepSeek、OpenRouter、Workers AI 與 OpenAI 相容供應商設定 |
+| `CHANGELOG.md` | 已推送版本的介面變更、測試結果與後續動畫設計提案 |
+| `UI_LAYOUT_REVIEW.md` | 故事流、決策卡與桌面版面設計審查 |
+| `UI_AUDIT_NOTES.md` | UI 實測尺寸、瀏覽器驗證與迭代紀錄 |
+
+## AI 在這個架構裡的角色
+
+AI 會收到引擎已經算好的結果，例如玩家使用某個屬性與技能對指定 DC 進行判定，並取得實際成功數、傷害、迫近度或其他狀態變化。`core/narration.js` 與相關 prompt contract 會把這些結果轉成固定的敘事方向；AI 的工作是把結果寫成有畫面的文字，並依 schema 產生下一輪選項。
+
+AI 不應自行編造骰子、成功數、生命值、獎勵、價格或勝負判定。這個邊界同時保護規則一致性，也讓前端可以把 API 回應直接呈現給玩家，而不必猜測 AI 文字中的數字是否可信。

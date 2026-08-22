@@ -124,6 +124,7 @@ function awakeningStepIndex() {
 
 let portalMode = "invitation";
 let portalTransitionTimer = null;
+let chargenAdvanceTimer = null;
 
 function resetPortalInvitation() {
   window.clearTimeout(portalTransitionTimer);
@@ -143,7 +144,7 @@ function resetPortalInvitation() {
   invitation.removeAttribute("aria-hidden");
   takeover.classList.remove("is-active");
   takeover.setAttribute("aria-hidden", "true");
-  main.classList.remove("is-visible");
+  main.classList.remove("is-visible", "is-resume");
   main.setAttribute("aria-hidden", "true");
   if (acceptButton) {
     acceptButton.disabled = false;
@@ -166,6 +167,7 @@ function finishPortalReveal(reason = "new") {
   invitation.setAttribute("aria-hidden", "true");
   takeover.classList.remove("is-active");
   takeover.setAttribute("aria-hidden", "true");
+  main.classList.toggle("is-resume", reason === "resume");
   main.classList.add("is-visible");
   main.setAttribute("aria-hidden", "false");
 
@@ -236,7 +238,10 @@ function renderChargenStep() {
   awakening.style.display = chargenStep === awakeningStepIndex() ? "" : "none";
   back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
   const activeStep = chargenStep === 0 ? basic : chargenStep <= questions.length ? question : awakening;
-  replayEnterAnim(activeStep);
+  // 題目內容是連續閱讀流程，不要在每次回答後重播整個 section 的進場動畫；
+  // 那會讓題目、選項與背景一起閃一下。基本資料與甦醒仍保留一次性的進場過場。
+  if (activeStep !== question) replayEnterAnim(activeStep);
+  else activeStep.classList.remove("screen-enter");
   document.getElementById("cg-errors").innerHTML = "";
 
   const done = Math.min(chargenStep, total);
@@ -254,9 +259,11 @@ function renderChargenStep() {
     document.getElementById("cg-question-title").textContent = q.title;
     document.getElementById("cg-question-subtitle").textContent = q.subtitle;
     renderQuestionOptions(q);
-    // 選項本身就是「下一步」，所以按鈕只在已經答過這題時才有意義（用來改完之後往前走）
-    submit.textContent = chargenAnswers[q.id] ? "下一步" : "選一個";
+    // 選項本身就是下一步；題目頁不再顯示沒有作用的底部按鈕。
+    submit.style.display = "none";
+    submit.textContent = "";
   } else {
+    submit.style.display = "";
     document.getElementById("cg-step-label").textContent = "甦醒";
     document.getElementById("cg-step-count").textContent = "最終的肉體重塑";
     submit.textContent = "解除防護罩";
@@ -264,6 +271,7 @@ function renderChargenStep() {
 
   submit.disabled = false;
   submit.classList.remove("opacity-40");
+  if (chargenStep === 0) submit.style.display = "";
 }
 
 function renderQuestionOptions(question) {
@@ -275,12 +283,12 @@ function renderQuestionOptions(question) {
       const selected = chosen === o.id;
       return `
       <button data-lifepath-option="${escapeHtml(o.id)}"
-        class="anim-fade-up text-left p-3 rounded border transition-all hover:-translate-y-px ${
+        class="lifepath-option text-left p-3 rounded border transition-all hover:-translate-y-px ${
           selected
             ? "border-emerald-500 bg-emerald-500/10"
             : "hairline-border bg-zinc-950 hover:border-emerald-500/50"
         }" style="animation-delay:${i * 0.04}s">
-        <div class="text-xs font-bold ${selected ? "text-emerald-200" : "text-zinc-100"} leading-snug">
+          <div class="lifepath-option-label text-xs font-bold ${selected ? "text-emerald-200" : "text-zinc-100"} leading-snug">
           ${escapeHtml(o.label)}
         </div>
         <div class="text-[11px] font-mono text-zinc-400 mt-1 leading-snug">${escapeHtml(o.detail)}</div>
@@ -296,10 +304,22 @@ function chooseLifePathOption(optionId) {
   if (!q) return;
 
   chargenAnswers[q.id] = optionId;
-  renderQuestionOptions(q);
-  const selected = document.querySelector(`[data-lifepath-option="${CSS.escape(optionId)}"]`);
-  selected?.classList.add("lifepath-option-confirmed");
-  setTimeout(() => advanceChargen(), 240); // 讓玩家看得到自己選中的那一格亮起來
+  const container = document.getElementById("cg-question-options");
+  container?.querySelectorAll("[data-lifepath-option]").forEach((button) => {
+    const selected = button.dataset.lifepathOption === optionId;
+    button.classList.toggle("border-emerald-500", selected);
+    button.classList.toggle("bg-emerald-500/10", selected);
+    button.classList.toggle("lifepath-option-selected", selected);
+    button.classList.toggle("hairline-border", !selected);
+    button.classList.toggle("bg-zinc-950", !selected);
+    const label = button.querySelector(".lifepath-option-label");
+    if (label) {
+      label.classList.toggle("text-emerald-200", selected);
+      label.classList.toggle("text-zinc-100", !selected);
+    }
+  });
+  window.clearTimeout(chargenAdvanceTimer);
+  chargenAdvanceTimer = window.setTimeout(() => advanceChargen(), 180);
 }
 
 async function advanceChargen() {
@@ -593,6 +613,8 @@ async function submitChargen() {
     localStorage.setItem(SESSION_KEY, currentSessionId);
     lastThreatStage = null;
     adoptCharacter(res.session.character);
+    document.getElementById("story-feed")?.replaceChildren();
+    syncCurrentStoryFromFeed();
     showScreen("game");
     renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
@@ -608,6 +630,16 @@ function adoptCharacter(charData) {
   currentCharacter = charData;
   document.getElementById("char-name").textContent = charData.concept.name;
   document.getElementById("char-class").textContent = `輪迴者 / XP: ${charData.xp.earned - charData.xp.spent}`;
+
+  // 窄化 rail 只保留玩家最常需要瞄一眼的四個狀態，仍由同一份角色資料驅動。
+  const compactHp = document.getElementById("char-compact-hp");
+  const compactWill = document.getElementById("char-compact-will");
+  const compactDefense = document.getElementById("char-compact-defense");
+  const compactInitiative = document.getElementById("char-compact-initiative");
+  if (compactHp) compactHp.textContent = `${charData.derived.hp.intact}/${charData.derived.hp.max}`;
+  if (compactWill) compactWill.textContent = `${charData.derived.willpower.current}/${charData.derived.willpower.max}`;
+  if (compactDefense) compactDefense.textContent = String(charData.derived.baseDefense);
+  if (compactInitiative) compactInitiative.textContent = String(charData.derived.initiative);
 
   // 渲染生命傷勢軌
   const hp = charData.derived.hp;
@@ -637,9 +669,8 @@ function adoptCharacter(charData) {
           <span class="stat-tile-en">${en}</span>
           <span class="stat-tile-value">${val}${bonusTag}</span>
         </div>
-        <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
           <span class="stat-tile-cn">${key}</span>
-          ${miniMeterHtml(val, ATTRIBUTE_MAX, ATTRIBUTE_BONUS_FLOOR)}
         </div>
       </div>`;
   }).join("");
@@ -655,7 +686,6 @@ function adoptCharacter(charData) {
          style="--lv-pct:${levelPercent(lv, SKILL_MAX)}">
       <span class="text-xs text-zinc-300 truncate">${escapeHtml(skill)}${specText}</span>
       <span class="flex items-center gap-2 shrink-0">
-        ${miniMeterHtml(lv, SKILL_MAX, SKILL_BONUS_FLOOR)}
         <span class="font-mono font-bold text-sm ${lv > 0 ? "text-emerald-300" : "text-zinc-500"}">${lv}</span>
       </span>
     </div>`;
@@ -986,6 +1016,7 @@ function hideNarratorPending() {
     pendingTimer = null;
   }
   document.getElementById("narrator-pending")?.remove();
+  syncCurrentStoryFromFeed();
 }
 
 /**
@@ -1258,7 +1289,7 @@ async function attemptRevive() {
     if (currentCombat) {
       currentCombat = null;
       document.getElementById("combat-panel").style.display = "none";
-      document.getElementById("story-feed").style.display = "flex";
+      document.getElementById("story-current").style.display = "flex";
       document.getElementById("story-action-panel").style.display = "block";
     }
     await runTurn({ opening: true });
@@ -1291,10 +1322,12 @@ function appendTurnError(message, res) {
   block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
     block.remove();
     updateStoryFeedView();
+    syncCurrentStoryFromFeed();
     if (lastTurnRequest) runTurn(lastTurnRequest);
   });
   feed.appendChild(block);
   updateStoryFeedView();
+  syncCurrentStoryFromFeed();
   scrollFeedToBottom();
 }
 
@@ -1367,20 +1400,23 @@ function updateScenarioHud(scenario) {
   renderThreatMeter(scenario.threat);
 
   const badge = document.getElementById("scenario-time-badge");
+  const timeStatus = badge?.querySelector(".mission-time-status");
+  const timeRemaining = badge?.querySelector(".mission-time-remaining");
   const status = scenario.progress?.timeStatus;
   const timeBudget = scenario.progress?.timeBudget;
-  if (status) {
-    let text = `時間：${status}`;
-    // 光寫「充裕/吃緊」玩家沒有實感，直接把剩餘回合數標出來(13/16)化解「沒在跑」的錯覺。
-    if (timeBudget) {
-      const remain = Math.max(0, timeBudget.totalRounds - timeBudget.spentRounds);
-      text += ` (${remain}/${timeBudget.totalRounds})`;
-    }
-    badge.textContent = text;
+  if (badge && status) {
+    const remain = timeBudget
+      ? Math.max(0, timeBudget.totalRounds - timeBudget.spentRounds)
+      : null;
     badge.className = `mission-time-badge border ${TIME_STATUS_STYLE[status] ?? ""}`;
-  } else {
+    if (timeStatus) timeStatus.textContent = status;
+    if (timeRemaining) timeRemaining.textContent = remain === null ? "—" : `${remain}/${timeBudget.totalRounds}`;
+    if (!timeStatus || !timeRemaining) badge.textContent = remain === null ? `時間：${status}` : `時間：${status} (${remain}/${timeBudget.totalRounds})`;
+    badge.title = remain === null ? `時間狀態：${status}` : `剩餘 ${remain} 回合／共 ${timeBudget.totalRounds} 回合`;
+  } else if (badge) {
     badge.textContent = "";
     badge.className = "mission-time-badge";
+    badge.removeAttribute("title");
   }
 
   // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
@@ -1466,7 +1502,7 @@ function renderThreatMeter(threat) {
   box.style.display = "flex";
   box.title = `${threat.name}：${threat.stage} — ${threat.summary ?? ""}`;
   label.textContent = threat.stage;
-  label.className = `mission-metric-value text-[10px] font-bold ${
+  label.className = `mission-metric-value threat-stage-label ${
     tone >= 4 ? "text-red-400" : tone === 3 ? "text-orange-300" : tone === 2 ? "text-yellow-300" : "text-emerald-300"
   }`;
 
@@ -1726,12 +1762,65 @@ function buildFeedEvent(kind, label, content, opts = {}) {
 }
 
 let storyFeedFilter = "all";
+let storyFeedReadingLocked = false;
+let storyFeedUnreadCount = 0;
+let feedJumpingToLatest = false;
+
+function isStoryFeedNearLatest(feed, threshold = 28) {
+  return feed.scrollHeight - feed.clientHeight - feed.scrollTop <= threshold;
+}
+
+function updateStoryFeedReadState() {
+  const feed = document.getElementById("story-feed");
+  const state = document.getElementById("story-feed-read-state");
+  const latest = document.getElementById("story-feed-latest");
+  const latestLabel = document.getElementById("story-feed-latest-label");
+  if (!feed || !state) return;
+
+  const locked = storyFeedReadingLocked;
+  state.classList.toggle("is-locked", locked);
+  const icon = state.querySelector("i");
+  const text = state.querySelector("span");
+  if (icon) icon.className = locked ? "fas fa-lock" : "fas fa-lock-open";
+  if (text) text.textContent = locked ? "閱讀鎖定" : "跟隨最新";
+  feed.classList.toggle("is-reading-locked", locked);
+
+  if (latest) {
+    latest.classList.toggle("is-new", storyFeedUnreadCount > 0);
+    latest.setAttribute("aria-label", storyFeedUnreadCount > 0 ? `跳到故事流最新位置（${storyFeedUnreadCount} 則新內容）` : "跳到故事流最新位置");
+    latest.title = storyFeedUnreadCount > 0 ? `有 ${storyFeedUnreadCount} 則新內容，跳到最新位置` : "跳到最新位置";
+    if (latestLabel) latestLabel.textContent = storyFeedUnreadCount > 0 ? `有新內容 · ${storyFeedUnreadCount}` : "最新";
+  }
+}
+
+function resetStoryFeedReadingState() {
+  storyFeedReadingLocked = false;
+  storyFeedUnreadCount = 0;
+  feedJumpingToLatest = false;
+  updateStoryFeedReadState();
+}
+
+function handleStoryFeedScroll() {
+  const feed = document.getElementById("story-feed");
+  if (!feed) return;
+  const nearLatest = isStoryFeedNearLatest(feed);
+  if (feedJumpingToLatest && nearLatest) {
+    feedJumpingToLatest = false;
+    storyFeedReadingLocked = false;
+    storyFeedUnreadCount = 0;
+  } else if (!feedJumpingToLatest) {
+    storyFeedReadingLocked = !nearLatest;
+    if (!storyFeedReadingLocked) storyFeedUnreadCount = 0;
+  }
+  updateStoryFeedLatestButton();
+  updateStoryFeedReadState();
+}
 
 function updateStoryFeedCount() {
   const feed = document.getElementById("story-feed");
   const count = document.getElementById("story-feed-count");
   if (!feed || !count) return;
-  const total = feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider)").length;
+  const total = feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider):not(#narrator-pending)").length;
   count.textContent = `${total} 則紀錄`;
 }
 
@@ -1740,8 +1829,9 @@ function updateStoryFeedLatestButton() {
   const button = document.getElementById("story-feed-latest");
   if (!feed || !button) return;
   const hasOverflow = feed.scrollHeight - feed.clientHeight > 24;
-  const awayFromLatest = feed.scrollTop < feed.scrollHeight - feed.clientHeight - 24;
-  button.hidden = !(hasOverflow && awayFromLatest);
+  const awayFromLatest = !isStoryFeedNearLatest(feed);
+  button.hidden = !(hasOverflow && (awayFromLatest || storyFeedUnreadCount > 0));
+  updateStoryFeedReadState();
 }
 
 function updateStoryFeedView() {
@@ -1769,6 +1859,26 @@ function setStoryFeedFilter(filter) {
   updateStoryFeedView();
 }
 
+function syncCurrentStoryFromFeed() {
+  const feed = document.getElementById("story-feed");
+  const current = document.getElementById("story-current-content");
+  const count = document.getElementById("story-current-count");
+  if (!feed || !current) return;
+
+  const entries = [...feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider)")];
+  if (count) count.textContent = String(entries.length);
+  const latest = entries.at(-1);
+  if (!latest) {
+    current.innerHTML = `<div class="story-current-empty">等待第一段故事回應……</div>`;
+    return;
+  }
+  const clone = latest.cloneNode(true);
+  clone.removeAttribute("id");
+  clone.classList.remove("feed-block-enter", "is-pending");
+  clone.querySelectorAll("[data-pending-elapsed]").forEach((el) => el.remove());
+  current.replaceChildren(clone);
+}
+
 function appendFeedEvent(kind, label, content, opts = {}) {
   const feed = document.getElementById("story-feed");
   if (!feed) return null;
@@ -1787,7 +1897,9 @@ function appendFeedEvent(kind, label, content, opts = {}) {
 
   const block = buildFeedEvent(kind, label, content, opts);
   feed.appendChild(block);
+  if (storyFeedReadingLocked) storyFeedUnreadCount += 1;
   updateStoryFeedView();
+  syncCurrentStoryFromFeed();
   scrollFeedToBottom();
   return block;
 }
@@ -1805,6 +1917,11 @@ function appendFeedEvent(kind, label, content, opts = {}) {
  */
 let feedScrollQueued = false;
 function scrollFeedToBottom() {
+  if (storyFeedReadingLocked) {
+    updateStoryFeedLatestButton();
+    updateStoryFeedReadState();
+    return;
+  }
   if (feedScrollQueued) return;
   feedScrollQueued = true;
   requestAnimationFrame(() => {
@@ -1812,7 +1929,9 @@ function scrollFeedToBottom() {
     const feed = document.getElementById("story-feed");
     if (feed) {
       feed.scrollTop = feed.scrollHeight;
+      storyFeedUnreadCount = 0;
       updateStoryFeedLatestButton();
+      updateStoryFeedReadState();
     }
   });
 }
@@ -2132,7 +2251,9 @@ async function resumeSession(id) {
   renderPersistenceWarning(res.persistent);
 
   const feed = document.getElementById("story-feed");
+  resetStoryFeedReadingState();
   feed.innerHTML = "";
+  syncCurrentStoryFromFeed();
   (res.session.history || []).forEach(h => {
     if (h.action) appendFeedEvent("action", "", escapeHtml(h.action));
     if (h.narration) appendNarrationBlock(h.narration);
@@ -2185,7 +2306,8 @@ const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
 /** 切換到戰鬥畫面。開新戰鬥與「重整後還原戰鬥」共用同一段，避免兩邊的顯示狀態走鐘。 */
 function enterCombatView() {
   document.getElementById("combat-over-banner").style.display = "none";
-  document.getElementById("story-feed").style.display = "none";
+  closeModal("storyLogModal");
+  document.getElementById("story-current").style.display = "none";
   document.getElementById("story-action-panel").style.display = "none";
   document.getElementById("combat-panel").style.display = "flex";
 }
@@ -2522,7 +2644,7 @@ function endCombat() {
   currentCombat = null;
 
   document.getElementById("combat-panel").style.display = "none";
-  document.getElementById("story-feed").style.display = "flex";
+  document.getElementById("story-current").style.display = "flex";
   document.getElementById("story-action-panel").style.display = "block";
 
   // [2026-08-16 修正] 這裡以前不管輸贏都送「勉強脫身」回主迴圈，於是打到死掉的角色
@@ -2705,42 +2827,39 @@ async function deleteSession(id) {
 }
 
 async function refreshAuthState() {
-  const box = document.getElementById("auth-box");
+  const boxes = [...document.querySelectorAll("#auth-box, [data-auth-box]")];
   try {
     const res = await (await fetch("/api/auth/me")).json();
     if (!res.enabled) {
       // 這個部署沒設定 Google 登入：整塊藏起來，不要給一顆一定會失敗的按鈕。
-      if (box) box.style.display = "none";
+      boxes.forEach((box) => { box.style.display = "none"; });
       return;
     }
-    if (box) box.style.display = "flex";
+    boxes.forEach((box) => { box.style.display = "flex"; });
     currentUser = res.user;
     renderAuthState(res.user);
   } catch (err) {
     console.warn("[AUTH] 查詢登入狀態失敗", err);
-    if (box) box.style.display = "none";
+    boxes.forEach((box) => { box.style.display = "none"; });
   }
 }
 
 function renderAuthState(user) {
-  const loginBtn = document.getElementById("auth-login-btn");
-  const userBox = document.getElementById("auth-user");
-  if (!loginBtn || !userBox) return;
+  const loginButtons = [...document.querySelectorAll("#auth-login-btn, [data-auth-login]")];
+  const userBoxes = [...document.querySelectorAll("#auth-user, [data-auth-user]")];
+  if (!loginButtons.length && !userBoxes.length) return;
 
-  if (!user) {
-    loginBtn.style.display = "";
-    userBox.style.display = "none";
-    return;
-  }
-  loginBtn.style.display = "none";
-  userBox.style.display = "flex";
-  const avatar = document.getElementById("auth-avatar");
-  if (avatar) {
+  loginButtons.forEach((button) => { button.style.display = user ? "none" : ""; });
+  userBoxes.forEach((box) => { box.style.display = user ? "flex" : "none"; });
+  if (!user) return;
+
+  document.querySelectorAll("#auth-avatar, [data-auth-avatar]").forEach((avatar) => {
     if (user.picture) { avatar.src = user.picture; avatar.style.display = ""; }
     else avatar.style.display = "none";
-  }
-  const name = document.getElementById("auth-name");
-  if (name) name.textContent = user.name || user.email || "已登入";
+  });
+  document.querySelectorAll("#auth-name, [data-auth-name]").forEach((name) => {
+    name.textContent = user.name || user.email || "已登入";
+  });
 
   // 登入狀態一變，「我的存檔」就要跟著變。沒有這一步的話，玩家登入後打開存檔管理
   // 還是會看到「請先登入」——因為那塊是上一次的狀態畫的。
@@ -2786,9 +2905,16 @@ function flushLoginNotice() {
 document.addEventListener("DOMContentLoaded", async () => {
   showScreen("portal");
   consumeLoginRedirect();
-  await refreshAuthState();
-  await checkLocalSession();
-  flushLoginNotice();
+  document.documentElement.setAttribute("data-booting", "true");
+  try {
+    await refreshAuthState();
+    await checkLocalSession();
+    flushLoginNotice();
+  } finally {
+    // 有效存檔已在 checkLocalSession() 內直接切到主神空間；
+    // 沒有存檔則在這裡一次揭示邀請頁，避免啟動時先閃出封面再被替換。
+    document.documentElement.removeAttribute("data-booting");
+  }
 
   // --- 建卡精靈 ---
   document.getElementById("cg-submit")?.addEventListener("click", advanceChargen);
@@ -2856,12 +2982,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.querySelectorAll("[data-feed-filter]").forEach((button) => {
     button.addEventListener("click", () => setStoryFeedFilter(button.dataset.feedFilter));
   });
-  document.getElementById("story-feed")?.addEventListener("scroll", updateStoryFeedLatestButton, { passive: true });
+  document.getElementById("story-feed")?.addEventListener("scroll", handleStoryFeedScroll, { passive: true });
   document.getElementById("story-feed-latest")?.addEventListener("click", () => {
     const feed = document.getElementById("story-feed");
     if (!feed) return;
+    feedJumpingToLatest = true;
+    storyFeedReadingLocked = false;
     const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "auto" : "smooth";
     feed.scrollTo({ top: feed.scrollHeight, behavior });
+    window.requestAnimationFrame(() => {
+      storyFeedUnreadCount = 0;
+      handleStoryFeedScroll();
+    });
   });
   updateStoryFeedView();
 
@@ -3215,6 +3347,11 @@ document.addEventListener("click", (e) => {
 window.showScreen = showScreen;
 window.startNewChargen = startNewChargen;
 window.acceptMainGodInvitation = acceptMainGodInvitation;
+window.openStoryLog = () => {
+  if (currentCombat?.active) return;
+  openModal("storyLogModal");
+  requestAnimationFrame(() => updateStoryFeedLatestButton());
+};
 window.revealMainGodSpace = revealMainGodSpace;
 window.resetPortalInvitation = resetPortalInvitation;
 window.resumeLocalSession = resumeLocalSession;

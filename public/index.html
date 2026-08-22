@@ -27,14 +27,18 @@
         (function () {
             var saved = localStorage.getItem('user_theme');
             var theme = saved === 'light' ? 'light' : 'dark';
+            var hudPosition = localStorage.getItem('user_hud_position') === 'left' ? 'left' : 'right';
             var html = document.documentElement;
             html.setAttribute('data-theme', theme);
+            html.setAttribute('data-hud-position', hudPosition);
             html.classList.toggle('light', theme === 'light');
             html.classList.toggle('dark', theme === 'dark');
             // 舞台（data-stage）跟主題是兩件事：主題是玩家的偏好，舞台是劇情所在的位置。
             // 第一幕永遠是紙白的邀請頁，所以在畫任何東西之前就先標上，
             // 不然會先閃一下副本的深色再跳成白色。
             html.setAttribute('data-stage', 'invitation');
+            // 等待登入／存檔檢查完成前先不繪製封面，避免回訪玩家先看到邀請頁再被切走。
+            html.setAttribute('data-booting', 'true');
         })();
     </script>
     <!-- Tailwind：事先編譯好的靜態 CSS（來源 src/tailwind.css，設定見根目錄的 tailwind.config.js）。
@@ -1603,6 +1607,15 @@
             background: rgb(var(--c-accent-base) / .08);
         }
         #story-feed > [hidden] { display: none !important; }
+        #story-feed.is-reading-locked { scroll-behavior: auto; }
+        .story-feed-latest.is-new { color: var(--ink-100); border-color: rgb(var(--c-warn-base) / .55); background: rgb(var(--c-warn-base) / .12); }
+        .story-feed-latest.is-new i { color: var(--warn); }
+        .story-feed-read-state { display: inline-flex; align-items: center; gap: .3rem; color: var(--ink-500); font: .55rem/1 'JetBrains Mono', monospace; }
+        .story-feed-read-state i { color: var(--accent); font-size: .5rem; }
+        .story-feed-read-state.is-locked i { color: var(--warn); }
+        @media (prefers-reduced-motion: reduce) {
+            .story-feed-latest, .story-feed-filter { transition: none !important; }
+        }
 
         @media (max-width: 767px) {
             .story-feed-toolbar { min-height: 2.55rem; padding-inline: 1rem; }
@@ -1612,12 +1625,256 @@
             .decision-card-label { font-size: .8rem; line-height: 1.4; }
             .decision-card-hint { font-size: .7rem; }
         }
+        /* ================= 第三輪：主欄優先／故事紀錄抽屜／亮色可讀性 ================= */
+        #site-header-context { margin-right: auto; }
+        .header-context-mark { color: var(--accent); font-weight: 700; }
+        .header-context-divider { color: var(--line-strong); }
+
+        /* 桌面版把完整時間線收進 modal，主畫面只留最新一則，讓故事正文真正取得主欄高度。 */
+        .story-current-panel { background: rgb(var(--c-surface-0) / .22); }
+        .story-current-toolbar {
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            padding: .7rem clamp(1rem, 3vw, 3.5rem);
+            border-bottom: 1px solid rgb(var(--c-line) / .12);
+            background: rgb(var(--c-surface-1) / .52);
+        }
+        .story-current-kicker { color: var(--ink-100); font: 700 .62rem/1 'JetBrains Mono', monospace; letter-spacing: .18em; }
+        .story-current-caption { margin-top: .28rem; color: var(--ink-500); font: .62rem/1.35 'JetBrains Mono', monospace; }
+        .story-current-count {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 1.2rem; height: 1.2rem;
+            padding-inline: .25rem; border-radius: 999px; background: rgb(var(--c-line) / .1); color: var(--ink-400); font-size: .55rem;
+        }
+        .story-log-open-btn {
+            display: inline-flex; align-items: center; gap: .42rem; flex-shrink: 0;
+            padding: .42rem .62rem; border: 1px solid rgb(var(--c-line) / .24); border-radius: 4px;
+            color: var(--ink-400); background: rgb(var(--c-surface-2) / .62); font: 700 .58rem/1 'JetBrains Mono', monospace;
+            transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+        }
+        .story-log-open-btn:hover, .story-log-open-btn:focus-visible { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-accent-base) / .1); transform: translateY(-1px); }
+        .story-current-content { padding: clamp(1rem, 3vw, 3.5rem); scroll-padding-block: 2rem; }
+        .story-current-content > .feed-event { width: 100%; max-width: 78rem; margin: auto; }
+        .story-current-content .feed-event-content { color: var(--ink-200); font-size: clamp(.98rem, 1.05vw, 1.15rem); line-height: 2.05; }
+        .story-current-content .feed-event-label { font-size: .78rem; }
+        .story-current-content .feed-event-kicker { font-size: .62rem; }
+        .story-current-empty { width: min(100%, 50rem); margin: auto; color: var(--ink-500); font: .9rem/2 'Noto Serif TC', serif; text-align: center; }
+
+        .story-log-panel { display: flex; flex-direction: column; width: min(100%, 64rem); height: min(78vh, 46rem); min-height: 0; max-height: 90vh; overflow: hidden; }
+        .story-log-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.1rem .75rem; border-bottom: 1px solid rgb(var(--c-line) / .12); }
+        .story-log-subtitle { margin-top: .45rem; color: var(--ink-500); font: .62rem/1.45 'JetBrains Mono', monospace; }
+        .story-log-close { flex: 0 0 auto; padding: .35rem .45rem; color: var(--ink-500); font-size: .9rem; transition: color .18s ease, transform .18s ease; }
+        .story-log-close:hover, .story-log-close:focus-visible { color: var(--danger); transform: scale(1.04); }
+        .story-feed-modal-body { min-height: 0; }
+        .story-log-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .65rem 1rem; border-top: 1px solid rgb(var(--c-line) / .12); color: var(--ink-500); font: .58rem/1.4 'JetBrains Mono', monospace; }
+        .story-log-done { flex: 0 0 auto; padding: .38rem .6rem; border: 1px solid rgb(var(--c-line) / .22); border-radius: 4px; color: var(--ink-300); background: rgb(var(--c-line) / .06); font: 700 .58rem/1 'JetBrains Mono', monospace; }
+        .story-log-done:hover, .story-log-done:focus-visible { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); }
+
+        /* 任務目標在桌面左欄成為角色檔案的一部分，主欄不再被一條水平 HUD 壓掉高度。 */
+        .hud-sidebar-objective {
+            flex-direction: column; align-items: stretch; gap: .65rem;
+            padding: .75rem .9rem .85rem; border-top: 1px solid rgb(var(--c-warn-base) / .2);
+        }
+        .hud-sidebar-objective .watch-crown { flex-direction: row; justify-content: flex-start; gap: .48rem; padding: 0; }
+        .hud-sidebar-objective .watch-crown-mark { width: 1.25rem; height: 1.25rem; }
+        .hud-sidebar-objective .watch-crown-label { display: inline; font-size: .52rem; }
+        .hud-sidebar-objective .mission-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .52rem; padding: 0; border-left: 0; }
+        .hud-sidebar-objective .mission-objective-mark { width: 1.4rem; height: 1.4rem; }
+        .hud-sidebar-objective .mission-objective-title { font-size: .76rem; line-height: 1.45; white-space: normal; }
+        .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; width: 100%; }
+        .hud-sidebar-objective .mission-progress-metric, .hud-sidebar-objective .mission-threat-metric { min-width: 0; }
+        .hud-sidebar-objective .mission-progress-track { width: 100%; }
+        .hud-sidebar-objective .mission-time-badge { grid-column: 1 / -1; justify-self: stretch; padding: .35rem .45rem; text-align: center; }
+
+        /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。 */
+        #story-action-panel { padding: .52rem clamp(.75rem, 2vw, 2rem) .62rem; }
+        #story-action-panel .decision-panel-heading { gap: .5rem; }
+        #option-grid { gap: .45rem; }
+        .decision-card { min-height: 4.15rem; padding: .48rem .62rem; }
+        .decision-card-label { font-size: .72rem; line-height: 1.25; }
+        .decision-card-hint { font-size: .62rem; line-height: 1.28; }
+        .decision-card-meta { min-height: .75rem; padding-top: .12rem; font-size: .5rem; }
+        #story-action-panel > .flex:last-child { gap: .45rem; }
+        #story-action-panel input { padding-block: .46rem; }
+        #story-action-panel [data-send-custom] { padding-block: .46rem; padding-inline: 1rem; }
+        @media (min-width: 1100px) and (max-width: 1535px) {
+            #option-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .decision-card { min-height: 4.55rem; }
+        }
+        @media (max-width: 767px) {
+            .story-current-toolbar { padding-inline: 1rem; }
+            .story-current-caption { display: none; }
+            .story-current-content { padding: 1rem; }
+            .story-current-content .feed-event-content { font-size: .94rem; line-height: 1.9; }
+            .story-log-panel { width: 100%; height: min(84vh, 50rem); max-height: 92vh; }
+            .story-log-footer { align-items: flex-start; flex-direction: column; gap: .55rem; }
+            .story-log-done { width: 100%; }
+            .hud-sidebar-objective { gap: .58rem; }
+        }
+
+        /* 明亮主題：初始答題卡、甦醒摘要與屬性條不再沿用深色副本的灰黑面。 */
+        html[data-theme="light"] #cg-question-options button,
+        html[data-theme="light"] #cg-reshape-grid button {
+            background: #ffffff !important; border-color: rgba(37,35,31,.17) !important; color: var(--ink-100);
+            box-shadow: 0 1px 2px rgba(91,82,70,.05);
+        }
+        html[data-theme="light"] #cg-question-options button:hover,
+        html[data-theme="light"] #cg-question-options button:focus-visible,
+        html[data-theme="light"] #cg-question-options button.border-emerald-500,
+        html[data-theme="light"] #cg-reshape-grid button:hover {
+            background: #f5f3ee !important; border-color: rgba(37,35,31,.42) !important;
+        }
+        html[data-theme="light"] #cg-question-options button::after { background: linear-gradient(105deg, transparent 35%, rgba(79,92,76,.07) 50%, transparent 65%); }
+        html[data-theme="light"] #cg-question-options button .text-zinc-100,
+        html[data-theme="light"] #cg-question-options button .text-emerald-200 { color: var(--ink-100) !important; }
+        html[data-theme="light"] #cg-question-options button .text-zinc-400 { color: var(--ink-400) !important; }
+        html[data-theme="light"] #cg-awakening-narration,
+        html[data-theme="light"] #cg-review-background,
+        html[data-theme="light"] #cg-review-tendency { background: #faf9f6 !important; }
+        html[data-theme="light"] .hud-sidebar-objective { background: linear-gradient(90deg, #ffffff, #f7f5ef) !important; border-color: rgba(60,55,47,.18); box-shadow: inset 0 1px 0 rgba(255,255,255,.9); }
+        html[data-theme="light"] .hud-sidebar-objective .mission-objective-mark { background: rgba(140,118,81,.08); border-color: rgba(140,118,81,.32); }
+        html[data-theme="light"] .hud-sidebar-objective .mission-progress-track { background: rgba(60,55,47,.12); border-color: rgba(60,55,47,.18); }
+        html[data-theme="light"] .hud-sidebar-objective .mission-time-badge { background: rgba(194,154,98,.08); }
+        html[data-theme="light"] .stat-tile-rail::before { background: rgba(37,35,31,.16); }
+        html[data-theme="light"] .stat-tile-rail::after { background: #4f594d; box-shadow: none; }
+        html[data-theme="light"] .stat-meter { background: rgba(37,35,31,.13); border: 1px solid rgba(37,35,31,.18); }
+        html[data-theme="light"] .stat-meter-fill { background: linear-gradient(90deg, #465044, #697565); box-shadow: none; }
+        html[data-theme="light"] .stat-meter-fill.stat-meter-legendary { background: linear-gradient(90deg, #9a6b21, #bd8d3c); box-shadow: none; }
+        .stat-meter { width: 4.5rem; height: .42rem; border: 1px solid rgb(var(--c-line) / .16); }
+        html[data-theme="light"] #char-hud .stat-meter { background: rgba(37,35,31,.13) !important; border-color: rgba(37,35,31,.22) !important; }
+        html[data-theme="light"] #char-hud .stat-meter-fill { background: #4f594d !important; }
+
+        /* 初始題目是連續閱讀，不要在選項點擊後重新播放整個問題區的淡入動畫。 */
+        #cg-question-options button, .lifepath-option-selected { animation: none !important; }
+        html[data-booting="true"] #site-header, html[data-booting="true"] #portal-screen { visibility: hidden; }
+        .portal-main-content.is-visible.is-resume,
+        .portal-main-content.is-visible.is-resume > * { animation: none !important; opacity: 1 !important; filter: none !important; }
+        @media (prefers-reduced-motion: reduce) {
+            .story-log-open-btn, .story-log-close, .story-log-done { transition: none !important; }
+        }
+
+        /* 遊戲畫面頂端只保留輕量上下文；四顆功能按鈕不再佔據一整條厚重空白。 */
+        body.is-game-screen #site-header { min-height: 2.7rem; height: 2.7rem; padding-block: .25rem; }
+        body.is-game-screen #site-header-context { display: flex; }
+        body.is-game-screen #site-header > .flex:last-child { margin-left: auto; }
+        body.is-game-screen #site-header button { padding-block: .28rem; }
+        body.is-game-screen .scene-bar-tint { padding-block: .38rem; }
+        body.is-game-screen .scene-bar-tint > div:last-child { gap: .45rem; }
+        @media (max-width: 767px) {
+            body.is-game-screen #site-header { height: auto; min-height: 2.7rem; }
+            body.is-game-screen #site-header-context { display: none; }
+        }
+
+        /* ================= 第四輪：系統工具 dock／角色欄停靠 ================= */
+        body.is-game-screen #site-header { display: none; }
+        .system-tool-dock { display: none; }
+        body.is-game-screen .system-tool-dock {
+            display: block;
+            position: fixed; left: max(.75rem, env(safe-area-inset-left, 0px)); bottom: max(.75rem, env(safe-area-inset-bottom, 0px));
+            z-index: 35; color: var(--ink-400); font-family: 'JetBrains Mono', monospace;
+        }
+        .system-tool-dock > summary {
+            display: inline-flex; align-items: center; gap: .45rem; cursor: pointer; list-style: none;
+            padding: .52rem .65rem; border: 1px solid rgb(var(--c-line) / .25); border-radius: 5px;
+            background: rgb(var(--c-surface-2) / .92); box-shadow: 0 8px 22px rgb(var(--c-shadow) / .2);
+            color: var(--ink-400); font-size: .6rem; font-weight: 700; user-select: none;
+            backdrop-filter: blur(12px); transition: border-color .18s ease, color .18s ease, background .18s ease, transform .18s ease;
+        }
+        .system-tool-dock > summary::-webkit-details-marker { display: none; }
+        .system-tool-dock > summary:hover, .system-tool-dock[open] > summary { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-surface-3) / .98); transform: translateY(-1px); }
+        .system-tool-panel {
+            position: absolute; left: auto; right: 0; bottom: calc(100% + .5rem); width: 14rem; padding: .7rem;
+            border: 1px solid rgb(var(--c-line) / .25); border-radius: 6px; background: rgb(var(--c-surface-2) / .97);
+            box-shadow: 0 16px 38px rgb(var(--c-shadow) / .28); backdrop-filter: blur(16px);
+        }
+        .system-tool-heading { display: flex; align-items: center; justify-content: space-between; padding-bottom: .5rem; border-bottom: 1px solid rgb(var(--c-line) / .13); color: var(--ink-100); font-size: .62rem; font-weight: 700; }
+        .system-tool-heading span { color: var(--ink-500); font-size: .48rem; letter-spacing: .12em; }
+        .system-tool-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .35rem; padding-top: .6rem; }
+        .system-tool-actions button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .28rem; min-height: 3.2rem; padding: .35rem .15rem; border: 1px solid rgb(var(--c-line) / .16); border-radius: 4px; color: var(--ink-400); background: rgb(var(--c-line) / .045); font-size: .52rem; transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease; }
+        .system-tool-actions button i { color: var(--accent); font-size: .72rem; }
+        .system-tool-actions button:hover, .system-tool-actions button:focus-visible { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); background: rgb(var(--c-accent-base) / .1); transform: translateY(-1px); }
+        .system-tool-auth { padding-top: .55rem; }
+        .system-tool-auth > button, .system-tool-user { display: flex; align-items: center; gap: .45rem; width: 100%; padding: .4rem .45rem; border: 1px solid rgb(var(--c-line) / .16); border-radius: 4px; color: var(--ink-400); background: rgb(var(--c-line) / .045); font-size: .55rem; }
+        .system-tool-auth > button:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); }
+        .system-tool-user img { width: 1.2rem; height: 1.2rem; border-radius: 999px; border: 1px solid rgb(var(--c-line) / .28); }
+        .system-tool-user span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .system-tool-user button { padding: .15rem .25rem; color: var(--ink-500); }
+
+        /* 第五輪：齒輪永遠跟角色欄同側；桌面角色欄預設右側，設定可切換左側。 */
+        @media (min-width: 768px) {
+            body.is-game-screen .system-tool-dock { left: auto; right: max(.75rem, env(safe-area-inset-right, 0px)); }
+            html[data-hud-position="left"] body.is-game-screen .system-tool-dock { left: max(.75rem, env(safe-area-inset-left, 0px)); right: auto; }
+            html[data-hud-position="left"] body.is-game-screen .system-tool-panel { left: 0; right: auto; }
+            body.is-game-screen #app-viewport > main { order: 1; }
+            body.is-game-screen #app-viewport > #char-hud { order: 2; border-right: 0; border-left: 1px solid rgb(var(--c-line) / .14); }
+            html[data-hud-position="left"] body.is-game-screen #app-viewport > main { order: 2; }
+            html[data-hud-position="left"] body.is-game-screen #app-viewport > #char-hud { order: 1; border-left: 0; border-right: 1px solid rgb(var(--c-line) / .14); }
+
+            .char-hud-collapse-btn { display: inline-flex; align-items: center; justify-content: center; }
+            #char-hud { transition: width .22s ease, border-color .22s ease; }
+            #char-hud.is-compact { width: 4.65rem !important; }
+            #char-hud.is-compact > .hud-sidebar-objective,
+            #char-hud.is-compact > [role="tablist"],
+            #char-hud.is-compact > .flex-1 { display: none !important; }
+            #char-hud.is-compact .name-plate { padding: .75rem .45rem; }
+            #char-hud.is-compact #char-profile-summary,
+            #char-hud.is-compact #char-class,
+            #char-hud.is-compact .name-plate > .space-y-1,
+            #char-hud.is-compact #char-hud-titlebar > div:last-child > span { display: none; }
+            #char-hud.is-compact #char-hud-titlebar { justify-content: center; }
+            #char-hud.is-compact #char-hud-collapse { display: inline-flex; }
+            #char-hud.is-compact #char-hud-collapse i { transform: rotate(180deg); }
+            .char-hud-compact-mark { display: none; text-align: center; color: var(--accent); font: 700 .6rem/1 'JetBrains Mono', monospace; letter-spacing: .14em; }
+            #char-hud.is-compact .char-hud-compact-mark { display: block; padding-top: .2rem; }
+            .char-hud-compact-stats { display: none; }
+            #char-hud.is-compact .char-hud-compact-stats { display: grid; grid-template-columns: 1fr; gap: .48rem; padding: .7rem .35rem; border-top: 1px solid rgb(var(--c-line) / .13); border-bottom: 1px solid rgb(var(--c-line) / .13); }
+            .char-compact-stat { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .18rem; min-height: 2rem; color: var(--ink-500); font: 700 .48rem/1 'JetBrains Mono', monospace; }
+            .char-compact-stat i { color: var(--accent); font-size: .68rem; }
+            .char-compact-stat strong { color: var(--ink-100); font: 700 .62rem/1 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+            html[data-theme="light"] .char-compact-stat { color: var(--ink-400); }
+            html[data-theme="light"] .char-compact-stat i { color: #586451; }
+            html[data-theme="light"] .char-compact-stat strong { color: var(--ink-100); }
+        }
+
+        /* 任務 HUD 使用明確的卡片分區，不再讓迫近度 pips 與時間 badge 各自漂移。 */
+        .hud-sidebar-objective { display: grid; grid-template-columns: 1fr; gap: .62rem; padding: .7rem .62rem .68rem; border-top: 1px solid rgb(var(--c-line) / .14); border-bottom: 1px solid rgb(var(--c-line) / .14); }
+        .hud-sidebar-objective .watch-crown { display: flex; flex-direction: row; justify-content: flex-start; gap: .42rem; padding: 0; }
+        .hud-sidebar-objective .watch-crown-mark { width: 1.2rem; height: 1.2rem; }
+        .hud-sidebar-objective .watch-crown-label { display: inline; font-size: .48rem; }
+        .hud-sidebar-objective .mission-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .48rem; align-items: center; padding: 0; border-left: 0; }
+        .hud-sidebar-objective .mission-objective-mark { width: 1.32rem; height: 1.32rem; }
+        .hud-sidebar-objective .mission-eyebrow { font-size: .48rem; letter-spacing: .13em; line-height: 1.2; }
+        .hud-sidebar-objective .mission-objective-title { font-size: .72rem; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
+        .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .42rem; width: 100%; align-items: stretch; }
+        .hud-sidebar-objective .mission-metric { min-width: 0; padding: .42rem .42rem .38rem; border: 1px solid rgb(var(--c-line) / .13); border-radius: 4px; background: rgb(var(--c-line) / .035); }
+        .hud-sidebar-objective .mission-metric-header { display: flex; align-items: baseline; justify-content: space-between; gap: .35rem; font-size: .48rem; line-height: 1.2; }
+        .hud-sidebar-objective .mission-metric-value { font-size: .56rem; line-height: 1.2; white-space: nowrap; }
+        .hud-sidebar-objective .mission-progress-track { width: 100%; height: .24rem; margin-top: .34rem; border-radius: 999px; overflow: hidden; }
+        .hud-sidebar-objective .mission-threat-track { display: flex; align-items: center; min-height: .72rem; margin-top: .34rem; overflow: hidden; }
+        .hud-sidebar-objective .mission-threat-pips { display: grid; grid-template-columns: repeat(auto-fit, minmax(.38rem, 1fr)); gap: .2rem; width: 100%; }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip { width: auto; height: .28rem; border-radius: 2px; box-shadow: none; }
+        .hud-sidebar-objective .mission-time-badge { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: .35rem; width: 100%; padding: .42rem .48rem; border-radius: 4px; font-size: .56rem; line-height: 1.2; white-space: normal; }
+        .hud-sidebar-objective .mission-time-kicker { color: var(--ink-500); font-size: .46rem; letter-spacing: .08em; white-space: nowrap; }
+        .hud-sidebar-objective .mission-time-status { min-width: 0; color: var(--ink-400); font-size: .52rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .hud-sidebar-objective .mission-time-remaining { justify-self: end; grid-column: 2; color: var(--ink-100); font: 700 .68rem/1 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        html[data-theme="light"] .hud-sidebar-objective .mission-metric { background: rgba(60,55,47,.035); border-color: rgba(60,55,47,.16); }
+
+        @media (max-width: 767px) {
+            .char-hud-collapse-btn { display: none; }
+            body.is-game-screen .system-tool-dock { left: max(.55rem, env(safe-area-inset-left, 0px)); right: auto; bottom: max(.55rem, env(safe-area-inset-bottom, 0px)); }
+            .system-tool-panel { width: min(14rem, calc(100vw - 1.1rem)); }
+            .system-tool-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .hud-sidebar-objective .mission-metrics { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
 
     <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
-    <header id="site-header" class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-end shrink-0 z-40">
+    <header id="site-header" class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
+        <div id="site-header-context" class="hidden sm:flex items-center gap-2 min-w-0 text-[10px] font-mono tracking-[0.18em] text-zinc-500">
+            <span class="header-context-mark">ECHOES</span>
+            <span class="header-context-divider" aria-hidden="true">/</span>
+            <span>無限恐怖 TRPG · 2.35</span>
+        </div>
         <div class="flex items-center gap-2">
             <!-- 登入區：未登入顯示「以 Google 登入」，登入後顯示頭像與名字。
                  沒設定好 Google 登入的部署會整塊隱藏（見 /api/auth/me 的 enabled 欄位），
@@ -1819,7 +2076,7 @@
             </section>
 
             <!-- 第 1~N 步：建卡問答（由 app.js 依 /api/character 回傳的題目渲染） -->
-            <section id="cg-step-question" style="display:none" class="space-y-3 anim-fade-up">
+            <section id="cg-step-question" style="display:none" class="space-y-3">
                 <div class="space-y-1">
                     <div id="cg-question-title" class="text-sm font-bold text-zinc-100"></div>
                     <div id="cg-question-subtitle" class="text-[11px] font-mono text-zinc-400"></div>
@@ -1898,7 +2155,7 @@
     </div>
 
     <!-- 3. 遊戲主視窗 (In-Game Screen) -->
-    <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-7xl mx-auto">
+    <div id="app-viewport" style="display:none" class="flex-1 flex overflow-hidden w-full max-w-none mx-auto">
         <!-- 手機版抽屜的遮罩。桌機永遠不顯示（md:hidden），手機上點它就關抽屜。 -->
         <div id="char-hud-scrim" onclick="closeCharHud()" class="hidden md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"></div>
 
@@ -1909,19 +2166,30 @@
              手機本來就是預期的玩法之一，不能把角色卡整個藏起來。 -->
         <aside id="char-hud" aria-label="角色狀態" class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
             <div class="name-plate">
-                <div class="flex items-center justify-between">
-                    <div>
+                    <div id="char-hud-titlebar" class="flex items-center justify-between">
+                    <div id="char-profile-summary">
                         <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">輪迴者檔案</div>
                         <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
                     <div class="flex items-center gap-1.5">
                         <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
                         <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
+                        <button type="button" onclick="toggleCharHudCompact()" id="char-hud-collapse" aria-label="收窄角色欄" aria-pressed="false" title="收窄角色欄"
+                                class="char-hud-collapse-btn px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
+                            <i class="fas fa-angles-right"></i>
+                        </button>
                         <button type="button" onclick="closeCharHud()" aria-label="關閉角色狀態"
                                 class="md:hidden px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
+                </div>
+                <div class="char-hud-compact-mark" aria-hidden="true">HUD</div>
+                <div id="char-hud-compact-stats" class="char-hud-compact-stats" aria-label="關鍵狀態">
+                    <div class="char-compact-stat" title="生命"><i class="fas fa-heart-pulse" aria-hidden="true"></i><span class="sr-only">生命</span><strong id="char-compact-hp">—</strong></div>
+                    <div class="char-compact-stat" title="意志"><i class="fas fa-brain" aria-hidden="true"></i><span class="sr-only">意志</span><strong id="char-compact-will">—</strong></div>
+                    <div class="char-compact-stat" title="防禦"><i class="fas fa-shield-halved" aria-hidden="true"></i><span class="sr-only">防禦</span><strong id="char-compact-defense">—</strong></div>
+                    <div class="char-compact-stat" title="先攻"><i class="fas fa-bolt" aria-hidden="true"></i><span class="sr-only">先攻</span><strong id="char-compact-initiative">—</strong></div>
                 </div>
                 <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
 
@@ -1934,6 +2202,48 @@
                     <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
                     <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
                     <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
+                </div>
+            </div>
+
+            <!-- 任務目標整合到角色欄：桌面版不再讓主欄頂端被一整條 HUD 壓縮；
+                 手機版仍會在欄內跟著角色抽屜一起查看。 -->
+            <div id="scenario-hud" style="display:none" class="mission-state-bar watch-hud hud-sidebar-objective shrink-0" role="status" aria-live="polite">
+                <span class="watch-glass" aria-hidden="true"></span>
+                <div class="watch-crown" title="輪迴者手錶" aria-hidden="true">
+                    <span class="watch-crown-mark"><i class="fas fa-stopwatch"></i></span>
+                    <span class="watch-crown-label">輪迴者</span>
+                </div>
+                <div class="mission-objective min-w-0">
+                    <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
+                    <div class="min-w-0">
+                        <div class="mission-eyebrow">目前目標</div>
+                        <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
+                    </div>
+                </div>
+                <div class="mission-metrics">
+                    <div class="mission-metric mission-progress-metric" title="目前副本的主線完成度">
+                        <div class="mission-metric-header">
+                            <span>主線</span>
+                            <span id="scenario-progress-text" class="mission-metric-value">0%</span>
+                        </div>
+                        <div class="mission-progress-track">
+                            <div id="scenario-progress-bar" class="mission-progress-fill" style="width:0%"></div>
+                        </div>
+                    </div>
+                    <div id="scenario-threat" style="display:none" class="mission-metric mission-threat-metric" title="">
+                        <div class="mission-metric-header">
+                            <span class="mission-metric-label">迫近度</span>
+                            <span id="scenario-threat-label" class="mission-metric-value">—</span>
+                        </div>
+                        <div class="mission-threat-track">
+                            <span id="scenario-threat-pips" class="mission-threat-pips"></span>
+                        </div>
+                    </div>
+                    <span id="scenario-time-badge" class="mission-time-badge">
+                        <span class="mission-time-kicker">剩餘回合</span>
+                        <span class="mission-time-status"></span>
+                        <span class="mission-time-remaining"></span>
+                    </span>
                 </div>
             </div>
 
@@ -2006,42 +2316,6 @@
                 </div>
             </div>
 
-            <!-- 任務狀態列：把「現在在哪裡／要做什麼／世界正在逼近什麼」集中成第一級資訊。 -->
-            <div id="scenario-hud" style="display:none" class="mission-state-bar watch-hud shrink-0" role="status" aria-live="polite">
-                <span class="watch-glass" aria-hidden="true"></span>
-                <div class="watch-crown" title="輪迴者手錶" aria-hidden="true">
-                    <span class="watch-crown-mark"><i class="fas fa-stopwatch"></i></span>
-                    <span class="watch-crown-label">輪迴者</span>
-                </div>
-                <div class="mission-objective min-w-0">
-                    <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
-                    <div class="min-w-0">
-                        <div class="mission-eyebrow">目前目標</div>
-                        <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
-                    </div>
-                </div>
-                <div class="mission-metrics">
-                    <div class="mission-metric mission-progress-metric" title="目前副本的主線完成度">
-                        <div class="mission-metric-header">
-                            <span>主線</span>
-                            <span id="scenario-progress-text" class="mission-metric-value">0%</span>
-                        </div>
-                        <div class="mission-progress-track">
-                            <div id="scenario-progress-bar" class="mission-progress-fill" style="width:0%"></div>
-                        </div>
-                    </div>
-                    <!-- 迫近度（見 content/scenario/threat.js）：判定成敗會累積在這條軌道上。 -->
-                    <div id="scenario-threat" style="display:none" class="mission-metric mission-threat-metric" title="">
-                        <div class="mission-metric-header">
-                            <span class="mission-metric-label">威脅</span>
-                            <span id="scenario-threat-label" class="mission-metric-value">—</span>
-                        </div>
-                        <span id="scenario-threat-pips" class="mission-threat-pips"></span>
-                    </div>
-                    <span id="scenario-time-badge" class="mission-time-badge"></span>
-                </div>
-            </div>
-
             <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
                  測玩回饋是「在AI的回覆中，我完全摸不清故事背景」——固定開頭只講一次，
                  之後每回合的敘事都只寫當下這個房間，玩家玩到第十回合早就忘記自己在哪艘船上。
@@ -2069,24 +2343,22 @@
             <!-- 角色昏迷／死亡的橫幅（見 public/app.js 的 renderDownState）。 -->
             <div id="down-state-banner" style="display:none" class="border-b border-red-500/40 bg-red-500/10 px-4 py-2 text-[11px] font-mono text-red-200 space-y-1 shrink-0"></div>
 
-            <div id="story-feed-toolbar" class="story-feed-toolbar shrink-0" role="toolbar" aria-label="故事流檢視工具">
-                <div class="story-feed-toolbar-title">
-                    <span class="story-feed-toolbar-kicker">故事流</span>
-                    <span id="story-feed-count" class="story-feed-toolbar-count">0 則紀錄</span>
-                </div>
-                <div class="story-feed-toolbar-actions">
-                    <div class="story-feed-filters" role="group" aria-label="故事流篩選">
-                        <button type="button" data-feed-filter="all" class="story-feed-filter active" aria-pressed="true">全部</button>
-                        <button type="button" data-feed-filter="narration" class="story-feed-filter" aria-pressed="false">敘事</button>
-                        <button type="button" data-feed-filter="events" class="story-feed-filter" aria-pressed="false">事件</button>
+            <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-labelledby="story-current-label">
+                <div class="story-current-toolbar shrink-0">
+                    <div>
+                        <div id="story-current-label" class="story-current-kicker">當前敘事</div>
+                        <div class="story-current-caption">主神只在這裡留下最新一段回應</div>
                     </div>
-                    <button type="button" id="story-feed-latest" class="story-feed-latest" hidden aria-label="跳到故事流最新位置" title="跳到最新位置">
-                        <i class="fas fa-arrow-down text-[10px]" aria-hidden="true"></i>
-                        <span>最新</span>
+                    <button type="button" id="story-log-open-btn" onclick="openStoryLog()" class="story-log-open-btn" aria-label="開啟完整故事紀錄">
+                        <i class="fas fa-clock-rotate-left" aria-hidden="true"></i>
+                        <span>故事紀錄</span>
+                        <span id="story-current-count" class="story-current-count">0</span>
                     </button>
                 </div>
-            </div>
-            <div id="story-feed" aria-label="故事流" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 font-serif text-sm text-zinc-200"></div>
+                <div id="story-current-content" class="story-current-content flex-1 min-h-0 overflow-y-auto" aria-live="polite">
+                    <div class="story-current-empty">等待第一段故事回應……</div>
+                </div>
+            </section>
 
             <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
             <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
@@ -2188,6 +2460,64 @@
         </main>
     </div>
 
+    <!-- 遊戲內系統工具：收進左下角，避免非遊戲功能在最上方永久佔一整列。 -->
+    <details id="system-tool-dock" class="system-tool-dock">
+        <summary aria-label="開啟系統工具" title="系統工具"><i class="fas fa-gear" aria-hidden="true"></i><span class="sr-only">系統工具</span></summary>
+        <div class="system-tool-panel">
+            <div class="system-tool-heading">系統工具 <span>GAME UTILS</span></div>
+            <div data-auth-box class="system-tool-auth" style="display:none">
+                <button data-auth-login type="button" onclick="startGoogleLogin()"><i class="fab fa-google"></i><span>以 Google 登入</span></button>
+                <div data-auth-user style="display:none" class="system-tool-user">
+                    <img data-auth-avatar alt="" referrerpolicy="no-referrer">
+                    <span data-auth-name></span>
+                    <button type="button" onclick="googleLogout()" title="登出" aria-label="登出"><i class="fas fa-right-from-bracket"></i></button>
+                </div>
+            </div>
+            <div class="system-tool-actions">
+                <button type="button" onclick="openModal('sessionModal')" title="存檔管理"><i class="fas fa-database"></i><span>存檔</span></button>
+                <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
+                <button type="button" data-pwa-install onclick="handlePwaInstallClick()" style="display:none" title="安裝 App"><i class="fas fa-mobile-screen-button"></i><span>安裝</span></button>
+                <button type="button" onclick="openModal('settingsModal')" title="設定"><i class="fas fa-sliders"></i><span>設定</span></button>
+            </div>
+        </div>
+    </details>
+
+    <!-- 完整故事流：主畫面只保留最新敘事，歷史內容在這個可收合的檢視層中。 -->
+    <div id="storyLogModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
+        <div class="modal-panel story-log-panel bg-zinc-900 border hairline-border w-full max-w-5xl rounded-lg shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="完整故事紀錄" tabindex="-1">
+            <div class="story-log-header">
+                <div>
+                    <div class="ribbon-banner ribbon-sm"><i class="fas fa-clock-rotate-left text-[11px]"></i><span>完整故事紀錄</span></div>
+                    <div class="story-log-subtitle">回看行動、判定與說書人敘事，不打斷目前回合。</div>
+                </div>
+                <button type="button" onclick="closeModal('storyLogModal')" class="story-log-close" aria-label="關閉故事紀錄"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="story-feed-toolbar" class="story-feed-toolbar shrink-0" role="toolbar" aria-label="故事流檢視工具">
+                <div class="story-feed-toolbar-title">
+                    <span class="story-feed-toolbar-kicker">故事流</span>
+                    <span id="story-feed-count" class="story-feed-toolbar-count">0 則紀錄</span>
+                    <span id="story-feed-read-state" class="story-feed-read-state" aria-live="polite"><i class="fas fa-lock-open" aria-hidden="true"></i><span>跟隨最新</span></span>
+                </div>
+                <div class="story-feed-toolbar-actions">
+                    <div class="story-feed-filters" role="group" aria-label="故事流篩選">
+                        <button type="button" data-feed-filter="all" class="story-feed-filter active" aria-pressed="true">全部</button>
+                        <button type="button" data-feed-filter="narration" class="story-feed-filter" aria-pressed="false">敘事</button>
+                        <button type="button" data-feed-filter="events" class="story-feed-filter" aria-pressed="false">事件</button>
+                    </div>
+                    <button type="button" id="story-feed-latest" class="story-feed-latest" hidden aria-label="跳到故事流最新位置" title="跳到最新位置">
+                        <i class="fas fa-arrow-down text-[10px]" aria-hidden="true"></i>
+                        <span id="story-feed-latest-label">最新</span>
+                    </button>
+                </div>
+            </div>
+            <div id="story-feed" aria-label="故事流" class="story-feed-modal-body flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5 font-serif text-sm text-zinc-200"></div>
+            <div class="story-log-footer">
+                <span>完整紀錄只讀取目前存檔中的事件，不會改變遊戲狀態。</span>
+                <button type="button" onclick="closeModal('storyLogModal')" class="story-log-done">返回目前敘事</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
         <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="輪迴存檔管理" tabindex="-1">
@@ -2284,6 +2614,14 @@
                         <option value="dark">夜色 · 生存檔案（Archive Night）</option>
                         <option value="light">白頁 · 邀請檔案（Invitation Paper）</option>
                     </select>
+                </div>
+                <div>
+                    <label class="text-zinc-300 block mb-1">輪迴者欄位位置</label>
+                    <select id="setting-hud-position" onchange="applyHudPosition(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
+                        <option value="right">右側（預設）</option>
+                        <option value="left">左側</option>
+                    </select>
+                    <p class="text-[10px] text-zinc-500 mt-1">只影響桌面版；手機仍從左側滑出角色欄。</p>
                 </div>
                 <div>
                     <label class="text-zinc-300 block mb-1">說書人文筆風格</label>
@@ -2433,17 +2771,40 @@
             const select = document.getElementById('setting-theme');
             if (select) select.value = next;
         }
+        function applyHudPosition(position) {
+            const next = position === 'left' ? 'left' : 'right';
+            document.documentElement.setAttribute('data-hud-position', next);
+            localStorage.setItem('user_hud_position', next);
+            const select = document.getElementById('setting-hud-position');
+            if (select) select.value = next;
+        }
         /** 頂欄切換鈕：圖示顯示的是「目前」的主題(月亮=深色中、太陽=淺色中)。 */
         function toggleTheme() {
             const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
             applyTheme(current === 'light' ? 'dark' : 'light');
         }
+        function applyCharHudCompact(compact) {
+            const isCompact = compact === true || compact === 'true';
+            const hud = document.getElementById('char-hud');
+            const button = document.getElementById('char-hud-collapse');
+            hud?.classList.toggle('is-compact', isCompact);
+            if (button) {
+                button.setAttribute('aria-pressed', String(isCompact));
+                button.setAttribute('aria-label', isCompact ? '展開角色欄' : '收窄角色欄');
+                button.setAttribute('title', isCompact ? '展開角色欄' : '收窄角色欄');
+            }
+            localStorage.setItem('user_hud_compact', String(isCompact));
+        }
+        function toggleCharHudCompact() {
+            const hud = document.getElementById('char-hud');
+            applyCharHudCompact(!hud?.classList.contains('is-compact'));
+        }
         function updateThemeToggleIcon(theme) {
-            const icon = document.getElementById('theme-toggle-icon');
-            if (!icon) return;
-            icon.className = theme === 'light'
-                ? 'fas fa-sun text-yellow-500 text-[11px]'
-                : 'fas fa-moon text-emerald-300 text-[11px]';
+            document.querySelectorAll('#theme-toggle-icon, [data-theme-toggle-icon]').forEach((icon) => {
+                icon.className = theme === 'light'
+                    ? 'fas fa-sun text-yellow-500 text-[11px]'
+                    : 'fas fa-moon text-emerald-300 text-[11px]';
+            });
         }
         function replayEnterAnim(el) {
             if (!el) return;
@@ -2461,6 +2822,7 @@
             portal.style.display = (screen === 'portal') ? 'flex' : 'none';
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';
+            document.body.classList.toggle('is-game-screen', screen === 'game');
             // 建卡與遊戲都發生在副本裡（深色檔案）；回到 portal 則退回第一幕，
             // 若該玩家已經接受過邀請，revealMainGodSpace('resume') 會馬上再把舞台推到主神空間。
             document.documentElement.setAttribute('data-stage', screen === 'portal' ? 'invitation' : 'instance');
@@ -2515,6 +2877,8 @@
             if (id === 'settingsModal') {
                 document.getElementById('setting-theme').value =
                     document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+                document.getElementById('setting-hud-position').value =
+                    document.documentElement.getAttribute('data-hud-position') === 'left' ? 'left' : 'right';
                 document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
                 document.getElementById('setting-persona').value = localStorage.getItem('user_narrator_persona') || 'RUTHLESS_JUDGE';
                 renderProfileSelect();
@@ -2788,6 +3152,7 @@
             // 主題在 onchange 當下就已經套用並存起來了(讓玩家可以即時看到效果再決定)，
             // 這裡再存一次是為了涵蓋「用鍵盤改了選項但沒觸發onchange」的情況。
             applyTheme(document.getElementById('setting-theme').value);
+            applyHudPosition(document.getElementById('setting-hud-position').value);
             localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
             localStorage.setItem('user_narrator_persona', document.getElementById('setting-persona').value);
 
@@ -2833,6 +3198,8 @@
         // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，
         // 這裡把class標記與圖示、下拉選單一次同步到同一個值。
         applyTheme(document.documentElement.getAttribute('data-theme'));
+        applyHudPosition(document.documentElement.getAttribute('data-hud-position'));
+        applyCharHudCompact(localStorage.getItem('user_hud_compact') === 'true');
 
         // ================= PWA：安裝到主畫面 + 全螢幕 =================
         // [設計] 手機瀏覽器分頁本身就算「全螢幕」也還有網址列跟系統列，玩家要的
@@ -2863,7 +3230,7 @@
                 pwaDeferredPrompt = null;
                 promptEvent.prompt();
                 promptEvent.userChoice.finally(() => {
-                    document.getElementById('pwa-install-btn').style.display = 'none';
+                    document.querySelectorAll('#pwa-install-btn, [data-pwa-install]').forEach((button) => { button.style.display = 'none'; });
                 });
                 return;
             }
@@ -2871,19 +3238,19 @@
             openModal('pwaInstallModal');
         }
         function initPwaInstall() {
-            const btn = document.getElementById('pwa-install-btn');
-            if (!btn || isStandaloneDisplay()) return; // 已經是安裝後的全螢幕模式在跑，不用再推銷一次
+            const buttons = [...document.querySelectorAll('#pwa-install-btn, [data-pwa-install]')];
+            if (!buttons.length || isStandaloneDisplay()) return; // 已經是安裝後的全螢幕模式在跑，不用再推銷一次
 
             window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault(); // 蓋掉瀏覽器自己那條迷你資訊列，改用頂欄按鈕
+                e.preventDefault(); // 蓋掉瀏覽器自己那條迷你資訊列，改用系統工具 dock
                 pwaDeferredPrompt = e;
-                btn.style.display = 'flex';
+                buttons.forEach((button) => { button.style.display = 'flex'; });
             });
             window.addEventListener('appinstalled', () => {
                 pwaDeferredPrompt = null;
-                btn.style.display = 'none';
+                buttons.forEach((button) => { button.style.display = 'none'; });
             });
-            if (isIosSafari()) btn.style.display = 'flex';
+            if (isIosSafari()) buttons.forEach((button) => { button.style.display = 'flex'; });
         }
         initPwaInstall();
 
@@ -2897,6 +3264,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260822-r2c"></script>
+    <script src="./app.js?v=20260822-r6"></script>
 </body>
 </html>
