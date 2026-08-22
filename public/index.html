@@ -393,7 +393,7 @@
         .hp-seg-a { background: var(--danger); }
 
         /* 故事流 */
-        #story-feed { border-left: 2px solid rgba(16,185,129,0.2); margin-left: 4px; padding-left: 1.25rem !important; }
+        #story-feed { margin-left: 4px; padding-left: 1.25rem !important; }
         /* [2026-08-18 修正] 故事流是 flex-col 的可捲動容器，而 flex 子項預設 flex-shrink:1。
            內容一超出高度，瀏覽器就會**把每一塊都壓扁**去湊高度，而不是讓容器捲動——
            被壓扁的區塊內容不會跟著縮，於是文字直接溢出自己的框；
@@ -401,7 +401,6 @@
            所以它是最明顯的受害者：整條被切掉一半，看起來就像跑版。
            一律不准壓縮，超出的部分老老實實交給捲軸。 */
         #story-feed > * { flex-shrink: 0; }
-        .feed-block-dm { line-height: 1.75; font-weight: 600; }
         /* 敘事段落之間的呼吸空間。刻意比行距大一截——1.75 的行距底下，
            段落間距要拉得夠開才看得出「這裡換了一段」，不然分了段也還是一整片。 */
         .feed-para + .feed-para { margin-top: 0.9em; }
@@ -1047,10 +1046,11 @@
         #down-state-banner { background: rgba(173,89,73,.12); border-color: rgba(173,89,73,.4); color: #d99a8c; }
         #story-feed { border-left: 0; margin-left: 0; padding-left: clamp(1rem, 5vw, 4.5rem) !important; padding-right: clamp(1rem, 5vw, 4.5rem); background: rgba(18,17,15,.24); }
         #story-feed > * { width: 100%; max-width: 62rem; align-self: center; }
-        #story-feed > *:not(#narrator-pending) { padding: .8rem 0; border-bottom: 1px solid rgba(222,214,200,.1); }
-        #story-feed .feed-block-dm { color: var(--ink-100) !important; font-family: 'Noto Serif TC', serif; font-size: .98rem; font-weight: 600; line-height: 2.02; padding: 1.1rem 0 !important; background: transparent !important; border: 0 !important; }
-        #story-feed .feed-block-dm > div:first-child { margin-bottom: .75rem; color: var(--accent) !important; font: 600 .62rem/1 'JetBrains Mono', monospace; letter-spacing: .18em; }
-        #story-feed .font-mono.italic { color: var(--ink-400) !important; font: italic .78rem/1.6 'Noto Serif TC', serif; }
+        /* 事件之間的距離改由 padding + 分隔線負責，不再疊上 Tailwind 的 gap-5——
+           兩者相加會讓每一則事件佔掉約 2.5rem 的垂直空間，一個畫面只看得到四則，
+           時間線讀起來反而斷掉。 */
+        #story-feed { gap: 0; }
+        #story-feed > *:not(#narrator-pending) { padding: .7rem 0; border-bottom: 1px solid rgb(var(--c-line) / .1); }
         .feed-final-question { border-left-color: var(--accent); color: var(--ink-100); }
         .feed-final-question strong { color: var(--ink-100); }
         #narrator-pending { background-color: var(--bg-void); background-image: linear-gradient(0deg, rgba(166,176,162,.07), rgba(166,176,162,.07)); border-color: rgba(222,214,200,.22) !important; color: var(--ink-400) !important; }
@@ -1136,10 +1136,66 @@
 
         @media (max-width: 767px) {
             #story-feed { padding-left: 1rem !important; padding-right: 1rem; }
-            #story-feed .feed-block-dm { font-size: .93rem; line-height: 1.9; }
+            .feed-event-narration .feed-event-content { font-size: .93rem; line-height: 1.9; }
             html[data-theme="dark"] #char-hud { background: rgba(27,25,21,.98); }
             html[data-theme="light"] #char-hud { background: rgba(250,249,246,.98); }
         }
+        /* ================= 事件時間線的視覺語法 =================
+           [2026-08-21] 故事流以前是一串「每個呼叫點自己手寫 Tailwind class」的區塊：
+           同一種事情在不同地方有時有框有時沒框、padding 有 p-2 / p-2.5 / 沒有三種、
+           字級有 text-xs / text-[11px] / 未指定。結果是玩家沒辦法在餘光裡分辨
+           「剛才跳出來那一塊是判定、是世界變化、還是連線出錯」——只能逐段讀完。
+
+           改成固定語法：每一種事件永遠是同一條色帶 + 同一個標籤前綴。
+           顏色全部取自語意 token，所以四個舞台都自動適配。
+           色帶（左側細條）是「時間線」的視覺骨幹；標籤前綴讓同類事件互相對齊。 */
+        .feed-event { display: flex; gap: .75rem; }
+        .feed-event-rail { flex: 0 0 auto; width: 2px; border-radius: 999px; background: rgb(var(--evt) / .55); }
+        .feed-event-fault .feed-event-rail { background: repeating-linear-gradient(180deg, rgb(var(--evt) / .8) 0 4px, transparent 4px 8px); }
+        .feed-event-body { min-width: 0; flex: 1; }
+        .feed-event-head { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; margin-bottom: .3rem; }
+        .feed-event-kicker { color: rgb(var(--evt-text)); font: 700 .58rem/1 'JetBrains Mono', monospace; letter-spacing: .18em; white-space: nowrap; }
+        .feed-event-label { color: var(--ink-100); font: 600 .72rem/1.3 'Noto Serif TC', serif; }
+        .feed-event-content { color: var(--ink-400); font: .74rem/1.65 'Noto Serif TC', serif; }
+        .feed-event-content .fe-num { color: var(--ink-100); font-weight: 700; }
+        .feed-event-note { margin-top: .3rem; color: rgb(var(--evt-text)); font-size: .68rem; }
+        .feed-event-actions { margin-top: .5rem; }
+
+        /* 九種事件，各自對應一個語意色。tone 只在同一種事件內部微調（成功／失敗、變好／變壞）。 */
+        .feed-event-action    { --evt: var(--c-accent-base); --evt-text: var(--c-accent-text); }
+        .feed-event-check     { --evt: var(--c-accent-base); --evt-text: var(--c-accent-text); }
+        .feed-event-check.is-bad { --evt: var(--c-danger-base); --evt-text: var(--c-danger-text); }
+        .feed-event-narration { --evt: var(--c-line); --evt-text: var(--c-ink-500); }
+        .feed-event-world     { --evt: var(--c-time-base); --evt-text: var(--c-time-text); }
+        .feed-event-world.is-good { --evt: var(--c-accent-base); --evt-text: var(--c-accent-text); }
+        .feed-event-ledger    { --evt: var(--c-warn-base); --evt-text: var(--c-warn-text); }
+        .feed-event-arcane    { --evt: var(--c-arcane-base); --evt-text: var(--c-arcane-text); }
+        .feed-event-harm      { --evt: var(--c-danger-base); --evt-text: var(--c-danger-text); }
+        .feed-event-respite   { --evt: var(--c-info-base); --evt-text: var(--c-info-text); }
+        .feed-event-fault     { --evt: var(--c-danger-base); --evt-text: var(--c-danger-text); }
+
+        /* 說書人是這條時間線的「地」而不是一則事件：色帶壓到最淡，內文放大成正文。 */
+        .feed-event-narration .feed-event-rail { background: rgb(var(--evt) / .16); }
+        .feed-event-narration:not(.is-pending) .feed-event-content { color: var(--ink-100); font-family: 'Noto Serif TC', serif; font-size: .98rem; font-weight: 600; line-height: 2.02; white-space: pre-wrap; }
+        .feed-event-narration:not(.is-pending) { padding: 1.1rem 0 !important; }
+        /* 「說書人書寫中」是同一條色帶上的一則未完成事件，排版要比正文緊。 */
+        .feed-event.is-pending { padding: .55rem .8rem; }
+        .feed-event.is-pending .feed-event-head { margin-bottom: .15rem; }
+        .feed-event.is-pending .feed-event-content { font-family: 'JetBrains Mono', monospace; font-size: .66rem; }
+        .feed-event.is-pending .feed-event-note:empty { display: none; }
+
+        /* 玩家自己剛剛做的事：斜體，跟說書人的敘述在語氣上分開。 */
+        .feed-event-action .feed-event-content { font-style: italic; }
+
+        /* 重試按鈕（回合失敗時）。這是故事流裡唯一可以按的東西，所以要看得出來。 */
+        .feed-event-retry { padding: .3rem .8rem; border: 1px solid rgb(var(--evt) / .5); border-radius: 4px; background: rgb(var(--evt) / .1); color: rgb(var(--evt-text)); font: 700 .68rem 'Noto Serif TC', serif; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+        .feed-event-retry:hover { background: rgb(var(--evt) / .2); border-color: rgb(var(--evt) / .8); }
+
+        /* 日誌沿用同一套語法（審查報告 §3.5：日誌與故事流共用一套語言），
+           只是排得更密、而且最新的在最上面。 */
+        #journal-feed .feed-event { padding: .45rem 0; border-bottom: 1px solid rgb(var(--c-line) / .08); }
+        #journal-feed .feed-event-content { font-size: .7rem; line-height: 1.5; }
+
         /* ================= 材質與微動作 =================
            [2026-08-21] 這一層不改任何顏色、版面或資料，只負責讓畫面「摸起來有東西」。
 
