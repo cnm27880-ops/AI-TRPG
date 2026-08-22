@@ -1279,22 +1279,22 @@ function appendTurnError(message, res) {
       : "";
 
   const feed = document.getElementById("story-feed");
-  const block = document.createElement("div");
+  if (!feed) return;
   setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
-  const built = buildFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
+  const block = buildFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
     note: hint ? escapeHtml(hint) : undefined,
   });
-  block.className = built.className;
-  block.innerHTML = built.innerHTML;
   block.querySelector(".feed-event-body").insertAdjacentHTML(
     "beforeend",
     `<div class="feed-event-actions"><button data-turn-retry class="feed-event-retry">重試這一回合</button></div>`
   );
   block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
     block.remove();
+    updateStoryFeedView();
     if (lastTurnRequest) runTurn(lastTurnRequest);
   });
   feed.appendChild(block);
+  updateStoryFeedView();
   scrollFeedToBottom();
 }
 
@@ -1553,8 +1553,8 @@ function renderOptions(options) {
 
     // 玩家先看行動意義，再看規則細節；這裡只負責把後端已算好的資訊分層呈現。
     const metaHtml = isFreeAction
-      ? `<span class="decision-card-meta"><i class="fas fa-comment-dots"></i><span>純敘事行動 · 不擲骰 · 場景仍會推進</span></span>`
-      : `<span class="decision-card-meta"><span>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''}</span><span>·</span><span>${escapeHtml(opt.difficulty)} DC${shownDc}</span><span>·</span><span>骰池 ${dp}</span>${warningHtml ? `<span>·</span>${warningHtml}` : ""}</span>`;
+      ? `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-comment-dots"></i>純敘事行動</span><span class="decision-card-rule-secondary">不擲骰 · 場景仍會推進</span></span>`
+      : `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-dice-d20"></i>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc}</span><span class="decision-card-rule-secondary">骰池 ${dp}</span>${warningHtml ? `<span class="decision-card-risk-wrap">${warningHtml}</span>` : ""}</span>`;
 
     const cardTone = isFallback ? "decision-card-fallback" : isFreeAction ? "decision-card-free" : "";
 
@@ -1705,6 +1705,8 @@ const FEED_EVENT_KICKERS = {
  */
 function buildFeedEvent(kind, label, content, opts = {}) {
   const block = document.createElement("article");
+  block.dataset.feedEntry = "true";
+  block.dataset.feedKind = kind;
   const tone = opts.tone === "good" ? " is-good" : opts.tone === "bad" ? " is-bad" : "";
   // 日誌是一次畫出整份清單的，二十則同時播進場動畫只會變成一片閃爍；
   // 故事流則是一次追加一則，動畫正是「有新東西進來了」的訊號。
@@ -1723,11 +1725,69 @@ function buildFeedEvent(kind, label, content, opts = {}) {
   return block;
 }
 
+let storyFeedFilter = "all";
+
+function updateStoryFeedCount() {
+  const feed = document.getElementById("story-feed");
+  const count = document.getElementById("story-feed-count");
+  if (!feed || !count) return;
+  const total = feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider)").length;
+  count.textContent = `${total} 則紀錄`;
+}
+
+function updateStoryFeedLatestButton() {
+  const feed = document.getElementById("story-feed");
+  const button = document.getElementById("story-feed-latest");
+  if (!feed || !button) return;
+  const hasOverflow = feed.scrollHeight - feed.clientHeight > 24;
+  const awayFromLatest = feed.scrollTop < feed.scrollHeight - feed.clientHeight - 24;
+  button.hidden = !(hasOverflow && awayFromLatest);
+}
+
+function updateStoryFeedView() {
+  const feed = document.getElementById("story-feed");
+  if (!feed) return;
+  feed.querySelectorAll(":scope > [data-feed-entry]").forEach((entry) => {
+    const kind = entry.dataset.feedKind;
+    const visible = storyFeedFilter === "all"
+      || (storyFeedFilter === "narration" && kind === "narration")
+      || (storyFeedFilter === "events" && kind !== "narration");
+    entry.hidden = !visible;
+  });
+  document.querySelectorAll("[data-feed-filter]").forEach((button) => {
+    const active = button.dataset.feedFilter === storyFeedFilter;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  updateStoryFeedCount();
+  updateStoryFeedLatestButton();
+}
+
+function setStoryFeedFilter(filter) {
+  if (!["all", "narration", "events"].includes(filter)) return;
+  storyFeedFilter = filter;
+  updateStoryFeedView();
+}
+
 function appendFeedEvent(kind, label, content, opts = {}) {
   const feed = document.getElementById("story-feed");
   if (!feed) return null;
+
+  // 玩家行動是每一回合的閱讀邊界。用一條很淡的分隔線標出回合，
+  // 不另造一段敘事文字，也不改變後端事件順序；重載歷史時同樣會依 action 數量重建。
+  if (kind === "action") {
+    const divider = document.createElement("div");
+    const turnNumber = feed.querySelectorAll(":scope > .feed-event-action").length + 1;
+    divider.className = "story-turn-divider";
+    divider.dataset.feedEntry = "true";
+    divider.dataset.feedKind = "divider";
+    divider.innerHTML = `<span class="story-turn-divider-label">回合 ${turnNumber}</span>`;
+    feed.appendChild(divider);
+  }
+
   const block = buildFeedEvent(kind, label, content, opts);
   feed.appendChild(block);
+  updateStoryFeedView();
   scrollFeedToBottom();
   return block;
 }
@@ -1750,7 +1810,10 @@ function scrollFeedToBottom() {
   requestAnimationFrame(() => {
     feedScrollQueued = false;
     const feed = document.getElementById("story-feed");
-    if (feed) feed.scrollTop = feed.scrollHeight;
+    if (feed) {
+      feed.scrollTop = feed.scrollHeight;
+      updateStoryFeedLatestButton();
+    }
   });
 }
 
@@ -2788,6 +2851,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
   });
+
+  // 故事流檢視：篩選不改變資料，只控制目前看見的事件種類。
+  document.querySelectorAll("[data-feed-filter]").forEach((button) => {
+    button.addEventListener("click", () => setStoryFeedFilter(button.dataset.feedFilter));
+  });
+  document.getElementById("story-feed")?.addEventListener("scroll", updateStoryFeedLatestButton, { passive: true });
+  document.getElementById("story-feed-latest")?.addEventListener("click", () => {
+    const feed = document.getElementById("story-feed");
+    if (!feed) return;
+    const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "auto" : "smooth";
+    feed.scrollTo({ top: feed.scrollHeight, behavior });
+  });
+  updateStoryFeedView();
 
   document.querySelector("[data-send-custom]")?.addEventListener("click", () => {
     const input = document.querySelector("[data-action-input]");
