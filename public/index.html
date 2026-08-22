@@ -1866,9 +1866,10 @@
         .stat-tile-line .stat-tile-value { flex: 0 0 auto; }
 
         .hud-sidebar-objective .mission-threat-metric { display: flex; flex-direction: column; }
-        .hud-sidebar-objective .mission-threat-track { flex: 1 1 auto; display: flex; align-items: center; min-height: .72rem; }
-        .hud-sidebar-objective .mission-threat-pips { grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: center; gap: .22rem; }
-        .hud-sidebar-objective .mission-threat-pips .threat-pip { width: auto; height: .48rem; border: 1px solid rgb(var(--c-line) / .35); border-radius: 2px; background: transparent; }
+        .hud-sidebar-objective .mission-progress-track { height: .42rem; margin-top: .34rem; border: 1px solid rgb(var(--c-line) / .22); }
+        .hud-sidebar-objective .mission-threat-track { flex: 0 0 .42rem; display: flex; align-items: flex-start; min-height: .42rem; height: .42rem; margin-top: .34rem; }
+        .hud-sidebar-objective .mission-threat-pips { grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: stretch; align-content: start; gap: .22rem; width: 100%; height: .42rem; margin-top: 0; }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip { width: auto; height: .42rem; border: 1px solid rgb(var(--c-line) / .35); border-radius: 2px; background: transparent; }
         .hud-sidebar-objective .mission-threat-pips .threat-pip.on-1 { border-color: rgb(var(--c-accent-base) / .8); background: rgb(var(--c-accent-base) / .65); }
         .hud-sidebar-objective .mission-threat-pips .threat-pip.on-2 { border-color: rgb(var(--c-warn-base) / .85); background: rgb(var(--c-warn-base) / .68); }
         .hud-sidebar-objective .mission-threat-pips .threat-pip.on-3 { border-color: rgb(var(--c-danger-base) / .8); background: rgb(var(--c-danger-base) / .68); }
@@ -1914,6 +1915,25 @@
         html[data-theme="light"] #char-hud #derived-stats-bar { border-color: rgba(60,55,47,.16); }
         html[data-theme="light"] .mission-time-pip { border-color: rgba(60,55,47,.22); }
         html[data-theme="light"] .mission-time-pip.is-remaining { border-color: #586451; background: #7d8c77; }
+
+        /* ================= 第八輪：檔案層級與 HUD 基準線 =================
+           任務卡、屬性格與剩餘回合刻度共用同一個內容 gutter，避免每一塊各自漂移。 */
+        .hud-sidebar-objective .mission-time-badge { padding-inline: .42rem; }
+        #char-hud #attr-grid { margin-inline: -.32rem; gap: .5rem; }
+        #char-hud #attr-grid .stat-tile { min-width: 0; padding-inline: .42rem; }
+        #char-hud #attr-grid .stat-tile-line { min-width: 0; }
+
+        /* 輪迴者檔案採「身份標頭／生命讀數／資料分頁」三段式，細線取代零散的盒子。 */
+        #char-hud #char-profile-summary > div:first-child { display: flex; align-items: center; gap: .42rem; }
+        #char-hud #char-profile-summary > div:first-child::before { content: ''; width: 1.1rem; height: 1px; flex: 0 0 auto; background: rgb(var(--c-accent-base) / .65); }
+        #char-hud #char-name { line-height: 1.08; }
+        #char-hud #char-hud-titlebar > div:last-child > span { padding: .3rem .46rem; border-radius: 3px; letter-spacing: .08em; }
+        #char-hud #derived-stats-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .35rem; }
+        #char-hud > [role="tablist"] { gap: 0; padding-inline: .55rem; padding-top: .3rem; background: rgb(var(--c-surface-2) / .42); }
+        #char-hud > [role="tablist"] .folder-tab { flex: 1 1 0; padding: .5rem .25rem .44rem; letter-spacing: .05em; }
+        #char-hud > [role="tablist"] .folder-tab.active { background: transparent; box-shadow: inset 0 -2px 0 rgb(var(--c-accent-base) / .8); }
+        html[data-theme="light"] #char-hud > [role="tablist"] { background: rgba(60,55,47,.035); }
+        html[data-theme="light"] #char-hud > [role="tablist"] .folder-tab.active { box-shadow: inset 0 -2px 0 #586451; }
 
         @media (max-width: 767px) {
             .char-hud-collapse-btn { display: none; }
@@ -3324,6 +3344,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260822-r7"></script>
+    <script src="./app.js?v=20260822-r8a"></script>
 </body>
 </html>
