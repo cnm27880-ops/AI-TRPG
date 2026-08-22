@@ -99,7 +99,9 @@ export async function onRequestPost(context) {
 export async function onRequestGet(context) {
   const env = context.env ?? {};
   const store = resolveSessionStore(env);
-  const id = new URL(context.request.url).searchParams.get("id");
+  const url = new URL(context.request.url);
+  const id = url.searchParams.get("id");
+  const runtimeView = url.searchParams.get("view") === "runtime";
   const user = await getCurrentUser(context.request, env);
 
   if (!id) {
@@ -137,11 +139,20 @@ export async function onRequestGet(context) {
   }
   // downState / revival 一起回傳：玩家重整頁面回到一張昏迷或死亡的角色卡時，
   // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
+  // 主遊戲續接只需要最近幾筆訊息；完整 chronicle 改由 /api/chronicle 按需載入。
+  // 預設 GET 仍保留完整 session，避免既有管理工具讀出後回存時意外丟掉新欄位。
+  const sessionView = runtimeView
+    ? {
+        ...session,
+        chronicle: undefined,
+        recentChronicle: (session.chronicle ?? []).slice(-5),
+      }
+    : session;
   return json({
     ok: true,
     persistent: store.persistent,
     storeKind: store.kind,
-    session,
+    session: sessionView,
     user,
     downState: getDownState(session.character),
     revival: revivalQuote(session.character),

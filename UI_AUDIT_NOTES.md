@@ -6,7 +6,7 @@
 
 ## 目前前端結構
 
-`public/index.html` 的遊戲畫面位於 `#app-viewport`，使用 `flex-1 flex overflow-hidden w-full max-w-7xl mx-auto`。子項依序是固定寬度的 `#char-hud`、中央 `main`、故事流 `#story-feed`、底部 `#story-action-panel`。目前 `#char-hud` 在桌面為 `w-72 md:w-80`，主畫面本身受 `max-w-7xl` 限制；故事流則設定 `padding-left/right: clamp(1rem, 5vw, 4.5rem)`，每則事件還限制 `max-width: 62rem`。
+`public/index.html` 的遊戲畫面位於 `#app-viewport`，使用 `flex-1 flex overflow-hidden w-full max-w-7xl mx-auto`。子項是可收窄的 `#char-hud`、中央 `main`、近期訊息容器 `#recent-story-list` 與底部 `#story-action-panel`。主畫面不再建立完整 `#story-feed` DOM；前端只保留最近五則結構化訊息，說書人 pending 讀秒是暫時的獨立卡片。完整長期敘事由 `#chronicleModal` 開啟時按需呼叫 `/api/chronicle` 載入。
 
 ## 截圖與瀏覽器觀察
 
@@ -139,3 +139,25 @@
 - 屬性格英文縮寫、中文名稱與數值同列，單格高度維持 36px；屬性內部內容線 x=1018 與主線進度填色起點 x=1018 相差 0px，卡片左右內距因而具備一致的視覺基準。
 - 輪迴者檔案加入身份導引線、標題／姓名層級、XP 摘要、生命讀數、衍生數值三欄與同寬分頁，使用細線與 token 化背景，不增加外部素材。
 - 1280×1100 桌面實測無水平溢出；390×844、430×932 與 768×1024 最新稽核亦均無水平溢出，手機選項／輸入列與平板 2×2 選項保持可見。
+
+
+## 第九輪：最近五則訊息窗口、小說式劇情回顧與長期封存（2026-08-23）
+
+本輪取消主畫面完整故事流。`appendFeedEvent()` 現在把事件寫入前端結構化 `recentStoryEntries`，renderer 每次只保留最後五則永久訊息；narrator、action、check、world、fault、rest 與戰鬥相關提示仍可安全進入同一個近期窗口，但事件卡不再取代或覆蓋說書人正文。中央標題改為「近期現場」，以時間順序顯示最近訊息；中央容器只負責這五則的局部捲動，不再執行完整 feed 的 filter、reading lock、clone 或高頻全量 DOM 掃描。
+
+說書人等待狀態改為直接插入近期窗口的獨立 pending 卡，卡內顯示書寫動畫與經過秒數。收到 response 後只移除 pending，保留實際 narration，因此 check／world／warning 不會再透過 `syncCurrentStoryFromFeed()` 把中央敘事換掉。主畫面的永久訊息數實測為 5，pending 額外存在時為暫時第 6 個 DOM 子項，並不算入五則窗口。
+
+完整長期故事改由主神商店旁的「劇情回顧」入口按需打開 `#chronicleModal`。回顧介面採玩家手稿語言：副本封面標記、角色／回合／紀錄 metadata、章節標籤、小說式 prose 正文、淡色 AI 劇情包側欄與複製／下載操作。開啟 modal 才請求 `/api/chronicle`，主畫面續接則使用 `/api/session?view=runtime` 的 `recentChronicle` preview，不把完整 chronicle payload 帶進日常遊戲。
+
+後端新增 `session.chronicle` 與 `chroniclePackages`，不受現行 `history` 八回合短期記憶上限裁切。`/api/turn` 的 scripted opening、一般敘事回合，以及 `/api/combat/act` 的最終戰完成路徑都會保存敘事／行動並以 scenarioId 分章；副本完成時以 deterministic metadata 建立唯一 ready package。完整 AI-ready 文字在回顧端點按需組裝；每回合 AI 只接收最近一至兩份、已截斷的 `<Completed_Chronicles>` compact context，不會把整本小說重複塞入 prompt。
+
+| 實測尺寸 | recent five／操作區 | chronicle modal | 其他結果 |
+|---|---|---|---|
+| 390×844 | 永久訊息 5；pending 可見；四張選項單欄；輸入列完整；action bottom=844 | panel x=12、y=8、w=366、h=828；book h=439、footer bottom=835 | 無水平溢出；角色抽屜 320px；dock 44×44 |
+| 430×932 | 永久訊息 5；pending 可見；四張選項單欄；輸入列完整；action bottom=932 | panel x=12、y=13、w=406、h=907；book h=485、footer bottom=919 | 無水平溢出；modal footer 可見 |
+| 768×1024 | 永久訊息 5；pending 可見；四張選項 2×2；輸入列完整 | 維持雙欄書本／AI aside，面板未越界 | 無水平溢出；左側 HUD／中央主欄可同時閱讀 |
+| 1280×1100 | recent list bottom=891.7、action top=891.7，操作區 bottom=1100 | book overflow auto | 舊 `#story-feed`、`#storyLogModal`、filter toolbar 均不存在 |
+
+本輪以含 Pages Functions 的本地預覽完成真實建卡與 scripted opening：角色「劇情回顧驗證者」完成五題生平問答後，實際 `/api/turn` 回傳開場 prose、4 張選項卡與自訂輸入框；從同一畫面開啟劇情回顧，`/api/chronicle` 實際回傳 `USCSS 諾斯托羅莫號`、1 回合／1 則長期紀錄與完整開場 prose。純靜態 4173 預覽仍只適合 CSS 檢查，因為其 API 404；本輪不以它判斷回合功能。
+
+回歸檢查：`node --check public/app.js`、Functions／storage syntax check、`git diff --check` 與指定測試全數通過；目前 chronicle／journal／prompt／session 測試共 60/60 通過。手機稽核腳本已更新為 recent five／pending／chronicle fixture，並輸出 390／430／768 的遊戲、chronicle 與建卡截圖。

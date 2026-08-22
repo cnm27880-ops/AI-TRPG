@@ -8,11 +8,13 @@
 // 這裡問的就是「中間那一段」：端點在不在、摘要有沒有真的產出、別人的存檔讀不讀得到。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { onRequestPost as sessionPost } from "../functions/api/session.js";
+import { onRequestPost as sessionPost, onRequestGet as sessionGet } from "../functions/api/session.js";
 import { onRequestGet as journalGet } from "../functions/api/journal.js";
+import { onRequestGet as chronicleGet } from "../functions/api/chronicle.js";
 import { onRequestPost as restPost } from "../functions/api/rest.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { appendEvent, EVENT_TYPES } from "../core/eventLog.js";
+import { appendChronicle, registerChroniclePackage } from "../content/storage/chronicle.js";
 import { emptyCharacter } from "../core/schema.js";
 import { computeDerivedStats } from "../core/derivedStats.js";
 
@@ -98,7 +100,62 @@ test("/api/journal：沒指定 sessionId 回 400，找不到存檔回 404", asyn
   assert.equal(notFound.status, 404);
 });
 
-test("/api/journal：別人名下的存檔讀不到（跟其他端點同一套門禁）", async () => {
+test("/api/session?view=runtime：只回傳最近五則 preview，不把完整 chronicle 帶進主畫面", async () => {
+  const env = {};
+  const sessionId = await newSession(env);
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.chronicle = Array.from({ length: 7 }, (_, i) => ({
+    turn: i + 1,
+    action: `行動${i + 1}`,
+    narration: `敘事${i + 1}`,
+    scenarioId: session.scenario.packId,
+  }));
+  await store.put(session);
+  const res = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}&view=runtime`)));
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(res.session.chronicle, undefined);
+  assert.equal(res.session.recentChronicle.length, 5);
+  assert.equal(res.session.recentChronicle[0].turn, 3);
+  assert.equal(res.session.recentChronicle[4].turn, 7);
+});
+
+test("/api/chronicle：按需回傳完整長期敘事、章節索引與 AI-ready 文字", async () => {
+  const env = {};
+  const sessionId = await newSession(env);
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.chronicle = appendChronicle(session.chronicle, {
+    turn: 1,
+    action: "查閱牆上的名單",
+    narration: "名單最後一行寫著自己的名字。",
+    timestamp: "2026-08-23T00:00:00Z",
+    scenarioId: "scenario.audit",
+  });
+  session.chroniclePackages = registerChroniclePackage([], {
+    scenarioId: "scenario.audit",
+    scenarioTitle: "無名名單",
+    turnEnd: 1,
+    createdAt: "2026-08-23T00:01:00Z",
+  }).packages;
+  await store.put(session);
+
+  const res = await read(await chronicleGet(getReq(env, `https://x/api/chronicle?sessionId=${sessionId}&scenarioId=scenario.audit`)));
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(res.total, 1);
+  assert.equal(res.entries[0].narration, "名單最後一行寫著自己的名字。");
+  assert.equal(res.packages[0].status, "ready");
+  assert.match(res.aiPackage.text, /無名名單/);
+  assert.match(res.aiPackage.text, /自己的名字/);
+});
+
+test("/api/chronicle：沒指定 sessionId 回 400，找不到存檔回 404", async () => {
+  const env = {};
+  assert.equal((await chronicleGet(getReq(env, "https://x/api/chronicle"))).status, 400);
+  assert.equal((await chronicleGet(getReq(env, "https://x/api/chronicle?sessionId=不存在的ID"))).status, 404);
+});
+
+test("/api/chronicle：別人名下的存檔讀不到（跟其他端點同一套門禁）", async () => {
   const env = {};
   const sessionId = await newSession(env);
   const store = resolveSessionStore(env);
@@ -106,7 +163,7 @@ test("/api/journal：別人名下的存檔讀不到（跟其他端點同一套�
   session.ownerId = "別的帳號";
   await store.put(session);
 
-  const res = await journalGet(getReq(env, `https://x/api/journal?sessionId=${sessionId}`));
+  const res = await chronicleGet(getReq(env, `https://x/api/chronicle?sessionId=${sessionId}`));
   // 刻意是 404 而不是 403：回 403 等於確認了這個ID真的存在。
   assert.equal(res.status, 404);
 });

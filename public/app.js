@@ -613,8 +613,9 @@ async function submitChargen() {
     localStorage.setItem(SESSION_KEY, currentSessionId);
     lastThreatStage = null;
     adoptCharacter(res.session.character);
-    document.getElementById("story-feed")?.replaceChildren();
-    syncCurrentStoryFromFeed();
+    recentStoryEntries = [];
+    pendingStoryEntry = null;
+    renderRecentStoryWindow({ forceBottom: true });
     showScreen("game");
     renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
@@ -980,29 +981,24 @@ let pendingTimer = null;
 
 function showNarratorPending() {
   setDecisionContext("說書人書寫中 · 這些選項已鎖定");
-  const feed = document.getElementById("story-feed");
-  if (!feed) return;
   hideNarratorPending();
 
-  // 等待中的區塊也走事件語法，色帶跟「說書人」同一條——玩家看到的是
-  // 「這一則說書人事件正在寫」，而不是另一種長相的系統訊息。
-  const block = buildFeedEvent(
-    "narration",
-    `說書人書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
-    `<span data-pending-elapsed class="tabular-nums">0.0s</span>`,
-    { note: `<span data-pending-hint></span>` }
-  );
-  block.id = "narrator-pending";
-  block.classList.add("pending-sweep", "is-pending");
-  feed.appendChild(block);
-  scrollFeedToBottom();
+  pendingStoryEntry = {
+    id: `recent-story-pending-${++storyEntrySequence}`,
+    kind: "narration",
+    label: `說書人書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
+    content: `<span data-pending-elapsed class="tabular-nums">0.0s</span>`,
+    opts: { note: `<span data-pending-hint></span>` },
+  };
+  renderRecentStoryWindow({ forceBottom: true });
 
   const startedAt = Date.now();
   pendingTimer = setInterval(() => {
     const seconds = (Date.now() - startedAt) / 1000;
-    const el = block.querySelector("[data-pending-elapsed]");
+    const block = document.getElementById("narrator-pending");
+    const el = block?.querySelector("[data-pending-elapsed]");
     if (el) el.textContent = `${seconds.toFixed(1)}s`;
-    const hint = block.querySelector("[data-pending-hint]");
+    const hint = block?.querySelector("[data-pending-hint]");
     if (hint && seconds >= SLOW_TURN_HINT_SECONDS && !hint.textContent) {
       hint.textContent =
         "模型正在生成這一回合的敘事與選項，較慢的模型需要 30 秒以上，畫面沒有當掉。";
@@ -1015,8 +1011,9 @@ function hideNarratorPending() {
     clearInterval(pendingTimer);
     pendingTimer = null;
   }
+  pendingStoryEntry = null;
   document.getElementById("narrator-pending")?.remove();
-  syncCurrentStoryFromFeed();
+  renderRecentStoryWindow({ forceBottom: true });
 }
 
 /**
@@ -1139,7 +1136,12 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
     renderTurnQuality(res.degraded);
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
-    if (res.scenario) updateScenarioHud(res.scenario);
+    if (res.scenario) {
+      updateScenarioHud(res.scenario);
+      if (res.scenario.chroniclePackage) {
+        showToast("副本已封存為 AI-ready 劇情包；開啟「劇情回顧」即可複製或下載。", { kind: "info", timeout: 6000 });
+      }
+    }
     // 日誌分頁開著的時候要跟著這一回合更新，不然玩家會看到一份停在上一回合的日誌。
     refreshJournalIfOpen();
   } catch (err) {
@@ -1309,26 +1311,23 @@ function appendTurnError(message, res) {
       ? "供應商回報請求過於頻繁或額度用盡，稍等一下再重試。"
       : "";
 
-  const feed = document.getElementById("story-feed");
-  if (!feed) return;
   setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
-  const block = buildFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
+  const block = appendFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
     note: hint ? escapeHtml(hint) : undefined,
   });
-  block.querySelector(".feed-event-body").insertAdjacentHTML(
+  if (!block) return;
+  block.querySelector(".feed-event-body")?.insertAdjacentHTML(
     "beforeend",
     `<div class="feed-event-actions"><button data-turn-retry class="feed-event-retry">重試這一回合</button></div>`
   );
+  // appendFeedEvent 已經將資料與 DOM 放進 recent buffer；插入重試控制後不重建，
+  // 避免一次錯誤又觸發整個訊息窗口重排。
   block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
-    block.remove();
-    updateStoryFeedView();
-    syncCurrentStoryFromFeed();
+    const id = block.dataset.recentStoryId;
+    recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
+    renderRecentStoryWindow({ forceBottom: true });
     if (lastTurnRequest) runTurn(lastTurnRequest);
   });
-  feed.appendChild(block);
-  updateStoryFeedView();
-  syncCurrentStoryFromFeed();
-  scrollFeedToBottom();
 }
 
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
@@ -1779,179 +1778,109 @@ function buildFeedEvent(kind, label, content, opts = {}) {
   return block;
 }
 
-let storyFeedFilter = "all";
-let storyFeedReadingLocked = false;
-let storyFeedUnreadCount = 0;
-let feedJumpingToLatest = false;
+// 主畫面只保留最近五則「現場訊息」。完整劇情由 session.chronicle 保存，並在玩家
+// 開啟劇情回顧時按需讀取；這裡不再把整份故事建成 DOM，也不再依賴 DOM 反推目前敘事。
+const RECENT_STORY_LIMIT = 5;
+let recentStoryEntries = [];
+let pendingStoryEntry = null;
+let storyEntrySequence = 0;
 
-function isStoryFeedNearLatest(feed, threshold = 28) {
-  return feed.scrollHeight - feed.clientHeight - feed.scrollTop <= threshold;
-}
+function renderRecentStoryWindow({ forceBottom = false } = {}) {
+  const current = document.getElementById("recent-story-list");
+  if (!current) return;
 
-function updateStoryFeedReadState() {
-  const feed = document.getElementById("story-feed");
-  const state = document.getElementById("story-feed-read-state");
-  const latest = document.getElementById("story-feed-latest");
-  const latestLabel = document.getElementById("story-feed-latest-label");
-  if (!feed || !state) return;
+  const wasNearBottom = current.scrollHeight - current.clientHeight - current.scrollTop <= 28;
+  const entries = [...recentStoryEntries.slice(-RECENT_STORY_LIMIT)];
+  if (pendingStoryEntry) entries.push(pendingStoryEntry);
 
-  const locked = storyFeedReadingLocked;
-  state.classList.toggle("is-locked", locked);
-  const icon = state.querySelector("i");
-  const text = state.querySelector("span");
-  if (icon) icon.className = locked ? "fas fa-lock" : "fas fa-lock-open";
-  if (text) text.textContent = locked ? "閱讀鎖定" : "跟隨最新";
-  feed.classList.toggle("is-reading-locked", locked);
+  const fragment = document.createDocumentFragment();
+  for (const entry of entries) {
+    const block = buildFeedEvent(entry.kind, entry.label, entry.content, entry.opts);
+    block.dataset.recentStoryId = entry.id;
+    if (entry.id === pendingStoryEntry?.id) {
+      block.id = "narrator-pending";
+      block.classList.add("pending-sweep", "is-pending");
+    }
+    fragment.appendChild(block);
+  }
+  current.replaceChildren(fragment);
 
-  if (latest) {
-    latest.classList.toggle("is-new", storyFeedUnreadCount > 0);
-    latest.setAttribute("aria-label", storyFeedUnreadCount > 0 ? `跳到故事流最新位置（${storyFeedUnreadCount} 則新內容）` : "跳到故事流最新位置");
-    latest.title = storyFeedUnreadCount > 0 ? `有 ${storyFeedUnreadCount} 則新內容，跳到最新位置` : "跳到最新位置";
-    if (latestLabel) latestLabel.textContent = storyFeedUnreadCount > 0 ? `有新內容 · ${storyFeedUnreadCount}` : "最新";
+  current.querySelectorAll("[data-turn-retry]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.closest("[data-recent-story-id]")?.dataset.recentStoryId;
+      recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
+      renderRecentStoryWindow({ forceBottom: true });
+      if (lastTurnRequest) runTurn(lastTurnRequest);
+    });
+  });
+
+  const count = document.getElementById("story-current-count");
+  if (count) count.textContent = `${Math.min(recentStoryEntries.length, RECENT_STORY_LIMIT)} / ${RECENT_STORY_LIMIT}`;
+
+  if (forceBottom || wasNearBottom) {
+    requestAnimationFrame(() => { current.scrollTop = current.scrollHeight; });
   }
 }
 
 function resetStoryFeedReadingState() {
-  storyFeedReadingLocked = false;
-  storyFeedUnreadCount = 0;
-  feedJumpingToLatest = false;
-  updateStoryFeedReadState();
-}
-
-function handleStoryFeedScroll() {
-  const feed = document.getElementById("story-feed");
-  if (!feed) return;
-  const nearLatest = isStoryFeedNearLatest(feed);
-  if (feedJumpingToLatest && nearLatest) {
-    feedJumpingToLatest = false;
-    storyFeedReadingLocked = false;
-    storyFeedUnreadCount = 0;
-  } else if (!feedJumpingToLatest) {
-    storyFeedReadingLocked = !nearLatest;
-    if (!storyFeedReadingLocked) storyFeedUnreadCount = 0;
-  }
-  updateStoryFeedLatestButton();
-  updateStoryFeedReadState();
+  // 舊版的閱讀鎖定只服務完整 story-feed；最近五則沒有高頻 filter/lock 狀態。
+  // 保留函式名稱讓舊存檔／外部 debug 呼叫不會丟錯。
+  return undefined;
 }
 
 function updateStoryFeedCount() {
-  const feed = document.getElementById("story-feed");
-  const count = document.getElementById("story-feed-count");
-  if (!feed || !count) return;
-  const total = feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider):not(#narrator-pending)").length;
-  count.textContent = `${total} 則紀錄`;
-}
-
-function updateStoryFeedLatestButton() {
-  const feed = document.getElementById("story-feed");
-  const button = document.getElementById("story-feed-latest");
-  if (!feed || !button) return;
-  const hasOverflow = feed.scrollHeight - feed.clientHeight > 24;
-  const awayFromLatest = !isStoryFeedNearLatest(feed);
-  button.hidden = !(hasOverflow && (awayFromLatest || storyFeedUnreadCount > 0));
-  updateStoryFeedReadState();
+  const count = document.getElementById("story-current-count");
+  if (count) count.textContent = `${Math.min(recentStoryEntries.length, RECENT_STORY_LIMIT)} / ${RECENT_STORY_LIMIT}`;
 }
 
 function updateStoryFeedView() {
-  const feed = document.getElementById("story-feed");
-  if (!feed) return;
-  feed.querySelectorAll(":scope > [data-feed-entry]").forEach((entry) => {
-    const kind = entry.dataset.feedKind;
-    const visible = storyFeedFilter === "all"
-      || (storyFeedFilter === "narration" && kind === "narration")
-      || (storyFeedFilter === "events" && kind !== "narration");
-    entry.hidden = !visible;
-  });
-  document.querySelectorAll("[data-feed-filter]").forEach((button) => {
-    const active = button.dataset.feedFilter === storyFeedFilter;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-  updateStoryFeedCount();
-  updateStoryFeedLatestButton();
+  // 相容 no-op：完整故事流已移出主畫面，任何舊呼叫都不再掃描大量 DOM。
+  renderRecentStoryWindow();
 }
 
-function setStoryFeedFilter(filter) {
-  if (!["all", "narration", "events"].includes(filter)) return;
-  storyFeedFilter = filter;
-  updateStoryFeedView();
+function updateStoryFeedLatestButton() {
+  // 相容 no-op：最近五則不存在「跳到完整 feed 最新位置」按鈕。
+}
+
+function setStoryFeedFilter() {
+  // 相容 no-op：主畫面不再提供事件／敘事篩選，完整內容改由劇情回顧頁呈現。
 }
 
 function syncCurrentStoryFromFeed() {
-  const feed = document.getElementById("story-feed");
-  const current = document.getElementById("story-current-content");
-  const count = document.getElementById("story-current-count");
-  if (!feed || !current) return;
-
-  const entries = [...feed.querySelectorAll(":scope > [data-feed-entry]:not(.story-turn-divider)")];
-  if (count) count.textContent = String(entries.length);
-  const latest = entries.at(-1);
-  if (!latest) {
-    current.innerHTML = `<div class="story-current-empty">等待第一段故事回應……</div>`;
-    return;
-  }
-  const clone = latest.cloneNode(true);
-  clone.removeAttribute("id");
-  clone.classList.remove("feed-block-enter", "is-pending");
-  clone.querySelectorAll("[data-pending-elapsed]").forEach((el) => el.remove());
-  current.replaceChildren(clone);
+  renderRecentStoryWindow();
 }
 
 function appendFeedEvent(kind, label, content, opts = {}) {
-  const feed = document.getElementById("story-feed");
-  if (!feed) return null;
-
-  // 玩家行動是每一回合的閱讀邊界。用一條很淡的分隔線標出回合，
-  // 不另造一段敘事文字，也不改變後端事件順序；重載歷史時同樣會依 action 數量重建。
-  if (kind === "action") {
-    const divider = document.createElement("div");
-    const turnNumber = feed.querySelectorAll(":scope > .feed-event-action").length + 1;
-    divider.className = "story-turn-divider";
-    divider.dataset.feedEntry = "true";
-    divider.dataset.feedKind = "divider";
-    divider.innerHTML = `<span class="story-turn-divider-label">回合 ${turnNumber}</span>`;
-    feed.appendChild(divider);
-  }
-
-  const block = buildFeedEvent(kind, label, content, opts);
-  feed.appendChild(block);
-  if (storyFeedReadingLocked) storyFeedUnreadCount += 1;
-  updateStoryFeedView();
-  syncCurrentStoryFromFeed();
-  scrollFeedToBottom();
-  return block;
+  const current = document.getElementById("recent-story-list");
+  if (!current) return null;
+  const entry = {
+    id: `recent-story-${++storyEntrySequence}`,
+    kind,
+    label,
+    content,
+    opts: { ...opts },
+  };
+  const wasNearBottom = current.scrollHeight - current.clientHeight - current.scrollTop <= 28;
+  recentStoryEntries = [...recentStoryEntries, entry].slice(-RECENT_STORY_LIMIT);
+  renderRecentStoryWindow({ forceBottom: wasNearBottom });
+  return current.querySelector(`[data-recent-story-id="${entry.id}"]`);
 }
 
-/**
- * 把故事流捲到最底。
- *
- * [2026-08-18 修正] 以前每個呼叫點都是直接寫 `feed.scrollTop = feed.scrollHeight`，
- * 而且是在剛 appendChild 完的同一個 tick 就算。那個時間點量到的高度不一定是最後的高度——
- * 送出回合時底部輸入列的按鈕會換成「書寫中」而變高、選項列同時被鎖住重繪，
- * 故事流的可視高度接著被壓縮，於是「剛剛捲到的底」就不再是底，最後一塊只露出半條。
- *
- * 改成排到下一個影格再捲：那時版面已經重算完，量到的才是真的高度。
- * 為了不讓玩家在等待期間看到畫面先跳一下再跳第二下，同一個影格內只捲一次。
- */
-let feedScrollQueued = false;
-function scrollFeedToBottom() {
-  if (storyFeedReadingLocked) {
-    updateStoryFeedLatestButton();
-    updateStoryFeedReadState();
-    return;
+function hydrateRecentStoryFromChronicle(chronicle = []) {
+  recentStoryEntries = [];
+  pendingStoryEntry = null;
+  const turns = Array.isArray(chronicle) ? chronicle : [];
+  for (const entry of turns.slice(-RECENT_STORY_LIMIT)) {
+    if (entry?.action) appendFeedEvent("action", "", escapeHtml(entry.action), { animate: false });
+    if (entry?.narration) appendNarrationBlock(entry.narration, { animate: false });
   }
-  if (feedScrollQueued) return;
-  feedScrollQueued = true;
-  requestAnimationFrame(() => {
-    feedScrollQueued = false;
-    const feed = document.getElementById("story-feed");
-    if (feed) {
-      feed.scrollTop = feed.scrollHeight;
-      storyFeedUnreadCount = 0;
-      updateStoryFeedLatestButton();
-      updateStoryFeedReadState();
-    }
-  });
+  renderRecentStoryWindow({ forceBottom: true });
+}
+
+function scrollFeedToBottom() {
+  const current = document.getElementById("recent-story-list");
+  if (!current) return;
+  requestAnimationFrame(() => { current.scrollTop = current.scrollHeight; });
 }
 
 // ---------------------------------------------------------------------------
@@ -2117,14 +2046,14 @@ function renderNarrationHtml(text) {
 
 // 新提問出現後，卸除故事流中先前的引導條高亮（僅保留最新一則）
 function clearPreviousFinalQuestions() {
-  document.querySelectorAll("#story-feed .feed-final-question").forEach(el => {
+  document.querySelectorAll("#recent-story-list .feed-final-question").forEach(el => {
     el.classList.remove("feed-final-question");
   });
 }
 
-function appendNarrationBlock(text) {
+function appendNarrationBlock(text, opts = {}) {
   clearPreviousFinalQuestions();
-  appendFeedEvent("narration", "", renderNarrationHtml(text));
+  appendFeedEvent("narration", "", renderNarrationHtml(text), opts);
 }
 
 // --- 首頁存檔 ---
@@ -2257,7 +2186,7 @@ async function resumeLocalSession() {
 }
 
 async function resumeSession(id) {
-  const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`)).json();
+  const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}&view=runtime`)).json();
   if (!res.ok) throw new Error(res.error || "讀取存檔失敗");
 
   currentSessionId = id;
@@ -2268,14 +2197,8 @@ async function resumeSession(id) {
   showScreen("game");
   renderPersistenceWarning(res.persistent);
 
-  const feed = document.getElementById("story-feed");
   resetStoryFeedReadingState();
-  feed.innerHTML = "";
-  syncCurrentStoryFromFeed();
-  (res.session.history || []).forEach(h => {
-    if (h.action) appendFeedEvent("action", "", escapeHtml(h.action));
-    if (h.narration) appendNarrationBlock(h.narration);
-  });
+  hydrateRecentStoryFromChronicle(res.session.recentChronicle ?? res.session.chronicle ?? res.session.history ?? []);
 
   renderOptions(res.session.scene?.options || []);
   // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
@@ -2325,7 +2248,7 @@ const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
 function enterCombatView() {
   document.body.classList.add("is-combat-view");
   document.getElementById("combat-over-banner").style.display = "none";
-  closeModal("storyLogModal");
+  closeModal("chronicleModal");
   document.getElementById("story-current").style.display = "none";
   document.getElementById("story-action-panel").style.display = "none";
   document.getElementById("combat-panel").style.display = "flex";
@@ -2998,24 +2921,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   });
 
-  // 故事流檢視：篩選不改變資料，只控制目前看見的事件種類。
-  document.querySelectorAll("[data-feed-filter]").forEach((button) => {
-    button.addEventListener("click", () => setStoryFeedFilter(button.dataset.feedFilter));
-  });
-  document.getElementById("story-feed")?.addEventListener("scroll", handleStoryFeedScroll, { passive: true });
-  document.getElementById("story-feed-latest")?.addEventListener("click", () => {
-    const feed = document.getElementById("story-feed");
-    if (!feed) return;
-    feedJumpingToLatest = true;
-    storyFeedReadingLocked = false;
-    const behavior = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? "auto" : "smooth";
-    feed.scrollTo({ top: feed.scrollHeight, behavior });
-    window.requestAnimationFrame(() => {
-      storyFeedUnreadCount = 0;
-      handleStoryFeedScroll();
-    });
-  });
-  updateStoryFeedView();
+  // 主畫面只初始化最近五則訊息；完整 chronicle 不在頁面載入時建立 DOM。
+  renderRecentStoryWindow({ forceBottom: true });
+  document.getElementById("chronicle-copy-btn")?.addEventListener("click", copyChroniclePackage);
+  document.getElementById("chronicle-download-btn")?.addEventListener("click", downloadChroniclePackage);
 
   document.querySelector("[data-send-custom]")?.addEventListener("click", () => {
     const input = document.querySelector("[data-action-input]");
@@ -3053,6 +2962,171 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 });
 
+
+// ---------------------------------------------------------------------------
+// 劇情回顧／AI 劇情包
+//
+// 這裡才建立完整 chronicle 的 DOM。主畫面永遠只維持 RECENT_STORY_LIMIT 則，避免長局
+// 每次追加事件都重排整本故事；玩家主動打開書時才按需請求 /api/chronicle。
+// ---------------------------------------------------------------------------
+let chronicleState = null;
+let chroniclePackageText = "";
+
+function chronicleScenarioTitle(scenarioId, packages = []) {
+  return packages.find((item) => item.scenarioId === scenarioId)?.scenarioTitle
+    || (scenarioId ? `副本 ${scenarioId}` : "未分章故事");
+}
+
+function renderChronicleBook(entries, packages) {
+  const book = document.getElementById("chronicle-book");
+  if (!book) return;
+  if (!entries.length) {
+    book.innerHTML = `<div class="chronicle-empty"><i class="fas fa-feather-pointed"></i><p>這本手稿還是空白的。</p><span>完成第一個行動後，說書人的文字會在這裡留下來。</span></div>`;
+    return;
+  }
+
+  let previousScenario = Symbol("start");
+  const html = [];
+  for (const entry of entries) {
+    const scenarioId = entry.scenarioId ?? "legacy";
+    if (scenarioId !== previousScenario) {
+      html.push(
+        `<div class="chronicle-chapter-heading">` +
+          `<span class="chronicle-chapter-rule"></span>` +
+          `<span>${escapeHtml(chronicleScenarioTitle(entry.scenarioId, packages))}</span>` +
+          `<span class="chronicle-chapter-rule"></span>` +
+        `</div>`
+      );
+      previousScenario = scenarioId;
+    }
+    html.push(
+      `<section class="chronicle-entry">` +
+        `<div class="chronicle-entry-mark">第 ${escapeHtml(String(entry.turn))} 回</div>` +
+        (entry.action
+          ? `<div class="chronicle-action"><span class="chronicle-entry-label">你的行動</span><span>${escapeHtml(entry.action)}</span></div>`
+          : "") +
+        (entry.narration
+          ? `<div class="chronicle-narration">${renderNarrationHtml(entry.narration)}</div>`
+          : "") +
+      `</section>`
+    );
+  }
+  book.innerHTML = html.join("");
+}
+
+function renderChronicle() {
+  const state = chronicleState;
+  if (!state) return;
+  const entries = state.entries ?? [];
+  const packages = state.packages ?? [];
+  const pack = state.aiPackage;
+  const characterName = pack?.character?.name || currentCharacter?.concept?.name || "—";
+  const title = pack?.scenarioTitle || (state.currentScenarioId ? chronicleScenarioTitle(state.currentScenarioId, packages) : "玩家的輪迴手稿");
+  const complete = Boolean(pack?.scenarioComplete);
+
+  document.getElementById("chronicle-title")?.replaceChildren(document.createTextNode(title));
+  const subtitle = document.getElementById("chronicle-subtitle");
+  if (subtitle) subtitle.textContent = complete
+    ? "這一章已封存；你可以把下方的 AI 劇情包帶到下一段創作。"
+    : "完整故事只在你打開這本書時載入，不干擾目前回合。";
+  const status = document.getElementById("chronicle-status");
+  if (status) {
+    status.textContent = complete ? "副本已封存" : "進行中";
+    status.classList.toggle("is-complete", complete);
+  }
+  const character = document.getElementById("chronicle-character");
+  if (character) character.textContent = characterName;
+  const turns = document.getElementById("chronicle-turns");
+  if (turns) turns.textContent = `${pack?.entries?.length ?? entries.length} 回合`;
+  const total = document.getElementById("chronicle-total");
+  if (total) total.textContent = `${entries.length} 則長期紀錄`;
+
+  const chapterList = document.getElementById("chronicle-chapter-list");
+  if (chapterList) {
+    const chapters = [];
+    const seen = new Set();
+    for (const entry of entries) {
+      const key = entry.scenarioId ?? "legacy";
+      if (seen.has(key)) continue;
+      seen.add(key);
+      chapters.push(`<span class="chronicle-chapter-chip">${escapeHtml(chronicleScenarioTitle(entry.scenarioId, packages))}</span>`);
+    }
+    chapterList.innerHTML = chapters.join("") || `<span class="chronicle-chapter-chip muted">尚未分章</span>`;
+  }
+
+  renderChronicleBook(entries, packages);
+  const note = document.getElementById("chronicle-package-note");
+  if (note) note.textContent = complete
+    ? "此章已整理成 AI-ready 劇情包：由完整敘事與結構化事實 deterministic 組成，尚未自動傳送給任何外部 AI。"
+    : "進行中的故事會持續累積；副本完成後會封存成可交給 AI 的劇情包。";
+
+  const facts = document.getElementById("chronicle-facts");
+  const factList = (pack?.facts ?? []).slice(-8).reverse();
+  if (facts) {
+    facts.innerHTML = factList.length
+      ? `<div class="chronicle-facts-label">最近事實</div>` + factList.map((fact) => `<div class="chronicle-fact"><span>${escapeHtml(fact.type ?? "事件")}</span>${escapeHtml(fact.summary ?? "")}</div>`).join("")
+      : `<div class="chronicle-facts-empty">尚無結構化事件摘要</div>`;
+  }
+
+  chroniclePackageText = pack?.text ?? "";
+  const copy = document.getElementById("chronicle-copy-btn");
+  const download = document.getElementById("chronicle-download-btn");
+  if (copy) copy.disabled = !chroniclePackageText;
+  if (download) download.disabled = !chroniclePackageText;
+}
+
+async function openChronicle(scenarioId = null) {
+  if (!currentSessionId) {
+    showToast("先建立輪迴者檔案，主神才會替你保存劇情。", { kind: "warning" });
+    return;
+  }
+  if (currentCombat?.active) return;
+  openModal("chronicleModal");
+  const book = document.getElementById("chronicle-book");
+  if (book) book.innerHTML = `<div class="chronicle-loading"><i class="fas fa-feather-pointed fa-bounce"></i> 正在翻閱存檔……</div>`;
+  try {
+    const suffix = scenarioId ? `&scenarioId=${encodeURIComponent(scenarioId)}` : "";
+    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}${suffix}`)).json();
+    if (!res.ok) throw new Error(res.error || "劇情回顧載入失敗");
+    chronicleState = res;
+    renderChronicle();
+  } catch (err) {
+    if (book) book.innerHTML = `<div class="chronicle-empty is-error"><i class="fas fa-triangle-exclamation"></i><p>劇情回顧載入失敗</p><span>${escapeHtml(err.message)}</span></div>`;
+  }
+}
+
+async function copyChroniclePackage() {
+  if (!chroniclePackageText) return;
+  try {
+    await navigator.clipboard.writeText(chroniclePackageText);
+  } catch {
+    const area = document.createElement("textarea");
+    area.value = chroniclePackageText;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+  }
+  const button = document.getElementById("chronicle-copy-btn");
+  if (button) {
+    const original = button.innerHTML;
+    button.innerHTML = `<i class="fas fa-check"></i><span>已複製，可交給 AI</span>`;
+    setTimeout(() => { button.innerHTML = original; }, 1800);
+  }
+}
+
+function downloadChroniclePackage() {
+  if (!chroniclePackageText) return;
+  const blob = new Blob([chroniclePackageText], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${(chronicleState?.aiPackage?.scenarioTitle || "chronicle").replace(/[^\w\u4e00-\u9fff-]+/g, "-")}.txt`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 // ---------------------------------------------------------------------------
 // 主神商店
@@ -3367,11 +3441,9 @@ document.addEventListener("click", (e) => {
 window.showScreen = showScreen;
 window.startNewChargen = startNewChargen;
 window.acceptMainGodInvitation = acceptMainGodInvitation;
-window.openStoryLog = () => {
-  if (currentCombat?.active) return;
-  openModal("storyLogModal");
-  requestAnimationFrame(() => updateStoryFeedLatestButton());
-};
+window.openChronicle = openChronicle;
+// 舊版外部入口相容：故事紀錄已改名為劇情回顧，但不讓舊 bookmark／debug 呼叫失效。
+window.openStoryLog = openChronicle;
 window.revealMainGodSpace = revealMainGodSpace;
 window.resetPortalInvitation = resetPortalInvitation;
 window.resumeLocalSession = resumeLocalSession;

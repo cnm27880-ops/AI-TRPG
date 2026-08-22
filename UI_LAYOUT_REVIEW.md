@@ -182,3 +182,28 @@
 | 響應式 | 390×844、430×932、768×1024 均無水平溢出，選項／輸入列保持可見 |
 
 本輪前端腳本版本更新為 `?v=20260822-r8a`。
+
+
+## 第九輪：從完整故事流轉為近期現場與玩家手稿
+
+本輪正式撤銷「主畫面承擔完整故事歷史」的設計。新的閱讀模型是：**中央只服務當下決策，劇情回顧才服務長期閱讀**。中央 `#recent-story-list` 保留最後五則訊息，玩家可以在這個小窗口上滑回看最近現場，但更早內容不再以隱藏 DOM、篩選狀態或完整時間線留在主畫面。這個分界同時改善閱讀節奏、降低高頻 DOM 操作，也避免後續 check／world／fault 訊息把說書人正文當成唯一「最新敘事」覆蓋。
+
+故事訊息採結構化 entry 而不是 DOM 當資料來源。說書人正文使用較大的小說字級；玩家行動、判定與世界事件使用次級卡片；暫時等待則是獨立的「說書人書寫中」卡，顯示 typing dots 與經過秒數。如此即使伺服器回應需要數十秒，玩家也能知道系統正在工作；回應抵達時只移除 pending，不重建或 clone 一條完整故事流。
+
+劇情回顧入口與主神商店並列，回顧 modal 使用「玩家的輪迴手稿」作為視覺隱喻。章節以 scenarioId 分開，正文維持時間順序，metadata、章節標籤與 AI package 狀態被放在正文周圍而不打斷閱讀。進行中的副本只顯示「持續累積」；副本結束後才顯示可複製／下載的 ready package，不對玩家宣稱資料已送給 AI，除非真的發生後續 context 使用。
+
+| 設計問題 | 第九輪決策 | 可驗證指標 |
+|---|---|---|
+| 完整故事流造成主畫面不順 | 主畫面只 render 最近五則 entry | 永久 entry 數固定為 5；無 `#story-feed` |
+| pending 被事件覆蓋 | pending 直接進 recent renderer，narration 回來後只移除 pending | 等待期間可見秒數與 typing dots |
+| history 只有八回合 | 新增 chronicle，history 仍只負責短期 prompt | 12 回合以上仍可回顧；legacy history 可補欄位 |
+| 長期故事何時給 AI | 副本完成時建立唯一 deterministic package；後續 prompt 只帶 compact context | package status=ready；每回合 context 最多最近 2 份且截斷 |
+| 長篇 modal 影響主畫面效能 | 回顧開啟時才請求 `/api/chronicle` | runtime session 僅取 recent preview |
+
+## 第九輪實測結論
+
+含 Pages Functions 的本地預覽完成真實建卡、開場回合與劇情回顧流程。測試角色完成五題後，開場 response 實際顯示說書人正文、四張選項卡與自訂輸入框；中央標示 `1 / 5`，且主神商店旁的劇情回顧入口存在。打開回顧後，瀏覽器實際讀到副本標題、角色名、1 回合／1 則長期紀錄及完整開場 prose；AI package 在進行中狀態顯示尚未封存。
+
+390×844、430×932 與 768×1024 稽核皆無水平溢出。390px 的 chronicle panel 為 366×828，footer bottom=835；430px 的 panel 為 406×907，footer bottom=919；兩者的正文區均有獨立 overflow auto。遊戲畫面在 390／430px 以單欄選項呈現，768px 以 2×2 呈現；四張選項與輸入列均在 viewport 內。1280×1100 桌面量測中 recent list 與 action panel 精確銜接，action panel bottom=1100。
+
+本輪實作仍保留暖墨／紙質 token、右側預設角色欄、同側齒輪停靠、手機左側角色抽屜與屬性／技能不重複 meter 等前輪原則。`/api/chronicle` 採現有 ownership 門禁； deterministic package 由 storage 純函式組裝，不新增通關 LLM 呼叫與額外延遲。

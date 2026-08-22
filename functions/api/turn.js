@@ -48,6 +48,7 @@ import {
   pushHistory,
   historyToPromptText,
 } from "../../content/storage/sessionStore.js";
+import { appendChronicle, registerChroniclePackage, buildCompactAiContext } from "../../content/storage/chronicle.js";
 import {
   buildOptionsSpec,
   parseTurnResponse,
@@ -292,12 +293,22 @@ export async function onRequestPost(context) {
     // 前端不該把它們標成「保底」（那個標籤的意思是「跟本回合劇情無關」，固定開頭正好相反）。
     const options = scripted.options.map((o) => (o.source === "ai" ? { ...o, source: "scripted" } : o));
 
+    const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
+    const openingTimestamp = new Date().toISOString();
     session.history = pushHistory(session.history, { action: null, narration: currentChapter.openingNarration });
+    session.chronicle = appendChronicle(session.chronicle, {
+      turn: (session.turns ?? 0) + 1,
+      action: null,
+      narration: currentChapter.openingNarration,
+      timestamp: openingTimestamp,
+      chapterIndex: scenarioProgress?.chapterIndex ?? null,
+      nodeId: activeNode?.id ?? null,
+      scenarioId: scenarioPack?.id ?? null,
+    });
     session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     await store.put(session);
 
-    const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
     return json({
       ok: true,
       provider: null,
@@ -466,6 +477,8 @@ export async function onRequestPost(context) {
   const recentEvents = session
     ? summarizeForJournal(session.log).slice(-EVENT_MEMORY_LIMIT)
     : [];
+  // 長期故事只以最近一至兩份、已截斷的摘要進 prompt；完整 chronicle 不會隨每回合傳送。
+  const completedChronicles = buildCompactAiContext(session);
 
   // [新增] 生成 DM 備忘錄狀態表
   const dmMemo = buildDmMemo(character, session);
@@ -484,6 +497,7 @@ export async function onRequestPost(context) {
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
     recentNarration,
+    completedChronicles,
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
@@ -685,6 +699,7 @@ export async function onRequestPost(context) {
   // 但進度條沒動——他有權知道為什麼。一般 warnings 是給開發者看的(進console)，
   // 這一類是給玩家看的(進故事流)，兩者的受眾不同，混在一起只會兩邊都看不到。
   const scenarioWarnings = [];
+  let chroniclePackage = null;
   if (session?.scenario && scenarioPack) {
     // 從 scenarioProgress 接手（迫近度那一段已經先改過它一次），不要回頭讀 session.scenario.progress，
     // 否則這一回合算出來的迫近度會在寫回存檔時被舊值蓋掉。
@@ -768,6 +783,15 @@ export async function onRequestPost(context) {
           `副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`
         );
       }
+      const registeredPackage = registerChroniclePackage(session.chroniclePackages, {
+        scenarioId: scenarioPack.id,
+        scenarioTitle: scenarioPack.briefing?.title ?? scenarioPack.id,
+        turnStart: 1,
+        turnEnd: (session.turns ?? 0) + 1,
+        createdAt: new Date().toISOString(),
+      });
+      session.chroniclePackages = registeredPackage.packages;
+      chroniclePackage = registeredPackage.created ? registeredPackage.record : null;
     }
 
     session.scenario = { packId: scenarioPack.id, progress };
@@ -789,6 +813,7 @@ export async function onRequestPost(context) {
           : {}),
       },
       ...(scenarioWarnings.length ? { warnings: scenarioWarnings } : {}),
+      ...(chroniclePackage ? { chroniclePackage } : {}),
     };
   }
 
@@ -816,7 +841,17 @@ export async function onRequestPost(context) {
         { timestamp: new Date().toISOString() }
       );
     }
+    const chronicleTimestamp = new Date().toISOString();
     session.history = pushHistory(session.history, { action: actionText, narration });
+    session.chronicle = appendChronicle(session.chronicle, {
+      turn: (session.turns ?? 0) + 1,
+      action: actionText,
+      narration,
+      timestamp: chronicleTimestamp,
+      chapterIndex: scenarioProgress?.chapterIndex ?? null,
+      nodeId: activeNode?.id ?? null,
+      scenarioId: scenarioPack?.id ?? null,
+    });
     // 「回合」是敘事推進了一輪，不是日誌多了幾筆——頂欄那個數字用的就是這個。
     session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
@@ -859,6 +894,7 @@ function buildPrompt({
   sceneContext,
   recentEvents,
   recentNarration,
+  completedChronicles,
   character,
   nodeGuidance,
   dmMemo,
@@ -884,6 +920,7 @@ function buildPrompt({
       sceneContext,
       recentEvents,
       recentNarration,
+      completedChronicles,
       ...(personaKey ? { personaKey } : {}),
     });
     return `${freePrompt}${dmMemoBlock}\n\n${optionsSpec}${tail}${jsonReminder}`;
@@ -901,6 +938,7 @@ function buildPrompt({
       lines.push("【已經發生過的判定結果(事實，不可改寫)】");
       for (const e of recentEvents) lines.push(`- ${e.summary}`);
     }
+    if (completedChronicles) lines.push(completedChronicles);
     lines.push(
       recentNarration
         ? "【接續】玩家剛回到這場遊戲，請簡短重述目前的處境，不要重新開場。這一回合沒有擲骰，不要描寫任何行動的成敗。"
@@ -916,6 +954,7 @@ function buildPrompt({
     sceneContext,
     recentEvents,
     recentNarration,
+    completedChronicles,
     ...(personaKey ? { personaKey } : {}),
   });
 

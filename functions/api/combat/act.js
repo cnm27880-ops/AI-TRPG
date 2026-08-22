@@ -20,8 +20,9 @@ import {
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { buildCombatNarrationPrompt } from "../../../content/gemini/promptContract.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
-import { completeNodeAndAdvance } from "../../../content/scenario/progress.js";
+import { completeNodeAndAdvance, getProgressSummary } from "../../../content/scenario/progress.js";
 import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
+import { registerChroniclePackage } from "../../../content/storage/chronicle.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../../content/auth/ownership.js";
@@ -237,7 +238,20 @@ export async function onRequestPost(context) {
         }
 
         session.scenario = { packId: pack.id, progress };
-        scenarioResult = { nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward } };
+        const packageRegistration = getProgressSummary(pack, progress).scenarioComplete
+          ? registerChroniclePackage(session.chroniclePackages, {
+              scenarioId: pack.id,
+              scenarioTitle: pack.briefing?.title ?? pack.id,
+              turnStart: 1,
+              turnEnd: session.turns ?? session.chronicle?.length ?? 0,
+              createdAt: ts,
+            })
+          : { packages: session.chroniclePackages ?? [], record: null, created: false };
+        session.chroniclePackages = packageRegistration.packages;
+        scenarioResult = {
+          nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward },
+          ...(packageRegistration.created && packageRegistration.record ? { chroniclePackage: packageRegistration.record } : {}),
+        };
       }
     }
 

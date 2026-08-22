@@ -78,8 +78,8 @@ function personaBlock(personaKey) {
   );
 }
 
-/** 記憶區塊（前情提要 + 事件日誌）。兩者用途不同，見檔頭與 buildTurnPrompt 的參數說明。 */
-function memoryBlocks({ recentNarration, recentEvents = [] }) {
+/** 記憶區塊（前情提要 + 事件日誌 + 已封存副本短摘要）。 */
+function memoryBlocks({ recentNarration, recentEvents = [], completedChronicles = null }) {
   const blocks = [];
   if (recentNarration) {
     blocks.push(
@@ -101,6 +101,7 @@ function memoryBlocks({ recentNarration, recentEvents = [] }) {
       )
     );
   }
+  if (completedChronicles) blocks.push(completedChronicles);
   return blocks;
 }
 
@@ -115,6 +116,7 @@ function memoryBlocks({ recentNarration, recentEvents = [] }) {
  * @param {string} [params.recentNarration] 最近幾輪的敘事原文(見 content/storage/sessionStore.js
  *   的 historyToPromptText)。跟 recentEvents 的差別：事件摘要只有事實(「判定：躲藏，成功」)，
  *   沒有語氣、場景細節與NPC說過的話，光靠它AI寫不出連貫的劇情。兩個都要給。
+ * @param {string|null} [params.completedChronicles] 已封存副本的短摘要，最多幾份且已截斷；完整 chronicle 不進每回合。
  * @param {string} [params.personaKey] 這一回合的敘事者人格面具(見 content/narrativeStyle.js
  *   的 NARRATOR_PERSONAS)。省略就不放面具區塊——系統提示裡本來就有一份，
  *   這裡是「這一回合特別指定」用的，例如某個節點想臨時換一個聲音來講。
@@ -126,6 +128,7 @@ export function buildTurnPrompt({
   sceneContext,
   recentEvents = [],
   recentNarration,
+  completedChronicles = null,
   personaKey,
 }) {
   if (!playerAction) throw new Error("buildTurnPrompt需要playerAction(玩家這次的行動描述)");
@@ -135,7 +138,7 @@ export function buildTurnPrompt({
   const persona = personaBlock(personaKey);
   if (persona) blocks.push(persona);
   if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
-  blocks.push(...memoryBlocks({ recentNarration, recentEvents }));
+  blocks.push(...memoryBlocks({ recentNarration, recentEvents, completedChronicles }));
   blocks.push(tagged("Player_Action", `【玩家行動】${playerAction}`));
   // 引擎結果放在最後一個資料區塊：模型讀到的最後一段事實就是「這次判定是哪一級」。
   blocks.push(
@@ -164,6 +167,7 @@ export function buildFreeActionPrompt({
   sceneContext,
   recentEvents = [],
   recentNarration,
+  completedChronicles = null,
   personaKey,
 }) {
   if (!playerAction) throw new Error("buildFreeActionPrompt需要playerAction(玩家這次的行動描述)");
@@ -172,7 +176,7 @@ export function buildFreeActionPrompt({
   const persona = personaBlock(personaKey);
   if (persona) blocks.push(persona);
   if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
-  blocks.push(...memoryBlocks({ recentNarration, recentEvents }));
+  blocks.push(...memoryBlocks({ recentNarration, recentEvents, completedChronicles }));
   blocks.push(tagged("Player_Action", `【玩家行動（純敘事，無風險）】${playerAction}`));
   blocks.push(
     tagged(

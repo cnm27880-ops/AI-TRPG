@@ -19,6 +19,7 @@
 import { createEventLog } from "../../core/eventLog.js";
 import { createWallet } from "../shop/wallet.js";
 import { createFormsState } from "../shop/forms.js";
+import { chronicleFromHistory } from "./chronicle.js";
 
 /** 餵給AI的敘事短期記憶要保留幾輪。調大會更連貫但更花錢，調小會失憶。 */
 export const HISTORY_LIMIT = 8;
@@ -28,9 +29,10 @@ export const HISTORY_LIMIT = 8;
  *   1 —— 初版
  *   2 —— 2026-08-17 加入 wallet(主神商店錢包) 與 forms(進行中的型態)
  *   3 —— 2026-08-20 加入 turns(真正的回合數，見下面 ensureSessionShape 的說明)
+ *   4 —— 2026-08-23 加入 chronicle(完整長期劇情，不受短期 history 上限影響)
  * 舊版存檔由 ensureSessionShape() 就地補欄位，不需要離線遷移。
  */
-export const SESSION_VERSION = 3;
+export const SESSION_VERSION = 4;
 
 /** 存檔在KV裡的key前綴。 */
 const KEY_PREFIX = "session:";
@@ -52,6 +54,10 @@ export function ensureSessionShape(session) {
   const next = { ...session };
   if (!next.wallet) next.wallet = createWallet();
   if (!next.forms) next.forms = createFormsState();
+  // [2026-08-23] history 是餵給AI的短期記憶，chronicle 才是玩家的完整劇情檔案。
+  // 舊版沒有 chronicle 時只能把仍保留的 history 搬過去；不假裝能找回更早的敘事。
+  if (!Array.isArray(next.chronicle)) next.chronicle = chronicleFromHistory(next.history);
+  if (!Array.isArray(next.chroniclePackages)) next.chroniclePackages = [];
   // [2026-08-20] 畫面頂欄那個「回合：N」以前顯示的是**事件日誌的筆數**，不是回合數——
   // 一場戰鬥打十下就會讓它跳十幾格，玩家看到的數字跟他實際玩過幾輪完全對不上。
   // 這裡開一個真的只在「敘事推進一輪」時 +1 的計數。舊存檔沒有這個欄位，
@@ -74,6 +80,10 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     character,
     log: createEventLog(),
     history: [],
+    // 完整長期劇情。它不餵進每一回合 prompt，只在劇情回顧與 AI 劇情包需要時讀取。
+    chronicle: [],
+    // 副本結束後只保存 package metadata；完整內容由 /api/chronicle 按需組裝。
+    chroniclePackages: [],
     scene: { context: sceneContext, options: [] },
     // 真正的回合數：只有「敘事推進了一輪」才 +1（見 functions/api/turn.js）。
     turns: 0,
