@@ -135,10 +135,9 @@ function resetPortalInvitation() {
   const acceptButton = document.getElementById("accept-invitation-btn");
   if (!portal || !invitation || !takeover || !main) return;
 
-  document.body.classList.add("portal-invite-active");
-  document.body.classList.remove("portal-main-active");
-  portal.classList.add("portal-invite-active");
-  portal.classList.remove("portal-main-active");
+  // 第一幕：邀請頁。舞台由 <html data-stage> 決定，色彩全部跟著它走
+  // （見 index.html 的「舞台與主題的色彩 token」）。
+  document.documentElement.setAttribute("data-stage", "invitation");
   invitation.style.display = "flex";
   invitation.classList.remove("is-leaving");
   invitation.removeAttribute("aria-hidden");
@@ -161,10 +160,8 @@ function finishPortalReveal(reason = "new") {
 
   portalMode = "main";
   window.clearTimeout(portalTransitionTimer);
-  document.body.classList.remove("portal-invite-active");
-  document.body.classList.add("portal-main-active");
-  portal.classList.remove("portal-invite-active");
-  portal.classList.add("portal-main-active");
+  // 第三幕：主神空間。過場結束才切，讓黑色接管畫面成為兩幕之間真正的斷點。
+  document.documentElement.setAttribute("data-stage", "godspace");
   invitation.style.display = "none";
   invitation.setAttribute("aria-hidden", "true");
   takeover.classList.remove("is-active");
@@ -714,22 +711,28 @@ function flashElement(el) {
 //
 // 摘要文字一律由伺服器產生(GET /api/journal)，前端不自己組字串：日誌上寫的
 // 跟餵給AI當事實記憶的必須是同一份，兩邊各寫一次遲早會對不起來。
+/**
+ * 日誌條目 → 事件種類。
+ *
+ * [2026-08-21] 原本這裡各自指定一個 Tailwind 顏色 class，跟故事流那邊的色彩
+ * 各走各的；同一件事（例如判定）在兩個地方長得不一樣，玩家要記兩套。
+ * 改成指向故事流那套事件種類（見 FEED_EVENT_KICKERS），兩條流從此共用一套語言，
+ * 顏色也一起交給語意 token，換舞台時會自動跟著走。
+ */
 const JOURNAL_TYPE_STYLE = {
-  check: { label: "判定", color: "text-emerald-300" },
-  damage: { label: "傷害", color: "text-red-300" },
-  combat_action: { label: "戰鬥", color: "text-red-300" },
-  xp_grant: { label: "經驗", color: "text-amber-300" },
-  points_grant: { label: "點數", color: "text-amber-300" },
-  purchase: { label: "購買", color: "text-sky-300" },
-  form: { label: "型態", color: "text-violet-300" },
-  rest: { label: "休息", color: "text-sky-300" },
-  node_complete: { label: "節點", color: "text-emerald-300" },
-  death: { label: "死亡", color: "text-red-400" },
-  revival: { label: "復活", color: "text-violet-300" },
-  // 用 rose 而不是 pink：淺色主題的色票對照表(index.html)有 rose 的覆寫、沒有 pink，
-  // 用 pink 會變成白底上的淺粉字。
-  affection_change: { label: "好感", color: "text-rose-300" },
-  time_spent: { label: "時間", color: "text-zinc-400" },
+  check: { label: "判定", kind: "check" },
+  damage: { label: "傷害", kind: "harm" },
+  combat_action: { label: "戰鬥", kind: "harm" },
+  death: { label: "死亡", kind: "harm" },
+  xp_grant: { label: "經驗", kind: "ledger" },
+  points_grant: { label: "點數", kind: "ledger" },
+  purchase: { label: "購買", kind: "ledger" },
+  form: { label: "型態", kind: "arcane" },
+  revival: { label: "復活", kind: "arcane" },
+  rest: { label: "休息", kind: "respite" },
+  node_complete: { label: "節點", kind: "world", tone: "good" },
+  affection_change: { label: "好感", kind: "world" },
+  time_spent: { label: "時間", kind: "world" },
 };
 
 /** 日誌分頁目前是不是被打開著。關著就不用每回合去抓（省一次請求）。 */
@@ -755,11 +758,11 @@ function renderJournalEntries(entries) {
   feed.innerHTML = [...entries]
     .reverse()
     .map((e) => {
-      const style = JOURNAL_TYPE_STYLE[e.type] ?? { label: "事件", color: "text-zinc-400" };
-      return `<div class="p-2 rounded bg-panel/70 border hairline-border leading-snug">
-        <span class="${style.color} font-bold">[${escapeHtml(style.label)}]</span>
-        <span class="text-zinc-300">${escapeHtml(e.summary ?? "")}</span>
-      </div>`;
+      const style = JOURNAL_TYPE_STYLE[e.type] ?? { label: "事件", kind: "world" };
+      return buildFeedEvent(style.kind, escapeHtml(style.label), escapeHtml(e.summary ?? ""), {
+        tone: style.tone,
+        animate: false,
+      }).outerHTML;
     })
     .join("");
 }
@@ -951,19 +954,16 @@ function showNarratorPending() {
   if (!feed) return;
   hideNarratorPending();
 
-  const block = document.createElement("div");
+  // 等待中的區塊也走事件語法，色帶跟「說書人」同一條——玩家看到的是
+  // 「這一則說書人事件正在寫」，而不是另一種長相的系統訊息。
+  const block = buildFeedEvent(
+    "narration",
+    `說書人書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
+    `<span data-pending-elapsed class="tabular-nums">0.0s</span>`,
+    { note: `<span data-pending-hint></span>` }
+  );
   block.id = "narrator-pending";
-  block.className =
-    "space-y-1 feed-block-enter pending-sweep font-mono text-[11px] text-emerald-200/80 " +
-    "bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30";
-  block.innerHTML =
-    `<div class="flex items-center gap-2">` +
-    `<i class="fas fa-feather-pointed"></i>` +
-    `<span class="font-bold">說書人書寫中</span>` +
-    `<span class="typing-dots"><span></span><span></span><span></span></span>` +
-    `<span data-pending-elapsed class="ml-auto tabular-nums text-emerald-300/70">0.0s</span>` +
-    `</div>` +
-    `<div data-pending-hint class="text-[10px] text-zinc-400"></div>`;
+  block.classList.add("pending-sweep", "is-pending");
   feed.appendChild(block);
   scrollFeedToBottom();
 
@@ -1030,22 +1030,18 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
 
   const overrides = buildLlmOverrides();
   if (!overrides.ok) {
-    appendFeedBlock(
-      "主神設定",
-      escapeHtml(overrides.message),
-      "text-xs text-yellow-300 font-mono bg-yellow-500/5 p-2.5 rounded border border-yellow-500/40"
-    );
+    appendFeedEvent("arcane", "主神調整了這一回合", escapeHtml(overrides.message));
     return;
   }
 
   turnInFlight = true;
   lastTurnRequest = { chosenOption, playerAction, opening };
 
-  if (playerAction) appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(playerAction), "font-mono italic text-emerald-400/80");
+  if (playerAction) appendFeedEvent("action", "", escapeHtml(playerAction));
   // 選項是AI寫的文字，玩家按下去之後也該在故事流裡留下紀錄——否則捲回去看的時候，
   // 只剩下敘事，看不出當時自己選了什麼。
   if (chosenOption?.label) {
-    appendFeedBlock(`▶ 輪迴者行動`, escapeHtml(chosenOption.label), "font-mono italic text-emerald-400/80");
+    appendFeedEvent("action", "", escapeHtml(chosenOption.label));
   }
 
   setTurnInputLocked(true, pressedIndex);
@@ -1088,11 +1084,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
       if (res.checkResult) await renderCheckResult(res.checkResult);
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
       if (httpRes.status === 409 && res.downState) {
-        appendFeedBlock(
-          `<span class="text-red-400">身體拒絕行動</span>`,
-          escapeHtml(res.error),
-          "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
-        );
+        appendFeedEvent("harm", "身體拒絕行動", escapeHtml(res.error));
       } else {
         appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
       }
@@ -1134,10 +1126,11 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
 async function renderCheckResult(r) {
   await playDiceRollAnimation(r);
   const outcomeColor = r.autoFail || !r.success ? "text-red-400" : "text-emerald-400";
-  appendFeedBlock(
-    `<span class="${outcomeColor}">命運擲骰 · ${r.autoFail ? "命運拒絕" : (r.success ? "驚險成功" : "失敗")}</span>`,
-    `${r.note?.join(" + ")} ➔ 成功數: <span class="text-zinc-200 font-bold">${r.totalSuccesses}</span> (DC: ${r.dc}) 骰面: [${r.rolls?.join(",")}]`,
-    "font-mono text-xs text-zinc-500 bg-panel/70 p-2.5 rounded border hairline-border"
+  appendFeedEvent(
+    "check",
+    r.autoFail ? "命運拒絕" : (r.success ? "驚險成功" : "失敗"),
+    `${r.note?.join(" + ")} ➔ 成功數 <span class="fe-num">${r.totalSuccesses}</span> ／ DC <span class="fe-num">${r.dc}</span> · 骰面 [${r.rolls?.join(",")}]`,
+    { tone: r.success && !r.autoFail ? "good" : "bad" }
   );
 }
 
@@ -1189,11 +1182,7 @@ function renderTurnQuality(degraded) {
     cause = "成因：AI 的回覆不是合法 JSON。";
   }
 
-  appendFeedBlock(
-    `<span class="text-yellow-300">主神提供的退路</span>`,
-    `${escapeHtml(detail)}${cause ? " " + escapeHtml(cause) : ""}`,
-    "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
-  );
+  appendFeedEvent("arcane", "主神提供的退路", `${escapeHtml(detail)}${cause ? " " + escapeHtml(cause) : ""}`);
 }
 
 /**
@@ -1254,16 +1243,16 @@ async function attemptRevive() {
 
     renderDownState(res.downState, res.revival);
     if (!res.ok) {
-      appendFeedBlock("主神修復失敗", `復活失敗：${escapeHtml(res.error)}`, "text-xs text-red-300 font-mono");
+      appendFeedEvent("fault", "主神修復失敗", `復活失敗：${escapeHtml(res.error)}`);
       return;
     }
 
     adoptCharacter(res.character);
     refreshJournalIfOpen();
-    appendFeedBlock(
-      `<span class="text-emerald-300">主神修復完成</span>`,
-      `主神修復完成 · 花費 ${res.cost} 點 · 這是第 ${res.reviveCount} 次復活`,
-      "font-mono text-xs text-emerald-200 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30"
+    appendFeedEvent(
+      "arcane",
+      "主神修復完成",
+      `花費 <span class="fe-num">${res.cost}</span> 點 · 這是第 <span class="fe-num">${res.reviveCount}</span> 次復活`
     );
     // 復活後那場戰鬥已經在後端標記結束了，把畫面切回故事流。
     if (currentCombat) {
@@ -1275,7 +1264,7 @@ async function attemptRevive() {
     await runTurn({ opening: true });
   } catch (err) {
     console.error("[REVIVE_FAILURE]", err);
-    appendFeedBlock("主神訊息中斷", `復活請求失敗：${escapeHtml(err.message)}`, "text-xs text-red-300 font-mono");
+    appendFeedEvent("fault", "復活請求失敗", escapeHtml(err.message));
   }
 }
 
@@ -1292,12 +1281,15 @@ function appendTurnError(message, res) {
   const feed = document.getElementById("story-feed");
   const block = document.createElement("div");
   setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
-  block.className = "space-y-1 feed-block-enter text-xs font-mono text-red-300 bg-red-500/5 p-2.5 rounded border border-red-500/40";
-  block.innerHTML =
-    `<div class="text-[11px] font-bold opacity-80">主神訊息中斷</div>` +
-    `<div>${escapeHtml(message)}</div>` +
-    (hint ? `<div class="text-yellow-300/80">${escapeHtml(hint)}</div>` : "") +
-    `<button data-turn-retry class="mt-1 px-3 py-1 rounded border border-red-400/50 bg-red-500/10 hover:bg-red-500/20 transition text-red-200 font-bold">重試這一回合</button>`;
+  const built = buildFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
+    note: hint ? escapeHtml(hint) : undefined,
+  });
+  block.className = built.className;
+  block.innerHTML = built.innerHTML;
+  block.querySelector(".feed-event-body").insertAdjacentHTML(
+    "beforeend",
+    `<div class="feed-event-actions"><button data-turn-retry class="feed-event-retry">重試這一回合</button></div>`
+  );
   block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
     block.remove();
     if (lastTurnRequest) runTurn(lastTurnRequest);
@@ -1321,19 +1313,16 @@ function updateScenarioHud(scenario) {
   // 節點結算被引擎擋下時，玩家會看到「我明明做完了，進度條卻沒動」。
   // 這種事以前只進 warnings 陣列(沒人讀)，現在直接寫進故事流講清楚原因。
   (scenario.warnings || []).forEach((w) => {
-    appendFeedBlock(
-      `<span class="text-yellow-300">副本異常</span>`,
-      escapeHtml(w),
-      "font-mono text-[11px] text-yellow-200/80 bg-yellow-500/5 p-2 rounded border border-yellow-500/30"
-    );
+    appendFeedEvent("world", "副本異常", escapeHtml(w), { tone: "bad" });
   });
 
   if (scenario.nodeCompleted) {
     const n = scenario.nodeCompleted;
-    appendFeedBlock(
-      `<span class="text-emerald-300">劇情節點完成</span>`,
-      `「${escapeHtml(n.title)}」已達成 · 扭轉度 ${n.divergenceTier} 級 · 獲得 <span class="text-emerald-300 font-bold">${n.reward}</span> 點經驗`,
-      "font-mono text-xs text-zinc-300 bg-emerald-500/5 p-2.5 rounded border border-emerald-500/30 pulse-glow"
+    appendFeedEvent(
+      "world",
+      `劇情節點完成：${escapeHtml(n.title)}`,
+      `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點經驗`,
+      { tone: "good" }
     );
   }
 
@@ -1488,12 +1477,11 @@ function renderThreatMeter(threat) {
 
   if (threat.stage !== lastThreatStage && lastThreatStage !== null && threat.delta) {
     const worse = threat.delta > 0;
-    appendFeedBlock(
-      `<span class="${worse ? "text-orange-300" : "text-emerald-300"}">迫近度變化 · ${escapeHtml(threat.stage)}</span>`,
-      `${escapeHtml(threat.name)}${worse ? "上升" : "下降"}至「${escapeHtml(threat.stage)}」：${escapeHtml(threat.summary ?? "")}`,
-      `font-mono text-[11px] p-2 rounded border ${
-        worse ? "text-orange-200/90 bg-orange-500/5 border-orange-500/30" : "text-emerald-200/90 bg-emerald-500/5 border-emerald-500/30"
-      }`
+    appendFeedEvent(
+      "world",
+      `迫近度${worse ? "上升" : "下降"}至「${escapeHtml(threat.stage)}」`,
+      `${escapeHtml(threat.name)}：${escapeHtml(threat.summary ?? "")}`,
+      { tone: worse ? "bad" : "good" }
     );
   }
   lastThreatStage = threat.stage;
@@ -1681,13 +1669,67 @@ function showToast(message, { kind = "error", timeout } = {}) {
   while (tray.children.length > 3) tray.firstElementChild.remove();
 }
 
-function appendFeedBlock(title, content, extraClass = "") {
+/**
+ * 事件時間線的視覺語法（審查報告 §3.5）。
+ *
+ * 在這之前，故事流的每一個呼叫點都自己手寫一串 Tailwind class，於是同一種事情
+ * 在不同地方有時有框有時沒框、padding 有三種、字級有三種。玩家沒辦法在餘光裡
+ * 分辨「剛跳出來那一塊是判定、是世界變化、還是連線出錯」，只能逐段讀完。
+ *
+ * 現在事件種類是唯一要傳的樣式資訊，顏色與排版由 CSS 依種類決定
+ * （見 index.html 的「事件時間線的視覺語法」）。要新增一種事件就在這裡加一行，
+ * 而不是在呼叫點再拼一次 class 字串。
+ *
+ * tone 只在同一種事件內部微調，不會換成別的顏色系：
+ *   good → 這件事對玩家有利（判定成功、迫近度下降）
+ *   bad  → 不利（判定失敗、迫近度上升）
+ */
+const FEED_EVENT_KICKERS = {
+  action: "你的行動",
+  check: "命運判定",
+  narration: "說書人",
+  world: "世界改變了",
+  ledger: "主神帳本",
+  arcane: "主神系統",
+  harm: "身體狀態",
+  respite: "喘息",
+  fault: "訊號中斷",
+};
+
+/**
+ * @param {string} kind  FEED_EVENT_KICKERS 的其中一個鍵
+ * @param {string} label 這一則事件的一句話標題（已經是安全的 HTML）
+ * @param {string} content 內文（已經是安全的 HTML）
+ * @param {{tone?: "good"|"bad", note?: string, animate?: boolean}} [opts]
+ * @returns {HTMLElement} 建好的區塊，呼叫點需要再掛東西上去時可以用
+ */
+function buildFeedEvent(kind, label, content, opts = {}) {
+  const block = document.createElement("article");
+  const tone = opts.tone === "good" ? " is-good" : opts.tone === "bad" ? " is-bad" : "";
+  // 日誌是一次畫出整份清單的，二十則同時播進場動畫只會變成一片閃爍；
+  // 故事流則是一次追加一則，動畫正是「有新東西進來了」的訊號。
+  const enter = opts.animate === false ? "" : "feed-block-enter ";
+  block.className = `${enter}feed-event feed-event-${kind}${tone}`;
+  block.innerHTML =
+    `<span class="feed-event-rail" aria-hidden="true"></span>` +
+    `<div class="feed-event-body">` +
+      `<div class="feed-event-head">` +
+        `<span class="feed-event-kicker">${FEED_EVENT_KICKERS[kind] ?? "事件"}</span>` +
+        (label ? `<span class="feed-event-label">${label}</span>` : "") +
+      `</div>` +
+      (content ? `<div class="feed-event-content">${content}</div>` : "") +
+      (opts.note ? `<div class="feed-event-note">${opts.note}</div>` : "") +
+    `</div>`;
+  return block;
+}
+
+function appendFeedEvent(kind, label, content, opts = {}) {
   const feed = document.getElementById("story-feed");
-  const block = document.createElement("div");
-  block.className = `space-y-1 feed-block-enter ${extraClass}`;
-  block.innerHTML = `<div class="text-[11px] font-bold opacity-80 font-mono">${title}</div><div>${content}</div>`;
+  if (!feed) return null;
+  const block = buildFeedEvent(kind, label, content, opts);
   feed.appendChild(block);
   scrollFeedToBottom();
+  return block;
 }
 
 /**
@@ -1725,7 +1767,7 @@ let restBusy = false;
 async function doRest() {
   if (!currentSessionId || restBusy) return;
   if (currentCombat?.active) {
-    appendFeedBlock("休息", "戰鬥中沒辦法休息。", "text-yellow-300");
+    appendFeedEvent("respite", "沒辦法休息", "戰鬥中不能休息。");
     return;
   }
   restBusy = true;
@@ -1740,26 +1782,26 @@ async function doRest() {
 
     if (!res.ok) {
       const why = (res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因";
-      appendFeedBlock("休息", escapeHtml(`休息不成：${why}`), "text-yellow-300");
+      appendFeedEvent("respite", "休息不成", escapeHtml(why));
       return;
     }
-    appendFeedBlock(
-      res.location === "主神空間" ? "休息（主神空間）" : "打坐（副本中）",
-      escapeHtml(res.summary),
-      "text-sky-300"
+    appendFeedEvent(
+      "respite",
+      res.location === "主神空間" ? "在主神空間休息" : "在副本中打坐",
+      escapeHtml(res.summary)
     );
     if (res.timeBudget) {
-      appendFeedBlock(
+      appendFeedEvent(
+        "world",
         "時間預算",
-        escapeHtml(`已用 ${res.timeBudget.spentRounds}/${res.timeBudget.totalRounds} 回合（${res.timeBudget.status}）`),
-        "text-zinc-400"
+        `已用 <span class="fe-num">${res.timeBudget.spentRounds}</span>/<span class="fe-num">${res.timeBudget.totalRounds}</span> 回合（${escapeHtml(res.timeBudget.status)}）`
       );
     }
     // 恢復會改角色卡的生命、意志力與能量池，側邊欄要跟著更新
     if (res.character) adoptCharacter(res.character);
     refreshJournalIfOpen();
   } catch (err) {
-    appendFeedBlock("休息", escapeHtml(`連線失敗：${err.message}`), "text-red-300");
+    appendFeedEvent("fault", "休息請求失敗", escapeHtml(err.message));
   } finally {
     restBusy = false;
     if (btn) btn.disabled = false;
@@ -1882,7 +1924,7 @@ function clearPreviousFinalQuestions() {
 
 function appendNarrationBlock(text) {
   clearPreviousFinalQuestions();
-  appendFeedBlock("說書人", renderNarrationHtml(text), "feed-block-dm whitespace-pre-wrap text-zinc-200");
+  appendFeedEvent("narration", "", renderNarrationHtml(text));
 }
 
 // --- 首頁存檔 ---
@@ -2029,7 +2071,7 @@ async function resumeSession(id) {
   const feed = document.getElementById("story-feed");
   feed.innerHTML = "";
   (res.session.history || []).forEach(h => {
-    if (h.action) appendFeedBlock("▶ 輪迴者行動", escapeHtml(h.action), "font-mono italic text-emerald-400/80");
+    if (h.action) appendFeedEvent("action", "", escapeHtml(h.action));
     if (h.narration) appendNarrationBlock(h.narration);
   });
 
@@ -2107,11 +2149,7 @@ async function startCombat() {
     })).json();
 
     if (!res.ok) {
-      appendFeedBlock(
-        "主神訊息中斷",
-        `無法開始戰鬥：${escapeHtml(res.error)}`,
-        "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
-      );
+      appendFeedEvent("fault", "無法開始戰鬥", escapeHtml(res.error));
       return;
     }
 
@@ -2137,10 +2175,11 @@ async function startCombat() {
     // [2026-08-16 修正] 這裡以前只有 finally、沒有 catch：網路錯誤會變成 unhandled
     // rejection，按鈕解鎖但畫面毫無反應，玩家不知道自己按了到底有沒有用。
     console.error("[COMBAT_FAILURE] /api/combat/start 呼叫失敗", err);
-    appendFeedBlock(
-      "主神訊息中斷",
-      `無法開始戰鬥（連線失敗）：${escapeHtml(err.message)}。請確認網路後再試一次。`,
-      "text-xs text-red-300 font-mono bg-red-500/5 p-2.5 rounded border border-red-500/40"
+    appendFeedEvent(
+      "fault",
+      "無法開始戰鬥（連線失敗）",
+      escapeHtml(err.message),
+      { note: "請確認網路後再試一次。" }
     );
   } finally {
     combatInFlight = false;
@@ -2439,10 +2478,10 @@ async function refreshDownStateThenContinue(enemyName) {
     const res = await (await fetch(`/api/revive?id=${encodeURIComponent(currentSessionId)}`)).json();
     if (res.ok && res.downState && !res.downState.canAct) {
       renderDownState(res.downState, res.revival);
-      appendFeedBlock(
-        `<span class="text-red-400">倒下</span>`,
-        `在與${escapeHtml(enemyName)}的戰鬥中倒下。${escapeHtml(res.downState.reason ?? "")}`,
-        "font-mono text-xs text-red-200 bg-red-500/5 p-2.5 rounded border border-red-500/40"
+      appendFeedEvent(
+        "harm",
+        "倒下",
+        `在與${escapeHtml(enemyName)}的戰鬥中倒下。${escapeHtml(res.downState.reason ?? "")}`
       );
       renderOptions([]);
       return;
