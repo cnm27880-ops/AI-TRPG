@@ -291,6 +291,16 @@
         body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
         #story-action-panel { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
 
+        /* [2026-08-23] `min-h-0` 是 flex 高度鏈的必要條件，但上一版預編譯
+           tailwind.css 沒有收進這個 utility。結果長故事把 #story-current 撐高，
+           #story-action-panel 雖然仍在 DOM、display 也正常，卻被 #app-viewport
+           的 overflow:hidden 從底部裁掉。這裡對核心高度鏈明確宣告，讓只有故事
+           內容區捲動，選項與自訂輸入永遠留在主欄底部。 */
+        #app-viewport,
+        #app-viewport > main,
+        #story-current,
+        #story-current-content { min-height: 0; }
+
         /* 面板頂部微光漸層邊 */
         .panel-glow-top { position: relative; }
         .panel-glow-top::before {
@@ -1941,6 +1951,25 @@
             .system-tool-panel { width: min(14rem, calc(100vw - 1.1rem)); }
             .system-tool-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
             .hud-sidebar-objective .mission-metrics { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+
+            /* 第九輪：手機底部 dock 不再壓到自訂行動輸入列；同時提高主要 modal 控制的觸控容錯。 */
+            body.is-game-screen #story-action-panel > .flex:last-child {
+                padding-left: calc(3.15rem + env(safe-area-inset-left, 0px));
+                padding-right: env(safe-area-inset-right, 0px);
+            }
+            .system-tool-dock > summary {
+                width: 2.75rem; min-width: 2.75rem; height: 2.75rem; min-height: 2.75rem;
+                padding: 0; justify-content: center;
+            }
+            #char-hud-toggle,
+            #char-hud-titlebar button[aria-label="關閉角色狀態"],
+            .story-log-close {
+                min-width: 2.5rem; min-height: 2.5rem;
+                display: inline-flex; align-items: center; justify-content: center;
+            }
+            .story-feed-filter,
+            .story-feed-latest,
+            .story-log-done { min-height: 2.25rem; }
         }
     </style>
 </head>
@@ -3035,19 +3064,56 @@
         // ---- 手機版角色卡抽屜 ----------------------------------------------
         // 桌機（>=768px）側欄本來就常駐，這兩個函式在那裡呼叫也不會有副作用：
         // hud-open 這個 class 只有在手機的 media query 底下才有樣式。
+        let charHudFocusBefore = null;
+        const isMobileCharHud = () => window.matchMedia?.('(max-width: 767px)').matches === true;
         function openCharHud() {
-            document.getElementById('char-hud')?.classList.add('hud-open');
+            const hud = document.getElementById('char-hud');
+            const toggle = document.getElementById('char-hud-toggle');
+            const mobile = isMobileCharHud();
+            if (mobile) charHudFocusBefore = document.activeElement && document.activeElement !== document.body ? document.activeElement : toggle;
+            hud?.classList.add('hud-open');
             document.getElementById('char-hud-scrim')?.classList.remove('hidden');
-            document.getElementById('char-hud-toggle')?.setAttribute('aria-expanded', 'true');
+            toggle?.setAttribute('aria-expanded', 'true');
+            if (mobile) {
+                hud?.setAttribute('aria-hidden', 'false');
+                document.querySelector('#app-viewport > main')?.setAttribute('inert', '');
+                requestAnimationFrame(() => focusablesIn(hud)[0]?.focus());
+            }
         }
         function closeCharHud() {
             const hud = document.getElementById('char-hud');
             const toggle = document.getElementById('char-hud-toggle');
-            // 焦點可能還在抽屜裡面，收起來之前先還給開啟它的那顆按鈕。
-            if (hud?.contains(document.activeElement)) toggle?.focus();
+            const mobile = isMobileCharHud();
+            const returnTarget = charHudFocusBefore || toggle;
             hud?.classList.remove('hud-open');
             document.getElementById('char-hud-scrim')?.classList.add('hidden');
             toggle?.setAttribute('aria-expanded', 'false');
+            if (mobile) {
+                hud?.setAttribute('aria-hidden', 'true');
+                // 先解除 inert；若先 focus，瀏覽器會拒絕把焦點放回仍被 inert 的入口按鈕。
+                document.querySelector('#app-viewport > main')?.removeAttribute('inert');
+                if (returnTarget && document.contains(returnTarget)) returnTarget.focus();
+            } else if (hud?.contains(document.activeElement)) {
+                toggle?.focus();
+            }
+            charHudFocusBefore = null;
+        }
+        function trapCharHudTab(event) {
+            if (!isMobileCharHud()) return;
+            const hud = document.getElementById('char-hud');
+            if (!hud?.classList.contains('hud-open')) return;
+            const items = focusablesIn(hud);
+            if (items.length === 0) { event.preventDefault(); return; }
+            const first = items[0];
+            const last = items[items.length - 1];
+            const active = document.activeElement;
+            if (event.shiftKey && (active === first || active === hud)) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+            }
         }
 
         document.addEventListener('keydown', (event) => {
@@ -3059,7 +3125,10 @@
                 if (document.getElementById('char-hud')?.classList.contains('hud-open')) closeCharHud();
                 return;
             }
-            if (event.key === 'Tab') trapModalTab(event);
+            if (event.key === 'Tab') {
+                trapModalTab(event);
+                if (!event.defaultPrevented) trapCharHudTab(event);
+            }
         });
 
         // 點遮罩關閉。只認「點在遮罩自己身上」——點面板裡面時 target 是面板或其子元素，
@@ -3344,6 +3413,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260822-r8a"></script>
+    <script src="./app.js?v=20260822-r10"></script>
 </body>
 </html>
