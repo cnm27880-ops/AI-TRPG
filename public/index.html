@@ -1857,6 +1857,64 @@
         .hud-sidebar-objective .mission-time-remaining { justify-self: end; grid-column: 2; color: var(--ink-100); font: 700 .68rem/1 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
         html[data-theme="light"] .hud-sidebar-objective .mission-metric { background: rgba(60,55,47,.035); border-color: rgba(60,55,47,.16); }
 
+        /* ================= 第七輪：HUD 資訊對齊與操作區回歸 =================
+           這一層把數值、狀態與刻度固定在明確的基準線上，避免資訊像散落在卡片裡。 */
+        .stat-tile-line { display: flex; align-items: baseline; justify-content: space-between; gap: .35rem; min-width: 0; }
+        .stat-tile-copy { display: inline-flex; align-items: baseline; gap: .38rem; min-width: 0; white-space: nowrap; }
+        .stat-tile-copy .stat-tile-en { flex: 0 0 auto; }
+        .stat-tile-copy .stat-tile-cn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .stat-tile-line .stat-tile-value { flex: 0 0 auto; }
+
+        .hud-sidebar-objective .mission-threat-metric { display: flex; flex-direction: column; }
+        .hud-sidebar-objective .mission-threat-track { flex: 1 1 auto; display: flex; align-items: center; min-height: .72rem; }
+        .hud-sidebar-objective .mission-threat-pips { grid-template-columns: repeat(7, minmax(0, 1fr)); align-items: center; gap: .22rem; }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip { width: auto; height: .48rem; border: 1px solid rgb(var(--c-line) / .35); border-radius: 2px; background: transparent; }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip.on-1 { border-color: rgb(var(--c-accent-base) / .8); background: rgb(var(--c-accent-base) / .65); }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip.on-2 { border-color: rgb(var(--c-warn-base) / .85); background: rgb(var(--c-warn-base) / .68); }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip.on-3 { border-color: rgb(var(--c-danger-base) / .8); background: rgb(var(--c-danger-base) / .68); }
+        .hud-sidebar-objective .mission-threat-pips .threat-pip.on-4 { border-color: rgb(var(--c-danger-base) / .95); background: rgb(var(--c-danger-base) / .82); }
+
+        .hud-sidebar-objective .mission-time-badge {
+            display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-areas: "kicker status remaining" "track track track";
+            align-items: baseline; column-gap: .38rem; row-gap: .34rem;
+            width: 100%; padding: .44rem .48rem; text-align: left; white-space: normal;
+        }
+        .hud-sidebar-objective .mission-time-kicker { grid-area: kicker; }
+        .hud-sidebar-objective .mission-time-status { grid-area: status; min-width: 0; }
+        .hud-sidebar-objective .mission-time-remaining { grid-area: remaining; justify-self: end; }
+        .mission-time-track { grid-area: track; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .22rem; width: 100%; min-height: .42rem; }
+        .mission-time-pip { display: block; height: .34rem; border: 1px solid rgb(var(--c-line) / .28); border-radius: 2px; background: transparent; }
+        .mission-time-pip.is-remaining { border-color: rgb(var(--c-accent-base) / .7); background: rgb(var(--c-accent-base) / .55); }
+
+        /* 角色檔案先分出「身份／生命／衍生數值」三層，避免姓名、XP 和狀態散成一串。 */
+        #char-hud .name-plate { padding: .86rem .9rem .76rem; background: linear-gradient(145deg, rgb(var(--c-accent-base) / .1), rgb(var(--c-surface-2) / .78) 66%, rgb(var(--c-surface-1) / .9)); }
+        #char-hud #char-hud-titlebar { align-items: flex-start; padding-bottom: .62rem; border-bottom: 1px solid rgb(var(--c-line) / .18); }
+        #char-profile-summary { min-width: 0; flex: 1 1 auto; }
+        #char-profile-summary h2 { margin-top: .25rem !important; font-size: 1.12rem; letter-spacing: .06em; }
+        #char-hud #char-class { margin-top: .58rem; padding: .38rem .55rem; border-left: 2px solid rgb(var(--c-accent-base) / .55); border-top: 1px solid rgb(var(--c-line) / .13); background: rgb(var(--c-line) / .045); color: var(--ink-400) !important; font-size: .59rem; letter-spacing: .04em; }
+        #char-hud .name-plate > .space-y-1 { margin-top: .68rem; padding-top: .66rem; border-top: 1px solid rgb(var(--c-line) / .15); }
+        #char-hud #hp-text { font-size: .74rem; letter-spacing: .04em; }
+        #char-hud #hp-detail { padding-top: .32rem; letter-spacing: .02em; }
+        #char-hud #derived-stats-bar { margin-top: .58rem; padding: .52rem .15rem .05rem; border: 0; border-top: 1px solid rgb(var(--c-line) / .15); border-radius: 0; background: transparent; }
+        #char-hud #derived-stats-bar span { display: flex; flex-direction: column; align-items: center; gap: .18rem; color: var(--ink-500); font-size: .57rem; }
+        #char-hud #derived-stats-bar strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; }
+
+        /* 一般劇情模式的操作列是主回合入口，不能被上一場戰鬥的 inline 狀態帶走。 */
+        body.is-game-screen:not(.is-combat-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
+        body.is-game-screen.is-combat-view #story-action-panel { display: none !important; }
+        body.is-game-screen.is-combat-view #story-current { display: none !important; }
+        #story-action-panel .decision-panel-heading { min-height: 1.7rem; }
+        #story-action-panel #option-grid { min-height: 0; }
+
+        html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
+        html[data-theme="light"] #char-hud #char-hud-titlebar { border-color: rgba(60,55,47,.16); }
+        html[data-theme="light"] #char-hud #char-class { background: rgba(60,55,47,.035); border-color: rgba(60,55,47,.15); border-left-color: rgba(140,118,81,.55); }
+        html[data-theme="light"] #char-hud .name-plate > .space-y-1,
+        html[data-theme="light"] #char-hud #derived-stats-bar { border-color: rgba(60,55,47,.16); }
+        html[data-theme="light"] .mission-time-pip { border-color: rgba(60,55,47,.22); }
+        html[data-theme="light"] .mission-time-pip.is-remaining { border-color: #586451; background: #7d8c77; }
+
         @media (max-width: 767px) {
             .char-hud-collapse-btn { display: none; }
             body.is-game-screen .system-tool-dock { left: max(.55rem, env(safe-area-inset-left, 0px)); right: auto; bottom: max(.55rem, env(safe-area-inset-bottom, 0px)); }
@@ -2243,6 +2301,7 @@
                         <span class="mission-time-kicker">剩餘回合</span>
                         <span class="mission-time-status"></span>
                         <span class="mission-time-remaining"></span>
+                        <span class="mission-time-track" aria-label="剩餘回合刻度"></span>
                     </span>
                 </div>
             </div>
@@ -2823,6 +2882,7 @@
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';
             document.body.classList.toggle('is-game-screen', screen === 'game');
+            document.body.classList.remove('is-combat-view');
             // 建卡與遊戲都發生在副本裡（深色檔案）；回到 portal 則退回第一幕，
             // 若該玩家已經接受過邀請，revealMainGodSpace('resume') 會馬上再把舞台推到主神空間。
             document.documentElement.setAttribute('data-stage', screen === 'portal' ? 'invitation' : 'instance');
@@ -3264,6 +3324,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260822-r6"></script>
+    <script src="./app.js?v=20260822-r7"></script>
 </body>
 </html>

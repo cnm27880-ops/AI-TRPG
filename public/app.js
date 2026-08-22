@@ -664,13 +664,13 @@ function adoptCharacter(charData) {
     const bonus = legendaryAttributeBonus(val);
     const bonusTag = bonus > 0 ? `<span class="stat-tile-star">+${bonus}★</span>` : "";
     return `
-      <div class="stat-tile stat-tile-rail pl-3 pr-2.5 py-1.5 rounded space-y-1" style="--lv-pct:${levelPercent(val, ATTRIBUTE_MAX)}">
-        <div class="flex items-baseline justify-between gap-2">
-          <span class="stat-tile-en">${en}</span>
+      <div class="stat-tile stat-tile-rail px-3 py-1.5 rounded" style="--lv-pct:${levelPercent(val, ATTRIBUTE_MAX)}">
+        <div class="stat-tile-line">
+          <span class="stat-tile-copy">
+            <span class="stat-tile-en">${en}</span>
+            <span class="stat-tile-cn">${key}</span>
+          </span>
           <span class="stat-tile-value">${val}${bonusTag}</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="stat-tile-cn">${key}</span>
         </div>
       </div>`;
   }).join("");
@@ -1402,21 +1402,37 @@ function updateScenarioHud(scenario) {
   const badge = document.getElementById("scenario-time-badge");
   const timeStatus = badge?.querySelector(".mission-time-status");
   const timeRemaining = badge?.querySelector(".mission-time-remaining");
+  const timeTrack = badge?.querySelector(".mission-time-track");
   const status = scenario.progress?.timeStatus;
   const timeBudget = scenario.progress?.timeBudget;
   if (badge && status) {
-    const remain = timeBudget
-      ? Math.max(0, timeBudget.totalRounds - timeBudget.spentRounds)
-      : null;
+    const totalRounds = Number(timeBudget?.totalRounds);
+    const spentRounds = Number(timeBudget?.spentRounds);
+    const hasBudget = Number.isFinite(totalRounds) && totalRounds > 0 && Number.isFinite(spentRounds);
+    const remain = hasBudget ? Math.max(0, totalRounds - spentRounds) : null;
     badge.className = `mission-time-badge border ${TIME_STATUS_STYLE[status] ?? ""}`;
     if (timeStatus) timeStatus.textContent = status;
-    if (timeRemaining) timeRemaining.textContent = remain === null ? "—" : `${remain}/${timeBudget.totalRounds}`;
-    if (!timeStatus || !timeRemaining) badge.textContent = remain === null ? `時間：${status}` : `時間：${status} (${remain}/${timeBudget.totalRounds})`;
-    badge.title = remain === null ? `時間狀態：${status}` : `剩餘 ${remain} 回合／共 ${timeBudget.totalRounds} 回合`;
+    if (timeRemaining) timeRemaining.textContent = remain === null ? "—" : `${remain}/${totalRounds}`;
+    if (timeTrack) {
+      const filled = remain === null ? 0 : Math.ceil((remain / totalRounds) * 7);
+      timeTrack.innerHTML = Array.from({ length: 7 }, (_, i) =>
+        `<span class="mission-time-pip ${i < filled ? "is-remaining" : ""}" aria-hidden="true"></span>`
+      ).join("");
+      timeTrack.hidden = remain === null;
+      if (remain !== null) timeTrack.setAttribute("aria-label", `剩餘回合 ${remain}/${totalRounds}`);
+      else timeTrack.removeAttribute("aria-label");
+    }
+    if (!timeStatus || !timeRemaining) badge.textContent = remain === null ? `時間：${status}` : `時間：${status} (${remain}/${totalRounds})`;
+    badge.title = remain === null ? `時間狀態：${status}` : `剩餘 ${remain} 回合／共 ${totalRounds} 回合`;
   } else if (badge) {
     badge.textContent = "";
     badge.className = "mission-time-badge";
     badge.removeAttribute("title");
+    if (timeTrack) {
+      timeTrack.innerHTML = "";
+      timeTrack.hidden = true;
+      timeTrack.removeAttribute("aria-label");
+    }
   }
 
   // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
@@ -1506,9 +1522,11 @@ function renderThreatMeter(threat) {
     tone >= 4 ? "text-red-400" : tone === 3 ? "text-orange-300" : tone === 2 ? "text-yellow-300" : "text-emerald-300"
   }`;
 
-  pips.innerHTML = Array.from({ length: threat.max }, (_, i) =>
-    `<span class="threat-pip ${i < threat.level ? `on-${tone}` : ""}"></span>`
+  const threatLevel = Math.max(0, Math.min(7, Number(threat.level) || 0));
+  pips.innerHTML = Array.from({ length: 7 }, (_, i) =>
+    `<span class="threat-pip ${i < threatLevel ? `on-${tone}` : ""}" aria-hidden="true"></span>`
   ).join("");
+  pips.setAttribute("aria-label", `迫近度 ${threatLevel}/7`);
   box.classList.toggle("pulse-glow", Boolean(threat.contact));
 
   if (threat.stage !== lastThreatStage && lastThreatStage !== null && threat.delta) {
@@ -2305,6 +2323,7 @@ const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
 
 /** 切換到戰鬥畫面。開新戰鬥與「重整後還原戰鬥」共用同一段，避免兩邊的顯示狀態走鐘。 */
 function enterCombatView() {
+  document.body.classList.add("is-combat-view");
   document.getElementById("combat-over-banner").style.display = "none";
   closeModal("storyLogModal");
   document.getElementById("story-current").style.display = "none";
@@ -2642,6 +2661,7 @@ function endCombat() {
   const won = currentCombat?.winner === "player";
   const enemyName = currentCombat?.enemy?.name ?? "敵人";
   currentCombat = null;
+  document.body.classList.remove("is-combat-view");
 
   document.getElementById("combat-panel").style.display = "none";
   document.getElementById("story-current").style.display = "flex";
