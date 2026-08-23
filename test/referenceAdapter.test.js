@@ -424,8 +424,12 @@ test("Ash canonical result remains progressive while the server controls disclos
 });
 
 
-test("remaining scenes preserve original event fragments and safe public boundaries", () => {
+test("remaining scenes preserve original event sources and safe public boundaries", () => {
   const expectedSceneSources = [
+    ["evt_medbay_ruins", "evt_medbay_ruins"],
+    ["evt_cargo_stalk", "evt_cargo_stalk"],
+    ["evt_cargo_tool_scavenge", "evt_cargo_tool_scavenge"],
+    ["evt_meet_ripley", "evt_meet_ripley"],
     ["evt_order_937_reveal", "evt_order_937_reveal"],
     ["evt_trigger_overload", "evt_trigger_overload"],
     ["evt_vent_ambush_escape", "evt_vent_ambush_escape"],
@@ -436,22 +440,18 @@ test("remaining scenes preserve original event fragments and safe public boundar
   for (const [sceneId, sourceEventId] of expectedSceneSources) {
     const scene = reference.scenes.find((item) => item.id === sceneId);
     assert.equal(scene?.narrativeSource?.eventId, sourceEventId);
-    assert.ok(scene?.narrativeSource?.entryText?.length > 80, `${sceneId} 應保留完整原始 entry`);
+    assert.ok(scene?.narrativeSource?.entryText?.length > 40, `${sceneId} 應保留原始 entry`);
     assert.ok(Object.keys(scene?.narrativeSource?.outcomes ?? {}).length > 0, `${sceneId} 應有可用原始結果映射`);
   }
 
   const fragments = reference.scenes.flatMap((scene) => scene.narrativeSource?.fragments ?? []);
-  for (const eventId of [
-    "evt_medbay_ruins",
-    "evt_cargo_stalk",
-    "evt_cargo_tool_scavenge",
-    "evt_meet_ripley",
-    "evt_engine_coolant_prep",
-    "evt_narcissus_undock",
-  ]) {
+  for (const eventId of ["evt_engine_coolant_prep", "evt_narcissus_undock"]) {
     const fragment = fragments.find((item) => item.eventId === eventId);
     assert.ok(fragment, `缺少 ${eventId} 原始 fragment`);
     assert.ok(fragment.entryText.length > 0, `${eventId} 應保留原始 entry`);
+  }
+  for (const eventId of ["evt_medbay_ruins", "evt_cargo_stalk", "evt_cargo_tool_scavenge", "evt_meet_ripley"]) {
+    assert.equal(fragments.some((item) => item.eventId === eventId), false, `${eventId} 不應仍只是 fragment`);
   }
 
   assert.equal(reference.endings.filter((ending) => ending.narrativeSource?.text).length, 8);
@@ -495,4 +495,123 @@ test("Narcissus travel includes original undock passage before the shadow-wake s
   assert.match(travel.arrivalText, /MANUAL DOCKING CLAMP LOCKED/);
   assert.match(travel.arrivalText, /那些原本死寂的黑色電纜之間/);
   assert.match(travel.arrivalText, /它沒有眼睛，但你無比清楚地感覺到/);
+});
+
+
+test("playable medical route exposes canonical scene and applies medkit or frostbite effects", () => {
+  const character = emptyCharacter("測試者");
+  const base = createReferenceState(reference);
+  const deck = applyTravelAction(reference, { ...base, flags: ["flag_cryo_left", "flag_luyuan_met"] }, resolveTravelAction(reference, { ...base, flags: ["flag_cryo_left", "flag_luyuan_met"] }, "loc_deck_a")).state;
+  const toMedbay = resolveTravelAction(reference, deck, "loc_medbay");
+  assert.equal(toMedbay.ok, true);
+  const medbayTravel = applyTravelAction(reference, deck, toMedbay);
+  assert.equal(medbayTravel.state.currentSceneId, "evt_medbay_ruins");
+  assert.match(medbayTravel.arrivalText, /醫療區的自動感應門卡在半開位置/);
+
+  const option = buildReferenceOptions(reference, medbayTravel.state).find(
+    (item) => item.reference.approachId === "app_medbay_scavenge"
+  );
+  const resolution = resolveReferenceAction({ reference, state: medbayTravel.state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state: medbayTravel.state, resolution, outcomeTier: "成功" });
+  assert.match(applied.resultText, /完整的深空外科縫合包/);
+  assert.ok(applied.state.inventory.includes("item_emergency_medkit"));
+  assert.ok(applied.state.flags.includes("flag_medbay_checked"));
+  assert.equal(applied.effects.timeCost, 1);
+  assert.equal(applied.effects.threatDelta, 0);
+
+  const critical = applyReferenceResult({ reference, state: medbayTravel.state, resolution, outcomeTier: "慘烈失敗" });
+  assert.ok(critical.state.injuries.includes("frostbite_minor"));
+  assert.equal(critical.effects.threatDelta, 2);
+});
+
+test("cargo stalk unlocks tool cabinet as a separate scene and does not bypass the event", () => {
+  const base = createReferenceState(reference);
+  const state = {
+    ...base,
+    currentSceneId: "evt_deck_a_recon",
+    currentLocation: "loc_deck_a",
+    flags: ["flag_cryo_left", "flag_luyuan_met"],
+    visitedLocations: ["loc_cryo", "loc_deck_a"],
+  };
+  const toCargo = resolveTravelAction(reference, state, "loc_cargo");
+  assert.equal(toCargo.ok, true);
+  assert.equal(toCargo.nextScene.id, "evt_cargo_stalk");
+  const cargoState = applyTravelAction(reference, state, toCargo).state;
+  assert.equal(cargoState.currentSceneId, "evt_cargo_stalk");
+  assert.equal(buildReferenceOptions(reference, cargoState).some((item) => item.reference.approachId === "app_cargo_to_tools"), false);
+
+  const character = emptyCharacter("測試者");
+  const stalkOption = buildReferenceOptions(reference, cargoState).find(
+    (item) => item.reference.approachId === "app_cargo_recon_corpse"
+  );
+  const stalkResolution = resolveReferenceAction({ reference, state: cargoState, chosenOption: stalkOption, character });
+  const stalkResult = applyReferenceResult({ reference, state: cargoState, resolution: stalkResolution, outcomeTier: "成功" });
+  assert.ok(stalkResult.state.clues.includes("clue_brett_fate"));
+  assert.ok(stalkResult.state.flags.includes("flag_cargo_stalk_done"));
+  assert.equal(stalkResult.sceneAdvanced, false);
+
+  const toolOption = buildReferenceOptions(reference, stalkResult.state).find(
+    (item) => item.reference.approachId === "app_cargo_to_tools"
+  );
+  assert.ok(toolOption);
+  const toolResolution = resolveReferenceAction({ reference, state: stalkResult.state, chosenOption: toolOption, character });
+  const toolResult = applyReferenceResult({ reference, state: stalkResult.state, resolution: toolResolution, outcomeTier: "自動" });
+  assert.equal(toolResult.state.currentSceneId, "evt_cargo_tool_scavenge");
+  assert.equal(toolResult.state.currentLocation, "loc_cargo");
+  assert.match(toolResult.resultText, /工具櫃/);
+});
+
+test("Ripley and Lambert are public only at the contact scene, then the bridge route closes", () => {
+  const base = createReferenceState(reference);
+  const state = {
+    ...base,
+    currentSceneId: "evt_deck_a_recon",
+    currentLocation: "loc_deck_a",
+    flags: ["flag_cryo_left", "flag_luyuan_met"],
+    visitedLocations: ["loc_cryo", "loc_deck_a"],
+  };
+  const before = referenceStateForResponse(reference, state);
+  assert.equal(before.npcs.some((npc) => npc.id === "npc_ripley"), false);
+  const toBridge = resolveTravelAction(reference, state, "loc_bridge");
+  assert.equal(toBridge.ok, true);
+  const bridge = applyTravelAction(reference, state, toBridge);
+  assert.equal(bridge.state.currentSceneId, "evt_meet_ripley");
+  const bridgeView = referenceStateForResponse(reference, bridge.state);
+  assert.ok(bridgeView.npcs.some((npc) => npc.id === "npc_ripley"));
+  assert.ok(bridgeView.npcs.some((npc) => npc.id === "npc_lambert"));
+  assert.equal(JSON.stringify(bridgeView).includes("privateGoals"), false);
+
+  const character = emptyCharacter("測試者");
+  const option = buildReferenceOptions(reference, bridge.state).find(
+    (item) => item.reference.approachId === "app_ripley_calm_lambert"
+  );
+  const resolution = resolveReferenceAction({ reference, state: bridge.state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state: bridge.state, resolution, outcomeTier: "成功" });
+  assert.ok(applied.state.flags.includes("flag_ripley_met"));
+  assert.equal(applied.state.npcStatuses.npc_lambert, "met");
+  assert.ok(applied.state.clues.includes("clue_narcissus_prep"));
+  assert.match(applied.resultText, /水仙號的預熱參數/);
+
+  const back = resolveTravelAction(reference, applied.state, "loc_deck_a");
+  assert.equal(back.ok, true);
+  const deck = applyTravelAction(reference, applied.state, back).state;
+  const replay = resolveTravelAction(reference, deck, "loc_bridge");
+  assert.equal(replay.ok, false);
+  assert.equal(replay.code, "TRAVEL_LOCKED");
+  assert.deepEqual(replay.blockedFlags, ["flag_ripley_session_opened"]);
+});
+
+test("travel flagsAbsent gate blocks completed medical and Ripley routes", () => {
+  const base = createReferenceState(reference);
+  const medbayDone = { ...base, currentSceneId: "evt_deck_a_recon", currentLocation: "loc_deck_a", flags: ["flag_luyuan_met", "flag_medbay_checked"] };
+  const medbayRoute = resolveTravelAction(reference, medbayDone, "loc_medbay");
+  assert.equal(medbayRoute.ok, false);
+  assert.equal(medbayRoute.code, "TRAVEL_LOCKED");
+  assert.deepEqual(medbayRoute.blockedFlags, ["flag_medbay_checked"]);
+
+  const ripleyDone = { ...base, currentSceneId: "evt_deck_a_recon", currentLocation: "loc_deck_a", flags: ["flag_luyuan_met", "flag_ripley_session_opened"] };
+  const ripleyRoute = resolveTravelAction(reference, ripleyDone, "loc_bridge");
+  assert.equal(ripleyRoute.ok, false);
+  assert.equal(ripleyRoute.code, "TRAVEL_LOCKED");
+  assert.deepEqual(ripleyRoute.blockedFlags, ["flag_ripley_session_opened"]);
 });

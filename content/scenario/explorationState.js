@@ -207,6 +207,11 @@ function transitionMissingFlags(transition, state) {
   return asArray(transition?.required?.flags).filter((flag) => !flags.has(flag));
 }
 
+function transitionBlockedFlags(transition, state) {
+  const flags = flagsOf(state);
+  return asArray(transition?.required?.flagsAbsent).filter((flag) => flags.has(flag));
+}
+
 function riskFor(reference, state, targetLocationId) {
   const items = new Set(asArray(state?.inventory));
   const flags = flagsOf(state);
@@ -262,12 +267,14 @@ export function resolveTravelAction(reference, state, targetLocationId) {
     };
   }
   const missingFlags = transitionMissingFlags(transition, state);
-  if (missingFlags.length) {
+  const blockedFlags = transitionBlockedFlags(transition, state);
+  if (missingFlags.length || blockedFlags.length) {
     return {
       ok: false,
       code: "TRAVEL_LOCKED",
-      error: "這條路線的前置條件尚未成立。",
-      missingFlags,
+      error: blockedFlags.length ? "這條路線的狀態已經完成或暫時關閉。" : "這條路線的前置條件尚未成立。",
+      ...(missingFlags.length ? { missingFlags } : {}),
+      ...(blockedFlags.length ? { blockedFlags } : {}),
     };
   }
   const risk = riskFor(reference, state, target.id);

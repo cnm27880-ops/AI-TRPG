@@ -399,3 +399,107 @@ test("V2 travel endpoint refuses pending combat, pending turn, and expired time"
   assert.equal(timeBlocked.body.code, "TIME_EXPIRED");
   assert.equal((await store.get(sessionId)).scenario.referenceState.currentLocation, originalLocation);
 });
+
+
+test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playable and server-owned", async (t) => {
+  const mock = await startMockLlm();
+  t.after(() => mock.server.close());
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("V2 Phase 2 路線測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const sessionId = created.body.session.id;
+
+  const opening = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId }), env }));
+  assert.equal(opening.body.ok, true);
+  const toDeck = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }), env }));
+  assert.equal(toDeck.status, 200, JSON.stringify(toDeck.body));
+  assert.equal(toDeck.body.scenario.reference.eventId, "evt_deck_a_recon");
+  assert.equal(mock.prompts.length, 0, "純 travel 不應呼叫 LLM");
+
+  const luyuan = toDeck.body.options.find((option) => option.reference?.approachId === "app_deck_luyuan_contact");
+  assert.ok(luyuan);
+  const afterLuyuan = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: luyuan }), env }));
+  assert.equal(afterLuyuan.body.ok, true);
+
+  const toMedbay = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_medbay" }), env }));
+  assert.equal(toMedbay.status, 200, JSON.stringify(toMedbay.body));
+  assert.equal(toMedbay.body.travel.from, "loc_deck_a");
+  assert.equal(toMedbay.body.travel.to, "loc_medbay");
+  assert.equal(toMedbay.body.scenario.reference.eventId, "evt_medbay_ruins");
+  assert.match(toMedbay.body.travel.arrivalText, /醫療區的自動感應門卡在半開位置/);
+  assert.equal(mock.prompts.length, 1, "travel 到醫療區不應呼叫 LLM");
+
+  const medbayAction = toMedbay.body.options.find((option) => option.reference?.approachId === "app_medbay_scavenge");
+  assert.ok(medbayAction);
+  const afterMedbay = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: medbayAction }), env }));
+  assert.equal(afterMedbay.body.ok, true, JSON.stringify(afterMedbay.body));
+  assert.equal(afterMedbay.body.scenario.reference.eventId, "evt_medbay_ruins");
+  assert.equal(afterMedbay.body.scenario.reference.location, "loc_medbay");
+  assert.equal(afterMedbay.body.scenario.reference.exploration.currentLocation.id, "loc_medbay");
+
+  const backToDeck = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }), env }));
+  assert.equal(backToDeck.status, 200, JSON.stringify(backToDeck.body));
+  const toCargo = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_cargo" }), env }));
+  assert.equal(toCargo.status, 200, JSON.stringify(toCargo.body));
+  assert.equal(toCargo.body.scenario.reference.eventId, "evt_cargo_stalk");
+  assert.match(toCargo.body.travel.arrivalText, /貨艙開闊如同一座廢棄工廠/);
+
+  const cargoAction = toCargo.body.options.find((option) => option.reference?.approachId === "app_cargo_recon_corpse");
+  assert.ok(cargoAction);
+  const afterCargo = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: cargoAction }), env }));
+  assert.equal(afterCargo.body.ok, true, JSON.stringify(afterCargo.body));
+  assert.equal(afterCargo.body.scenario.reference.eventId, "evt_cargo_stalk");
+  const toToolsAction = afterCargo.body.options.find((option) => option.reference?.approachId === "app_cargo_to_tools");
+  assert.ok(toToolsAction, "完成貨艙排查後應出現前往工具櫃的 server approach");
+  const afterToolsEntry = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: toToolsAction }), env }));
+  assert.equal(afterToolsEntry.body.ok, true, JSON.stringify(afterToolsEntry.body));
+  assert.equal(afterToolsEntry.body.scenario.reference.eventId, "evt_cargo_tool_scavenge");
+  assert.match(mock.prompts.at(-1), /evt_cargo_tool_scavenge|工具櫃/);
+
+  const abandonTool = afterToolsEntry.body.options.find((option) => option.reference?.approachId === "app_cargo_tool_abandon");
+  assert.ok(abandonTool);
+  const afterTool = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: abandonTool }), env }));
+  assert.equal(afterTool.body.ok, true, JSON.stringify(afterTool.body));
+  const afterToolSession = await readJson(await getSession({
+    request: new Request(`https://test.local/api/session?id=${sessionId}`),
+    env,
+  }));
+  assert.ok(afterToolSession.body.session.scenario.referenceState.flags.includes("flag_cargo_tool_done"));
+  const cargoBack = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }), env }));
+  assert.equal(cargoBack.status, 200, JSON.stringify(cargoBack.body));
+  assert.equal(cargoBack.body.scenario.reference.location, "loc_deck_a");
+
+  const beforeBridge = cargoBack.body.scenario.reference.npcs;
+  assert.equal(beforeBridge.some((npc) => npc.id === "npc_ripley"), false);
+  const toBridge = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_bridge" }), env }));
+  assert.equal(toBridge.status, 200, JSON.stringify(toBridge.body));
+  assert.equal(toBridge.body.scenario.reference.eventId, "evt_meet_ripley");
+  assert.ok(toBridge.body.scenario.reference.npcs.some((npc) => npc.id === "npc_ripley"));
+  assert.ok(toBridge.body.scenario.reference.npcs.some((npc) => npc.id === "npc_lambert"));
+  assert.equal(JSON.stringify(toBridge.body.scenario.reference).includes("privateGoals"), false);
+
+  const hold = toBridge.body.options.find((option) => option.reference?.approachId === "app_ripley_hold_position");
+  assert.ok(hold);
+  const afterHold = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: hold }), env }));
+  assert.equal(afterHold.body.ok, true, JSON.stringify(afterHold.body));
+  assert.equal(afterHold.body.scenario.reference.eventId, "evt_meet_ripley");
+
+  const bridgeBack = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }), env }));
+  assert.equal(bridgeBack.status, 200, JSON.stringify(bridgeBack.body));
+  const replayBridge = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_bridge" }), env }));
+  assert.equal(replayBridge.status, 409, JSON.stringify(replayBridge.body));
+  assert.equal(replayBridge.body.code, "TRAVEL_LOCKED");
+  assert.equal(mock.prompts.length >= 4, true, "只有實際 turn 才應增加 LLM 呼叫");
+});

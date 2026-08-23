@@ -107,7 +107,8 @@ export default {
         "loc_cryo",
         "loc_bridge",
         "loc_science",
-        "loc_cargo"
+        "loc_cargo",
+        "loc_medbay"
       ],
       "features": [
         "船員名錄終端",
@@ -182,7 +183,8 @@ export default {
       "connections": [
         "loc_deck_a",
         "loc_lower_deck",
-        "loc_narcissus_airlock"
+        "loc_narcissus_airlock",
+        "loc_engine"
       ],
       "features": [
         "集裝箱",
@@ -202,7 +204,8 @@ export default {
       "connections": [
         "loc_mother_core",
         "loc_lower_deck",
-        "loc_narcissus_airlock"
+        "loc_narcissus_airlock",
+        "loc_cargo"
       ],
       "features": [
         "主機超載控制台",
@@ -277,6 +280,24 @@ export default {
         "異形藏匿",
         "開啟氣閘時的失壓"
       ]
+    },
+    {
+      "id": "loc_medbay",
+      "name": "醫療區",
+      "connections": [
+        "loc_deck_a"
+      ],
+      "features": [
+        "半開的自動感應門",
+        "破損手術台",
+        "冷藏急救壁櫃",
+        "低溫樣品保險櫃"
+      ],
+      "hazards": [
+        "腐血與消毒水氣味",
+        "酸性殘留",
+        "液氮防護洩漏"
+      ]
     }
   ],
   "travelTransitions": [
@@ -308,6 +329,25 @@ export default {
       "effects": {
         "flagsAdd": [
           "flag_deck_science_route"
+        ]
+      }
+    },
+    {
+      "id": "travel_deck_a_cargo",
+      "from": "loc_deck_a",
+      "to": "loc_cargo",
+      "required": {
+        "flags": [
+          "flag_luyuan_met"
+        ],
+        "flagsAbsent": [
+          "flag_cargo_stalk_done"
+        ]
+      },
+      "entryEventId": "evt_cargo_stalk",
+      "effects": {
+        "flagsAdd": [
+          "flag_deck_cargo_route"
         ]
       }
     },
@@ -410,6 +450,88 @@ export default {
       },
       "sourceEventId": "evt_narcissus_undock",
       "entryEventId": "evt_narcissus_shadow_wake"
+    },
+    {
+      "id": "travel_deck_a_medbay",
+      "from": "loc_deck_a",
+      "to": "loc_medbay",
+      "required": {
+        "flags": [
+          "flag_luyuan_met"
+        ],
+        "flagsAbsent": [
+          "flag_medbay_checked"
+        ]
+      },
+      "entryEventId": "evt_medbay_ruins",
+      "effects": {
+        "flagsAdd": [
+          "flag_deck_medbay_route"
+        ]
+      }
+    },
+    {
+      "id": "travel_medbay_deck_a",
+      "from": "loc_medbay",
+      "to": "loc_deck_a",
+      "required": {
+        "flags": [
+          "flag_medbay_checked"
+        ]
+      },
+      "entryEventId": "evt_deck_a_recon",
+      "effects": {
+        "flagsAdd": [
+          "flag_medbay_left"
+        ]
+      }
+    },
+    {
+      "id": "travel_deck_a_bridge",
+      "from": "loc_deck_a",
+      "to": "loc_bridge",
+      "required": {
+        "flags": [
+          "flag_luyuan_met"
+        ],
+        "flagsAbsent": [
+          "flag_ripley_session_opened"
+        ]
+      },
+      "entryEventId": "evt_meet_ripley",
+      "effects": {
+        "flagsAdd": [
+          "flag_deck_bridge_route"
+        ]
+      }
+    },
+    {
+      "id": "travel_bridge_deck_a",
+      "from": "loc_bridge",
+      "to": "loc_deck_a",
+      "entryEventId": "evt_deck_a_recon",
+      "effects": {
+        "flagsAdd": [
+          "flag_bridge_left"
+        ]
+      }
+    },
+    {
+      "id": "travel_cargo_deck_a",
+      "from": "loc_cargo",
+      "to": "loc_deck_a",
+      "required": {
+        "flags": [
+          "flag_cargo_stalk_done",
+          "flag_cargo_tool_done"
+        ]
+      },
+      "entryEventId": "evt_deck_a_recon",
+      "effects": {
+        "flagsAdd": [
+          "flag_cargo_left"
+        ]
+      }
     }
   ],
   "npcs": [
@@ -562,6 +684,12 @@ export default {
       "name": "緊急醫療包",
       "kind": "medical",
       "carryOver": false
+    },
+    {
+      "id": "item_biomedical_injector",
+      "name": "高階生化製劑",
+      "kind": "medical",
+      "carryOver": false
     }
   ],
   "clues": [
@@ -594,6 +722,11 @@ export default {
       "id": "clue_narcissus_prep",
       "name": "水仙號處置資料",
       "reveals": "氣閘、推進器、安全繩與低溫休眠艙的操作條件"
+    },
+    {
+      "id": "clue_brett_fate",
+      "name": "Brett 的貨艙遺物",
+      "reveals": "貨艙內找到帶血工程帽與受損電擊手杖，Brett 很可能已在此遇害。"
     }
   ],
   "unresolvedQuestions": [
@@ -672,6 +805,22 @@ export default {
         "flag_xenomorph_killed"
       ],
       "answer": "逃生路線的安全性取決於氣閘、推進器與是否處理追入水仙號的異形。"
+    },
+    {
+      "id": "q_brett_fate",
+      "text": "Brett 在貨艙裡遭遇了什麼？",
+      "openWhen": {
+        "allClues": [
+          "clue_brett_fate"
+        ]
+      },
+      "evidenceClues": [
+        "clue_brett_fate"
+      ],
+      "answerWhenFlags": [
+        "flag_brett_confirmed"
+      ],
+      "answer": "貨艙遺物與血跡已確認 Brett 在此遇害，但沒有證明異形仍停留在同一個貨櫃區。"
     }
   ],
   "stateSchema": {
@@ -726,7 +875,8 @@ export default {
       "loc_engine",
       "loc_lower_deck",
       "loc_narcissus_airlock",
-      "loc_narcissus"
+      "loc_narcissus",
+      "loc_medbay"
     ],
     "injuryIds": [
       "acid_burn_minor",
@@ -737,7 +887,9 @@ export default {
       "burn_major",
       "bleeding_major",
       "suffocation_major",
-      "unconscious"
+      "unconscious",
+      "frostbite_minor",
+      "impact_hand_minor"
     ]
   },
   "scenes": [
@@ -1304,7 +1456,7 @@ export default {
                 ],
                 "playerLocation": "loc_cargo",
                 "sceneTransition": "advance",
-                "nextEvent": "evt_trigger_overload",
+                "nextEvent": "evt_cargo_stalk",
                 "timeCost": 1,
                 "threatDelta": 0
               }
@@ -1319,8 +1471,1584 @@ export default {
         ],
         "nextByLocation": {
           "loc_science": "evt_meet_ash",
-          "loc_cargo": "evt_trigger_overload"
+          "loc_cargo": "evt_cargo_stalk"
         },
+        "canReturn": false
+      }
+    },
+    {
+      "id": "evt_medbay_ruins",
+      "nodeId": "n1",
+      "location": "loc_medbay",
+      "phase": "investigation",
+      "defaultTransition": "stay",
+      "purpose": "搜刮醫療資源，並從破胸殘留物取得不完整的異形生物情報。",
+      "entryKnowledge": [
+        "玩家已在 A 甲板附近取得活動痕跡",
+        "玩家知道醫療區不是安全區",
+        "玩家尚不知道異形完整生態"
+      ],
+      "gmTruth": [
+        "醫療區保留 Kane 破胸後的殘留物",
+        "冷藏壁櫃仍有部分未污染急救物資",
+        "取得線索不等於確認異形目前位置"
+      ],
+      "entryNarration": "醫療區的自動感應門卡在半開位置。空氣中充斥著濃烈的消毒水與腐血氣味。中央手術台上一片狼藉，胸腔固定架向外扭曲崩斷，手術台中央的金屬板被強酸腐蝕出一個拳頭大小的空洞。牆邊的急救品壁櫃門半掩著。",
+      "narrativeSource": {
+        "eventId": "evt_medbay_ruins",
+        "sourceFile": "異形(三).md",
+        "entryText": "醫療區的自動感應門卡在半開位置。空氣中充斥著濃烈的消毒水與腐血氣味。中央手術台上一片狼藉，胸腔固定架向外扭曲崩斷，手術台中央的金屬板被強酸腐蝕出一個拳頭大小的空洞。牆邊的急救品壁櫃門半掩著。",
+        "sourceEvents": [
+          "evt_medbay_ruins"
+        ],
+        "outcomes": {
+          "app_medbay_scavenge": {
+            "大成功": "你在冷藏抽屜裡找到了一套完整的深空外科縫合包與兩支高效腎上腺素。獲得物品【醫療用品】。",
+            "成功": "你在冷藏抽屜裡找到了一套完整的深空外科縫合包與兩支高效腎上腺素。獲得物品【醫療用品】。",
+            "驚險成功": "你找到了止血凝膠，但搜刮過程中碰倒了玻璃器皿，碎裂聲在空曠的醫療區格外清脆。",
+            "失敗": "壁櫃內的藥劑大多已因失溫變質或被強酸蒸氣污染，毫無收穫。",
+            "慘烈失敗": "保險櫃被暴力撬開時觸發了液氮防護洩漏，極低溫氣體噴湧而出，凍傷了你的手臂，造成輕度凍傷狀態。"
+          },
+          "app_medbay_autopsy": {
+            "大成功": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。",
+            "成功": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。",
+            "驚險成功": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。"
+          },
+          "app_medbay_force_open": {
+            "慘烈失敗": "保險櫃被暴力撬開時觸發了液氮防護洩漏，極低溫氣體噴湧而出，凍傷了你的手臂，造成輕度凍傷狀態。"
+          }
+        }
+      },
+      "beats": [
+        "確認手術台與急救櫃的狀態",
+        "取得醫療資源或生物線索",
+        "決定是否承擔凍傷與聲音風險",
+        "回到 A 甲板或前往其他已授權路線"
+      ],
+      "approaches": [
+        {
+          "id": "app_medbay_scavenge",
+          "label": "搜查藥品壁櫃尋找可用急救包與止痛劑",
+          "intent": "獲取醫療資源",
+          "requiresCheck": true,
+          "attribute": "感知",
+          "skill": "醫療",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_medbay"
+            ],
+            "flagsAbsent": [
+              "flag_medbay_scavenge_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你在冷藏抽屜裡找到了一套完整的深空外科縫合包與兩支高效腎上腺素。獲得物品【醫療用品】。",
+              "effects": {
+                "itemsAdd": [
+                  "item_emergency_medkit"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你在冷藏抽屜裡找到了一套完整的深空外科縫合包與兩支高效腎上腺素。獲得物品【醫療用品】。",
+              "effects": {
+                "itemsAdd": [
+                  "item_emergency_medkit"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你找到了止血凝膠，但搜刮過程中碰倒了玻璃器皿，碎裂聲在空曠的醫療區格外清脆。",
+              "effects": {
+                "itemsAdd": [
+                  "item_emergency_medkit"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你在翻找冷藏抽屜時沒有找到完整醫療包，只能把櫃門重新壓回去；破碎器皿的聲音提醒你這裡不宜久留。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "壁櫃內的藥劑大多已因失溫變質或被強酸蒸氣污染，毫無收穫。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "保險櫃被暴力撬開時觸發了液氮防護洩漏，極低溫氣體噴湧而出，凍傷了你的手臂，造成輕度凍傷狀態。",
+              "effects": {
+                "injuriesAdd": [
+                  "frostbite_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_scavenge_done",
+                  "flag_medbay_checked",
+                  "flag_medbay_vault_leak"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_medbay_autopsy",
+          "label": "檢查手術台上的組織碎屑與破胸創口",
+          "intent": "查明異形破胸幼體的生物特性",
+          "requiresCheck": true,
+          "attribute": "智力",
+          "skill": "秘識",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_medbay"
+            ],
+            "flagsAbsent": [
+              "flag_medbay_autopsy_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你確認殘留物不是普通創傷，卻無法在不接觸污染物的情況下判斷幼體特徵；你把樣本留在原處。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "手術台上的組織已與冷凝水和消毒液混在一起，沒有形成可靠的判讀。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你碰觸到腐蝕創口邊緣，酸性殘留逼得你立刻退開；醫療區的警示燈被震亮。",
+              "effects": {
+                "injuriesAdd": [
+                  "acid_burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_autopsy_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_medbay_force_open",
+          "label": "暴力撬開鎖死的低溫樣品保險櫃",
+          "intent": "獲取高階生化製劑",
+          "requiresCheck": true,
+          "attribute": "力量",
+          "skill": "體魄",
+          "difficulty": "困難",
+          "required": {
+            "locations": [
+              "loc_medbay"
+            ],
+            "flagsAbsent": [
+              "flag_medbay_force_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你以穩定的力量撬開低溫樣品保險櫃，找到一支仍維持低溫的高階生化製劑。",
+              "effects": {
+                "itemsAdd": [
+                  "item_biomedical_injector"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "鎖扣在最後一次施力後鬆開，保險櫃內仍有一支可用的高階生化製劑。",
+              "effects": {
+                "itemsAdd": [
+                  "item_biomedical_injector"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你撬開了保險櫃，但低溫警報開始閃爍；你只來得及取出製劑並離開櫃前。",
+              "effects": {
+                "itemsAdd": [
+                  "item_biomedical_injector"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "保險櫃的外殼被撬出凹痕，鎖死的低溫模組仍然沒有鬆開。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "工具在鎖扣上打滑，保險櫃沒有開啟，卻把金屬撞擊聲傳進了走廊。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "保險櫃被暴力撬開時觸發了液氮防護洩漏，極低溫氣體噴湧而出，凍傷了你的手臂，造成輕度凍傷狀態。",
+              "effects": {
+                "injuriesAdd": [
+                  "frostbite_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_medbay_force_done",
+                  "flag_medbay_checked",
+                  "flag_medbay_vault_leak"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "canReturn": false
+      }
+    },
+    {
+      "id": "evt_cargo_stalk",
+      "nodeId": "n1",
+      "location": "loc_cargo",
+      "phase": "investigation",
+      "defaultTransition": "stay",
+      "purpose": "穿越貨艙、確認 Brett 的下落，並找出通往工程區的可用路徑。",
+      "entryKnowledge": [
+        "玩家已從 A 甲板進入貨艙",
+        "玩家知道這裡有工具與冷卻設備",
+        "玩家只知道異形可能利用貨艙陰影"
+      ],
+      "gmTruth": [
+        "貨艙是異形臨時巢穴外圍",
+        "Brett 在這裡遇害",
+        "鏈條與積水會放大聲音和追蹤風險"
+      ],
+      "entryNarration": "貨艙開闊如同一座廢棄工廠。巨大的集裝箱堆疊成鋼鐵迷宮，頭頂垂落著無數銹蝕的起重鏈條。地面覆蓋著冰冷的凝結水，每走一步都會發出水聲。遠處的貨櫃陰影中，隱約有水滴在規律地滴落。",
+      "narrativeSource": {
+        "eventId": "evt_cargo_stalk",
+        "sourceFile": "異形(三).md",
+        "entryText": "貨艙開闊如同一座廢棄工廠。巨大的集裝箱堆疊成鋼鐵迷宮，頭頂垂落著無數銹蝕的起重鏈條。地面覆蓋著冰冷的凝結水，每走一步都會發出水聲。遠處的貨櫃陰影中，隱約有水滴在規律地滴落。",
+        "sourceEvents": [
+          "evt_cargo_stalk"
+        ],
+        "outcomes": {
+          "app_cargo_stealth_water": {
+            "大成功": "你靈巧地攀附在貨櫃側梯上，完全避開了地面的積水。高處的陰影中雖然有氣流湧動，但異形並未鎖定你們。",
+            "成功": "你靈巧地攀附在貨櫃側梯上，完全避開了地面的積水。高處的陰影中雖然有氣流湧動，但異形並未鎖定你們。",
+            "驚險成功": "橫樑因年久失修發出金屬吱呀聲，你及時穩住身形，但頭頂鏈條突然劇烈晃動，威脅度上升至【貼近】。",
+            "慘烈失敗": "你腳下的鋼樑突然斷裂，你整個人重重摔入積水中，激起巨大水響。正上方十米高的貨櫃頂端，一雙森冷的黑色反關節骨足緩緩踏出陰影。"
+          },
+          "app_cargo_crane_trap": {
+            "大成功": "你成功解鎖了手動懸吊纜繩，隨時可以拉下重達數噸的礦砂集裝箱阻斷追擊路線。",
+            "成功": "你成功解鎖了手動懸吊纜繩，隨時可以拉下重達數噸的礦砂集裝箱阻斷追擊路線。"
+          },
+          "app_cargo_recon_corpse": {
+            "大成功": "你在水窪中找到了一頂帶血的工程帽與一把受損的電擊手杖，證實 Brett 已在此遇害。",
+            "成功": "你在水窪中找到了一頂帶血的工程帽與一把受損的電擊手杖，證實 Brett 已在此遇害。"
+          }
+        }
+      },
+      "beats": [
+        "辨識積水與鏈條形成的視線死角",
+        "確認異形痕跡或 Brett 遺物",
+        "讓隊伍取得貨艙環境優勢",
+        "打開通往工具櫃的下一個事件"
+      ],
+      "approaches": [
+        {
+          "id": "app_cargo_stealth_water",
+          "label": "踏著貨櫃邊緣的金屬橫樑避開積水前進",
+          "intent": "消除腳步聲以匿蹤穿行",
+          "requiresCheck": true,
+          "attribute": "敏捷",
+          "skill": "潛行",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_stealth_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你靈巧地攀附在貨櫃側梯上，完全避開了地面的積水。高處的陰影中雖然有氣流湧動，但異形並未鎖定你們。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你靈巧地攀附在貨櫃側梯上，完全避開了地面的積水。高處的陰影中雖然有氣流湧動，但異形並未鎖定你們。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "橫樑因年久失修發出金屬吱呀聲，你及時穩住身形，但頭頂鏈條突然劇烈晃動，威脅度上升至【貼近】。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你踩過一段濕滑橫樑，沒有摔落，但腳步聲沿著貨櫃間的水面傳開。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "你避開了最深的積水，卻沒有找到安靜的穿行路線；貨艙另一端傳來金屬摩擦。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "你腳下的鋼樑突然斷裂，你整個人重重摔入積水中，激起巨大水響。正上方十米高的貨櫃頂端，一雙森冷的黑色反關節骨足緩緩踏出陰影。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_stealth_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_alert"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_crane_trap",
+          "label": "觀察頭頂懸掛貨櫃的承重鏈條，預設陷阱",
+          "intent": "利用環境重物防備突襲",
+          "requiresCheck": true,
+          "attribute": "智力",
+          "skill": "技藝",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_crane_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你成功解鎖了手動懸吊纜繩，隨時可以拉下重達數噸的礦砂集裝箱阻斷追擊路線。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done",
+                  "flag_cargo_trap_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你成功解鎖了手動懸吊纜繩，隨時可以拉下重達數噸的礦砂集裝箱阻斷追擊路線。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done",
+                  "flag_cargo_trap_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你解開了纜繩的保險扣，但鏈條的晃動讓貨艙上方發出一陣沉重回響。陷阱可用，位置也已暴露。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done",
+                  "flag_cargo_trap_ready",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你找到了手動纜繩，卻無法在不讓貨櫃滑動的情況下完成解鎖。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "起重機控制盒沒有回應，遠處積水裡卻傳來一次不屬於你們的腳步聲。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "你拉錯了手動纜繩，懸掛貨櫃突然偏移，鋼鏈砸進地面並把貨艙的動靜推向最高。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_crane_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_alert"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_recon_corpse",
+          "label": "循著水中的血色去排查 Brett 遺落的物品",
+          "intent": "搜刮工程遺物與線索",
+          "requiresCheck": true,
+          "attribute": "感知",
+          "skill": "求生",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_corpse_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你在水窪中找到了一頂帶血的工程帽與一把受損的電擊手杖，證實 Brett 已在此遇害。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace",
+                  "clue_brett_fate"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done",
+                  "flag_brett_confirmed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你在水窪中找到了一頂帶血的工程帽與一把受損的電擊手杖，證實 Brett 已在此遇害。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace",
+                  "clue_brett_fate"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done",
+                  "flag_brett_confirmed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你在水窪邊找到工程帽的殘片，卻不敢再靠近那片血色；Brett 的下落仍只能被標記為高度可疑。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "血色痕跡在冷凝水裡失去方向，你只確認有人曾在這裡受傷。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "你搜查了錯誤的貨櫃縫隙，除了油污與積水沒有找到遺物。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你翻動水窪底部的殘片時，金屬碰撞聲把貨櫃迷宮的回音全部喚醒。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_corpse_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_alert"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_to_tools",
+          "label": "沿著維修標記前往貨艙盡頭的工具櫃",
+          "intent": "完成貨艙排查後尋找工程焊槍",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flags": [
+              "flag_cargo_stalk_done"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_tool_route_opened"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "在貨艙盡頭的維修工棚裡，立著一具沉重的鋼製工具櫃。櫃門被一把厚重的工業掛鎖死死鎖住。櫃體下方滲出微弱的乙炔氣味，旁邊的架子上擺放著各類重型扳手。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_route_opened"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_cargo_tool_scavenge",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "canReturn": false
+      }
+    },
+    {
+      "id": "evt_cargo_tool_scavenge",
+      "nodeId": "n2",
+      "location": "loc_cargo",
+      "phase": "resource",
+      "defaultTransition": "stay",
+      "purpose": "取得工程焊槍，或在工具櫃事故後帶著代價前往工程區。",
+      "entryKnowledge": [
+        "玩家已完成至少一項貨艙排查",
+        "玩家知道工具櫃位置",
+        "玩家知道聲音會提高貨艙風險"
+      ],
+      "gmTruth": [
+        "工具櫃內有可用焊槍與高壓氣瓶",
+        "掛鎖可以被技巧、力量或陸遠的槍擊處理",
+        "工具櫃事故不會自動等於取得焊槍"
+      ],
+      "entryNarration": "在貨艙盡頭的維修工棚裡，立著一具沉重的鋼製工具櫃。櫃門被一把厚重的工業掛鎖死死鎖住。櫃體下方滲出微弱的乙炔氣味，旁邊的架子上擺放著各類重型扳手。",
+      "narrativeSource": {
+        "eventId": "evt_cargo_tool_scavenge",
+        "sourceFile": "異形(三).md",
+        "entryText": "在貨艙盡頭的維修工棚裡，立著一具沉重的鋼製工具櫃。櫃門被一把厚重的工業掛鎖死死鎖住。櫃體下方滲出微弱的乙炔氣味，旁邊的架子上擺放著各類重型扳手。",
+        "sourceEvents": [
+          "evt_cargo_tool_scavenge"
+        ],
+        "outcomes": {
+          "app_cargo_tool_pick": {
+            "大成功": "一聲輕微的彈簧脆響，鎖頭脫落。你在櫃中找到了一把滿氣的工程焊槍與兩枚高壓氣罐。獲得物品【工程切割焊槍】。",
+            "成功": "一聲輕微的彈簧脆響，鎖頭脫落。你在櫃中找到了一把滿氣的工程焊槍與兩枚高壓氣罐。獲得物品【工程切割焊槍】。",
+            "失敗": "鎖芯內部生鏽卡死，鐵絲折斷在裡面，常規開鎖途徑失效。"
+          },
+          "app_cargo_tool_smash": {
+            "大成功": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
+            "成功": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
+            "驚險成功": "你砸開了鎖，但反震力震裂了虎口，且巨大的響聲引來了遠處通風管內的劇烈刮擦。",
+            "慘烈失敗": "扳手砸偏擊中了氣瓶減壓閥，高壓可燃氣體嘶嘶噴出並引燃了微弱火星，引發小型爆燃，燒傷你的面部並徹底暴露位置。"
+          },
+          "app_cargo_tool_luyuan_shot": {}
+        }
+      },
+      "beats": [
+        "評估乙炔氣味與掛鎖狀態",
+        "選擇安靜、暴力或請求陸遠協助",
+        "取得焊槍或承受工具櫃事故",
+        "以已裁定的貨艙狀態前往工程區"
+      ],
+      "approaches": [
+        {
+          "id": "app_cargo_tool_pick",
+          "label": "使用金屬絲細緻破壞鎖芯機制",
+          "intent": "無聲開鎖以避免發出動靜",
+          "requiresCheck": true,
+          "attribute": "敏捷",
+          "skill": "技藝",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_tool_pick_attempted",
+              "flag_cargo_tool_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "一聲輕微的彈簧脆響，鎖頭脫落。你在櫃中找到了一把滿氣的工程焊槍與兩枚高壓氣罐。獲得物品【工程切割焊槍】。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "一聲輕微的彈簧脆響，鎖頭脫落。你在櫃中找到了一把滿氣的工程焊槍與兩枚高壓氣罐。獲得物品【工程切割焊槍】。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "鎖頭被撬開了，但鐵絲折斷在鎖芯中；你只能先把工具櫃留在原處。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_pick_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "鎖芯沒有轉動，金屬絲已經彎曲；你仍可改用力量或請陸遠開槍。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_pick_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "失敗": {
+              "text": "鎖芯內部生鏽卡死，鐵絲折斷在裡面，常規開鎖途徑失效。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_pick_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "金屬絲在鎖芯內斷裂，工具櫃仍然鎖死，卻沒有造成額外傷害。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_pick_attempted",
+                  "flag_cargo_tool_pick_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_tool_smash",
+          "label": "掄起地上的重型扳手直接砸斷鎖扣",
+          "intent": "快速暴力獲取物資",
+          "requiresCheck": true,
+          "attribute": "力量",
+          "skill": "格鬥",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_tool_smash_attempted",
+              "flag_cargo_tool_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "成功": {
+              "text": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "你砸開了鎖，但反震力震裂了虎口，且巨大的響聲引來了遠處通風管內的劇烈刮擦。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "injuriesAdd": [
+                  "impact_hand_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "扳手撞上鎖扣卻沒有斷裂；你聽見貨艙更深處的通風管傳來回音。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_smash_failed",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "掛鎖承受住了第一次重擊，扳手在你手中彈開；工具櫃仍然鎖死。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_smash_failed",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "扳手砸偏擊中了氣瓶減壓閥，高壓可燃氣體嘶嘶噴出並引燃了微弱火星，引發小型爆燃，燒傷你的面部並徹底暴露位置。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_smash_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_tool_cabinet_breach",
+                  "flag_tool_lost",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_tool_luyuan_shot",
+          "label": "請求陸遠使用消音手槍精確擊毀鎖舌",
+          "intent": "藉助資深者武力解決",
+          "requiresCheck": true,
+          "attribute": "意志",
+          "skill": "交涉",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flags": [
+              "flag_luyuan_met"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_tool_shot_attempted",
+              "flag_cargo_tool_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "陸遠等你退到側面後才開槍。消音槍聲像一聲短促的咳嗽，鎖舌斷裂，櫃門無聲彈開；你取得了工程焊槍。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained"
+                ],
+                "npcTrustDelta": {
+                  "npc_luyuan": 1
+                },
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "陸遠精確擊毀鎖舌，櫃門打開；你取得焊槍，但他提醒你這一槍仍可能被管線中的東西聽見。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "子彈打偏擦過鎖扣，櫃門終於鬆開，但陸遠要求你立刻拿走焊槍離開原地。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_done",
+                  "flag_blowtorch_obtained",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "第一發沒有擊中鎖舌，陸遠收槍示意改用其他方法；工具櫃仍然鎖死。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_shot_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "陸遠拒絕在氣瓶旁連續開槍，這條協助路線中止，但工具櫃本身沒有被打開。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_shot_failed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "子彈擦過鎖扣打進旁邊的金屬架，貨艙回音驟然放大；陸遠把你拉到貨櫃後方，焊槍仍未取得。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_shot_attempted",
+                  "flag_cargo_tool_shot_failed",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cargo_tool_abandon",
+          "label": "放棄工具櫃，只拿走地上的手動扳手",
+          "intent": "不再冒險取得焊槍",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_tool_done"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "你把地上的手動扳手收進裝備，放棄繼續敲擊工具櫃；前往工程區時將缺少焊槍這項選擇。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_tool_done",
+                  "flag_cargo_tool_abandoned"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "canReturn": false
+      }
+    },
+    {
+      "id": "evt_meet_ripley",
+      "nodeId": "n2",
+      "location": "loc_bridge",
+      "phase": "contact",
+      "defaultTransition": "stay",
+      "purpose": "解除 Ripley 的敵意，交換船員失蹤與水仙號處置資訊。",
+      "entryKnowledge": [
+        "玩家已在 A 甲板看見船況",
+        "玩家尚未取得 Ripley 的信任",
+        "玩家不應知道她的私下目的"
+      ],
+      "gmTruth": [
+        "Ripley 與 Lambert 正在副控室嘗試修復通訊",
+        "Ripley 對未穿制式服裝的外來者保持敵意",
+        "只有接觸結果能公開她們的身份與合作狀態"
+      ],
+      "entryNarration": "副控室的氣閘門突然鎖死。透過加厚防彈玻璃，Ripley 正雙手舉著一把改裝信號槍對準你們，臉色緊繃。旁邊的 Lambert 坐在角落掩面啜泣。揚聲器裡傳來 Ripley 冰冷的質問：「後退！把手放在我看得到的地方！Dallas 到底在哪裡？你們到底是什麼人？」",
+      "narrativeSource": {
+        "eventId": "evt_meet_ripley",
+        "sourceFile": "異形(三).md",
+        "entryText": "副控室的氣閘門突然鎖死。透過加厚防彈玻璃，Ripley 正雙手舉著一把改裝信號槍對準你們，臉色緊繃。旁邊的 Lambert 坐在角落掩面啜泣。揚聲器裡傳來 Ripley 冰冷的質問：「後退！把手放在我看得到的地方！Dallas 到底在哪裡？你們到底是什麼人？」",
+        "sourceEvents": [
+          "evt_meet_ripley"
+        ],
+        "outcomes": {
+          "app_ripley_show_evidence": {
+            "大成功": "Ripley 看著帶血的日誌數據板，眼神中的敵意轉化為震驚與沉痛。她放下了信號槍，解開了門鎖：「進來吧。看來那東西已經把 Dallas 殺了……我們必須想想怎麼離開這裡。」Ripley 信任度 +3。",
+            "成功": "Ripley 看著帶血的日誌數據板，眼神中的敵意轉化為震驚與沉痛。她放下了信號槍，解開了門鎖：「進來吧。看來那東西已經把 Dallas 殺了……我們必須想想怎麼離開這裡。」Ripley 信任度 +3。",
+            "驚險成功": "Ripley 允許你們進入，但依然要求你們與她保持三米距離，並拒絕交出副控室主權限。",
+            "失敗": "Ripley 認為你們是公司派來掩蓋真相的僱傭人員，拒絕開門，副控室對講系統被其關閉。"
+          },
+          "app_ripley_calm_lambert": {
+            "大成功": "你的安撫讓 Lambert 停止了尖叫，她顫抖著勸說 Ripley 開門。氣閘打開，Lambert 提供了水仙號的預熱參數。",
+            "成功": "你的安撫讓 Lambert 停止了尖叫，她顫抖著勸說 Ripley 開門。氣閘打開，Lambert 提供了水仙號的預熱參數。"
+          },
+          "app_ripley_threaten_break": {
+            "慘烈失敗": "武力威脅徹底激怒了 Ripley，她按下了副控室的防暴封鎖閥，將整條 A 甲板主通道物理隔離，逼迫你們不得不繞行通風管。"
+          }
+        }
+      },
+      "beats": [
+        "隔著玻璃說明 Dallas 與異形痕跡",
+        "安撫 Lambert 或交換可驗證資料",
+        "決定是否以武力施壓",
+        "帶著已公開的合作狀態返回 A 甲板"
+      ],
+      "approaches": [
+        {
+          "id": "app_ripley_show_evidence",
+          "label": "隔著玻璃出示醫療區採集的黏液樣本與黑盒子日誌",
+          "intent": "以客觀事實證明自身立場與威脅真相",
+          "requiresCheck": true,
+          "attribute": "智力",
+          "skill": "交涉",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_bridge"
+            ],
+            "flagsAbsent": [
+              "flag_ripley_evidence_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "Ripley 看著帶血的日誌數據板，眼神中的敵意轉化為震驚與沉痛。她放下了信號槍，解開了門鎖：「進來吧。看來那東西已經把 Dallas 殺了……我們必須想想怎麼離開這裡。」Ripley 信任度 +3。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_narcissus_prep"
+                ],
+                "npcStatusChanges": {
+                  "npc_ripley": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 3
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met",
+                  "flag_ripley_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "Ripley 看著帶血的日誌數據板，眼神中的敵意轉化為震驚與沉痛。她放下了信號槍，解開了門鎖：「進來吧。看來那東西已經把 Dallas 殺了……我們必須想想怎麼離開這裡。」Ripley 信任度 +3。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_narcissus_prep"
+                ],
+                "npcStatusChanges": {
+                  "npc_ripley": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 3
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met",
+                  "flag_ripley_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "Ripley 允許你們進入，但依然要求你們與她保持三米距離，並拒絕交出副控室主權限。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "Ripley 沒有相信你的證據，卻也沒有立刻下令開火；她要求你們保持原地，並關閉了副控室外的通話頻道。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_refused"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "Ripley 認為你們是公司派來掩蓋真相的僱傭人員，拒絕開門，副控室對講系統被其關閉。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_refused"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你把證據推得太近，Ripley 直接切斷通話並啟動副控室封鎖；你們失去和平交換資料的窗口。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_evidence_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_route_blocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_ripley_calm_lambert",
+          "label": "透過對講機用冷靜專業的語氣安撫崩潰的 Lambert",
+          "intent": "從心理防線薄弱處切入瓦解對抗",
+          "requiresCheck": true,
+          "attribute": "意志",
+          "skill": "交涉",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_bridge"
+            ],
+            "flagsAbsent": [
+              "flag_ripley_lambert_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你的安撫讓 Lambert 停止了尖叫，她顫抖著勸說 Ripley 開門。氣閘打開，Lambert 提供了水仙號的預熱參數。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_narcissus_prep"
+                ],
+                "npcStatusChanges": {
+                  "npc_ripley": "met",
+                  "npc_lambert": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met",
+                  "flag_lambert_met",
+                  "flag_ripley_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你的安撫讓 Lambert 停止了尖叫，她顫抖著勸說 Ripley 開門。氣閘打開，Lambert 提供了水仙號的預熱參數。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_narcissus_prep"
+                ],
+                "npcStatusChanges": {
+                  "npc_ripley": "met",
+                  "npc_lambert": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met",
+                  "flag_lambert_met",
+                  "flag_ripley_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "Lambert 暫時停止哭喊，但 Ripley 仍隔著玻璃監視你們；你只取得一段不完整的水仙號資訊。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_lambert": "met"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_lambert_met"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你的語氣沒有讓 Lambert 平靜下來；Ripley 要求你停止通話，副控室裡的壓力沒有降低。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "Lambert 的哭喊蓋過了你的聲音，Ripley 沒有打開通話頻道。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你的安撫反而讓 Lambert 更加恐慌；Ripley 將副控室切到封閉模式，拒絕再回應。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_lambert_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_route_blocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_ripley_threaten_break",
+          "label": "由陸遠持槍施壓，要求其立即開門共享控制權",
+          "intent": "以武力強制威懾",
+          "requiresCheck": true,
+          "attribute": "力量",
+          "skill": "交涉",
+          "difficulty": "困難",
+          "required": {
+            "locations": [
+              "loc_bridge"
+            ],
+            "flags": [
+              "flag_luyuan_met"
+            ],
+            "flagsAbsent": [
+              "flag_ripley_force_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "陸遠的槍口沒有離開玻璃，但 Ripley 判斷你們不是公司清場隊；她打開一道側門，要求你們把武器放在地上再談。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": 1,
+                  "npc_luyuan": -1
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "成功": {
+              "text": "施壓迫使 Ripley 打開外層門鎖，但她仍拒絕交出副控室主權限；合作建立在槍口與距離之間。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_ripley": -1,
+                  "npc_luyuan": -1
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_met"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "Ripley 沒有開門，只把水仙號的方向標在玻璃上的船艦圖上；她的手仍然扣在信號槍扳機旁。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你的威脅沒有得到回應，Ripley 反而把副控室內側的鎖定程序推到待命。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "Ripley 將你們視為強闖者，副控室的門鎖保持紅色；你們沒有取得任何控制權。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "武力威脅徹底激怒了 Ripley，她按下了副控室的防暴封鎖閥，將整條 A 甲板主通道物理隔離，逼迫你們不得不繞行通風管。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ripley": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ripley_force_attempted",
+                  "flag_ripley_session_opened",
+                  "flag_ripley_route_blocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_ripley_hold_position",
+          "label": "舉起雙手後退一步示好",
+          "intent": "暫時停止施壓並等待對方回應",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_bridge"
+            ],
+            "flagsAbsent": [
+              "flag_ripley_hold_done"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "你舉起雙手後退一步，讓 Ripley 看見你沒有立即強闖的意圖；她沒有放下信號槍，但也沒有開火。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_ripley_hold_done",
+                  "flag_ripley_session_opened"
+                ],
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
         "canReturn": false
       }
     },
@@ -1386,19 +3114,7 @@ export default {
             "失敗": "你的探頭動作過於明顯，Ash 在說話中途突然側過身，伸手直接按下了螢幕關閉鈕。他用一種沒有絲毫感情的平調對你說道：「未經授權窺視企業機密數據，在商船法中等同於商業間諜行為。」氣氛瞬間降至冰點。",
             "慘烈失敗": "你試圖靠近終端時踩到了掉落在地的玻璃試管，一聲清脆的爆裂聲在死寂的實驗室內炸響。試管內殘留的微量神經毒素濺在你的腳踝上，帶來麻痺劇痛。Ash 眼神驟冷，立刻啟動了控制台的防禦協議，全船廣播中響起他的聲音：「通報母神，科學實驗區發現敵對滲透人員，請求授權安全鎖定。」"
           }
-        },
-        "fragments": [
-          {
-            "eventId": "evt_medbay_ruins",
-            "title": "事件 05：醫療區殘骸與搜刮",
-            "sourceFile": "異形(三).md",
-            "entryText": "醫療區的自動感應門卡在半開位置。空氣中充斥著濃烈的消毒水與腐血氣味。中央手術台上一片狼藉，胸腔固定架向外扭曲崩斷，手術台中央的金屬板被強酸腐蝕出一個拳頭大小的空洞。牆邊的急救品壁櫃門半掩著。",
-            "outcomes": {
-              "autopsy.success": "創口邊緣肋骨向外爆開，肉芽組織顯示出驚人的細胞生長活性。你確認該生物在幼體時期即具備突破人體骨骼的破壞力。"
-            },
-            "mappingNote": "目前 V2 尚未有 loc_medbay runtime scene；保留完整原始文字，待醫療區 scene graph 接回。"
-          }
-        ]
+        }
       },
       "beats": [
         "Ash 質詢玩家身分",
@@ -1695,7 +3411,7 @@ export default {
         ],
         "nextByLocation": {
           "loc_mother_core": "evt_order_937_reveal",
-          "loc_cargo": "evt_trigger_overload"
+          "loc_cargo": "evt_cargo_stalk"
         },
         "canReturn": false,
         "completeNode": "n1"
@@ -1997,14 +3713,6 @@ export default {
             "entryText": "穿過厚重的多重氣密門，你踏入了一個由非人化秩序構建的奇異空間。\n\n這裡是諾斯托羅莫號的中央神經中樞——MU-TH-UR 6000\n的主機核心房。整座球形大廳的牆壁由數萬枚整齊排列的微型黃色指示燈組成，燈光以極其複雜的頻率無聲跳動，宛如一座金色的機械蜂巢。外界刺耳的警報、沉悶的金屬撞擊與機油臭味在這裡被徹底隔絕，唯有巨型冷卻風扇微弱恆定的低鳴在空氣中迴盪。\n\n這是一種令人窒息的安全感，純粹、冰冷，沒有一絲屬於人類的情感溫度。\n\n大廳正中央立著一個獨立的圓形操作台，上方懸掛著一台老式的綠色螢光螢幕與一台機械打字機介面。隨著你們腳步的靠近，打字機內部突然傳出密集的電磁咬合聲，機械色帶自動歸位，螢幕上緩慢浮現出一行光標閃爍的綠字：\nINTERFACE 2037 ACTIVE. AWAITING INQUIRY FOR WEYLAND-YUTANI DIRECTIVES.\n\n陸遠反手合上身後的圓形金屬艙門，臉色前所未有地凝重。他快步走到控制台前，將手槍拍在桌面上：「就是這裡。所有見不得人的勾當都藏在這台老古董的底層代碼裡。動作快，我們只有幾分鐘。」",
             "outcomes": {},
             "mappingNote": "V2 runtime scene 的直接 entry／results source。"
-          },
-          {
-            "eventId": "evt_meet_ripley",
-            "title": "事件 09：橋樓代理指揮官的戒備",
-            "sourceFile": "異形(三).md",
-            "entryText": "副控室的氣閘門突然鎖死。透過加厚防彈玻璃，Ripley 正雙手舉著一把改裝信號槍對準你們，臉色緊繃。旁邊的 Lambert 坐在角落掩面啜泣。揚聲器裡傳來 Ripley 冰冷的質問：「後退！把手放在我看得到的地方！Dallas 到底在哪裡？你們到底是什麼人？」",
-            "outcomes": {},
-            "mappingNote": "目前 V2 尚無獨立 Ripley scene；不在未接觸前公開 NPC 或其內容。"
           }
         ]
       }
@@ -2551,22 +4259,6 @@ export default {
             "entryText": "踏入工程區，刺骨的冷氣瞬間被滾燙的機油熱浪取代。巨大的引擎轟鳴震耳欲聾，白色高壓蒸氣自管壁縫隙不斷噴出。四座粗大的冷卻導管直通反應爐底座，手動過載閥門上覆蓋著厚厚的油垢。",
             "outcomes": {},
             "mappingNote": "V2 將事件 13 的整備節拍併入工程區 scene；原始片段保留為前置／協同演出來源。"
-          },
-          {
-            "eventId": "evt_cargo_stalk",
-            "title": "事件 07：中央貨艙的陰影低語",
-            "sourceFile": "異形(三).md",
-            "entryText": "貨艙開闊如同一座廢棄工廠。巨大的集裝箱堆疊成鋼鐵迷宮，頭頂垂落著無數銹蝕的起重鏈條。地面覆蓋著冰冷的凝結水，每走一步都會發出水聲。遠處的貨櫃陰影中，隱約有水滴在規律地滴落。",
-            "outcomes": {},
-            "mappingNote": "目前 V2 將貨艙方向合併到工程／逃生路線；保留原始文字，不提前把事件結果當成已發生。"
-          },
-          {
-            "eventId": "evt_cargo_tool_scavenge",
-            "title": "事件 08：貨艙工具櫃與焊槍爭奪",
-            "sourceFile": "異形(三).md",
-            "entryText": "在貨艙盡頭的維修工棚裡，立著一具沉重的鋼製工具櫃。櫃門被一把厚重的工業掛鎖死死鎖住。櫃體下方滲出微弱的乙炔氣味，旁邊的架子上擺放著各類重型扳手。",
-            "outcomes": {},
-            "mappingNote": "目前 V2 尚無獨立 cargo action contract；保留原始工具搜刮與風險文字。"
           }
         ]
       }
@@ -2930,8 +4622,7 @@ export default {
         ],
         "sourceEvents": [
           "evt_vent_ambush_escape"
-        ],
-        "fragments": []
+        ]
       }
     },
     {
@@ -4114,8 +5805,7 @@ export default {
         ],
         "sourceEvents": [
           "evt_hypersleep_return"
-        ],
-        "fragments": []
+        ]
       }
     }
   ],

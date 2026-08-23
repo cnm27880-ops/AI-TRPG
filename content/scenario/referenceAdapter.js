@@ -457,6 +457,8 @@ const INJURY_DAMAGE_MAP = Object.freeze({
   bleeding_major: { amount: 1, type: "L", label: "大量出血" },
   suffocation_major: { amount: 1, type: "L", label: "窒息傷" },
   unconscious: { amount: 1, type: "A", label: "失去意識" },
+  frostbite_minor: { amount: 1, type: "B", label: "輕度凍傷" },
+  impact_hand_minor: { amount: 1, type: "B", label: "手部撞擊傷" },
 });
 
 /** 將 reference 的 injuriesAdd 轉成現有角色傷勢軌；未知 ID 只留在 referenceState，不擅自猜數值。 */
@@ -835,7 +837,9 @@ function npcHasPublicContact(npc, state) {
   return (
     (id === "npc_luyuan" && sceneId === "evt_deck_a_recon") ||
     (id === "npc_ash" && ["evt_meet_ash", "evt_ash_ambush"].includes(sceneId)) ||
-    (id === "npc_parker" && sceneId === "evt_trigger_overload")
+    (id === "npc_ripley" && sceneId === "evt_meet_ripley") ||
+    (id === "npc_lambert" && sceneId === "evt_meet_ripley") ||
+    (id === "npc_parker" && ["evt_trigger_overload", "evt_engine_coolant_prep"].includes(sceneId))
   );
 }
 
@@ -872,7 +876,8 @@ const LOCATION_PURPOSES = Object.freeze({
   loc_cryo: "確認甦醒現場與異形留下的痕跡",
   loc_service_corridor: "尋找安全路線並避開管線威脅",
   loc_deck_a: "整理船況，決定下一個調查方向",
-  loc_bridge: "查閱船員記錄與航行資料",
+  loc_medbay: "搜查醫療殘骸，取得急救物資與生物線索",
+  loc_bridge: "查閱船員記錄與航行資料，與仍在副控室的人接觸",
   loc_science: "查詢生物資料，觀察 Ash 與實驗樣本",
   loc_mother_core: "查明主機指令與 937 的來源",
   loc_cargo: "搜尋工具，確認貨艙內的活動痕跡",
@@ -885,6 +890,10 @@ const LOCATION_PURPOSES = Object.freeze({
 const SCENE_LABELS = Object.freeze({
   evt_cryo_clearance: "休眠室甦醒與現場排查",
   evt_deck_a_recon: "A 甲板調查與陸遠接觸",
+  evt_medbay_ruins: "醫療區殘骸與搜刮",
+  evt_cargo_stalk: "中央貨艙的陰影低語",
+  evt_cargo_tool_scavenge: "貨艙工具櫃與焊槍爭奪",
+  evt_meet_ripley: "橋樓代理指揮官的戒備",
   evt_meet_ash: "第一次與 Ash 接觸",
   evt_order_937_reveal: "特別指令 937 的揭露",
   evt_ash_ambush: "Ash 的背叛與突襲",
@@ -945,7 +954,9 @@ export function buildExplorationView(reference, state) {
       const sceneIds = {
         npc_luyuan: ["evt_deck_a_recon", "evt_ash_ambush", "evt_hypersleep_return"],
         npc_ash: ["evt_meet_ash", "evt_ash_ambush"],
-        npc_parker: ["evt_trigger_overload", "evt_vent_ambush_escape"],
+        npc_ripley: ["evt_meet_ripley"],
+        npc_lambert: ["evt_meet_ripley"],
+        npc_parker: ["evt_trigger_overload", "evt_engine_coolant_prep", "evt_vent_ambush_escape"],
       }[npc.id];
       return sceneIds?.includes(state?.currentSceneId) || state?.npcStatuses?.[npc.id] !== "alive";
     }),

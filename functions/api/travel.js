@@ -264,6 +264,8 @@ export async function onRequestPost(context) {
         label: travelRiskLabel(resolution),
       },
       nextSceneId: travelResult.nextSceneId,
+      arrivalText: systemNarration,
+      arrivalSourceEventIds: travelResult.arrivalSourceEventIds,
     },
     ...(nextProgress.pendingCombat ? { combatRequired: true } : {}),
   });
