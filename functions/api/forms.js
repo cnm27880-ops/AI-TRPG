@@ -140,7 +140,7 @@ export async function onRequestPost(context) {
         session.log,
         EVENT_TYPES.FORM,
         { event: "收功", formId, label: result.ended[0].label },
-        { timestamp: new Date().toISOString() }
+        { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
       );
       await store.put(session);
     }
@@ -172,7 +172,7 @@ export async function onRequestPost(context) {
       poolSpent: cost.poolSpent ?? null,
       mode: cost.mode ?? null,
     },
-    { timestamp: new Date().toISOString() }
+    { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
   await store.put(session);
 

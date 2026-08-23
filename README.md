@@ -2,7 +2,7 @@
 
 這個專案將《無限恐怖》2.35 規則整理成可測試的純運算核心，並在其上提供 AI 敘事、Cloudflare Pages Functions API 與單頁文字遊戲介面。**骰子、成功數、生命值轉換、經驗值、商店價格與戰鬥結果由程式碼計算；AI 只負責依照引擎結果產生敘事與下一輪選項。**
 
-> **文件對照基準：** `main` 分支，commit `bb4fa9d`（2026-08-22）。README 的測試數量、目錄與功能描述應以目前工作樹為準；規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
+> **文件對照基準：** `main` 分支目前已推送至 commit `1358b96`（2026-08-23）；本次全專案 audit 的修正會在工作樹完成驗證後另行提交。README 的測試數量、目錄與功能描述應以目前工作樹為準；規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
 
 ## 專案定位
 
@@ -19,7 +19,7 @@ npm install
 npm test
 ```
 
-目前測試套件共有 **56 個測試檔案、772 個測試案例**，正常結果應為 `# pass 772`、`# fail 0`。
+目前測試套件共有 **56 個測試檔案、786 個測試案例**，正常結果應為 `# pass 786`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation，以及 LLM 失敗後的 pending-turn retry；PWA Service Worker 則另以 production JavaScript syntax、差異檢查與部署後瀏覽器驗證。
 
 若要重新產生前端使用的 Tailwind 靜態 CSS，執行：
 
@@ -94,10 +94,11 @@ functions/api/               Cloudflare Pages Functions API
   auth/me.js                 查詢登入狀態
   character.js               取得建卡規則並驗證建卡
   check.js                   執行單次判定
-  turn.js                    主遊戲回合：讀檔、查驗、擲骰、敘事、產生選項、寫回
+  turn.js                    主遊戲回合：讀檔、查驗、擲骰、敘事、產生選項、寫回；LLM失敗可安全重試
   narrate.js                 判定與敘事，不產生下一輪選項
-  session.js                 建立、讀取、刪除與列出存檔
+  session.js                 建立、讀取、刪除與列出存檔；runtime view 只帶最近劇情與 pending retry
   journal.js                 讀取事件日誌摘要
+  chronicle.js               讀取完整劇情回顧與副本 AI-ready 劇情包
   scenario.js                副本與節點相關資料
   rest.js                    休息與恢復
   revive.js                  復活
@@ -108,14 +109,14 @@ functions/api/               Cloudflare Pages Functions API
   combat/resolve.js          執行完整攻擊行動
 
 public/                      Cloudflare Pages 靜態資源
-  index.html                 單頁遊戲介面、建卡、角色 HUD、故事流與戰鬥面板
-  app.js                     前端應用層與 API 呼叫，不做規則運算
+  index.html                 單頁遊戲介面、建卡、角色 HUD、最近五則故事窗口與戰鬥面板
+  app.js                     前端應用層與 API 呼叫，不做規則運算；含劇情回顧與 pending retry UX
   tailwind.css               預先編譯的靜態 CSS
   manifest.webmanifest       PWA 安裝資訊
   sw.js                      Service Worker
 
 src/tailwind.css             Tailwind CSS 輸入來源
-test/                        56 個測試檔案，共 772 個測試案例
+test/                        56 個測試檔案，共 786 個測試案例
 rules-2.35.txt               原始規則書資料
 wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 ```
@@ -124,7 +125,7 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 
 前端目前提供從邀請頁、建卡、主神空間到副本回合的完整主路徑。玩家可以建立角色、進行人生路徑問答與肉體重塑，建立存檔後進入回合循環；每輪由 API 回傳最多四個經過查驗的選項，玩家也可以輸入第五種自訂行動。
 
-遊戲主畫面包含角色 HUD、任務與副本狀態、故事流、決策卡、休息、存檔、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板。故事流支援「全部／敘事／事件」檢視、回合分隔與回到最新位置；寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
+遊戲主畫面包含角色 HUD、任務與副本狀態、最近五則故事窗口、決策卡、休息、存檔、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板。主畫面只保留最近五則現場訊息；完整長期劇情由主神商店旁的「劇情回顧」頁按需讀取，支援小說式回顧、事件事實與副本結束後可複製／下載的 AI-ready 劇情包。當 LLM 在規則層完成後暫時失敗，伺服器會保存 pendingTurn，玩家重試時沿用原骰面，不會重複扣時間、迫近度或寫入重複歷史。寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
 
 登入不是遊戲的必要條件。未登入時可以使用匿名存檔；登入後，新存檔會綁定帳號，既有的瀏覽器匿名存檔也會在登入後嘗試認領。存檔、登入與 KV 的詳細取捨請看 `DEPLOYMENT.md` 與 `ARCHITECTURE.md`。
 
@@ -143,7 +144,7 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 | 劇本狀態 | 副本節點、進度、迫近度、時間預算、重複行動與結算 |
 | 戰鬥 | 先攻、防禦、攻擊類型、護甲、行動經濟、傷害減免與完整攻擊流程 |
 | 內容包 | 結構驗證、跨包撞名、資源模板稽核、商店目錄與價格檢查 |
-| API 與服務 | session、journal、shop、forms、rest、auth、scenario、combat 與 LLM 整合路徑的測試 |
+| API 與服務 | session、journal、chronicle、shop、forms、rest、auth、scenario、combat 與 LLM 整合路徑的測試；含 LLM failure retry 不重骰回歸 |
 
 完整的「規則條文／程式碼／驗證方式／狀態」對照請看 `TEST_PLAN.md`；目前所有自動化測試均通過。
 

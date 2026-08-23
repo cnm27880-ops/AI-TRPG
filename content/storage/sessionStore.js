@@ -30,9 +30,10 @@ export const HISTORY_LIMIT = 8;
  *   2 —— 2026-08-17 加入 wallet(主神商店錢包) 與 forms(進行中的型態)
  *   3 —— 2026-08-20 加入 turns(真正的回合數，見下面 ensureSessionShape 的說明)
  *   4 —— 2026-08-23 加入 chronicle(完整長期劇情，不受短期 history 上限影響)
+ *   5 —— 2026-08-23 加入 pendingTurn(LLM 失敗時保存已完成的規則結果，重試不重骰)
  * 舊版存檔由 ensureSessionShape() 就地補欄位，不需要離線遷移。
  */
-export const SESSION_VERSION = 4;
+export const SESSION_VERSION = 5;
 
 /** 存檔在KV裡的key前綴。 */
 const KEY_PREFIX = "session:";
@@ -58,6 +59,8 @@ export function ensureSessionShape(session) {
   // 舊版沒有 chronicle 時只能把仍保留的 history 搬過去；不假裝能找回更早的敘事。
   if (!Array.isArray(next.chronicle)) next.chronicle = chronicleFromHistory(next.history);
   if (!Array.isArray(next.chroniclePackages)) next.chroniclePackages = [];
+  // pendingTurn 是一次性的重試狀態；缺少或形狀不對時安全視為沒有待完成回合。
+  if (!next.pendingTurn || typeof next.pendingTurn !== "object") next.pendingTurn = null;
   // [2026-08-20] 畫面頂欄那個「回合：N」以前顯示的是**事件日誌的筆數**，不是回合數——
   // 一場戰鬥打十下就會讓它跳十幾格，玩家看到的數字跟他實際玩過幾輪完全對不上。
   // 這裡開一個真的只在「敘事推進一輪」時 +1 的計數。舊存檔沒有這個欄位，
@@ -84,6 +87,8 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     chronicle: [],
     // 副本結束後只保存 package metadata；完整內容由 /api/chronicle 按需組裝。
     chroniclePackages: [],
+    // AI 供應商暫時失敗時，保存已完成的規則層結果，下一次重試不重新擲骰。
+    pendingTurn: null,
     scene: { context: sceneContext, options: [] },
     // 真正的回合數：只有「敘事推進了一輪」才 +1（見 functions/api/turn.js）。
     turns: 0,

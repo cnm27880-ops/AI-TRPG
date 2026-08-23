@@ -117,6 +117,73 @@ function logDegradedTurn(detail) {
   console.warn("[LLM_DEGRADED]", JSON.stringify({ where: "POST /api/turn", ...detail }));
 }
 
+function makeTurnRequestId({ turnRequestId, chosenOption, playerAction }) {
+  const explicit = typeof turnRequestId === "string" ? turnRequestId.trim() : "";
+  if (explicit && explicit.length <= 160) return explicit;
+  if (chosenOption?.label) return `option:${String(chosenOption.label).trim()}`;
+  if (playerAction) return `action:${String(playerAction).trim()}`;
+  return "opening";
+}
+
+function publicPendingTurn(pending) {
+  if (!pending || typeof pending !== "object") return null;
+  return {
+    requestId: pending.requestId ?? null,
+    chosenOption: pending.chosenOption ?? null,
+    playerAction: pending.playerAction ?? null,
+    opening: Boolean(pending.opening),
+    baseTurn: Number.isFinite(Number(pending.baseTurn)) ? Number(pending.baseTurn) : 0,
+  };
+}
+
+async function persistPendingTurn({
+  session,
+  store,
+  requestId,
+  chosenOption,
+  playerAction,
+  opening,
+  actionText,
+  freeAction,
+  checkParams,
+  checkResult,
+  outcome,
+  scenarioProgress,
+  threatChange,
+  retread,
+  warnings,
+}) {
+  if (!session || !store) return null;
+  session.pendingTurn = {
+    version: 1,
+    requestId,
+    chosenOption: chosenOption ?? null,
+    playerAction: playerAction ?? null,
+    opening: Boolean(opening),
+    baseTurn: session.turns ?? 0,
+    actionText: actionText ?? null,
+    freeAction: Boolean(freeAction),
+    checkParams: checkParams ?? null,
+    checkResult: checkResult ?? null,
+    outcome: outcome ?? null,
+    scenarioProgress: scenarioProgress ?? null,
+    threatChange: threatChange ?? null,
+    retread: retread ?? null,
+    warnings: Array.isArray(warnings) ? [...warnings] : [],
+    createdAt: new Date().toISOString(),
+  };
+  if (session.scenario && scenarioProgress) {
+    session.scenario = { ...session.scenario, progress: scenarioProgress };
+  }
+  try {
+    await store.put(session);
+    return publicPendingTurn(session.pendingTurn);
+  } catch (err) {
+    console.error("[PENDING_TURN_SAVE_FAILURE]", err);
+    return null;
+  }
+}
+
 export async function onRequestPost(context) {
   const env = context.env ?? {};
   const store = resolveSessionStore(env);
@@ -142,8 +209,11 @@ export async function onRequestPost(context) {
     baseUrl: bodyBaseUrl,
     model: bodyModel,
     maxTokens: bodyMaxTokens,
+    turnRequestId,
+    retryPending = false,
   } = body ?? {};
   const warnings = [];
+  const requestId = makeTurnRequestId({ turnRequestId, chosenOption, playerAction });
 
   if (persona && !PERSONA_KEYS.includes(persona)) {
     return jsonError(
@@ -205,6 +275,17 @@ export async function onRequestPost(context) {
     // 別人的 sessionId 就能替別人推進劇情、消耗他的時間預算。
     if (!canAccessSession(session, await getCurrentUser(context.request, env))) {
       return jsonError(`找不到存檔 ${sessionId}，請先呼叫 POST /api/session 建立`, 404);
+    }
+    if (retryPending && !session.pendingTurn) {
+      return json({
+        ok: false,
+        error: "目前沒有可重試的未完成回合，請重新選擇行動。",
+        retryable: false,
+        reusedCheck: false,
+        sessionId: session.id,
+        persistent: store.persistent,
+        pendingTurn: null,
+      }, 409);
     }
   }
 
@@ -286,7 +367,28 @@ export async function onRequestPost(context) {
   // 玩家的第一個選擇之後就完全回到正常流程，AI照樣接手，什麼都沒被拿掉。
   // ---------------------------------------------------------------------
   const isOpening = !chosenOption && !playerAction;
-  if (isOpening && !session?.history?.length && currentChapter?.openingNarration) {
+  const pendingTurn = session?.pendingTurn ?? null;
+  const pendingReplay = retryPending && pendingTurn
+    && pendingTurn.baseTurn === (session?.turns ?? 0)
+    && pendingTurn.requestId === requestId
+    ? pendingTurn
+    : null;
+
+  // 規則結果一旦算出就不能因 LLM 429／timeout 而重擲。只有同一 requestId 可以回放；
+  // 玩家若送來另一個行動，先要求完成原本未完成的敘事，避免時間、迫近度與骰面分叉。
+  if (pendingTurn && !pendingReplay) {
+    return json({
+      ok: false,
+      error: "上一回合的規則結果已經擲出，但說書人尚未完成。請先重試原本的行動。",
+      pendingTurn: publicPendingTurn(pendingTurn),
+      sessionId: session?.id ?? null,
+      persistent: store.persistent,
+      options: session?.scene?.options ?? [],
+      warnings,
+    }, 409);
+  }
+
+  if (isOpening && !pendingReplay && !session?.history?.length && currentChapter?.openingNarration) {
     const scripted = validateOptions(currentChapter.openingOptions, character);
     scripted.warnings.forEach((w) => warnings.push(`固定開頭選項：${w}`));
     // source 從 "ai" 改標成 "scripted"：這些選項既不是AI生的、也不是引擎的保底通用選項，
@@ -384,40 +486,55 @@ export async function onRequestPost(context) {
   // 加進DC，而且用的是伺服器自己的紀錄，不是前端傳來的數字——前端顯示的預告只是預告。
   // ---------------------------------------------------------------------
   let retread = null;
-  if (checkParams && scenarioProgress) {
-    retread = peekRetread(scenarioProgress, checkParams);
-    if (retread.dcPenalty > 0) {
-      checkParams = {
-        ...checkParams,
-        baseDc: checkParams.dc ?? 0,
-        dc: (checkParams.dc ?? 0) + retread.dcPenalty,
-        retread: { consecutive: retread.consecutive, dcPenalty: retread.dcPenalty },
-      };
-      warnings.push(
-        `同一套路連續第${retread.consecutive}次（${checkParams.attribute}${checkParams.skill ? "+" + checkParams.skill : ""}），本次DC+${retread.dcPenalty}`
-      );
+  let threatChange = null;
+  if (pendingReplay) {
+    actionText = pendingReplay.actionText ?? actionText;
+    freeAction = Boolean(pendingReplay.freeAction);
+    checkParams = pendingReplay.checkParams ?? null;
+    checkResult = pendingReplay.checkResult ?? null;
+    outcome = pendingReplay.outcome ?? null;
+    retread = pendingReplay.retread ?? null;
+    threatChange = pendingReplay.threatChange ?? null;
+    scenarioProgress = pendingReplay.scenarioProgress ?? scenarioProgress;
+    for (const warning of pendingReplay.warnings ?? []) {
+      if (!warnings.includes(warning)) warnings.push(warning);
     }
-    scenarioProgress = trackCheckUsage(scenarioProgress, checkParams);
-  }
+  } else {
+    if (checkParams && scenarioProgress) {
+      retread = peekRetread(scenarioProgress, checkParams);
+      if (retread.dcPenalty > 0) {
+        checkParams = {
+          ...checkParams,
+          baseDc: checkParams.dc ?? 0,
+          dc: (checkParams.dc ?? 0) + retread.dcPenalty,
+          retread: { consecutive: retread.consecutive, dcPenalty: retread.dcPenalty },
+        };
+        warnings.push(
+          `同一套路連續第${retread.consecutive}次（${checkParams.attribute}${checkParams.skill ? "+" + checkParams.skill : ""}），本次DC+${retread.dcPenalty}`
+        );
+      }
+      scenarioProgress = trackCheckUsage(scenarioProgress, checkParams);
+    }
 
-  if (checkParams) {
-    // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數。擺在套路遞減之後，
-    // 因為那個是加在 DC 上的、這個是加在骰池上的，兩者互不覆蓋。
-    //
-    // [2026-08-17] extraSources 是戰鬥外進行中的型態。在這一行出現之前，`session.forms`
-    // 沒有任何讀取端——變身在敘事迴圈裡完全不生效，只有戰鬥畫面吃得到。
-    // formsForScene() 會先對一次場景鑰匙，所以玩家換了地點之後型態自然查不到了。
-    const modified = applyCheckModifiers(character, checkParams, { extraSources: activeFormSources });
-    checkParams = modified.params;
-    if (modified.modifiers) {
-      warnings.push(`持有能力加值：${modified.modifiers.sources.join("、")}`);
+    if (checkParams) {
+      // 商店買到的檢定加值(專長/物品/型態)在這裡併進判定參數。擺在套路遞減之後，
+      // 因為那個是加在 DC 上的、這個是加在骰池上的，兩者互不覆蓋。
+      //
+      // [2026-08-17] extraSources 是戰鬥外進行中的型態。在這一行出現之前，`session.forms`
+      // 沒有任何讀取端——變身在敘事迴圈裡完全不生效，只有戰鬥畫面吃得到。
+      // formsForScene() 會先對一次場景鑰匙，所以玩家換了地點之後型態自然查不到了。
+      const modified = applyCheckModifiers(character, checkParams, { extraSources: activeFormSources });
+      checkParams = modified.params;
+      if (modified.modifiers) {
+        warnings.push(`持有能力加值：${modified.modifiers.sources.join("、")}`);
+      }
+      try {
+        checkResult = performCheck(character, checkParams);
+      } catch (err) {
+        return jsonError(`判定計算失敗：${err.message}`, 400);
+      }
+      outcome = classifyOutcome(checkResult);
     }
-    try {
-      checkResult = performCheck(character, checkParams);
-    } catch (err) {
-      return jsonError(`判定計算失敗：${err.message}`, 400);
-    }
-    outcome = classifyOutcome(checkResult);
   }
 
   // ---------------------------------------------------------------------
@@ -430,11 +547,20 @@ export async function onRequestPost(context) {
   //
   // 順序很重要：必須在組prompt之前算完，這一回合的敘事才能反映這一回合的判定。
   // ---------------------------------------------------------------------
-  let threatChange = null;
-  if (scenarioProgress && outcome) {
+  if (!pendingReplay && scenarioProgress && outcome) {
     const applied = applyThreatOutcome(scenarioProgress, outcome);
     scenarioProgress = applied.progress;
     threatChange = applied.change;
+  }
+
+  // 時間成本也是規則層結果：必須在呼叫 LLM 前就落到 pendingTurn，否則重試時
+  // 不是重扣一次，就是初次失敗後完全沒扣到。成功回合後面的場景寫回只會採用這份 progress。
+  if (!pendingReplay && session?.scenario && scenarioPack && (chosenOption || playerAction)) {
+    const before = scenarioProgress;
+    scenarioProgress = spendChapterTime(scenarioProgress, 1, actionText ?? "推進劇情");
+    if (justExpired(before, scenarioProgress)) {
+      warnings.push("這個章節的時間預算已經耗盡，接下來的敘事應該會轉向劣化結局，請留意場景描述。");
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -444,7 +570,7 @@ export async function onRequestPost(context) {
   // resolveProvider() 的覆寫優先序)；沒選就照舊完全交給伺服器判斷，行為不變。
   const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
   if (!provider) {
-    return jsonPartial(
+    return await jsonPartial(
       {
         error:
           "沒有可用的LLM供應商。請設定任一組金鑰(GEMINI_API_KEY / DEEPSEEK_API_KEY / " +
@@ -452,7 +578,11 @@ export async function onRequestPost(context) {
           '[ai] binding = "AI" 使用免金鑰的 Cloudflare Workers AI。設定步驟見 LLM_PROVIDERS.md。' +
           `可用的供應商id：${PROVIDER_IDS.join(" / ")}`,
       },
-      { session, checkParams, checkResult, outcome, warnings, store },
+      {
+        session, checkParams, checkResult, outcome, warnings, store,
+        reusedCheck: Boolean(pendingReplay),
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+      },
       503
     );
   }
@@ -469,7 +599,15 @@ export async function onRequestPost(context) {
       characterHints: [...moralityHints(character), ...narrativeFeatHints(character)],
     });
   } catch (err) {
-    return jsonError(`文筆設定檔錯誤：${err.message}`, 400);
+    return await jsonPartial(
+      { error: `文筆設定檔錯誤：${err.message}` },
+      {
+        session, checkParams, checkResult, outcome, warnings, store,
+        reusedCheck: Boolean(pendingReplay),
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+      },
+      400
+    );
   }
 
   // --- 記憶：從存檔裡取出來，餵進 prompt ---
@@ -533,14 +671,18 @@ export async function onRequestPost(context) {
     finishReason = res.finishReason ?? null;
   } catch (err) {
     logLlmFailure(err, { provider, sessionId: session?.id });
-    return jsonPartial(
+    return await jsonPartial(
       {
         provider,
         model: err?.model ?? null,
         error: `敘事生成失敗（${provider}）：${err.message}`,
         llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
       },
-      { session, checkParams, checkResult, outcome, warnings, store },
+      {
+        session, checkParams, checkResult, outcome, warnings, store,
+        reusedCheck: Boolean(pendingReplay),
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+      },
       502
     );
   }
@@ -705,15 +847,7 @@ export async function onRequestPost(context) {
     // 否則這一回合算出來的迫近度會在寫回存檔時被舊值蓋掉。
     let progress = scenarioProgress;
 
-    // 時間預算：只有玩家真的採取行動的回合才算(開場敘事那一回合玩家還沒做任何選擇)。
     const tookAction = Boolean(chosenOption || playerAction);
-    if (tookAction) {
-      const before = progress;
-      progress = spendChapterTime(progress, 1, actionText ?? "推進劇情");
-      if (justExpired(before, progress)) {
-        warnings.push("這個章節的時間預算已經耗盡，接下來的敘事應該會轉向劣化結局，請留意場景描述。");
-      }
-    }
 
     let nodeCompleted = null;
     // isFinale節點刻意不接受敘事信號結算(見 nodePrompt.js 給AI的指引)：只能透過玩家
@@ -735,13 +869,13 @@ export async function onRequestPost(context) {
             session.log,
             EVENT_TYPES.NODE_COMPLETE,
             { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward },
-            { timestamp: ts }
+            { timestamp: ts, scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
           );
           appendEvent(
             session.log,
             EVENT_TYPES.POINTS_GRANT,
             { total: credited.credited, reason: `完成節點「${activeNode.title}」` },
-            { timestamp: ts }
+            { timestamp: ts, scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
           );
           nodeCompleted = { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward };
         } else {
@@ -777,7 +911,7 @@ export async function onRequestPost(context) {
           session.log,
           EVENT_TYPES.XP_GRANT,
           { total: settlement.xp, reason: `副本「${scenarioPack.briefing?.title ?? scenarioPack.id}」通關結算`, breakdown: settlement.breakdown },
-          { timestamp: new Date().toISOString() }
+          { timestamp: new Date().toISOString(), scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
         );
         scenarioWarnings.push(
           `副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`
@@ -838,7 +972,7 @@ export async function onRequestPost(context) {
           totalSuccesses: checkResult.totalSuccesses,
           dc: checkResult.dc,
         },
-        { timestamp: new Date().toISOString() }
+        { timestamp: new Date().toISOString(), scenarioId: scenarioPack?.id ?? null, turn: (session.turns ?? 0) + 1 }
       );
     }
     const chronicleTimestamp = new Date().toISOString();
@@ -855,6 +989,8 @@ export async function onRequestPost(context) {
     // 「回合」是敘事推進了一輪，不是日誌多了幾筆——頂欄那個數字用的就是這個。
     session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
+    // pendingTurn 只存在於「規則已算、敘事未完成」的窗口；成功寫回後不可再次重播。
+    session.pendingTurn = null;
     await store.put(session);
   }
 
@@ -879,6 +1015,8 @@ export async function onRequestPost(context) {
     scenario: scenarioResult,
     turnCount: session?.turns ?? 0,
     warnings,
+    reusedCheck: Boolean(pendingReplay),
+    pendingTurn: null,
   });
 }
 
@@ -993,7 +1131,14 @@ function json(payload, status = 200) {
 }
 
 /** 敘事層失敗時的回應：規則層算好的東西一律照常附上。 */
-function jsonPartial(extra, { session, checkParams, checkResult, outcome, warnings, store }, status) {
+async function jsonPartial(
+  extra,
+  { session, checkParams, checkResult, outcome, warnings, store, pending, reusedCheck = false },
+  status
+) {
+  const pendingTurn = pending
+    ? await persistPendingTurn({ session, store, ...pending })
+    : null;
   return json(
     {
       ok: false,
@@ -1005,6 +1150,9 @@ function jsonPartial(extra, { session, checkParams, checkResult, outcome, warnin
       outcome,
       options: [],
       warnings,
+      retryable: Boolean(pendingTurn),
+      reusedCheck: Boolean(reusedCheck),
+      pendingTurn,
     },
     status
   );

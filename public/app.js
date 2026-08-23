@@ -1053,7 +1053,7 @@ function setTurnInputLocked(locked, pressedIndex) {
   }
 }
 
-async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {}) {
+async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retryPending = false, turnRequestId } = {}) {
   if (turnInFlight) return;
 
   const overrides = buildLlmOverrides();
@@ -1063,12 +1063,15 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
   }
 
   turnInFlight = true;
-  lastTurnRequest = { chosenOption, playerAction, opening };
+  let keepTurnLocked = false;
+  const stableRequestId = turnRequestId || `turn:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  lastTurnRequest = { chosenOption, playerAction, opening, retryPending, turnRequestId: stableRequestId };
 
-  if (playerAction) appendFeedEvent("action", "", escapeHtml(playerAction));
+  // 重試沿用同一個 DOM action／check；只有首次送出才插入玩家行動，避免錯誤卡重試時疊加。
+  if (!retryPending && playerAction) appendFeedEvent("action", "", escapeHtml(playerAction));
   // 選項是AI寫的文字，玩家按下去之後也該在故事流裡留下紀錄——否則捲回去看的時候，
   // 只剩下敘事，看不出當時自己選了什麼。
-  if (chosenOption?.label) {
+  if (!retryPending && chosenOption?.label) {
     appendFeedEvent("action", "", escapeHtml(chosenOption.label));
   }
 
@@ -1087,6 +1090,8 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
         // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
         persona: localStorage.getItem("user_narrator_persona") || "RUTHLESS_JUDGE",
         ...overrides.payload,
+        turnRequestId: stableRequestId,
+        retryPending,
       })
     });
 
@@ -1109,17 +1114,30 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
 
     if (res.ok === false) {
       renderTurnWarnings(res.warnings);
-      if (res.checkResult) await renderCheckResult(res.checkResult);
+      if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
       if (httpRes.status === 409 && res.downState) {
         appendFeedEvent("harm", "身體拒絕行動", escapeHtml(res.error));
       } else {
+        const pending = res.pendingTurn;
+        if (pending?.requestId) {
+          // 玩家若誤點另一個選項，下一次「重試」仍應回到伺服器保存的原回合，
+          // 不能沿用這個被 409 擋下的新行動。
+          lastTurnRequest = {
+            chosenOption: pending.chosenOption ?? undefined,
+            playerAction: pending.playerAction ?? undefined,
+            opening: Boolean(pending.opening),
+            retryPending: true,
+            turnRequestId: pending.requestId,
+          };
+        }
+        keepTurnLocked = Boolean(res.retryable || res.pendingTurn);
         appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
       }
       return;
     }
 
-    if (res.checkResult) await renderCheckResult(res.checkResult);
+    if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
 
     renderTurnWarnings(res.warnings);
 
@@ -1146,13 +1164,15 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex } = {
     refreshJournalIfOpen();
   } catch (err) {
     console.error("[TURN_FAILURE] /api/turn 呼叫失敗", err);
+    // 網路層沒有拿到伺服器回應，無法安全判斷是否已保存 pendingTurn；重試卡會
+    // 用明確 retryPending 讓伺服器自行驗證，有 pending 就回放，沒有就回 409，不會盲目重骰。
     appendTurnError(`回合執行失敗: ${err.message}`, null);
   } finally {
     turnInFlight = false;
     // 這兩個一定要在 finally：任何一條失敗路徑忘了解鎖，玩家就永遠按不了下一個選項，
     // 而且畫面上還掛著一個永遠轉不完的「說書人書寫中」——比原本沒有指示還糟。
     hideNarratorPending();
-    setTurnInputLocked(false);
+    setTurnInputLocked(keepTurnLocked);
   }
 }
 
@@ -1326,7 +1346,7 @@ function appendTurnError(message, res) {
     const id = block.dataset.recentStoryId;
     recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
     renderRecentStoryWindow({ forceBottom: true });
-    if (lastTurnRequest) runTurn(lastTurnRequest);
+    if (lastTurnRequest) runTurn({ ...lastTurnRequest, retryPending: true });
   });
 }
 
@@ -1810,7 +1830,7 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
       const id = button.closest("[data-recent-story-id]")?.dataset.recentStoryId;
       recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
       renderRecentStoryWindow({ forceBottom: true });
-      if (lastTurnRequest) runTurn(lastTurnRequest);
+      if (lastTurnRequest) runTurn({ ...lastTurnRequest, retryPending: true });
     });
   });
 
@@ -2230,6 +2250,15 @@ async function resumeSession(id) {
     }));
     appendCombatSystemLine("已還原重整前進行中的戰鬥。", "text-zinc-400");
     renderCombat();
+  } else if (res.session.pendingTurn) {
+    const pending = res.session.pendingTurn;
+    await runTurn({
+      chosenOption: pending.chosenOption ?? undefined,
+      playerAction: pending.playerAction ?? undefined,
+      opening: Boolean(pending.opening),
+      retryPending: true,
+      turnRequestId: pending.requestId ?? undefined,
+    });
   } else if (!(res.session.scene?.options || []).length) {
     await runTurn({ opening: true });
   }

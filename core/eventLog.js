@@ -34,7 +34,7 @@ export function createEventLog() {
  * @param {{events: object[]}} log
  * @param {string} type 必須是 EVENT_TYPES 之一
  * @param {object} payload 事件的結構化內容，格式依 type 而定
- * @param {{ timestamp?: number|string|null }} opts
+ * @param {{ timestamp?: number|string|null, scenarioId?: string|null, turn?: number|null }} opts
  */
 export function appendEvent(log, type, payload, opts = {}) {
   if (!VALID_TYPES.has(type)) {
@@ -45,6 +45,8 @@ export function appendEvent(log, type, payload, opts = {}) {
     type,
     payload,
     timestamp: opts.timestamp ?? null,
+    ...(opts.scenarioId == null ? {} : { scenarioId: String(opts.scenarioId) }),
+    ...(Number.isFinite(Number(opts.turn)) ? { turn: Number(opts.turn) } : {}),
   };
   log.events.push(event);
   return event;

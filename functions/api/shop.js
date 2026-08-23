@@ -121,7 +121,7 @@ export async function onRequestPost(context) {
       location: access.location,
       droppedTraits: result.receipt.droppedTraits.map((d) => d.trait),
     },
-    { timestamp: new Date().toISOString() }
+    { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
   await store.put(session);
 

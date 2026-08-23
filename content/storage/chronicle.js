@@ -102,7 +102,9 @@ export function buildCompactAiContext(session, { limit = 2, charLimit = 1400 } =
 
   const entries = normalizeChronicleEntries(session?.chronicle);
   const blocks = packages.map((record) => {
-    const ownEntries = entries.filter((entry) => entry.scenarioId === record.scenarioId);
+    const ownEntries = entries.filter((entry) =>
+      entry.scenarioId === record.scenarioId && withinTurnRange(entry, record.turnRange)
+    );
     const prose = ownEntries.map((entry) => entry.narration).filter(Boolean).join(" ").trim();
     const clipped = clipText(prose, charLimit);
     const range = record.turnRange ? `第 ${record.turnRange.from}～${record.turnRange.to} 回` : "回合數未知";
@@ -113,6 +115,24 @@ export function buildCompactAiContext(session, { limit = 2, charLimit = 1400 } =
 
 function taggedCompact(tag, body) {
   return `<${tag}>\n${body}\n</${tag}>`;
+}
+
+function withinTurnRange(entry, range) {
+  if (!range || typeof range !== "object") return true;
+  const turn = Number(entry?.turn);
+  if (!Number.isFinite(turn)) return false;
+  const from = Number.isFinite(Number(range.from)) ? Number(range.from) : -Infinity;
+  const to = Number.isFinite(Number(range.to)) ? Number(range.to) : Infinity;
+  return turn >= from && turn <= to;
+}
+
+function withinEventTurnRange(event, range) {
+  if (!range || typeof range !== "object") return true;
+  const turn = Number(event?.turn);
+  if (!Number.isFinite(turn)) return true;
+  const from = Number.isFinite(Number(range.from)) ? Number(range.from) : -Infinity;
+  const to = Number.isFinite(Number(range.to)) ? Number(range.to) : Infinity;
+  return turn >= from && turn <= to;
 }
 
 function clipText(text, limit) {
@@ -134,10 +154,23 @@ export function buildStoryPackage(session, {
   scenarioTitle = null,
   scenarioComplete = false,
   packagedAt = null,
+  turnRange = null,
   entries: suppliedEntries = null,
 } = {}) {
-  const entries = normalizeChronicleEntries(suppliedEntries ?? session?.chronicle);
-  const facts = summarizeForJournal(session?.log ?? { events: [] });
+  const normalizedEntries = normalizeChronicleEntries(suppliedEntries ?? session?.chronicle);
+  const entries = turnRange ? normalizedEntries.filter((entry) => withinTurnRange(entry, turnRange)) : normalizedEntries;
+  const eventLog = session?.log ?? { events: [] };
+  const events = Array.isArray(eventLog.events) ? eventLog.events : [];
+  // 新事件會帶 scenarioId；若整份舊日誌都沒有這個欄位，才保留「全部事實」的
+  // legacy 行為。只要日誌已經開始分章，就不能讓另一個副本的判定／戰鬥／獎勵
+  // 混入目前 package，即使該副本自己的事件暫時沒有任何資料也應該回空，而不是污染。
+  const hasScopedEvents = events.some((event) => event?.scenarioId != null);
+  const scopedEvents = scenarioId && hasScopedEvents
+    ? events.filter((event) =>
+        event?.scenarioId === scenarioId && (!turnRange || withinEventTurnRange(event, turnRange))
+      )
+    : events;
+  const facts = summarizeForJournal({ events: scopedEvents });
   const character = session?.character ?? {};
   const name = character?.concept?.name ?? "未命名輪迴者";
   const lines = [

@@ -33,7 +33,7 @@ import {
   listSessionsForOwner,
   unindexSessionForOwner,
 } from "../content/auth/ownership.js";
-import { memorySessionStore, createSession } from "../content/storage/sessionStore.js";
+import { memorySessionStore, createSession, resolveSessionStore } from "../content/storage/sessionStore.js";
 
 const CLIENT_ID = "1234.apps.googleusercontent.com";
 const SECRET = "測試用的-session-secret-夠長夠隨機";
@@ -395,6 +395,22 @@ test("存檔清單回傳的是摘要，前端才畫得出「我的存檔」", as
   // 摘要不該把整份存檔倒出來（清單一次可能有二十份，全帶等於每次開視窗都下載整個進度）
   assert.equal("history" in summary, false);
   assert.equal("character" in summary, false);
+});
+
+test("存檔清單：死亡狀態從 HP 即時計算，不依賴不存在的 hp.dead 欄位", async () => {
+  const env = authEnv();
+  const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, alice)));
+  const id = created.body.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(id);
+  // createHpState() 不保存 dead；這裡刻意只放原始傷勢欄位，模擬正式存檔形狀。
+  session.character.derived.hp = { max: 10, intact: 0, B: 0, L: 0, A: 10 };
+  await store.put(session);
+
+  const list = await readRes(await sessionGet(await getReqAs(env, "https://x/api/session", alice)));
+  const summary = list.body.sessions.find((item) => item.id === id);
+  assert.ok(summary, "死亡存檔仍應出現在自己的列表");
+  assert.equal(summary.dead, true, "死亡 badge 必須跟 /api/turn 的 downState 一致");
 });
 
 test("沒登入時列不出任何存檔（匿名存檔的ID本身就是鑰匙，不能公開整串）", async () => {

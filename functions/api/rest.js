@@ -115,13 +115,13 @@ export async function onRequestPost(context) {
     session.log,
     EVENT_TYPES.REST,
     { kind: "打坐", location: access.location, roundsSpent: IN_MOVIE_REST_ROUNDS, summary },
-    { timestamp: new Date().toISOString() }
+    { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
   appendEvent(
     session.log,
     EVENT_TYPES.TIME_SPENT,
     { amount: IN_MOVIE_REST_ROUNDS, activity: "打坐休息" },
-    { timestamp: new Date().toISOString() }
+    { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
   await store.put(session);
 

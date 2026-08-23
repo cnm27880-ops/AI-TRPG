@@ -78,7 +78,7 @@ export async function onRequestPost(context) {
     session.log,
     EVENT_TYPES.REVIVAL,
     { cost: result.cost, reviveCount: result.reviveCount },
-    { timestamp: new Date().toISOString() }
+    { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
 
   // 復活後那場戰鬥不該還留著：玩家是在戰鬥裡被打死的，戰鬥已經分出勝負了。

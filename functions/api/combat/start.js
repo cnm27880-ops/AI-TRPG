@@ -111,7 +111,7 @@ export async function onRequestPost(context) {
       weaponKey: combat.enemy.weaponKey,
       hit: atk.hit,
       damage: atk.finalDamage ?? 0,
-    });
+    }, { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 });
   }
   if (openingEnemyAttacks.length) {
     session.character.derived.hp = { ...combat.player.hpState };

@@ -81,6 +81,37 @@ test("buildStoryPackage：結構化事件事實會附在小說後，且輸出可
   assert.equal(pack.scenarioComplete, false);
 });
 
+test("buildStoryPackage：scenario facts 不跨副本混入，且封存回合範圍固定內容", () => {
+  const session = sessionWithChronicle();
+  appendEvent(session.log, EVENT_TYPES.CHECK, { label: "第一章判定", success: false, margin: -1 }, {
+    scenarioId: "scenario.a",
+    turn: 8,
+  });
+  appendEvent(session.log, EVENT_TYPES.CHECK, { label: "第二章判定", success: true, margin: 2 }, {
+    scenarioId: "scenario.b",
+    turn: 9,
+  });
+  appendEvent(session.log, EVENT_TYPES.XP_GRANT, { total: 999, reason: "通關後主神空間行為" }, {
+    scenarioId: "scenario.b",
+    turn: 13,
+  });
+
+  const pack = buildStoryPackage(session, {
+    scenarioId: "scenario.b",
+    scenarioTitle: "第二個副本",
+    scenarioComplete: true,
+    turnRange: { from: 9, to: 12 },
+    entries: session.chronicle.filter((entry) => entry.scenarioId === "scenario.b"),
+    packagedAt: "2026-08-23T01:00:00Z",
+  });
+
+  assert.match(pack.text, /第二章判定/);
+  assert.doesNotMatch(pack.text, /第一章判定/);
+  assert.doesNotMatch(pack.text, /999/);
+  assert.equal(pack.facts.length, 1);
+  assert.equal(pack.facts[0].seq, 1);
+});
+
 test("buildCompactAiContext：只帶最近兩份封存副本，且長篇摘要會截斷", () => {
   const session = sessionWithChronicle();
   session.chroniclePackages = [

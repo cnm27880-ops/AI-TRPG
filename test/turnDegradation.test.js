@@ -17,6 +17,7 @@ import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
 import { FALLBACK_OPTIONS, OPTION_COUNT } from "../content/turnOptions.js";
 import { PROVIDERS } from "../content/llm/providers.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 
 const DRAFT = {
   concept: { name: "測試輪迴者", gender: "男" },
@@ -177,6 +178,82 @@ test("LLM呼叫失敗時回502，並帶出 stage/httpStatus 讓前端決定要�
   assert.match(body.error, /deprecated/);
   assert.equal(body.llmFailure.stage, "binding");
   assert.equal(body.model, PROVIDERS["workers-ai"].defaultModel, "要指名哪個模型壞掉");
+  assert.equal(body.retryable, true, "有存檔時應保存可重試回合");
+  assert.ok(body.pendingTurn?.requestId);
+});
+
+test("LLM在規則層後失敗：retryPending 必須沿用同一骰面且只結算一次", async () => {
+  const env = scriptedEnv([
+    goodReply(0),
+    () => {
+      const error = new Error("upstream 429");
+      error.status = 429;
+      error.stage = "upstream";
+      throw error;
+    },
+    goodReply(1),
+  ]);
+  // Workers AI 對 schema 不支援時本來會自動再呼叫一次；本測試要鎖定真正的
+  // provider failure，因此關閉那個既有相容 fallback。
+  env.LLM_JSON_MODE = "off";
+  const sessionId = await newSession(env);
+
+  const opening = await readJson(await turnPost(req(env, { sessionId })));
+  assert.equal(opening.body.ok, true);
+  const chosenOption = opening.body.options[0];
+  const failed = await readJson(await turnPost(req(env, {
+    sessionId,
+    chosenOption,
+    turnRequestId: "audit-retry-1",
+  })));
+
+  assert.equal(failed.status, 502);
+  assert.equal(failed.body.ok, false);
+  assert.equal(failed.body.retryable, true);
+  assert.ok(failed.body.checkResult, "規則層結果必須在失敗回應中保留");
+  assert.equal(failed.body.pendingTurn.requestId, "audit-retry-1");
+
+  const store = resolveSessionStore(env);
+  const afterFailure = await store.get(sessionId);
+  const savedRolls = afterFailure.pendingTurn.checkResult.rolls;
+  const savedSpent = afterFailure.scenario.progress.timeBudget.spentRounds;
+  assert.equal(afterFailure.turns, 1, "敘事尚未完成時不能先增加回合數");
+  assert.equal(afterFailure.history.length, 1, "敘事尚未完成時不能先寫 history");
+  assert.equal(afterFailure.log.events.length, 0, "敘事尚未完成時不能先寫 check event");
+
+  const retried = await readJson(await turnPost(req(env, {
+    sessionId,
+    chosenOption,
+    turnRequestId: "audit-retry-1",
+    retryPending: true,
+  })));
+  assert.equal(retried.status, 200);
+  assert.equal(retried.body.ok, true);
+  assert.equal(retried.body.reusedCheck, true);
+  assert.deepEqual(retried.body.checkResult.rolls, savedRolls, "重試不得重新擲骰");
+
+  const completed = await store.get(sessionId);
+  assert.equal(completed.pendingTurn, null, "成功寫回後不可留下可重播狀態");
+  assert.equal(completed.turns, 2, "開場與玩家回合各只增加一次");
+  assert.equal(completed.history.length, 2, "retry 只能新增一筆敘事");
+  assert.equal(completed.chronicle.length, 2, "retry 只能新增一筆完整劇情");
+  assert.equal(completed.log.events.filter((event) => event.type === "check").length, 1, "check event 只能寫一次");
+  assert.equal(completed.scenario.progress.timeBudget.spentRounds, savedSpent, "retry 不得重扣章節時間");
+  assert.equal(env.calls.length, 3, "開場、初次行動、retry 各一次 LLM 呼叫");
+});
+
+test("明確 retryPending 但沒有待完成回合時，回傳清楚的409而不執行新規則", async () => {
+  const env = scriptedEnv([goodReply(0)]);
+  const sessionId = await newSession(env);
+  const response = await readJson(await turnPost(req(env, {
+    sessionId,
+    retryPending: true,
+    turnRequestId: "no-pending",
+  })));
+  assert.equal(response.status, 409);
+  assert.equal(response.body.ok, false);
+  assert.match(response.body.error, /沒有可重試/);
+  assert.equal(env.calls.length, 0);
 });
 
 // ---------------------------------------------------------------------------

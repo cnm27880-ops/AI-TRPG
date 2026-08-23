@@ -29,7 +29,8 @@ export async function onRequestGet(context) {
 
   const entries = normalizeChronicleEntries(session.chronicle);
   const currentScenarioId = session.scenario?.packId ?? null;
-  const requestedScenarioId = url.searchParams.get("scenarioId") || currentScenarioId;
+  const explicitScenarioId = url.searchParams.get("scenarioId");
+  const requestedScenarioId = explicitScenarioId || currentScenarioId;
   const currentPack = currentScenarioId ? getScenarioPack(currentScenarioId) : null;
   const currentComplete = Boolean(
     currentPack && session.scenario?.progress && getProgressSummary(currentPack, session.scenario.progress).scenarioComplete
@@ -45,9 +46,17 @@ export async function onRequestGet(context) {
   const scenarioEntries = requestedScenarioId
     ? entries.filter((entry) => entry.scenarioId === requestedScenarioId)
     : entries;
-  // 舊版 chronicle 沒有 scenarioId；若該副本沒有可切分的條目，退回整份仍保有的故事，
-  // 不讓玩家因為資料格式遷移而看到空白小說。
-  const selectedEntries = scenarioEntries.length || !requestedScenarioId ? scenarioEntries : entries;
+  // 舊版 chronicle 沒有 scenarioId，無法知道條目屬於哪一章；只有在整份資料都是
+  // legacy 無標籤時才回退完整故事。新資料若指定了不存在的副本，必須回空，不能把
+  // 另一章的小說掛到錯誤的標題／狀態底下。
+  const hasScenarioTags = entries.some((entry) => entry.scenarioId != null);
+  const selectedEntries = !requestedScenarioId
+    ? entries
+    : scenarioEntries.length
+      ? scenarioEntries
+      : hasScenarioTags
+        ? []
+        : entries;
 
   const aiPackage = requestedScenarioId || entries.length
     ? buildStoryPackage(session, {
@@ -55,6 +64,7 @@ export async function onRequestGet(context) {
         scenarioTitle: selectedTitle,
         scenarioComplete: selectedComplete,
         packagedAt: selectedRecord?.createdAt ?? null,
+        turnRange: selectedRecord?.turnRange ?? null,
         entries: selectedEntries,
       })
     : null;
@@ -63,8 +73,9 @@ export async function onRequestGet(context) {
     ok: true,
     persistent: store.persistent,
     currentScenarioId,
-    total: entries.length,
-    entries,
+    selectedScenarioId: requestedScenarioId,
+    total: explicitScenarioId ? selectedEntries.length : entries.length,
+    entries: explicitScenarioId ? selectedEntries : entries,
     packages: packageIndex,
     currentPackage: aiPackage,
     // 前端不必重新拼接文字；這個欄位也讓日後下載／複製功能沿用同一個 deterministic 結果。

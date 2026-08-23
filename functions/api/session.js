@@ -146,6 +146,15 @@ export async function onRequestGet(context) {
         ...session,
         chronicle: undefined,
         recentChronicle: (session.chronicle ?? []).slice(-5),
+        pendingTurn: session.pendingTurn
+          ? {
+              requestId: session.pendingTurn.requestId ?? null,
+              chosenOption: session.pendingTurn.chosenOption ?? null,
+              playerAction: session.pendingTurn.playerAction ?? null,
+              opening: Boolean(session.pendingTurn.opening),
+              baseTurn: session.pendingTurn.baseTurn ?? session.turns ?? 0,
+            }
+          : null,
       }
     : session;
   return json({
@@ -214,8 +223,9 @@ async function summarizeSessions(store, ids) {
       eventCount: session.log?.events?.length ?? 0,
       turns: session.turns ?? 0,
       scenarioId: session.scenario?.packId ?? null,
-      // 死掉的角色也要看得出來，否則玩家會讀進一張已經不能動的卡才發現
-      dead: Boolean(session.character?.derived?.hp?.dead),
+      // HP 的 dead 是 evaluateStatus() 依目前傷勢即時計算的衍生旗標，不保證會持久化
+      // 在 derived.hp 裡；存檔清單必須跟 /api/turn、/api/combat 的 canonical downState 一致。
+      dead: getDownState(session.character).dead,
     });
   }
   return summaries;

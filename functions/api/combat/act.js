@@ -90,7 +90,7 @@ export async function onRequestPost(context) {
         paid: activation.form.paid ?? null,
         mode: activation.form.mode?.key ?? null,
       },
-      { timestamp: new Date().toISOString() }
+      { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
     );
     await store.put(session);
     return json({
@@ -130,7 +130,7 @@ export async function onRequestPost(context) {
     // 傷害嚴重度標籤：事件日誌是餵給AI的事實記憶，戰後那一輪的敘事要寫得出
     // 「打斷了牠的哪隻手」就得靠它（見 core/combat/resolveCombatAction.js）。
     damageSeverityTag: playerAttack.damageSeverityTag ?? null,
-  });
+  }, { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 });
 
   let enemyAttack = null;
   if (combat.active && combat.order[combat.turnIndex] === "enemy") {
@@ -145,7 +145,7 @@ export async function onRequestPost(context) {
       hit: enemyAttack.hit,
       damage: enemyAttack.finalDamage ?? 0,
       damageSeverityTag: enemyAttack.damageSeverityTag ?? null,
-    });
+    }, { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 });
   }
 
   // 保險同步：不管是哪一步讓戰鬥結束的，都確保角色卡血量反映combat.player.hpState最終結果。
@@ -164,7 +164,7 @@ export async function onRequestPost(context) {
       session.log,
       EVENT_TYPES.DEATH,
       { cause: `在與${combat.enemy.name}的戰鬥中倒下`, dead: playerDown.dead, unconscious: playerDown.unconscious },
-      { timestamp: new Date().toISOString() }
+      { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
     );
   }
 
@@ -213,13 +213,13 @@ export async function onRequestPost(context) {
           session.log,
           EVENT_TYPES.NODE_COMPLETE,
           { nodeId: result.node.id, title: result.node.title, divergenceTier: 0, reward: result.reward },
-          { timestamp: ts }
+          { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
         );
         appendEvent(
           session.log,
           EVENT_TYPES.POINTS_GRANT,
           { total: result.reward, reason: `擊敗最終戰「${result.node.title}」` },
-          { timestamp: ts }
+          { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
         );
 
         // 最終戰打完通常就是通關，所以結算也要在這條路徑上跑一次——
@@ -232,7 +232,7 @@ export async function onRequestPost(context) {
             session.log,
             EVENT_TYPES.XP_GRANT,
             { total: settlement.xp, reason: `副本「${pack.briefing?.title ?? pack.id}」通關結算`, breakdown: settlement.breakdown },
-            { timestamp: ts }
+            { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
           );
           scenarioWarnings.push(`副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`);
         }
