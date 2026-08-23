@@ -234,6 +234,15 @@ function targetSceneFor(reference, state, transition) {
   return scene;
 }
 
+function sourceFragmentForEvent(reference, eventId) {
+  if (!eventId) return null;
+  for (const scene of asArray(reference?.scenes)) {
+    const fragment = asArray(scene?.narrativeSource?.fragments).find((item) => item?.eventId === eventId);
+    if (fragment) return fragment;
+  }
+  return null;
+}
+
 export function resolveTravelAction(reference, state, targetLocationId) {
   const currentLocation = state?.currentLocation ?? null;
   const target = asArray(reference?.map).find((item) => item?.id === targetLocationId);
@@ -277,6 +286,8 @@ export function resolveTravelAction(reference, state, targetLocationId) {
     target,
     timeCost: TRAVEL_COST,
     risk,
+    transitionId: transition.id ?? null,
+    transitionSourceEventId: transition.sourceEventId ?? null,
     routeEffects: {
       flagsAdd: unique(transition.effects?.flagsAdd),
       cluesAdd: unique(transition.effects?.cluesAdd),
@@ -303,13 +314,18 @@ export function applyTravelAction(reference, state, resolution) {
       effects: { cluesAdd: resolution.routeEffects.cluesAdd },
     });
   }
-  const arrivalText = narrativeText(
+  const transitionFragment = sourceFragmentForEvent(reference, resolution.transitionSourceEventId);
+  const nextSceneText = narrativeText(
     resolution.nextScene?.narrativeSource?.entryText ?? resolution.nextScene?.entryNarration ?? null
-  ) || null;
+  );
+  const arrivalText = [narrativeText(transitionFragment?.entryText), nextSceneText]
+    .filter(Boolean)
+    .join("\n\n") || null;
   return {
     applied: true,
     state: next,
     arrivalText,
+    arrivalSourceEventIds: [resolution.transitionSourceEventId, resolution.nextScene?.id].filter(Boolean),
     nextSceneId: resolution.nextScene?.id ?? state.currentSceneId,
   };
 }

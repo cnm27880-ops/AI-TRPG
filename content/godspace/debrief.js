@@ -67,6 +67,20 @@ function eventStats(events) {
     rests: count(EVENT_TYPES.REST),
     purchases: count(EVENT_TYPES.PURCHASE),
     referenceActions: count(EVENT_TYPES.REFERENCE_ACTION),
+    travelActions: EVENT_TYPES.TRAVEL ? count(EVENT_TYPES.TRAVEL) : 0,
+    discoveries: EVENT_TYPES.DISCOVERY ? count(EVENT_TYPES.DISCOVERY) : 0,
+    questionUpdates: EVENT_TYPES.QUESTION_UPDATE ? count(EVENT_TYPES.QUESTION_UPDATE) : 0,
+  };
+}
+
+function authoredEndingPresentation(reference, endingId, fallback) {
+  const authored = (reference?.endings ?? []).find((ending) => ending?.id === endingId);
+  const canonicalText = authored?.narrativeSource?.text;
+  if (!canonicalText) return fallback;
+  return {
+    ...fallback,
+    copy: canonicalText,
+    source: "canonical_gemini_narrative",
   };
 }
 
@@ -104,15 +118,16 @@ function consequenceView(referenceState, events) {
 }
 
 /** 建立一份可直接回傳給主神空間的副本 debrief。 */
-export function buildScenarioDebrief({ pack = null, session = null } = {}) {
+export function buildScenarioDebrief({ pack = null, reference = null, session = null } = {}) {
   const progress = session?.scenario?.progress;
   const summary = progress?.runSummary ?? null;
   if (!summary) return null;
   const events = Array.isArray(session?.log?.events) ? session.log.events : [];
-  const ending = ENDING_PRESENTATIONS[summary.endingId] ?? {
+  const fallbackEnding = ENDING_PRESENTATIONS[summary.endingId] ?? {
     title: "未命名結局",
     copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。",
   };
+  const ending = authoredEndingPresentation(reference, summary.endingId, fallbackEnding);
   const referenceState = session?.scenario?.referenceState ?? null;
   const health = publicHealth(session.character);
 

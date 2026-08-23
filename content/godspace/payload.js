@@ -4,6 +4,7 @@
 import { getDownState, revivalQuote } from "../downState.js";
 import { scenarioLifecycle } from "../scenario/lifecycle.js";
 import { buildScenarioDebrief } from "./debrief.js";
+import { getScenarioReference } from "../scenario/registry.js";
 
 function action(id, label, enabled, reason, extra = {}) {
   return { id, label, enabled: Boolean(enabled), reason, ...extra };
@@ -108,10 +109,11 @@ function publicCharacter(character) {
 /**
  * 組裝主神空間 read payload。`lifecycle` 可由呼叫端傳入，避免一次 request 重複做判定。
  */
-export function buildGodspacePayload({ session, pack = null, persistent = null, lifecycle = null } = {}) {
+export function buildGodspacePayload({ session, pack = null, reference = null, persistent = null, lifecycle = null } = {}) {
   const resolvedLifecycle = lifecycle ?? scenarioLifecycle({ session, pack });
   const downState = getDownState(session?.character);
-  const debrief = buildScenarioDebrief({ pack, session });
+  const resolvedReference = reference ?? getScenarioReference(pack);
+  const debrief = buildScenarioDebrief({ pack, reference: resolvedReference, session });
   const revival = downState.dead ? revivalQuote(session.character) : null;
 
   return {

@@ -422,3 +422,77 @@ test("Ash canonical result remains progressive while the server controls disclos
   assert.ok(applied.state.clues.includes("clue_ash_synthetic"));
   assert.ok(applied.state.flags.includes("flag_ash_synthetic_known") === false);
 });
+
+
+test("remaining scenes preserve original event fragments and safe public boundaries", () => {
+  const expectedSceneSources = [
+    ["evt_order_937_reveal", "evt_order_937_reveal"],
+    ["evt_trigger_overload", "evt_trigger_overload"],
+    ["evt_vent_ambush_escape", "evt_vent_ambush_escape"],
+    ["evt_narcissus_shadow_wake", "evt_narcissus_shadow_wake"],
+    ["evt_narcissus_final_purge", "evt_narcissus_flush_airlock"],
+    ["evt_hypersleep_return", "evt_hypersleep_return"],
+  ];
+  for (const [sceneId, sourceEventId] of expectedSceneSources) {
+    const scene = reference.scenes.find((item) => item.id === sceneId);
+    assert.equal(scene?.narrativeSource?.eventId, sourceEventId);
+    assert.ok(scene?.narrativeSource?.entryText?.length > 80, `${sceneId} 應保留完整原始 entry`);
+    assert.ok(Object.keys(scene?.narrativeSource?.outcomes ?? {}).length > 0, `${sceneId} 應有可用原始結果映射`);
+  }
+
+  const fragments = reference.scenes.flatMap((scene) => scene.narrativeSource?.fragments ?? []);
+  for (const eventId of [
+    "evt_medbay_ruins",
+    "evt_cargo_stalk",
+    "evt_cargo_tool_scavenge",
+    "evt_meet_ripley",
+    "evt_engine_coolant_prep",
+    "evt_narcissus_undock",
+  ]) {
+    const fragment = fragments.find((item) => item.eventId === eventId);
+    assert.ok(fragment, `缺少 ${eventId} 原始 fragment`);
+    assert.ok(fragment.entryText.length > 0, `${eventId} 應保留原始 entry`);
+  }
+
+  assert.equal(reference.endings.filter((ending) => ending.narrativeSource?.text).length, 8);
+  const publicState = referenceStateForResponse(reference, createReferenceState(reference));
+  assert.equal("canonicalNarrative" in publicState, false);
+  assert.equal("narrativeSource" in publicState, false);
+  assert.equal(JSON.stringify(publicState).includes("privateGoals"), false);
+});
+
+test("remaining outcome mappings use original text while keeping current V2 action IDs", () => {
+  const expected = [
+    ["evt_order_937_reveal", "app_order_query", "成功", /你的手指在沉重的機械鍵盤上飛速敲擊/],
+    ["evt_trigger_overload", "app_overload_manual", "成功", /你大吼一聲，雙手抓住冰冷而滑膩的金屬連桿/],
+    ["evt_vent_ambush_escape", "app_escape_shoot_suppress", "成功", /沙漠之鷹.*連扣三槍/],
+    ["evt_narcissus_shadow_wake", "app_shadow_stealth_suit", "成功", /你屏住每一次呼吸/],
+    ["evt_narcissus_final_purge", "app_purge_classic", "成功", /你用盡全身力氣一把拉下/],
+    ["evt_hypersleep_return", "app_return_direct_sleep", "自動", /你已經耗盡了最後一絲體力/],
+  ];
+  for (const [sceneId, approachId, tier, pattern] of expected) {
+    const scene = reference.scenes.find((item) => item.id === sceneId);
+    const text = scene?.narrativeSource?.outcomes?.[approachId]?.[tier];
+    assert.ok(text, `${sceneId}/${approachId}/${tier} 缺少 canonical result`);
+    assert.match(text, pattern);
+  }
+});
+
+test("Narcissus travel includes original undock passage before the shadow-wake scene", () => {
+  const state = {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_vent_ambush_escape",
+    currentLocation: "loc_narcissus_airlock",
+    flags: ["flag_escaped_to_narcissus"],
+    visitedLocations: ["loc_cryo", "loc_deck_a", "loc_narcissus_airlock"],
+  };
+  const resolution = resolveTravelAction(reference, state, "loc_narcissus");
+  assert.equal(resolution.ok, true);
+  assert.equal(resolution.transitionSourceEventId, "evt_narcissus_undock");
+  const travel = applyTravelAction(reference, state, resolution);
+  assert.equal(travel.nextSceneId, "evt_narcissus_shadow_wake");
+  assert.deepEqual(travel.arrivalSourceEventIds, ["evt_narcissus_undock", "evt_narcissus_shadow_wake"]);
+  assert.match(travel.arrivalText, /MANUAL DOCKING CLAMP LOCKED/);
+  assert.match(travel.arrivalText, /那些原本死寂的黑色電纜之間/);
+  assert.match(travel.arrivalText, /它沒有眼睛，但你無比清楚地感覺到/);
+});

@@ -5,7 +5,7 @@ import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestGet as getGodspace, onRequestPost as enterGodspace } from "../functions/api/godspace.js";
 import { onRequestPost as rest } from "../functions/api/rest.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
-import { getScenarioPack } from "../content/scenario/registry.js";
+import { getScenarioPack, getScenarioReference } from "../content/scenario/registry.js";
 import { buildRunSummary } from "../content/scenario/settlement.js";
 import { normalizeReferenceState } from "../content/scenario/referenceAdapter.js";
 
@@ -37,7 +37,11 @@ async function createV2() {
 async function settleFixture(session) {
   const store = resolveSessionStore({});
   const pack = getScenarioPack(session.scenario.packId);
-  const referenceState = normalizeReferenceState(pack.reference, session.scenario.referenceState);
+  const reference = getScenarioReference(pack);
+  const referenceState = {
+    ...normalizeReferenceState(reference, session.scenario.referenceState),
+    endingId: "end_solo_survivor",
+  };
   const runSummary = buildRunSummary(pack, session.scenario.progress, session.character, { xp: 7 }, referenceState);
   session.scenario = {
     ...session.scenario,
@@ -66,6 +70,8 @@ test("GET godspace：settled session 回傳 whitelist debrief、aftercare 與 se
   assert.equal(result.body.lifecycle.canEnterGodspace, true);
   assert.equal(result.body.debrief.status, "settled");
   assert.equal(result.body.debrief.runSummary.endingId, result.body.debrief.scenario.endingId);
+  assert.equal(result.body.debrief.scenario.endingPresentation.source, "canonical_gemini_narrative");
+  assert.match(result.body.debrief.scenario.endingPresentation.copy, /水仙號的引擎噴口/);
   assert.ok(result.body.health.hp);
   assert.ok(result.body.resources.wallet);
   assert.equal(result.body.actions.find((action) => action.id === "rest").enabled, true);
