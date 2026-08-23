@@ -20,6 +20,7 @@ import { createEventLog } from "../../core/eventLog.js";
 import { createWallet } from "../shop/wallet.js";
 import { createFormsState } from "../shop/forms.js";
 import { chronicleFromHistory } from "./chronicle.js";
+import { createGodspaceProfile, normalizeGodspaceProfile } from "../godspace/schema.js";
 
 /** 餵給AI的敘事短期記憶要保留幾輪。調大會更連貫但更花錢，調小會失憶。 */
 export const HISTORY_LIMIT = 8;
@@ -31,9 +32,10 @@ export const HISTORY_LIMIT = 8;
  *   3 —— 2026-08-20 加入 turns(真正的回合數，見下面 ensureSessionShape 的說明)
  *   4 —— 2026-08-23 加入 chronicle(完整長期劇情，不受短期 history 上限影響)
  *   5 —— 2026-08-23 加入 pendingTurn(LLM 失敗時保存已完成的規則結果，重試不重骰)
+ *   6 —— 2026-08-24 加入 B0 godspace profile(主神空間契約與 feature flags)
  * 舊版存檔由 ensureSessionShape() 就地補欄位，不需要離線遷移。
  */
-export const SESSION_VERSION = 5;
+export const SESSION_VERSION = 6;
 
 /** 存檔在KV裡的key前綴。 */
 const KEY_PREFIX = "session:";
@@ -61,6 +63,12 @@ export function ensureSessionShape(session) {
   if (!Array.isArray(next.chroniclePackages)) next.chroniclePackages = [];
   // pendingTurn 是一次性的重試狀態；缺少或形狀不對時安全視為沒有待完成回合。
   if (!next.pendingTurn || typeof next.pendingTurn !== "object") next.pendingTurn = null;
+  // B0 godspace profile 是 server-owned 的版本化容器；舊存檔讀取時補出，
+  // 未來若 profile 增加欄位仍保留未知內部欄位，但公開回應只走 schema whitelist。
+  const normalizedGodspace = normalizeGodspaceProfile(next.godspace);
+  next.godspace = next.godspace && typeof next.godspace === "object"
+    ? { ...next.godspace, ...normalizedGodspace, featureFlags: normalizedGodspace.featureFlags }
+    : normalizedGodspace;
   // [2026-08-20] 畫面頂欄那個「回合：N」以前顯示的是**事件日誌的筆數**，不是回合數——
   // 一場戰鬥打十下就會讓它跳十幾格，玩家看到的數字跟他實際玩過幾輪完全對不上。
   // 這裡開一個真的只在「敘事推進一輪」時 +1 的計數。舊存檔沒有這個欄位，
@@ -100,6 +108,8 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
     // 收兵時由 combat/act.js 帶回來。到期條件是「離開啟動時所在的地點」——
     // 場景的定義見 content/shop/access.js 的 sceneKeyOf()。
     forms: createFormsState(),
+    // 主神空間 B0 profile：功能開關由 server 控制，不能由前端回傳的 body 覆寫。
+    godspace: createGodspaceProfile(),
     createdAt: now,
     updatedAt: now,
   };

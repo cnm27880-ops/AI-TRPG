@@ -335,7 +335,7 @@ test("端對端：alice 登入後建立的存檔，bob 拿到ID也讀不到（�
   const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, alice)));
   assert.equal(created.body.ok, true);
   const id = created.body.session.id;
-  assert.equal(created.body.session.ownerId, "alice", "登入時建立的存檔要直接掛在帳號底下");
+  assert.equal((await resolveSessionStore(env).get(id)).ownerId, "alice", "登入時建立的存檔要直接掛在帳號底下");
 
   const asAlice = await readRes(await sessionGet(await getReqAs(env, `https://x/api/session?id=${id}`, alice)));
   assert.equal(asAlice.body.ok, true);
@@ -361,11 +361,12 @@ test("端對端：匿名時建立的存檔，登入後第一次讀取就被認�
   const env = authEnv();
   const created = await readRes(await sessionPost(await reqAs(env, { draft: DRAFT }, null)));
   const id = created.body.session.id;
-  assert.equal(created.body.session.ownerId, null, "沒登入時建立的是匿名存檔");
+  assert.equal((await resolveSessionStore(env).get(id)).ownerId, null, "沒登入時建立的是匿名存檔");
 
   const afterLogin = await readRes(await sessionGet(await getReqAs(env, `https://x/api/session?id=${id}`, alice)));
   assert.equal(afterLogin.body.ok, true);
-  assert.equal(afterLogin.body.session.ownerId, "alice", "登入後應該自動認領");
+  assert.equal((await resolveSessionStore(env).get(id)).ownerId, "alice", "登入後應該自動認領");
+  assert.equal(afterLogin.body.session.ownerId, undefined, "公開 session 不得暴露 ownerId");
 
   // 認領之後就輪到別人讀不到了
   const asBob = await readRes(await sessionGet(await getReqAs(env, `https://x/api/session?id=${id}`, bob)));

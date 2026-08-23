@@ -17,6 +17,7 @@ import { getDownState, revivalQuote, reviveCharacter } from "../content/downStat
 import { emptyCharacter } from "../core/schema.js";
 import { applyDamage, createHpState } from "../core/health.js";
 import { MAX_REVIVALS } from "../core/deathAndRevival.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 
 const DRAFT = {
   concept: { name: "測試輪迴者", gender: "男" },
@@ -50,12 +51,11 @@ async function newSession(env) {
 
 /** 把存檔裡的角色打到指定狀態。直接改存檔比打一場真的戰鬥穩定得多。 */
 async function damageSessionCharacter(env, sessionId, mutate) {
-  const { body } = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
-  mutate(body.session.character);
-  // 存回去：memorySessionStore 是同一個 module-level Map，直接用 session POST 不行，
-  // 所以借 /api/revive 之外的路徑——這裡直接操作 store。
-  const { resolveSessionStore } = await import("../content/storage/sessionStore.js");
-  await resolveSessionStore(env).put(body.session);
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  mutate(session.character);
+  // 測試直接操作 authoritative storage；公開 session API 不應提供可回存的 raw reference。
+  await store.put(session);
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +202,8 @@ test("/api/session GET：帶回 downState 與 revival，玩家重整回來立刻
   const { body } = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
   assert.equal(body.downState.dead, true);
   assert.ok(body.revival, "死亡時要一起給復活報價，前端不用再打一次");
+  const saved = await resolveSessionStore(env).get(sessionId);
+  assert.equal(saved.scenario != null, true);
 });
 
 test("/api/revive：死亡→復活→可以繼續玩，而且事件日誌留下紀錄", async () => {
@@ -225,9 +227,9 @@ test("/api/revive：死亡→復活→可以繼續玩，而且事件日誌留下
   const turn = await read(await turnPost(req(env, { sessionId, playerAction: "繼續前進" })));
   assert.equal(turn.body.ok, true, "復活後應該可以正常行動");
 
-  const after = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
+  const after = await resolveSessionStore(env).get(sessionId);
   assert.ok(
-    after.body.session.log.events.some((e) => e.type === "revival"),
+    after.log.events.some((e) => e.type === "revival"),
     "復活要進事件日誌(它同時是餵給AI的事實記憶)"
   );
 });

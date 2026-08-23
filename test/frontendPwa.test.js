@@ -19,7 +19,8 @@ test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約",
   assert.match(app, /更早的故事請看劇情回顧/);
   assert.match(app, /function updateRecentStoryHistoryHint\(/);
   assert.match(app, /recentStoryChronicleTotal > RECENT_STORY_LIMIT/);
-  assert.match(sessionApi, /recentChronicleTotal: chronicleTotal/);
+  assert.match(sessionApi, /function publicSessionView\(session\)/);
+  assert.match(sessionApi, /recentChronicleTotal: chronicle\.length/);
   assert.match(turnApi, /recentChronicleTotal: Array\.isArray\(session\?\.chronicle\)/);
 });
 

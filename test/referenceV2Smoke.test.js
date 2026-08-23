@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { emptyCharacter } from "../core/schema.js";
-import { onRequestPost as createSession, onRequestGet as getSession } from "../functions/api/session.js";
+import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
 import { onRequestPost as travel } from "../functions/api/travel.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
@@ -192,12 +192,7 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.match(mock.prompts[3], /evt_meet_ash/);
   assert.match(mock.prompts[3], /evt_meet_ash|937/);
 
-  const loaded = await readJson(await getSession({
-    request: new Request(`https://test.local/api/session?id=${sessionId}`),
-    env,
-  }));
-  assert.equal(loaded.status, 200, JSON.stringify(loaded.body));
-  const saved = loaded.body.session;
+  const saved = await resolveSessionStore(env).get(sessionId);
   const referenceState = saved.scenario.referenceState;
   assert.ok(referenceState.flags.includes("flag_cryo_cleared"), "偵察結果無論成功或失敗都應完成休眠室事件旗標");
   const reconResult = referenceActionsFrom(saved).find((event) => event.payload.approachId === "app_cryo_recon");
@@ -493,11 +488,8 @@ test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playa
   assert.ok(abandonTool);
   const afterTool = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: abandonTool }), env }));
   assert.equal(afterTool.body.ok, true, JSON.stringify(afterTool.body));
-  const afterToolSession = await readJson(await getSession({
-    request: new Request(`https://test.local/api/session?id=${sessionId}`),
-    env,
-  }));
-  assert.ok(afterToolSession.body.session.scenario.referenceState.flags.includes("flag_cargo_tool_done"));
+  const afterToolSession = await resolveSessionStore(env).get(sessionId);
+  assert.ok(afterToolSession.scenario.referenceState.flags.includes("flag_cargo_tool_done"));
   const cargoBack = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }), env }));
   assert.equal(cargoBack.status, 200, JSON.stringify(cargoBack.body));
   assert.equal(cargoBack.body.scenario.reference.location, "loc_deck_a");

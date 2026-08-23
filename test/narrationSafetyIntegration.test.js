@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { emptyCharacter } from "../core/schema.js";
 import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 
 function jsonRequest(url, body) {
   return new Request(url, {
@@ -85,7 +86,8 @@ test("unmatched free input：不合格 narration 只重寫一次，且不接受 
     env,
   }));
   assert.equal(opening.body.ok, true);
-  const originalInventory = [...created.body.session.scenario.referenceState.inventory];
+  const storedAfterOpening = await resolveSessionStore(env).get(sessionId);
+  const originalInventory = [...storedAfterOpening.scenario.referenceState.inventory];
 
   const result = await readJson(await playTurn({
     request: jsonRequest("https://test.local/api/turn", {

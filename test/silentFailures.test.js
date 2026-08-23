@@ -40,10 +40,12 @@ test("戰鬥中的存檔，GET /api/session 要把 combat 原封不動帶回來(
   const started = await read(await combatStart(req(env, { sessionId })));
   assert.equal(started.body.ok, true);
 
+  const saved = await resolveSessionStore(env).get(sessionId);
+  assert.equal(saved.combat.active, true, "存檔裡本來就有完整的戰鬥狀態，只是先前沒有人讀回來");
+  assert.ok(Array.isArray(saved.combat.order));
+  assert.ok(saved.combat.enemy?.name);
   const { body } = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
-  assert.equal(body.session.combat.active, true, "存檔裡本來就有完整的戰鬥狀態，只是先前沒有人讀回來");
-  assert.ok(Array.isArray(body.session.combat.order));
-  assert.ok(body.session.combat.enemy?.name);
+  assert.equal(body.session.log, undefined, "公開 session view 不得暴露完整 event log");
 });
 
 // ---------------------------------------------------------------------------

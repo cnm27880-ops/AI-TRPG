@@ -5,8 +5,8 @@
 
 import { resolveSessionStore } from "../../content/storage/sessionStore.js";
 import { getScenarioPack } from "../../content/scenario/registry.js";
-import { scenarioLifecycle } from "../../content/scenario/lifecycle.js";
 import { buildGodspacePayload } from "../../content/godspace/payload.js";
+import { godspaceLifecycle, requireGodspaceAction } from "../../content/godspace/lifecycleGate.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
 
@@ -30,7 +30,7 @@ async function loadSession(context, sessionId) {
 }
 
 function payloadFor(session, pack, persistent) {
-  const lifecycle = scenarioLifecycle({ session, pack });
+  const lifecycle = godspaceLifecycle({ session, pack });
   return buildGodspacePayload({ session, pack, persistent, lifecycle });
 }
 
@@ -52,15 +52,16 @@ export async function onRequestPost(context) {
   const loaded = await loadSession(context, body?.sessionId);
   if (loaded.error) return loaded.error;
   const { store, session, pack } = loaded;
-  const lifecycle = scenarioLifecycle({ session, pack });
+  const lifecycle = godspaceLifecycle({ session, pack });
   const payload = buildGodspacePayload({ session, pack, persistent: store.persistent, lifecycle });
+  const gate = requireGodspaceAction({ action: "enter", session, pack, lifecycle });
 
-  if (!lifecycle.canEnterGodspace) {
+  if (!gate.allowed) {
     return json({
       ...payload,
       ok: false,
-      code: lifecycle.status === "combat" || lifecycle.status === "combat_required" ? "COMBAT_IN_PROGRESS" : "NOT_IN_GODSPACE",
-      error: lifecycle.reason,
+      code: lifecycle.status === "combat" || lifecycle.status === "combat_required" ? "COMBAT_IN_PROGRESS" : gate.code,
+      error: gate.reason,
       source: body?.source ?? "manual",
     }, 409);
   }

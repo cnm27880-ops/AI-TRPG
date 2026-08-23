@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyCharacter } from "../core/schema.js";
-import { onRequestGet as getSession, onRequestPost as createSession } from "../functions/api/session.js";
+import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 
 function request(url, body) {
   return new Request(url, {
@@ -22,9 +23,12 @@ test("new session without scenarioId defaults to Alien V2 and seeds reference st
   const body = await created.json();
   assert.equal(created.status, 200, JSON.stringify(body));
   assert.equal(body.ok, true);
-  assert.equal(body.session.scenario.packId, "scenario.nostromo-01-v2");
-  assert.equal(body.session.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
-  assert.ok(body.session.scenario.referenceState.npcStatuses.npc_luyuan);
+  assert.equal(body.session.id != null, true);
+  const saved = await resolveSessionStore({}).get(body.session.id);
+  assert.equal(saved.scenario.packId, "scenario.nostromo-01-v2");
+  assert.equal(saved.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
+  assert.ok(saved.scenario.referenceState.npcStatuses.npc_luyuan);
+  assert.equal("scenario" in body.session, false, "POST session 不得暴露 raw scenario");
 });
 
 test("V2 reference action is persisted before an unavailable LLM response", async () => {
@@ -61,15 +65,18 @@ test("V2 reference action is persisted before an unavailable LLM response", asyn
   assert.equal(actionBody.ok, false);
   assert.equal(actionBody.error.includes("沒有可用的LLM供應商"), true);
 
-  const loaded = await getSession({
+  const saved = await resolveSessionStore(env).get(sessionId);
+  assert.equal(saved.scenario.referenceState.lastApproachId, "app_cryo_recon");
+  assert.equal(saved.scenario.referenceState.lastOutcomeTier !== null, true);
+  assert.equal(saved.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
+  assert.ok(saved.scenario.referenceState.flags.includes("flag_cryo_recon_done"));
+  assert.equal(saved.log.events.some((entry) => entry.type === "reference_action"), true);
+
+  const publicLoaded = await (await import("../functions/api/session.js")).onRequestGet({
     request: new Request(`https://test.local/api/session?id=${sessionId}`),
     env,
   });
-  const loadedBody = await loaded.json();
-  assert.equal(loadedBody.ok, true);
-  assert.equal(loadedBody.session.scenario.referenceState.lastApproachId, "app_cryo_recon");
-  assert.equal(loadedBody.session.scenario.referenceState.lastOutcomeTier !== null, true);
-  assert.equal(loadedBody.session.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
-  assert.ok(loadedBody.session.scenario.referenceState.flags.includes("flag_cryo_recon_done"));
-  assert.equal(loadedBody.session.log.events.some((entry) => entry.type === "reference_action"), true);
+  const publicBody = await publicLoaded.json();
+  assert.equal(publicBody.session.scenario, undefined);
+  assert.equal(publicBody.session.log, undefined);
 });

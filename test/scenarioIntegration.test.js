@@ -67,8 +67,8 @@ test("generic 副本整合：三個主線節點依序完成，最終戰只能透
   // 這是舊版節點／戰鬥整合的完整流程 fixture；V2 的 reference runtime 由專屬 smoke 覆蓋。
   let r = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: LEGACY_SCENARIO_ID })));
   assert.equal(r.ok, true);
-  assert.equal(r.session.scenario.packId, LEGACY_SCENARIO_ID);
   const sessionId = r.session.id;
+  assert.equal((await resolveSessionStore(env).get(sessionId)).scenario.packId, LEGACY_SCENARIO_ID);
 
   // Echo 沒有 scripted opening；第一次 turn 由 generic AI nodeComplete 完成 n1。
   r = await readJson(await turnPost(req(env, { sessionId })));
@@ -166,7 +166,7 @@ test("generic 副本整合：三個主線節點依序完成，最終戰只能透
 test("副本整合：沒有指定scenarioId時預設用內建範例副本，且會用開場場景當作sceneContext", async () => {
   const env = makeEnv([{ narration: "開場" }]);
   const r = await readJson(await sessionPost(req(env, { draft: DRAFT })));
-  assert.equal(r.session.scenario.packId, DEFAULT_SCENARIO_ID);
+  assert.equal((await resolveSessionStore(env).get(r.session.id)).scenario.packId, DEFAULT_SCENARIO_ID);
   assert.ok(r.session.scene.context.length > 0, "應該要用章節的openingScene當作初始場景描述");
 });
 

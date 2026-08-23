@@ -31,7 +31,7 @@ async function createV2() {
   });
   const data = await response.json();
   assert.equal(response.status, 200, JSON.stringify(data));
-  return data.session;
+  return resolveSessionStore({}).get(data.session.id);
 }
 
 async function settleFixture(session) {

@@ -37,6 +37,7 @@ import {
   listSessionsForOwner,
   unindexSessionForOwner,
 } from "../../content/auth/ownership.js";
+import { publicGodspaceProfile } from "../../content/godspace/schema.js";
 
 export async function onRequestPost(context) {
   const env = context.env ?? {};
@@ -110,7 +111,79 @@ export async function onRequestPost(context) {
   await store.put(session);
   if (user?.sub) await indexSessionForOwner(store, user.sub, session.id);
 
-  return json({ ok: true, persistent: store.persistent, storeKind: store.kind, session, user });
+  return json({
+    ok: true,
+    persistent: store.persistent,
+    storeKind: store.kind,
+    session: publicSessionView(session),
+    user,
+  });
+}
+
+function publicCombatState(combat) {
+  if (!combat || typeof combat !== "object") return null;
+  return {
+    active: Boolean(combat.active),
+    round: Number(combat.round) || 0,
+    turnIndex: Number(combat.turnIndex) || 0,
+    order: Array.isArray(combat.order) ? [...combat.order] : [],
+    winner: combat.winner ?? null,
+    initiative: combat.initiative ? { ...combat.initiative } : null,
+    currentTelegraph: combat.currentTelegraph ?? null,
+    forms: combat.forms && typeof combat.forms === "object"
+      ? { active: Array.isArray(combat.forms.active) ? combat.forms.active.map((form) => ({ ...form })) : [] }
+      : null,
+    player: combat.player ? {
+      hpState: { ...(combat.player.hpState ?? {}) },
+      budget: { ...(combat.player.budget ?? {}) },
+    } : null,
+    enemy: combat.enemy ? {
+      name: combat.enemy.name ?? "未知敵人",
+      weaponKey: combat.enemy.weaponKey ?? null,
+      armor: Number(combat.enemy.armor) || 0,
+      hpState: { ...(combat.enemy.hpState ?? {}) },
+      budget: { ...(combat.enemy.budget ?? {}) },
+    } : null,
+    log: Array.isArray(combat.log) ? combat.log.map((entry) => ({
+      actor: entry.actor ?? null,
+      weaponKey: entry.weaponKey ?? null,
+      hit: Boolean(entry.hit),
+      damage: Number(entry.damage) || 0,
+      damageSeverity: entry.damageSeverity ?? null,
+      damageSeverityTag: entry.damageSeverityTag ?? null,
+    })) : [],
+  };
+}
+
+/**
+ * session 對外只提供前端續玩真正需要的資料；referenceState、完整 event log、history
+ * 與 ownerId 由 API 內部保留。公開副本狀態統一走下方已過濾的 scenario view。
+ */
+function publicSessionView(session) {
+  const chronicle = Array.isArray(session?.chronicle) ? session.chronicle : [];
+  return {
+    id: session?.id ?? null,
+    version: session?.version ?? null,
+    character: session?.character ?? null,
+    scene: {
+      context: session?.scene?.context ?? "",
+      options: Array.isArray(session?.scene?.options) ? session.scene.options : [],
+    },
+    turns: Number(session?.turns) || 0,
+    recentChronicle: chronicle.slice(-5),
+    recentChronicleTotal: chronicle.length,
+    pendingTurn: session?.pendingTurn
+      ? {
+          requestId: session.pendingTurn.requestId ?? null,
+          chosenOption: session.pendingTurn.chosenOption ?? null,
+          playerAction: session.pendingTurn.playerAction ?? null,
+          opening: Boolean(session.pendingTurn.opening),
+          baseTurn: session.pendingTurn.baseTurn ?? session.turns ?? 0,
+        }
+      : null,
+    combat: publicCombatState(session?.combat),
+    godspace: publicGodspaceProfile(session?.godspace),
+  };
 }
 
 export async function onRequestGet(context) {
@@ -169,25 +242,9 @@ export async function onRequestGet(context) {
   // downState / revival 一起回傳：玩家重整頁面回到一張昏迷或死亡的角色卡時，
   // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
   // 主遊戲續接只需要最近幾筆訊息；完整 chronicle 改由 /api/chronicle 按需載入。
-  // 預設 GET 仍保留完整 session，避免既有管理工具讀出後回存時意外丟掉新欄位。
-  const chronicleTotal = Array.isArray(session.chronicle) ? session.chronicle.length : 0;
-  const sessionView = runtimeView
-    ? {
-        ...session,
-        chronicle: undefined,
-        recentChronicle: (session.chronicle ?? []).slice(-5),
-        recentChronicleTotal: chronicleTotal,
-        pendingTurn: session.pendingTurn
-          ? {
-              requestId: session.pendingTurn.requestId ?? null,
-              chosenOption: session.pendingTurn.chosenOption ?? null,
-              playerAction: session.pendingTurn.playerAction ?? null,
-              opening: Boolean(session.pendingTurn.opening),
-              baseTurn: session.pendingTurn.baseTurn ?? session.turns ?? 0,
-            }
-          : null,
-      }
-    : session;
+  // B0 起 GET 的 session view 統一走 whitelist；不再因省事把 referenceState、event log 或 ownerId
+  // 原樣送到瀏覽器。runtime query 保留向後相容，但兩種 view 現在都使用同一份公開形狀。
+  const sessionView = publicSessionView(session);
   return json({
     ok: true,
     persistent: store.persistent,
