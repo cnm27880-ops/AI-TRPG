@@ -1014,6 +1014,7 @@ export async function onRequestPost(context) {
     downState: getDownState(character),
     scenario: scenarioResult,
     turnCount: session?.turns ?? 0,
+    recentChronicleTotal: Array.isArray(session?.chronicle) ? session.chronicle.length : 0,
     warnings,
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,

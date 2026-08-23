@@ -2094,9 +2094,107 @@
         html[data-theme="light"] .chronicle-aside { background: rgba(241,240,236,.55); }
         html[data-theme="light"] .chronicle-narration { color: var(--ink-100); }
         html[data-theme="light"] .chronicle-action-btn { background: rgba(37,35,31,.05); }
+        /* ================= 第十二輪：最近訊息與敘事層級 =================
+           主畫面不再需要「近期現場」標題列；故事本身就是主畫面。
+           超出最近五則的內容只在捲到頂端時提示去看劇情回顧，避免再佔一條常駐工具列。 */
+        #recent-story-list { position: relative; }
+        .story-chronicle-hint {
+            display: flex; align-items: center; justify-content: center; gap: .55rem;
+            width: min(100%, 78rem); margin: 0 auto; padding: .5rem .8rem;
+            border: 0; border-bottom: 1px solid rgb(var(--c-line) / .12);
+            background: rgb(var(--c-surface-1) / .64); color: var(--ink-500);
+            font: .62rem/1.4 'Noto Serif TC', serif; letter-spacing: .035em;
+            opacity: 0; transform: translateY(-.35rem); pointer-events: none;
+            transition: opacity .18s ease, transform .18s ease, color .18s ease, background .18s ease;
+        }
+        .story-chronicle-hint.is-visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .story-chronicle-hint:hover, .story-chronicle-hint:focus-visible { color: var(--ink-100); background: rgb(var(--c-warn-base) / .08); }
+        .story-chronicle-hint i { color: var(--warn); font-size: .58rem; }
+        html[data-theme="light"] .story-chronicle-hint { background: rgba(250,249,246,.82); border-color: rgba(60,55,47,.14); }
+
+        /* 玩家行動是「我做了什麼」的主記錄：用淡茶色卡片與說書人分開，
+           但不搶走敘事正文的閱讀重量。 */
+        #recent-story-list > .feed-event-action {
+            margin: .45rem auto .7rem;
+            padding: .72rem .85rem .78rem 1rem;
+            border: 1px solid rgb(var(--c-warn-base) / .38);
+            border-left: 3px solid rgb(var(--c-warn-base) / .72);
+            border-radius: 5px;
+            background: linear-gradient(125deg, rgb(var(--c-warn-base) / .12), rgb(var(--c-surface-1) / .42));
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / .055), 0 10px 24px -20px rgb(var(--c-shadow) / .8);
+            opacity: 1;
+        }
+        #recent-story-list > .feed-event-action .feed-event-rail { display: none; }
+        #recent-story-list > .feed-event-action .feed-event-kicker { color: rgb(var(--c-warn-text)); font-size: .62rem; letter-spacing: .16em; }
+        #recent-story-list > .feed-event-action .feed-event-label { color: var(--ink-500); font-size: .68rem; }
+        #recent-story-list > .feed-event-action .feed-event-content {
+            margin-top: .22rem; color: var(--ink-100); font: italic 600 clamp(.94rem, 1.3vw, 1.18rem)/1.65 'Noto Serif TC', serif;
+            letter-spacing: .025em;
+        }
+        html[data-theme="light"] #recent-story-list > .feed-event-action { background: linear-gradient(125deg, rgba(194,154,98,.13), rgba(255,255,255,.72)); border-color: rgba(140,96,45,.34); border-left-color: #a66f3d; box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 24px -20px rgba(91,67,39,.45); }
+        html[data-theme="light"] #recent-story-list > .feed-event-action .feed-event-kicker { color: #8c5b30; }
+
+        /* 命運判定是行動下方的次級 metadata：保留結果清楚度，但不再與玩家行動同大。 */
+        #recent-story-list > .feed-event-check {
+            margin: -.15rem auto .6rem; padding: .34rem .7rem .48rem 1.28rem;
+            border-left: 2px solid rgb(var(--c-warn-base) / .38); opacity: 1;
+        }
+        #recent-story-list > .feed-event-check .feed-event-rail { display: none; }
+        #recent-story-list > .feed-event-check .feed-event-head { margin-bottom: .12rem; gap: .45rem; }
+        #recent-story-list > .feed-event-check .feed-event-kicker { color: rgb(var(--c-warn-text)); font-size: .54rem; letter-spacing: .12em; }
+        #recent-story-list > .feed-event-check .feed-event-label { color: rgb(var(--c-warn-text)); font: 600 .68rem/1.3 'Noto Serif TC', serif; }
+        #recent-story-list > .feed-event-check.is-bad { border-left-color: rgb(var(--c-danger-base) / .58); }
+        #recent-story-list > .feed-event-check.is-bad .feed-event-kicker, #recent-story-list > .feed-event-check.is-bad .feed-event-label { color: rgb(var(--c-danger-text)); }
+        #recent-story-list > .feed-event-check .feed-event-content { color: var(--ink-500); font: .67rem/1.55 'JetBrains Mono', monospace; letter-spacing: .01em; }
+        #recent-story-list > .feed-event-check .feed-event-content .fe-num { color: var(--ink-300); font-weight: 700; }
+        html[data-theme="light"] #recent-story-list > .feed-event-check { border-left-color: rgba(140,96,45,.42); }
+        html[data-theme="light"] #recent-story-list > .feed-event-check .feed-event-kicker, html[data-theme="light"] #recent-story-list > .feed-event-check .feed-event-label { color: #98643a; }
+        html[data-theme="light"] #recent-story-list > .feed-event-check.is-bad { border-left-color: rgba(155,74,56,.56); }
+        html[data-theme="light"] #recent-story-list > .feed-event-check.is-bad .feed-event-kicker, html[data-theme="light"] #recent-story-list > .feed-event-check.is-bad .feed-event-label { color: #a24e3c; }
+
+        /* 書寫中不是普通 loading bar，而是頁面上浮起來的一張瓷白稿紙。
+           sweep、點狀呼吸與受光邊都只動 opacity/transform，且由 reduced-motion 規則停用。 */
+        #recent-story-list > #narrator-pending {
+            position: relative; isolation: isolate; overflow: hidden;
+            margin: .65rem auto .85rem; padding: .95rem 1.15rem 1.05rem 1.3rem;
+            border: 1px solid rgb(220 225 229 / .9) !important;
+            border-left: 3px solid rgb(198 205 211 / .92) !important;
+            border-radius: 5px;
+            background: linear-gradient(135deg, rgb(250 251 252 / .98), rgb(232 236 241 / .93)) !important;
+            color: #30353a !important;
+            box-shadow: 0 16px 36px -22px rgb(34 42 50 / .58), inset 0 1px 0 rgb(255 255 255 / .98), inset 0 -1px 0 rgb(181 191 201 / .18);
+            transform: translateY(-1px);
+            animation: narratorPaperFloat 3.4s ease-in-out infinite;
+        }
+        #recent-story-list > #narrator-pending::before {
+            content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+            background: radial-gradient(ellipse at 20% 0%, rgb(255 255 255 / .88), transparent 56%), linear-gradient(105deg, transparent 20%, rgb(255 255 255 / .55) 48%, transparent 72%);
+            background-size: 100% 100%, 220% 100%; background-position: 0 0, -120% 0;
+            animation: narratorPaperSheen 4.8s ease-in-out infinite;
+        }
+        #recent-story-list > #narrator-pending::after { background: linear-gradient(90deg, transparent, rgb(255 255 255 / .72), transparent); animation: narratorInkSweep 2.4s ease-in-out infinite; }
+        #recent-story-list > #narrator-pending .feed-event-rail { background: rgb(194 201 208 / .72); }
+        #recent-story-list > #narrator-pending .feed-event-kicker { color: #59636c; font: 600 .62rem/1.3 'Noto Serif TC', serif; letter-spacing: .08em; }
+        #recent-story-list > #narrator-pending .feed-event-content { color: #20262b !important; font: 600 clamp(1.35rem, 2.2vw, 1.85rem)/1.25 'JetBrains Mono', monospace; letter-spacing: .035em; text-shadow: 0 1px 0 rgb(255 255 255 / .85); }
+        #recent-story-list > #narrator-pending .feed-event-note { margin-top: .48rem; color: #717b84; font: .62rem/1.5 'Noto Serif TC', serif; }
+        .typing-dots { display: inline-flex; gap: .18rem; margin-left: .25rem; vertical-align: .08em; }
+        .typing-dots > span { width: .26rem; height: .26rem; border-radius: 999px; background: #9ba6af; animation: typingBlink 1.25s ease-in-out infinite; }
+        .typing-dots > span:nth-child(2) { animation-delay: .16s; }
+        .typing-dots > span:nth-child(3) { animation-delay: .32s; }
+        @keyframes narratorPaperFloat { 0%, 100% { transform: translateY(-1px); } 50% { transform: translateY(-4px); } }
+        @keyframes narratorPaperSheen { 0%, 26% { background-position: 0 0, -120% 0; } 62%, 82% { background-position: 0 0, 120% 0; } 100% { background-position: 0 0, 120% 0; } }
+        @keyframes narratorInkSweep { 0%, 20% { transform: translateX(-100%); opacity: 0; } 45% { opacity: 1; } 78%, 100% { transform: translateX(100%); opacity: 0; } }
+        @keyframes typingBlink { 0%, 100% { opacity: .28; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-1px); } }
+        html[data-theme="light"] #recent-story-list > #narrator-pending { border-color: rgba(190,198,205,.95) !important; border-left-color: #b1bbc4 !important; background: linear-gradient(135deg, rgba(255,255,255,.98), rgba(240,243,246,.95)) !important; color: #30353a !important; box-shadow: 0 16px 36px -22px rgba(74,84,94,.34), inset 0 1px 0 rgba(255,255,255,.98), inset 0 -1px 0 rgba(181,191,201,.18); }
+
         @media (max-width: 767px) {
-            #recent-story-list { padding: 1rem; }
+            #recent-story-list { padding: .8rem; }
             #recent-story-list > .feed-event-narration .feed-event-content { font-size: .95rem; line-height: 1.9; }
+            #recent-story-list > .feed-event-action { padding: .66rem .7rem .7rem .8rem; }
+            #recent-story-list > .feed-event-action .feed-event-content { font-size: .98rem; }
+            #recent-story-list > #narrator-pending { padding: .85rem .8rem .92rem 1rem; }
+            #recent-story-list > #narrator-pending .feed-event-content { font-size: 1.2rem; }
+            .story-chronicle-hint { padding-inline: .35rem; text-align: center; }
             .chronicle-panel { max-height: calc(100dvh - 1rem); }
             .chronicle-header { padding: .85rem .85rem .7rem; gap: .6rem; }
             .chronicle-cover-mark { width: 2rem; height: 2.65rem; font-size: .7rem; }
@@ -2595,17 +2693,7 @@
             <!-- 角色昏迷／死亡的橫幅（見 public/app.js 的 renderDownState）。 -->
             <div id="down-state-banner" style="display:none" class="border-b border-red-500/40 bg-red-500/10 px-4 py-2 text-[11px] font-mono text-red-200 space-y-1 shrink-0"></div>
 
-            <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-labelledby="story-current-label">
-                <div class="story-current-toolbar shrink-0">
-                    <div>
-                        <div id="story-current-label" class="story-current-kicker">近期現場</div>
-                        <div class="story-current-caption">只留下最新五則訊息 · 上滑回看這一小段現場</div>
-                    </div>
-                    <div class="story-current-window" aria-live="polite">
-                        <i class="fas fa-layer-group" aria-hidden="true"></i>
-                        <span id="story-current-count">0 / 5</span>
-                    </div>
-                </div>
+            <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-label="故事現場">
                 <div id="recent-story-list" class="story-current-content flex-1 min-h-0 overflow-y-auto" aria-live="polite" aria-label="最近五則故事訊息">
                     <div class="story-current-empty">等待第一段故事回應……</div>
                 </div>

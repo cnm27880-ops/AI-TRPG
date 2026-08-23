@@ -141,11 +141,13 @@ export async function onRequestGet(context) {
   // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
   // 主遊戲續接只需要最近幾筆訊息；完整 chronicle 改由 /api/chronicle 按需載入。
   // 預設 GET 仍保留完整 session，避免既有管理工具讀出後回存時意外丟掉新欄位。
+  const chronicleTotal = Array.isArray(session.chronicle) ? session.chronicle.length : 0;
   const sessionView = runtimeView
     ? {
         ...session,
         chronicle: undefined,
         recentChronicle: (session.chronicle ?? []).slice(-5),
+        recentChronicleTotal: chronicleTotal,
         pendingTurn: session.pendingTurn
           ? {
               requestId: session.pendingTurn.requestId ?? null,

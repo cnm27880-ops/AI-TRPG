@@ -19,7 +19,7 @@ npm install
 npm test
 ```
 
-目前測試套件共有 **57 個測試檔案、790 個測試案例**，正常結果應為 `# pass 790`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry，以及手機設定／PWA 靜態契約；PWA Service Worker 另以 production JavaScript syntax、差異檢查與部署後瀏覽器驗證。
+目前測試套件共有 **57 個測試檔案、792 個測試案例**，正常結果應為 `# pass 792`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry，以及手機設定／PWA／故事主畫面 UI 靜態契約；PWA Service Worker 另以 production JavaScript syntax、差異檢查與部署後瀏覽器驗證。
 
 若要重新產生前端使用的 Tailwind 靜態 CSS，執行：
 
@@ -110,13 +110,13 @@ functions/api/               Cloudflare Pages Functions API
 
 public/                      Cloudflare Pages 靜態資源
   index.html                 單頁遊戲介面、建卡、角色 HUD、最近五則故事窗口與戰鬥面板
-  app.js                     前端應用層與 API 呼叫，不做規則運算；含劇情回顧與 pending retry UX
+  app.js                     前端應用層與 API 呼叫，不做規則運算；含最近五則、回顧邊界提示與 pending retry UX
   tailwind.css               預先編譯的靜態 CSS
   manifest.webmanifest       PWA 安裝資訊
   sw.js                      Service Worker
 
 src/tailwind.css             Tailwind CSS 輸入來源
-test/                        57 個測試檔案，共 790 個測試案例
+test/                        57 個測試檔案，共 792 個測試案例
 rules-2.35.txt               原始規則書資料
 wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 ```

@@ -986,7 +986,7 @@ function showNarratorPending() {
   pendingStoryEntry = {
     id: `recent-story-pending-${++storyEntrySequence}`,
     kind: "narration",
-    label: `說書人書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
+    label: `書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
     content: `<span data-pending-elapsed class="tabular-nums">0.0s</span>`,
     opts: { note: `<span data-pending-hint></span>` },
   };
@@ -1154,6 +1154,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     renderTurnQuality(res.degraded);
     renderOptions(res.options || []);
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
+    if (Number.isFinite(Number(res.recentChronicleTotal))) {
+      recentStoryChronicleTotal = Number(res.recentChronicleTotal);
+      renderRecentStoryWindow();
+    }
     if (res.scenario) {
       updateScenarioHud(res.scenario);
       if (res.scenario.chroniclePackage) {
@@ -1804,6 +1808,15 @@ const RECENT_STORY_LIMIT = 5;
 let recentStoryEntries = [];
 let pendingStoryEntry = null;
 let storyEntrySequence = 0;
+let recentStoryChronicleTotal = 0;
+
+function updateRecentStoryHistoryHint(current = document.getElementById("recent-story-list")) {
+  const hint = current?.querySelector("[data-chronicle-hint]");
+  if (!hint || !current) return;
+  const atTop = current.scrollTop <= 18;
+  hint.classList.toggle("is-visible", atTop);
+  hint.setAttribute("aria-hidden", String(!atTop));
+}
 
 function renderRecentStoryWindow({ forceBottom = false } = {}) {
   const current = document.getElementById("recent-story-list");
@@ -1814,6 +1827,16 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
   if (pendingStoryEntry) entries.push(pendingStoryEntry);
 
   const fragment = document.createDocumentFragment();
+  if (recentStoryChronicleTotal > RECENT_STORY_LIMIT) {
+    const hint = document.createElement("button");
+    hint.type = "button";
+    hint.className = "story-chronicle-hint";
+    hint.dataset.chronicleHint = "true";
+    hint.setAttribute("aria-hidden", "true");
+    hint.innerHTML = `<i class="fas fa-book-open" aria-hidden="true"></i><span>已到最近五則的起點・更早的故事請看劇情回顧</span><i class="fas fa-arrow-up" aria-hidden="true"></i>`;
+    hint.addEventListener("click", () => openChronicle());
+    fragment.appendChild(hint);
+  }
   for (const entry of entries) {
     const block = buildFeedEvent(entry.kind, entry.label, entry.content, entry.opts);
     block.dataset.recentStoryId = entry.id;
@@ -1824,6 +1847,11 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
     fragment.appendChild(block);
   }
   current.replaceChildren(fragment);
+  if (!current.dataset.chronicleHintBound) {
+    current.addEventListener("scroll", () => updateRecentStoryHistoryHint(current), { passive: true });
+    current.dataset.chronicleHintBound = "true";
+  }
+  updateRecentStoryHistoryHint(current);
 
   current.querySelectorAll("[data-turn-retry]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1886,10 +1914,11 @@ function appendFeedEvent(kind, label, content, opts = {}) {
   return current.querySelector(`[data-recent-story-id="${entry.id}"]`);
 }
 
-function hydrateRecentStoryFromChronicle(chronicle = []) {
+function hydrateRecentStoryFromChronicle(chronicle = [], { total = null } = {}) {
   recentStoryEntries = [];
   pendingStoryEntry = null;
   const turns = Array.isArray(chronicle) ? chronicle : [];
+  recentStoryChronicleTotal = Number.isFinite(Number(total)) ? Number(total) : turns.length;
   for (const entry of turns.slice(-RECENT_STORY_LIMIT)) {
     if (entry?.action) appendFeedEvent("action", "", escapeHtml(entry.action), { animate: false });
     if (entry?.narration) appendNarrationBlock(entry.narration, { animate: false });
@@ -2218,7 +2247,10 @@ async function resumeSession(id) {
   renderPersistenceWarning(res.persistent);
 
   resetStoryFeedReadingState();
-  hydrateRecentStoryFromChronicle(res.session.recentChronicle ?? res.session.chronicle ?? res.session.history ?? []);
+  hydrateRecentStoryFromChronicle(
+    res.session.recentChronicle ?? res.session.chronicle ?? res.session.history ?? [],
+    { total: res.session.recentChronicleTotal }
+  );
 
   renderOptions(res.session.scene?.options || []);
   // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
