@@ -13,7 +13,7 @@
          則靠 display / display_override 設定（見 manifest.webmanifest），
          Safari 額外需要 apple-mobile-web-app-* 這組舊式 meta 才會吃全螢幕模式。 -->
     <link rel="manifest" href="./manifest.webmanifest">
-    <meta name="theme-color" content="#09090b">
+    <meta id="theme-color-meta" name="theme-color" content="#09090b">
     <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="./icons/favicon-16.png">
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
@@ -33,6 +33,8 @@
             html.setAttribute('data-hud-position', hudPosition);
             html.classList.toggle('light', theme === 'light');
             html.classList.toggle('dark', theme === 'dark');
+            var themeMeta = document.querySelector('meta[name="theme-color"]');
+            if (themeMeta) themeMeta.setAttribute('content', theme === 'light' ? '#f1f0ec' : '#09090b');
             // 舞台（data-stage）跟主題是兩件事：主題是玩家的偏好，舞台是劇情所在的位置。
             // 第一幕永遠是紙白的邀請頁，所以在畫任何東西之前就先標上，
             // 不然會先閃一下副本的深色再跳成白色。
@@ -326,6 +328,28 @@
         ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #52525b; }
         .modal-backdrop { background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(6px); }
+        /* 設定／安裝面板是跨舞台共用元件；不要讓手機瀏覽器的原生 dark form
+           appearance 把 light theme 的欄位重新畫成黑底黑字。色彩明確跟著 data-theme，
+           不依賴裝置系統偏好或瀏覽器預設。 */
+        .modal-panel :is(input, select, textarea) { color-scheme: dark; }
+        html[data-theme="light"] .modal-panel :is(input, select, textarea) {
+            color-scheme: light;
+            background: rgba(255,255,255,.86) !important;
+            color: var(--ink-100) !important;
+            border-color: rgba(37,35,31,.22) !important;
+        }
+        html[data-theme="light"] .modal-panel :is(input, select, textarea)::placeholder { color: var(--ink-500); opacity: 1; }
+        html[data-theme="light"] .modal-panel .text-zinc-300 { color: var(--ink-200) !important; }
+        html[data-theme="light"] .modal-panel .text-zinc-400 { color: var(--ink-300) !important; }
+        html[data-theme="light"] .modal-panel .text-zinc-500 { color: var(--ink-400) !important; }
+        html[data-theme="light"] .modal-panel .text-zinc-100 { color: var(--ink-100) !important; }
+        html[data-theme="light"] .modal-panel .bg-zinc-800 { background: rgba(37,35,31,.08) !important; }
+        html[data-theme="light"] .modal-panel .bg-zinc-900 { background: rgba(250,249,246,.94) !important; }
+        @media (max-width: 767px) {
+            .modal-backdrop { align-items: flex-start; overflow-y: auto; padding-top: calc(.75rem + env(safe-area-inset-top, 0px)); padding-bottom: calc(.75rem + env(safe-area-inset-bottom, 0px)); }
+            .modal-panel { max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); }
+            .modal-panel .modal-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+        }
         .archetype-card.active {
             border-color: rgb(var(--c-accent-base)) !important;
             background-color: rgb(var(--c-accent-base) / .12) !important;
@@ -2962,22 +2986,22 @@
                 <button onclick="closeModal('pwaInstallModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-scroll space-y-3 text-xs font-mono text-zinc-300 leading-relaxed -mr-2 pr-2">
-                <p>iOS 的 Safari 不開放網頁自己跳出安裝提示，要手動加三步：</p>
+                <p>手機瀏覽器可能不會自動跳出安裝提示；請依你的瀏覽器從選單加入主畫面：</p>
                 <ol class="space-y-2 list-none">
                     <li class="flex items-start gap-2">
                         <span class="section-tag shrink-0">1</span>
-                        <span>點下方工具列的 <i class="fas fa-arrow-up-from-bracket text-emerald-400"></i> 分享鈕</span>
+                        <span><strong class="text-zinc-100">iPhone／iPad：</strong>點工具列的 <i class="fas fa-arrow-up-from-bracket text-emerald-400"></i> 分享鈕。</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <span class="section-tag shrink-0">2</span>
-                        <span>往下找到「加入主畫面」（Add to Home Screen）</span>
+                        <span><strong class="text-zinc-100">Safari／Chrome：</strong>選「加入主畫面」（Add to Home Screen）。Android Chrome 也可能顯示「安裝 App」。</span>
                     </li>
                     <li class="flex items-start gap-2">
                         <span class="section-tag shrink-0">3</span>
-                        <span>確認名稱後按「新增」，桌面就會出現全螢幕的 ECHOES 圖示</span>
+                        <span>確認名稱後按「新增／安裝」，再從桌面 ECHOES 圖示開啟。</span>
                     </li>
                 </ol>
-                <p class="text-[10px] text-zinc-500 pt-1 hairline-t">從主畫面圖示打開才會是無網址列的全螢幕模式；在 Safari 分頁裡開仍然是一般網頁。</p>
+                <p class="text-[10px] text-zinc-500 pt-1 hairline-t">只有從主畫面圖示開啟，才會進入 standalone 全螢幕模式；一般瀏覽器分頁仍會保留網址列。</p>
             </div>
         </div>
     </div>
@@ -2998,6 +3022,8 @@
             html.classList.toggle('light', next === 'light');
             html.classList.toggle('dark', next === 'dark');
             localStorage.setItem('user_theme', next);
+            const themeMeta = document.getElementById('theme-color-meta');
+            if (themeMeta) themeMeta.content = next === 'light' ? '#f1f0ec' : '#09090b';
             updateThemeToggleIcon(next);
             const select = document.getElementById('setting-theme');
             if (select) select.value = next;
@@ -3490,11 +3516,14 @@
                 window.matchMedia('(display-mode: fullscreen)').matches ||
                 window.navigator.standalone === true; // iOS Safari 專用欄位，不在 matchMedia 裡
         }
-        function isIosSafari() {
+        function isIosDevice() {
             const ua = window.navigator.userAgent;
-            const isIos = /iP(hone|ad|od)/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
-            const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
-            return isIos && isSafari;
+            return /iP(hone|ad|od)/.test(ua) || (ua.includes('Macintosh') && navigator.maxTouchPoints > 1);
+        }
+        function isMobileDevice() {
+            return window.matchMedia?.('(max-width: 767px)').matches === true ||
+                /Android|iP(hone|ad|od)|Mobile/i.test(window.navigator.userAgent) ||
+                navigator.maxTouchPoints > 0;
         }
         function handlePwaInstallClick() {
             if (pwaDeferredPrompt) {
@@ -3506,7 +3535,8 @@
                 });
                 return;
             }
-            // 沒有 deferredPrompt 就是走不了自動安裝那條路（通常是 iOS Safari），改開手動教學。
+            // 沒有 deferredPrompt 時，瀏覽器可能是不支援自動 prompt 的 iOS、內嵌瀏覽器，
+            // 或尚未把安裝條件事件送出；都改開同一份手動指引，不讓手機按鈕沒有反應。
             openModal('pwaInstallModal');
         }
         function initPwaInstall() {
@@ -3522,7 +3552,9 @@
                 pwaDeferredPrompt = null;
                 buttons.forEach((button) => { button.style.display = 'none'; });
             });
-            if (isIosSafari()) buttons.forEach((button) => { button.style.display = 'flex'; });
+            // iOS（Safari／Chrome／Firefox）都只能從分享或瀏覽器選單加入主畫面；
+            // Android 若事件延遲或瀏覽器不支援，也要先顯示可用的手動指引入口。
+            if (isMobileDevice() || isIosDevice()) buttons.forEach((button) => { button.style.display = 'flex'; });
         }
         initPwaInstall();
 
@@ -3536,6 +3568,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260823-r11"></script>
+    <script src="./app.js?v=20260823-r12"></script>
 </body>
 </html>
