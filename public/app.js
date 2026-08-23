@@ -1600,6 +1600,18 @@ function renderExplorationTerminal(view) {
   }
 }
 
+function appendTravelRetryControl(block) {
+  if (!block) return;
+  block.querySelector(".feed-event-body")?.insertAdjacentHTML(
+    "beforeend",
+    `<div class="feed-event-actions"><button data-travel-retry class="feed-event-retry">重試這次移動</button></div>`
+  );
+  block.querySelector("[data-travel-retry]")?.addEventListener("click", () => {
+    const pending = lastTravelRequest;
+    if (pending) travelToLocation(pending.destinationId, pending.requestId);
+  });
+}
+
 async function travelToLocation(destinationId, existingRequestId = null) {
   if (!destinationId || !currentSessionId || turnInFlight || travelInFlight) return;
   const requestId = existingRequestId || `travel:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -1613,9 +1625,14 @@ async function travelToLocation(destinationId, existingRequestId = null) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ sessionId: currentSessionId, to: destinationId, requestId }),
     });
-    const response = await httpResponse.json().catch(() => ({ ok: false, error: "伺服器回傳不是合法 JSON" }));
+    const response = await httpResponse.json().catch(() => ({ ok: false, error: "伺服器回傳不是合法 JSON", invalidJson: true }));
     if (!httpResponse.ok || !response.ok) {
-      appendFeedEvent("fault", "移動未獲准", escapeHtml(response.error ?? `移動失敗（HTTP ${httpResponse.status}）`));
+      const block = appendFeedEvent(
+        "fault",
+        response.invalidJson ? "移動結果未確認" : "移動未獲准",
+        escapeHtml(response.error ?? `移動失敗（HTTP ${httpResponse.status}）`)
+      );
+      if (response.invalidJson) appendTravelRetryControl(block);
       if (response.scenario) updateScenarioHud(response.scenario);
       return;
     }
@@ -1640,16 +1657,7 @@ async function travelToLocation(destinationId, existingRequestId = null) {
   } catch (err) {
     console.error("[TRAVEL_FAILURE] /api/travel 呼叫失敗", err);
     const block = appendFeedEvent("fault", "移動結果未確認", escapeHtml(`無法確認移動是否已保存：${err.message}`));
-    if (block) {
-      block.querySelector(".feed-event-body")?.insertAdjacentHTML(
-        "beforeend",
-        `<div class="feed-event-actions"><button data-travel-retry class="feed-event-retry">重試這次移動</button></div>`
-      );
-      block.querySelector("[data-travel-retry]")?.addEventListener("click", () => {
-        const pending = lastTravelRequest;
-        if (pending) travelToLocation(pending.destinationId, pending.requestId);
-      });
-    }
+    appendTravelRetryControl(block);
   } finally {
     travelInFlight = false;
     setTurnInputLocked(false);
