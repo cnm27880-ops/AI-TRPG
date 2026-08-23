@@ -2965,7 +2965,7 @@
                         <button type="button" onclick="closeModal('explorationTerminal')" class="shrink-0 text-zinc-400 hover:text-red-300 transition-colors text-lg leading-none" aria-label="關閉探索終端"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="exploration-terminal-scroll pt-3 space-y-4 font-mono text-xs">
-                        <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2" aria-label="目前探索情勢">
+                        <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2" aria-label="目前探索情勢" aria-live="polite" aria-atomic="false">
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <div><div class="text-[10px] text-zinc-500">目前位置</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>
                                 <div><div class="text-[10px] text-zinc-500">目前事件</div><strong id="exploration-current-event" class="text-zinc-200">—</strong></div>
@@ -2974,26 +2974,26 @@
                         </section>
                         <section class="space-y-2">
                             <div class="exploration-terminal-section-title">船艦路線 / KNOWN ROUTES</div>
-                            <div id="exploration-terminal-map" class="exploration-map" aria-label="玩家已知的船艦路線"></div>
-                            <div id="exploration-terminal-routes" class="space-y-1.5"></div>
+                            <div id="exploration-terminal-map" class="exploration-map" role="list" aria-label="玩家已知的船艦路線"></div>
+                            <div id="exploration-terminal-routes" class="space-y-1.5" aria-live="polite" aria-atomic="false"></div>
                         </section>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <section class="space-y-2">
                                 <div class="exploration-terminal-section-title">最近確認 / RECENT DISCOVERIES</div>
-                                <div id="exploration-terminal-discoveries" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">尚未記錄新的發現。</div>
+                                <div id="exploration-terminal-discoveries" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">尚未記錄新的發現。</div>
                             </section>
                             <section class="space-y-2">
                                 <div class="exploration-terminal-section-title">附近人物 / NEARBY PERSONNEL</div>
-                                <div id="exploration-terminal-npcs" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">目前沒有已確認的附近人物。</div>
+                                <div id="exploration-terminal-npcs" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">目前沒有已確認的附近人物。</div>
                             </section>
                         </div>
                         <section class="space-y-2">
                             <div class="exploration-terminal-section-title">未解問題 / OPEN QUESTIONS</div>
-                            <div id="exploration-terminal-questions" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">目前沒有待追查的問題。</div>
+                            <div id="exploration-terminal-questions" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">目前沒有待追查的問題。</div>
                         </section>
                         <section class="space-y-2">
                             <div class="exploration-terminal-section-title">環境狀態 / LOCAL CONDITIONS</div>
-                            <div id="exploration-terminal-environment" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">等待位置資料……</div>
+                            <div id="exploration-terminal-environment" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">等待位置資料……</div>
                         </section>
                     </div>
                     <div class="flex items-center justify-between gap-3 pt-3 mt-3 hairline-t text-[10px] font-mono text-zinc-500">

@@ -6,6 +6,9 @@ let turnInFlight = false;
 let travelInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
+// scenario HUD 可能因 turn、travel、重整與戰鬥回應反覆重繪；同一 session 的系統通知只進故事流一次。
+let scenarioNoticeSessionId = null;
+const scenarioNoticeKeys = new Set();
 
 const SESSION_KEY = "ai-trpg-session-id";
 const RETIRED_SCENARIO_ID = "scenario.nostromo-01";
@@ -642,6 +645,7 @@ async function submitChargen() {
     if (!res.ok) throw new Error((res.errors ?? []).join("；") || res.error || "建卡失敗");
 
     currentSessionId = res.session.id;
+    resetScenarioNoticeDedup(currentSessionId);
     localStorage.setItem(SESSION_KEY, currentSessionId);
     lastThreatStage = null;
     adoptCharacter(res.session.character);
@@ -1512,7 +1516,8 @@ function renderExplorationTerminal(view) {
         const stateClass = item.id === location.id ? "is-current" : item.status === "visited" ? "is-visited" : item.status === "known" ? "is-known" : "is-unknown";
         const marker = item.id === location.id ? "◆" : item.status === "visited" ? "●" : "○";
         const separator = index ? `<span class="exploration-map-link" aria-hidden="true">—</span>` : "";
-        return `${separator}<span class="exploration-map-node ${stateClass}" title="${escapeHtml(item.purpose ?? "")}"><span aria-hidden="true">${marker}</span>${escapeHtml(item.name)}</span>`;
+        const currentLabel = item.id === location.id ? "，目前位置" : "";
+        return `${separator}<span class="exploration-map-node ${stateClass}" role="listitem" aria-current="${item.id === location.id ? "location" : "false"}" title="${escapeHtml(item.purpose ?? "")}"><span aria-hidden="true">${marker}</span>${escapeHtml(item.name)}${currentLabel}</span>`;
       }).join("")}</div>`
     : `<div class="text-[11px] text-zinc-500">目前沒有可顯示的已知路線。</div>`;
 
@@ -1528,12 +1533,16 @@ function renderExplorationTerminal(view) {
           const risk = available && route.riskLabel
             ? `<span class="exploration-route-risk">${escapeHtml(route.riskLabel)}</span>`
             : "";
+          const routeDescriptionId = `exploration-route-description-${String(route.to).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+          const accessibleAction = available
+            ? `移動至${route.label}，消耗 ${Number(route.timeCost) || 1} 回合${route.riskLabel ? `，${route.riskLabel}` : ""}`
+            : `前往${route.label}目前不可用：${lockedText}`;
           return `<div class="exploration-route-card ${available ? "is-available" : "is-locked"}">
-            <div class="min-w-0 flex-1"><strong>${escapeHtml(route.label)}</strong><br><span>${escapeHtml(route.purpose ?? "確認這條路線的狀況")}</span></div>
+            <div class="min-w-0 flex-1"><strong>${escapeHtml(route.label)}</strong><br><span id="${routeDescriptionId}">${escapeHtml(route.purpose ?? "確認這條路線的狀況")}</span></div>
             <div class="exploration-route-action">
               ${available
-                ? `<button type="button" class="exploration-route-btn" data-travel-to="${escapeHtml(route.to)}" ${travelInFlight ? "disabled" : ""}>${escapeHtml(actionText)}</button>`
-                : `<span title="${escapeHtml(lockedText)}">${escapeHtml(actionText)}</span>`}
+                ? `<button type="button" class="exploration-route-btn" data-travel-to="${escapeHtml(route.to)}" aria-label="${escapeHtml(accessibleAction)}" aria-describedby="${routeDescriptionId}" ${travelInFlight ? "disabled" : ""}>${escapeHtml(actionText)}</button>`
+                : `<span role="status" title="${escapeHtml(lockedText)}" aria-label="${escapeHtml(accessibleAction)}">${escapeHtml(actionText)}</span>`}
               ${risk}
             </div>
           </div>`;
@@ -1650,7 +1659,19 @@ const TIME_STATUS_STYLE = {
   逾時: "border-red-500/40 bg-red-500/10 text-red-300",
 };
 
+function resetScenarioNoticeDedup(sessionId) {
+  scenarioNoticeSessionId = sessionId ?? null;
+  scenarioNoticeKeys.clear();
+}
+
+function appendScenarioNoticeOnce(key, append) {
+  if (!key || scenarioNoticeKeys.has(key)) return;
+  scenarioNoticeKeys.add(key);
+  append();
+}
+
 function updateScenarioHud(scenario) {
+  if (scenarioNoticeSessionId !== currentSessionId) resetScenarioNoticeDedup(currentSessionId);
   const hud = document.getElementById("scenario-hud");
   renderNpcRelationships(scenario?.reference?.npcs ?? []);
   renderExplorationTerminal(scenario?.reference?.exploration ?? null);
@@ -1659,17 +1680,21 @@ function updateScenarioHud(scenario) {
   // 節點結算被引擎擋下時，玩家會看到「我明明做完了，進度條卻沒動」。
   // 這種事以前只進 warnings 陣列(沒人讀)，現在直接寫進故事流講清楚原因。
   (scenario.warnings || []).forEach((w) => {
-    appendFeedEvent("world", "副本異常", escapeHtml(w), { tone: "bad" });
+    appendScenarioNoticeOnce(`warning:${String(w)}`, () => {
+      appendFeedEvent("world", "副本異常", escapeHtml(w), { tone: "bad" });
+    });
   });
 
   if (scenario.nodeCompleted) {
     const n = scenario.nodeCompleted;
-    appendFeedEvent(
-      "world",
-      `劇情節點完成：${escapeHtml(n.title)}`,
-      `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點經驗`,
-      { tone: "good" }
-    );
+    appendScenarioNoticeOnce(`node:${n.nodeId ?? n.title}:${n.reward ?? ""}`, () => {
+      appendFeedEvent(
+        "world",
+        `劇情節點完成：${escapeHtml(n.title)}`,
+        `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點經驗`,
+        { tone: "good" }
+      );
+    });
   }
 
   const node = scenario.activeNode;
@@ -2822,6 +2847,7 @@ async function resumeSession(id) {
   }
 
   currentSessionId = id;
+  resetScenarioNoticeDedup(currentSessionId);
   localStorage.setItem(SESSION_KEY, id);
   // 已結算存檔直接進 server-owned 主神空間；不要先進 game screen 再由前端猜 runSummary。
   if (res.lifecycle?.canEnterGodspace) {
@@ -2879,6 +2905,12 @@ async function resumeSession(id) {
     renderCombat();
   } else if (res.session.pendingTurn) {
     const pending = res.session.pendingTurn;
+    appendFeedEvent(
+      "world",
+      "恢復未完成回合",
+      "伺服器已保存上一回合的判定；正在安全重播敘事，不會重新擲骰或重複扣除規則效果。",
+      { tone: "neutral" }
+    );
     await runTurn({
       chosenOption: pending.chosenOption ?? undefined,
       playerAction: pending.playerAction ?? undefined,
