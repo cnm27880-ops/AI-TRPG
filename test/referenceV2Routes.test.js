@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { emptyCharacter } from "../core/schema.js";
-import reference from "../content/scenario/examples/alienNostromo_v2_gm_reference.json" with { type: "json" };
+import reference from "../content/scenario/examples/alienNostromo_v2_gm_reference.js";
 import {
   applyReferenceFinaleVictory,
   applyReferenceResult,

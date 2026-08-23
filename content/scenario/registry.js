@@ -9,7 +9,7 @@ import { validateScenarioPack } from "./schema.js";
 import { ECHO_INSTITUTE_SCENARIO } from "./examples/echoInstitute.js";
 import { NOSTROMO_SCENARIO } from "./examples/alienNostromo.js";
 import { NOSTROMO_SCENARIO_V2 } from "./examples/alienNostromo_v2.js";
-import NOSTROMO_REFERENCE from "./examples/alienNostromo_v2_gm_reference.json" with { type: "json" };
+import NOSTROMO_REFERENCE from "./examples/alienNostromo_v2_gm_reference.js";
 
 // 排在最前面的是新手副本(諾斯托羅莫號)：它是 DEFAULT_SCENARIO_ID，也就是玩家建完卡
 // 沒有特別選副本時直接進去的那一個。它比 echoInstitute 多了固定開頭與迫近度設定，

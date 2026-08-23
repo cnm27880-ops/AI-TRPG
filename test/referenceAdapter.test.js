@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyCharacter } from "../core/schema.js";
 import { createThreatTrack } from "../content/scenario/threat.js";
-import reference from "../content/scenario/examples/alienNostromo_v2_gm_reference.json" with { type: "json" };
+import reference from "../content/scenario/examples/alienNostromo_v2_gm_reference.js";
 import {
   createReferenceState,
   normalizeReferenceState,
