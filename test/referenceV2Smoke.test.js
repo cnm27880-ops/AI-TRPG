@@ -23,10 +23,12 @@ function referenceActionsFrom(session) {
 
 function mockLlmResponse(callNumber) {
   const narration = callNumber === 1
-    ? "固定測試敘事：休眠室的六座空艙與拖痕讓玩家醒來後立刻感到不對勁。"
+    ? "固定測試敘事：光束沿著拖痕前進，玩家仍在休眠室確認了離開路線。"
     : callNumber === 2
-      ? "固定測試敘事：光束沿著拖痕前進，玩家抵達科學實驗區，Ash 已經在分析台前等候。"
-      : "固定測試敘事：Ash 的回答保持克制，但實驗室裡的沉默讓這次交涉變成一場真正的對峙。";
+      ? "固定測試敘事：陸遠把槍口壓低，告訴玩家不要往亮著的門走。"
+      : callNumber === 3
+        ? "固定測試敘事：陸遠帶玩家沿著 A 甲板前往科學實驗區，Ash 已經在分析台前等候。"
+        : "固定測試敘事：Ash 的回答保持克制，但實驗室裡的沉默讓這次交涉變成一場真正的對峙。";
   return {
     st_thought: `固定測試模型第${callNumber}回合：只描述 adapter 已裁定的結果。`,
     narration,
@@ -136,18 +138,39 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   }));
   assert.equal(afterLeave.status, 200, JSON.stringify(afterLeave.body));
   assert.equal(afterLeave.body.ok, true);
-  assert.equal(afterLeave.body.scenario.reference.eventId, "evt_meet_ash");
-  assert.equal(afterLeave.body.options.every((option) => option.requiresCheck === false || Number.isInteger(option.dc)), true);
+  assert.equal(afterLeave.body.scenario.reference.eventId, "evt_deck_a_recon");
+  assert.equal(afterLeave.body.scenario.reference.location, "loc_deck_a");
+  assert.equal(afterLeave.body.options.some((option) => option.reference?.approachId === "app_deck_luyuan_contact"), true);
   assert.match(mock.prompts[1], /evt_cryo_clearance/);
   assert.match(mock.prompts[1], /app_cryo_leave/);
 
-  const ashAction = afterLeave.body.options.find((option) => option.reference?.approachId === "app_ash_talk_quarantine");
-  assert.ok(ashAction, "抵達 Ash 場景後應提供檢疫交涉 approach");
+  const luyuanAction = afterLeave.body.options.find((option) => option.reference?.approachId === "app_deck_luyuan_contact");
+  assert.ok(luyuanAction, "A 甲板應提供與陸遠交換情報的 approach");
+  const afterLuyuan = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: luyuanAction }),
+    env,
+  }));
+  assert.equal(afterLuyuan.status, 200, JSON.stringify(afterLuyuan.body));
+  assert.equal(afterLuyuan.body.ok, true);
+  assert.match(afterLuyuan.body.narration, /陸遠/);
+  assert.equal(afterLuyuan.body.scenario.reference.eventId, "evt_deck_a_recon");
+  assert.equal(afterLuyuan.body.scenario.reference.sceneTurnCount, 1);
+
+  const scienceRoute = afterLuyuan.body.options.find((option) => option.reference?.approachId === "app_deck_to_science");
+  assert.ok(scienceRoute, "A 甲板應提供前往科學實驗區的 approach");
+  const afterScience = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: scienceRoute }),
+    env,
+  }));
+  assert.equal(afterScience.status, 200, JSON.stringify(afterScience.body));
+  assert.equal(afterScience.body.ok, true);
+  assert.equal(afterScience.body.scenario.reference.eventId, "evt_meet_ash");
+  assert.match(afterScience.body.narration, /Ash|科學實驗區/);
+
+  const ashAction = afterScience.body.options.find((option) => option.reference?.approachId === "app_ash_talk_quarantine");
+  assert.ok(ashAction, "進入科學區後才應提供 Ash 檢疫交涉 approach");
   const afterAsh = await readJson(await playTurn({
-    request: jsonRequest("https://test.local/api/turn", {
-      sessionId,
-      chosenOption: ashAction,
-    }),
+    request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: ashAction }),
     env,
   }));
   assert.equal(afterAsh.status, 200, JSON.stringify(afterAsh.body));
@@ -156,8 +179,10 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.match(afterAsh.body.narration, /Ash/);
   assert.equal(afterAsh.body.scenario.reference.eventId, "evt_meet_ash");
   assert.equal(afterAsh.body.scenario.reference.sceneTurnCount, 1);
-  assert.match(mock.prompts[2], /evt_meet_ash/);
-  assert.match(mock.prompts[2], /Ash 已收到 937 指令/);
+  assert.match(mock.prompts[2], /evt_deck_a_recon/);
+  assert.match(mock.prompts[2], /陸遠/);
+  assert.match(mock.prompts[3], /evt_meet_ash/);
+  assert.match(mock.prompts[3], /evt_meet_ash|937/);
 
   const loaded = await readJson(await getSession({
     request: new Request(`https://test.local/api/session?id=${sessionId}`),
@@ -177,8 +202,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   }
   assert.equal(referenceState.currentSceneId, afterAsh.body.scenario.reference.eventId);
   const referenceActions = referenceActionsFrom(saved);
-  assert.equal(referenceActions.length, 3);
-  assert.equal(saved.history.length >= 3, true);
+  assert.equal(referenceActions.length, 5);
+  assert.equal(saved.history.length >= 5, true);
 
   console.log(JSON.stringify({
     sessionId,
@@ -186,6 +211,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
     openingEvent: opening.body.scenario?.reference?.eventId ?? null,
     afterReconEvent: afterRecon.body.scenario.reference.eventId,
     afterLeaveEvent: afterLeave.body.scenario.reference.eventId,
+    afterLuyuanEvent: afterLuyuan.body.scenario.reference.eventId,
+    afterScienceEvent: afterScience.body.scenario.reference.eventId,
     afterAshEvent: afterAsh.body.scenario.reference.eventId,
     afterAshSceneTurnCount: afterAsh.body.scenario.reference.sceneTurnCount,
     checkOutcomes: [afterRecon.body.outcome.tier, afterAsh.body.outcome.tier],

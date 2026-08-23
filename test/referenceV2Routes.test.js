@@ -35,7 +35,17 @@ test("V2 完整成功路線：從休眠室走到水仙號休眠結算場景", ()
   assert.ok(state.flags.includes("flag_cryo_recon_done"));
 
   state = applyApproach(state, "app_cryo_leave", "成功").state;
-  assert.equal(state.currentSceneId, "evt_meet_ash", "只有明確離開休眠室後才進入 Ash 場景");
+  assert.equal(state.currentSceneId, "evt_deck_a_recon", "離開休眠室後應先進入 A 甲板");
+  assert.equal(state.currentLocation, "loc_deck_a");
+
+  state = applyApproach(state, "app_deck_luyuan_contact", "自動").state;
+  assert.equal(state.currentSceneId, "evt_deck_a_recon", "陸遠交涉是 A 甲板內的多回合行動");
+  assert.ok(state.flags.includes("flag_luyuan_met"));
+  assert.equal(state.npcStatuses.npc_luyuan, "met");
+
+  state = applyApproach(state, "app_deck_to_science", "自動").state;
+  assert.equal(state.currentSceneId, "evt_meet_ash", "明確前往科學區後才進入 Ash 場景");
+  assert.equal(state.currentLocation, "loc_science");
 
   state = applyApproach(state, "app_ash_talk_quarantine", "成功").state;
   assert.equal(state.currentSceneId, "evt_meet_ash");

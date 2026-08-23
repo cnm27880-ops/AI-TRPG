@@ -223,6 +223,6 @@ test("戰鬥紀錄帶著傷害嚴重度標籤(前端與AI用的是同一份文�
 
 test("內建佔位敵人與副本敵人都有預告文案(不然這個功能在實際遊戲裡看不到)", () => {
   assert.ok(PLACEHOLDER_ENEMY.telegraphs.length >= 2);
-  const pack = getScenarioPack("scenario.nostromo-01");
+  const pack = getScenarioPack("scenario.nostromo-01-v2");
   assert.ok(pack.threatEncounter.telegraphs.length >= 2, "異形要有預告文案");
 });

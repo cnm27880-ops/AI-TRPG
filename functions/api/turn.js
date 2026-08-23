@@ -60,7 +60,7 @@ import {
   REFERENCE_TURN_RESPONSE_SCHEMA,
   buildReferenceResponseSpec,
 } from "../../content/turnOptions.js";
-import { getScenarioPack, getScenarioReference } from "../../content/scenario/registry.js";
+import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
 import {
   findActiveNode,
@@ -306,6 +306,16 @@ export async function onRequestPost(context) {
     // 別人的 sessionId 就能替別人推進劇情、消耗他的時間預算。
     if (!canAccessSession(session, await getCurrentUser(context.request, env))) {
       return jsonError(`找不到存檔 ${sessionId}，請先呼叫 POST /api/session 建立`, 404);
+    }
+    if (isRetiredScenarioId(session.scenario?.packId)) {
+      return json({
+        ok: false,
+        retiredScenario: true,
+        scenarioId: session.scenario.packId,
+        error: "這份存檔使用已退役的 V1 異形副本，不能繼續進入舊文字流程；請重新開始 V2《異形：生化深淵》。",
+        sessionId: session.id,
+        persistent: store.persistent,
+      }, 410);
     }
     if (retryPending && !session.pendingTurn) {
       return json({

@@ -7,13 +7,11 @@
 
 import { validateScenarioPack } from "./schema.js";
 import { ECHO_INSTITUTE_SCENARIO } from "./examples/echoInstitute.js";
-import { NOSTROMO_SCENARIO } from "./examples/alienNostromo.js";
 import { NOSTROMO_SCENARIO_V2 } from "./examples/alienNostromo_v2.js";
 import NOSTROMO_REFERENCE from "./examples/alienNostromo_v2_gm_reference.js";
 
-// 舊版諾斯托羅莫號仍保留在註冊表，供舊存檔與明確指定的相容測試使用。
-// 新建角色若沒有另外指定副本，現在一律進入 Alien V2；它才是目前正式測試中的主線版本。
-const ALL_PACKS = [NOSTROMO_SCENARIO_V2, NOSTROMO_SCENARIO, ECHO_INSTITUTE_SCENARIO];
+// V1 已退役，不再註冊或提供給 generic runtime；舊存檔由 API guard 明確拒絕。
+const ALL_PACKS = [NOSTROMO_SCENARIO_V2, ECHO_INSTITUTE_SCENARIO];
 
 const SCENARIO_REFERENCES = Object.freeze({
   "reference.alien-nostromo-01-v2": NOSTROMO_REFERENCE,
@@ -30,6 +28,13 @@ for (const pack of ALL_PACKS) {
 
 /** 沒有指定 scenarioId 時的新建預設副本 —— Alien V2《異形：生化深淵》。 */
 export const DEFAULT_SCENARIO_ID = NOSTROMO_SCENARIO_V2.id;
+
+/** 已退役的 scenario id 不能被舊存檔繼續當成 generic 副本遊玩。 */
+export const RETIRED_SCENARIO_IDS = Object.freeze(new Set(["scenario.nostromo-01"]));
+
+export function isRetiredScenarioId(id) {
+  return RETIRED_SCENARIO_IDS.has(id);
+}
 
 /** @returns {object|null} */
 export function getScenarioPack(id) {

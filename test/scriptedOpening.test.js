@@ -90,8 +90,13 @@ test("固定開頭的選項一樣要通過規則查驗(屬性/技能/難度都�
   const r = await readJson(await turnPost(req(env, { sessionId })));
 
   for (const opt of r.options) {
-    assert.ok(opt.attribute, "查驗過的選項一定帶屬性");
-    assert.ok(Number.isInteger(opt.dc), `選項「${opt.label}」沒有被換算成DC`);
+    if (opt.requiresCheck === false) {
+      assert.equal(opt.attribute, null, `純敘事選項「${opt.label}」的 attribute 應為 null`);
+      assert.equal(opt.dc, null, `純敘事選項「${opt.label}」不應有 DC`);
+    } else {
+      assert.ok(opt.attribute, "需要檢定的選項一定帶屬性");
+      assert.ok(Number.isInteger(opt.dc), `選項「${opt.label}」沒有被換算成DC`);
+    }
   }
   // 查驗過程若對固定開頭的選項提出任何修正，代表副本包寫錯了，應該在測試就抓到
   const openingWarnings = (r.warnings ?? []).filter((w) => w.startsWith("固定開頭選項"));

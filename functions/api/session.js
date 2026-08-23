@@ -12,7 +12,13 @@ import {
   resolveSessionStore,
   newSessionId,
 } from "../../content/storage/sessionStore.js";
-import { getScenarioPack, getScenarioReference, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
+import {
+  getScenarioPack,
+  getScenarioReference,
+  DEFAULT_SCENARIO_ID,
+  listScenarios,
+  isRetiredScenarioId,
+} from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
 import {
   createReferenceState,
@@ -137,6 +143,14 @@ export async function onRequestGet(context) {
   if (!canAccessSession(session, user)) {
     // 刻意回 404 而不是 403：告訴對方「這個ID存在但你不能看」等於確認了它的存在。
     return json({ ok: false, error: `找不到存檔 ${id}` }, 404);
+  }
+  if (isRetiredScenarioId(session.scenario?.packId)) {
+    return json({
+      ok: false,
+      retiredScenario: true,
+      scenarioId: session.scenario.packId,
+      error: "這份存檔使用已退役的 V1 異形副本，不能繼續進入舊文字流程；請重新開始 V2《異形：生化深淵》。",
+    }, 410);
   }
 
   // 登入者手上拿著一份匿名存檔時，順手認領成他的。

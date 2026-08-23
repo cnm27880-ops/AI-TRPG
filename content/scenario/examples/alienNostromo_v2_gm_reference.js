@@ -443,6 +443,11 @@ export default {
       "reveals": "休眠室、機艙、下層甲板與水仙號之間的可達路線"
     },
     {
+      "id": "clue_motion_route",
+      "name": "動作偵測器路線",
+      "reveals": "大型物體曾沿維修走廊朝科學區附近移動"
+    },
+    {
       "id": "clue_ash_synthetic",
       "name": "Ash 的生化人異常",
       "reveals": "Ash 沒有正常的人體生理反應"
@@ -467,6 +472,7 @@ export default {
     ],
     "npcStatus": [
       "alive",
+      "met",
       "injured",
       "critical",
       "suspicious",
@@ -760,74 +766,103 @@ export default {
           },
           "outcomes": {
             "大成功": {
-              "text": "你貼著牆面避開通風口下方的陰影，沿 A 甲板走廊無聲前進。休眠室留在身後，科學區方向傳來一段規律得不像人類的金屬聲。",
+              "text": "你貼著艙壁避開通風格柵，沒有讓鞋底碰到拖痕。走廊的低光把你的身影吞進 A 甲板方向；你沒有驚動船上任何看不見的東西。",
               "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
                 "worldFlagsAdd": [
                   "flag_cryo_cleared",
                   "flag_cryo_left"
                 ],
-                "nextEvent": "evt_meet_ash",
-                "sceneTransition": "advance",
+                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
-                "threatDelta": 0
+                "threatDelta": 0,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
               }
             },
             "成功": {
-              "text": "你避開通風口摸進走廊，沒有驚動藏在管線深處的東西。遠處科學區亮著一盞穩定的白燈；你決定先往那裡確認船艦狀況。",
+              "text": "你壓低身體，沿著艙門邊緣穿進走廊。通風格柵沒有再發出聲音，你已經抵達 A 甲板方向，卻還不知道那道拖痕最後通往哪裡。",
               "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
                 "worldFlagsAdd": [
                   "flag_cryo_cleared",
                   "flag_cryo_left"
                 ],
-                "nextEvent": "evt_meet_ash",
-                "sceneTransition": "advance",
+                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
-                "threatDelta": 1
+                "threatDelta": 0,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
               }
             },
             "驚險成功": {
-              "text": "你成功離開休眠室，但靴底擦過一片鬆動格柵，聲音沿著通風管傳開。你仍然搶在回音消失前進入走廊，科學區的白燈隨即亮了一次。",
+              "text": "你成功離開休眠室，但衣角擦過通風格柵，金屬在身後發出一聲短促的回響。你到了 A 甲板，船上的某個東西也可能聽見了。",
               "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
                 "worldFlagsAdd": [
                   "flag_cryo_cleared",
-                  "flag_cryo_left",
-                  "flag_noise_made"
+                  "flag_noise_made",
+                  "flag_cryo_left"
                 ],
-                "nextEvent": "evt_meet_ash",
-                "sceneTransition": "advance",
+                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
-                "threatDelta": 2
+                "threatDelta": 1,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
               }
             },
             "失敗": {
-              "text": "你在通風口下方停了一秒，管線裡的金屬聲立刻回應。你仍衝進走廊，但遠處有什麼東西已經知道休眠室有人醒來。",
+              "text": "你試圖無聲穿過門縫，肩膀卻撞上卡死的滑軌。警報燈在走廊盡頭亮起，你被迫帶著已經暴露的聲音離開休眠室。",
               "effects": {
                 "worldFlagsAdd": [
                   "flag_cryo_cleared",
-                  "flag_cryo_left",
-                  "flag_noise_made"
+                  "flag_noise_made",
+                  "flag_cryo_left"
                 ],
-                "nextEvent": "evt_meet_ash",
-                "sceneTransition": "advance",
+                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
-                "threatDelta": 2
+                "threatDelta": 2,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
               }
             },
             "慘烈失敗": {
-              "text": "通風口的格柵突然向下凹陷，你在最後一刻翻出門外，前臂卻被掉落的金屬片劃開。走廊盡頭的科學區亮起紅色警示燈。",
+              "text": "你剛繞過格柵，頭頂的金屬片突然下陷。你閃開了最重的一塊，前臂仍被邊緣割開；你帶著傷勢跌進 A 甲板，身後的通風管持續傳來摩擦聲。",
               "effects": {
                 "injuriesAdd": [
                   "bleeding_major"
                 ],
                 "worldFlagsAdd": [
                   "flag_cryo_cleared",
-                  "flag_cryo_left",
-                  "flag_noise_made"
+                  "flag_noise_made",
+                  "flag_cryo_left"
                 ],
-                "nextEvent": "evt_meet_ash",
-                "sceneTransition": "advance",
+                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
-                "threatDelta": 3
+                "threatDelta": 2,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "些微失敗": {
+              "text": "你避開了格柵正下方，卻在門檻處踩到乾硬的皮膜。聲音沿著管線傳開；你仍然離開休眠室，必須在 A 甲板重新判斷下一步。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_noise_made",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 1,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
               }
             }
           }
@@ -838,7 +873,224 @@ export default {
           "loc_deck_a"
         ],
         "canReturn": false,
-        "completeNode": "n1"
+        "completeNode": "n1",
+        "nextByLocation": {
+          "loc_deck_a": "evt_deck_a_recon"
+        }
+      }
+    },
+    {
+      "id": "evt_deck_a_recon",
+      "nodeId": "n1",
+      "location": "loc_deck_a",
+      "phase": "investigation",
+      "defaultTransition": "stay",
+      "exitConditions": [
+        {
+          "playerLeavesLocation": true
+        }
+      ],
+      "purpose": "讓玩家在真正前往科學區或貨艙前，先看見 A 甲板的船況，並與知道副本規則的陸遠建立第一個可持續的 NPC 關係。",
+      "entryKnowledge": [
+        "玩家已離開休眠室",
+        "玩家知道拖痕或異形活動的物理證據",
+        "玩家尚不知道 937 的完整內容"
+      ],
+      "gmTruth": [
+        "陸遠是另一名被主神投放進來的資深輪迴者，不是原船員",
+        "陸遠已在 A 甲板觀察船員失蹤與異形活動，願意提供有限協助",
+        "A 甲板可通往科學實驗區、中央貨艙與橋樓，不應把前往科學區寫成已經完成調查"
+      ],
+      "entryNarration": "A 甲板的照明每隔幾秒暗一次。船員名錄終端停在一張沒有結尾的名單上，牆面靠近通風管的位置留著被酸液咬出的孔洞。檢修梯旁站著一名持槍的人；他沒有穿諾斯托羅莫號的制服，腕上的主神計時器也亮著。看見你後，他先把槍口壓低，才說：「陸遠。先別往亮著的門走。」",
+      "beats": [
+        "確認 A 甲板的船員失蹤與異形痕跡",
+        "與陸遠交換有限情報",
+        "決定前往科學實驗區、中央貨艙或橋樓"
+      ],
+      "approaches": [
+        {
+          "id": "app_deck_luyuan_contact",
+          "label": "先與陸遠交換情報",
+          "intent": "想知道這艘船與異形目前的危險位置",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠沒有追問你從哪裡來，只用槍口指了指通風管與科學區方向。他告訴你，船上的東西會利用聲音和震動移動；如果要查真相，先不要把自己困在沒有第二條出口的房間。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_luyuan_met"
+                ],
+                "npcStatusChanges": {
+                  "npc_luyuan": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_luyuan": 1
+                },
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_scan_motion",
+          "label": "檢查 A 甲板的動作偵測器",
+          "intent": "想確認最近的異形活動方向",
+          "requiresCheck": true,
+          "attribute": "感知",
+          "skill": "偵察",
+          "difficulty": "普通",
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你修正動作偵測器的接點，短暫的綠色回波在螢幕上重疊成一條路線：活動從維修走廊往科學區附近移動，之後訊號消失。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "動作偵測器只恢復了幾秒，但足夠顯示一個大型物體曾沿著維修走廊朝船內移動。訊號在科學區附近中斷。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你看見一段不完整的移動回波，卻也讓偵測器重新發出尖銳提示音。陸遠把你拉離終端；訊號指向科學區，但船上的東西可能已經知道你們的位置。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你只修好電源，沒有得到可靠的移動方向。終端的提示音卻吸引了遠處一陣金屬碰撞；陸遠要求你立刻離開原地。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "偵測器的螢幕在你碰到接點時整片熄滅。遠處的通風管回了一聲沉重的撞擊，陸遠已經拔出槍，要求你們離開終端。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_to_science",
+          "label": "和陸遠一起前往科學實驗區",
+          "intent": "想沿著 A 甲板進入科學區查明 Ash 的行動",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠確認走廊另一端暫時沒有回波，示意你跟上。你們沿著 A 甲板往科學實驗區移動；門內亮著冷白色的分析燈，卻沒有任何船員前來迎接。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_science_route"
+                ],
+                "playerLocation": "loc_science",
+                "sceneTransition": "advance",
+                "nextEvent": "evt_meet_ash",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_to_cargo",
+          "label": "轉往中央貨艙尋找工具",
+          "intent": "想先取得能對付封閉船艙與異形的工具",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠沒有阻止你，只提醒貨艙的起重機與冷卻劑都可能留下聲音。你們轉進中央貨艙的入口，科學區暫時留在身後。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_cargo_route"
+                ],
+                "playerLocation": "loc_cargo",
+                "sceneTransition": "advance",
+                "nextEvent": "evt_trigger_overload",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "normal": [
+          "loc_science",
+          "loc_cargo"
+        ],
+        "nextByLocation": {
+          "loc_science": "evt_meet_ash",
+          "loc_cargo": "evt_trigger_overload"
+        },
+        "canReturn": false
       }
     },
     {
@@ -3653,4 +3905,4 @@ export default {
       "evidence": []
     }
   }
-}
+};

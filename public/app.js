@@ -7,6 +7,7 @@ let currentSessionId = null;
 let chargenRules = null;
 
 const SESSION_KEY = "ai-trpg-session-id";
+const RETIRED_SCENARIO_ID = "scenario.nostromo-01";
 
 /**
  * 前端這邊要知道的供應商差異——只有三件事：要不要金鑰、要不要自己填Base URL、有沒有預設模型。
@@ -2482,7 +2483,9 @@ async function checkLocalSession() {
   // 這時候仍然要讓他在首頁直接看得到、點得到——那正是登入的意義。
   if (currentUser) await refreshSessionList();
 
-  const fallback = currentUser ? mySessions[0] : null; // 清單已依最近更新排序
+  const fallback = currentUser
+    ? mySessions.find((session) => session.scenarioId !== RETIRED_SCENARIO_ID)
+    : null; // 清單已依最近更新排序
   const targetId = savedId || fallback?.id;
   if (!targetId) {
     if (box) box.style.display = "none";
@@ -2518,8 +2521,14 @@ async function checkLocalSession() {
         }
       }
     } else {
-      // 角色檔案查不到不是壞事（可能只是舊 ID），但也不該完全靜音——留給 F12 看得到。
-      console.warn("[SESSION_LOOKUP] 記著的存檔ID讀不到：", targetId, res.error);
+      if (res.retiredScenario || res.scenarioId === RETIRED_SCENARIO_ID) {
+        if (localStorage.getItem(SESSION_KEY) === targetId) localStorage.removeItem(SESSION_KEY);
+        resumeTargetId = null;
+        console.warn("[RETIRED_SCENARIO]", res.error);
+      } else {
+        // 角色檔案查不到不是壞事（可能只是舊 ID），但也不該完全靜音——留給 F12 看得到。
+        console.warn("[SESSION_LOOKUP] 記著的存檔ID讀不到：", targetId, res.error);
+      }
       if (box) box.style.display = "none";
     }
   } catch (err) {
@@ -2601,7 +2610,13 @@ async function resumeLocalSession() {
 
 async function resumeSession(id) {
   const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}&view=runtime`)).json();
-  if (!res.ok) throw new Error(res.error || "讀取輪迴者檔案失敗");
+  if (!res.ok) {
+    if (res.retiredScenario || res.scenarioId === RETIRED_SCENARIO_ID) {
+      if (localStorage.getItem(SESSION_KEY) === id) localStorage.removeItem(SESSION_KEY);
+      resumeTargetId = null;
+    }
+    throw new Error(res.error || "讀取輪迴者檔案失敗");
+  }
 
   currentSessionId = id;
   localStorage.setItem(SESSION_KEY, id);
@@ -3140,7 +3155,7 @@ async function refreshSessionList() {
   if (status) status.textContent = "讀取中…";
   try {
     const res = await (await fetch("/api/session")).json();
-    mySessions = res.sessions ?? [];
+    mySessions = (res.sessions ?? []).filter((session) => session.scenarioId !== RETIRED_SCENARIO_ID);
     renderSessionList(mySessions);
     if (status) status.textContent = `${mySessions.length} 名`;
   } catch (err) {

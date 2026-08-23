@@ -57,7 +57,7 @@ test("free input can match a reference approach without keyword checkIntent", ()
   assert.equal(resolution.approach.id, "app_cryo_recon");
 });
 
-test("reference success stays in cryo until the player explicitly leaves", () => {
+test("reference success stays in cryo, then enters A deck before Ash", () => {
   const character = emptyCharacter("測試者");
   const state = createReferenceState(reference);
   const options = buildReferenceOptions(reference, state);
@@ -78,10 +78,23 @@ test("reference success stays in cryo until the player explicitly leaves", () =>
 
   const leave = buildReferenceOptions(reference, recon.state).find((option) => option.reference.approachId === "app_cryo_leave");
   const leaveResolution = resolveReferenceAction({ reference, state: recon.state, chosenOption: leave, character });
-  const exited = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
+  const deck = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
+  assert.equal(deck.state.currentSceneId, "evt_deck_a_recon");
+  assert.equal(deck.state.currentLocation, "loc_deck_a");
+  assert.equal(deck.nodeComplete, null, "離開休眠室只應進入 A 甲板，不應提前完成主線節點");
+
+  const contact = buildReferenceOptions(reference, deck.state).find((option) => option.reference.approachId === "app_deck_luyuan_contact");
+  const contactResolution = resolveReferenceAction({ reference, state: deck.state, chosenOption: contact, character });
+  const met = applyReferenceResult({ reference, state: deck.state, resolution: contactResolution, outcomeTier: "自動" });
+  assert.ok(met.state.flags.includes("flag_luyuan_met"));
+  assert.equal(met.state.npcStatuses.npc_luyuan, "met");
+
+  const science = buildReferenceOptions(reference, met.state).find((option) => option.reference.approachId === "app_deck_to_science");
+  const scienceResolution = resolveReferenceAction({ reference, state: met.state, chosenOption: science, character });
+  const exited = applyReferenceResult({ reference, state: met.state, resolution: scienceResolution, outcomeTier: "自動" });
   assert.equal(exited.state.currentSceneId, "evt_meet_ash");
   assert.equal(exited.state.currentLocation, "loc_science");
-  assert.equal(exited.nodeComplete, null, "同一 n1 節點的 scene 轉場不應提前完成節點");
+  assert.equal(exited.nodeComplete, null, "前往 Ash 場景不應提前完成主線節點");
 });
 
 test("multi-turn Ash scene stays in place and advances only on an explicit exit result", () => {
@@ -92,7 +105,13 @@ test("multi-turn Ash scene stays in place and advances only on an explicit exit 
   const recon = applyReferenceResult({ reference, state: openingState, resolution: openingResolution, outcomeTier: "成功" });
   const leaveOption = buildReferenceOptions(reference, recon.state).find((option) => option.reference.approachId === "app_cryo_leave");
   const leaveResolution = resolveReferenceAction({ reference, state: recon.state, chosenOption: leaveOption, character });
-  const entered = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
+  const deck = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
+  const contactOption = buildReferenceOptions(reference, deck.state).find((option) => option.reference.approachId === "app_deck_luyuan_contact");
+  const contactResolution = resolveReferenceAction({ reference, state: deck.state, chosenOption: contactOption, character });
+  const met = applyReferenceResult({ reference, state: deck.state, resolution: contactResolution, outcomeTier: "自動" });
+  const scienceOption = buildReferenceOptions(reference, met.state).find((option) => option.reference.approachId === "app_deck_to_science");
+  const scienceResolution = resolveReferenceAction({ reference, state: met.state, chosenOption: scienceOption, character });
+  const entered = applyReferenceResult({ reference, state: met.state, resolution: scienceResolution, outcomeTier: "自動" });
   assert.equal(entered.state.currentSceneId, "evt_meet_ash");
 
   const ashOption = buildReferenceOptions(reference, entered.state).find((option) => option.reference.approachId === "app_ash_talk_quarantine");

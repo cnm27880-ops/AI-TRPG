@@ -45,8 +45,8 @@ function makeEnv() {
 const req = (env, body) => ({ request: { json: async () => body }, env });
 const rj = async (res) => JSON.parse(await res.text());
 
-async function startGame(env, draft = SPECIALIST, scenarioId = "scenario.nostromo-01") {
-  // 這裡測的是通用 AI turn guidance；明確指定舊版範例，避免 V2 的 reference opening 改變測試的起始牌組。
+async function startGame(env, draft = SPECIALIST, scenarioId = "scenario.echo-institute-01") {
+  // 這裡測的是通用 AI turn guidance；明確指定沒有 reference 的 Echo，避免 V2 opening 改變測試的起始牌組。
   const s = await rj(await sessionPost(req(env, { draft, scenarioId })));
   assert.equal(s.ok, true, JSON.stringify(s.errors ?? s.error));
   const opening = await rj(await turnPost(req(env, { sessionId: s.session.id })));
@@ -122,7 +122,7 @@ test("套路懲罰會寫進prompt，讓AI把難度變化寫成劇情而不是憑
 
   const lastPrompt = env.prompts.at(-1);
   assert.match(lastPrompt, /同一套路連續第/);
-  assert.match(lastPrompt, /異形/, "反制的主體要用副本自己的威脅名稱，不是通用的「威脅」");
+  assert.match(lastPrompt, /威脅|容器|回聲/, "反制的主體要使用當前副本的威脅上下文，而不是把 V2 異形文字硬塞進 generic prompt");
 });
 
 test("回應要帶上玩家看得懂的目標與副本簡介（不是只有節點標題那句謎語）", async () => {

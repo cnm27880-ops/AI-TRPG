@@ -14,7 +14,7 @@ import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore, newSessionId } from "../content/storage/sessionStore.js";
 import { DEFAULT_SCENARIO_ID, getScenarioPack } from "../content/scenario/registry.js";
 
-const LEGACY_SCENARIO_ID = "scenario.nostromo-01";
+const LEGACY_SCENARIO_ID = "scenario.echo-institute-01";
 
 const DRAFT = {
   concept: { name: "測試輪迴者", gender: "男" },
@@ -54,10 +54,9 @@ async function readJson(res) {
   return JSON.parse(await res.text());
 }
 
-test("副本整合：開場不消耗節點，三個主線節點依序完成，最終戰只能透過戰鬥結算", async () => {
-  // 注意腳本第一段對應的是**玩家的第一個行動**，不是開場。
-  // 預設副本(新手副本)的開場是固定文字、不呼叫AI（見 functions/api/turn.js 的開場短路），
-  // 所以假AI binding 的第一次呼叫發生在玩家做出第一個選擇之後。
+test("generic 副本整合：三個主線節點依序完成，最終戰只能透過戰鬥結算", async () => {
+  // 這組測試驗證 generic nodeComplete／combat 串接，因此明確使用沒有 reference
+  // 的 Echo 範例；V2 異形的 reference pacing 由 referenceV2* 測試覆蓋。
   const env = makeEnv([
     { narration: "節點一完成", nodeComplete: { divergenceTier: 0 } },
     { narration: "節點二完成", nodeComplete: { divergenceTier: 1 } },
@@ -71,16 +70,16 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
   assert.equal(r.session.scenario.packId, LEGACY_SCENARIO_ID);
   const sessionId = r.session.id;
 
-  // 開場：不應該有任何節點被完成，而且這一回合是固定開頭（不經過AI）
+  // Echo 沒有 scripted opening；第一次 turn 由 generic AI nodeComplete 完成 n1。
   r = await readJson(await turnPost(req(env, { sessionId })));
-  assert.equal(r.scenario.nodeCompleted, null);
-  assert.equal(r.degraded.narrationSource, "scripted", "開場應該用副本自帶的固定開頭");
-  assert.equal(r.options.length, 4, "固定開頭一樣要給滿四個選項");
-  const firstNodeId = r.scenario.activeNode.id;
+  assert.equal(r.ok, true);
+  assert.ok(r.scenario.nodeCompleted, "generic opening 應完成第一個節點");
+  assert.equal(r.scenario.nodeCompleted.nodeId, "n1");
+  const firstNodeId = r.scenario.nodeCompleted.nodeId;
 
-  // 三個主線節點依序完成
-  const completedIds = [];
-  for (let n = 0; n < 3; n++) {
+  // 其餘兩個主線節點依序完成，最終戰節點留給 combat。
+  const completedIds = [firstNodeId];
+  for (let n = 1; n < 3; n++) {
     r = await readJson(await turnPost(req(env, { sessionId, playerAction: `推進第${n + 1}步` })));
     assert.equal(r.ok, true);
     assert.ok(r.scenario.nodeCompleted, `第${n + 1}次行動應該要完成一個節點`);
@@ -176,6 +175,27 @@ test("副本整合：指定不存在的scenarioId要被明確擋下，不會靜�
   const r = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: "scenario.not-exist" })));
   assert.equal(r.ok, false);
   assert.match(r.error, /找不到副本/);
+});
+
+test("退役 V1 存檔不能再進入舊文字流程，必須重新開始 V2", async () => {
+  const env = {};
+  const created = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: "scenario.nostromo-01-v2" })));
+  assert.equal(created.ok, true);
+  const sessionId = created.session.id;
+  const store = resolveSessionStore(env);
+  const saved = await store.get(sessionId);
+  saved.scenario.packId = "scenario.nostromo-01";
+  await store.put(saved);
+
+  const loaded = await sessionGet({ request: new Request(`https://test.local/api/session?id=${sessionId}`), env });
+  const loadedBody = await loaded.json();
+  assert.equal(loaded.status, 410);
+  assert.equal(loadedBody.retiredScenario, true);
+
+  const turn = await turnPost(req(env, { sessionId }));
+  const turnBody = await turn.json();
+  assert.equal(turn.status, 410);
+  assert.equal(turnBody.retiredScenario, true);
 });
 
 test("副本整合：讀取存檔時就要一起回副本HUD，不能等到玩家再打一個回合才長出來", async () => {

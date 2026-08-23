@@ -1,17 +1,31 @@
 {
   "schemaVersion": "alien-gm-reference-1.0",
   "sourcePackId": "scenario.nostromo-01-v2",
-  "startingInventory": ["item_desert_eagle", "item_emergency_medkit"],
+  "startingInventory": [
+    "item_desert_eagle",
+    "item_emergency_medkit"
+  ],
   "title": "《異形：生化深淵》AI GM 事件參考資料",
   "directRuntimeLoad": false,
-  "finaleNodeIds": ["n4"],
+  "finaleNodeIds": [
+    "n4"
+  ],
   "runtimeNote": "scenario runtime 透過 registry 與 referenceAdapter 載入本 sidecar，並使用其中的事件、物品、NPC 狀態、effects、轉場與結局條件；本檔案仍不應直接註冊到現有 SCENARIO_REGISTRY。",
   "authoringRules": {
     "truthOwner": "engine_and_reference_data",
     "narrationOwner": "llm",
     "checkOwner": "engine",
     "difficultyOwner": "reference_data",
-    "allowedOutcomeTiers": ["大成功", "成功", "驚險成功", "些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"],
+    "allowedOutcomeTiers": [
+      "大成功",
+      "成功",
+      "驚險成功",
+      "些微失敗",
+      "失敗",
+      "慘烈失敗",
+      "自動失敗",
+      "大失敗(命定)"
+    ],
     "difficultyToDc": {
       "容易": 1,
       "普通": 2,
@@ -48,79 +62,219 @@
     {
       "id": "loc_cryo",
       "name": "休眠室",
-      "connections": ["loc_deck_a", "loc_service_corridor"],
-      "features": ["六具空休眠艙", "手電筒", "半開艙門", "通風格柵", "醫療監控貼片"],
-      "hazards": ["通風管異響", "低照度", "拖行痕跡"]
+      "connections": [
+        "loc_deck_a",
+        "loc_service_corridor"
+      ],
+      "features": [
+        "六具空休眠艙",
+        "手電筒",
+        "半開艙門",
+        "通風格柵",
+        "醫療監控貼片"
+      ],
+      "hazards": [
+        "通風管異響",
+        "低照度",
+        "拖行痕跡"
+      ]
     },
     {
       "id": "loc_service_corridor",
       "name": "服務維修走廊",
-      "connections": ["loc_cryo", "loc_science", "loc_lower_deck"],
-      "features": ["維修梯", "側門", "狹窄管線槽"],
-      "hazards": ["低照度", "門禁鎖定", "異形可能沿管線移動"]
+      "connections": [
+        "loc_cryo",
+        "loc_science",
+        "loc_lower_deck"
+      ],
+      "features": [
+        "維修梯",
+        "側門",
+        "狹窄管線槽"
+      ],
+      "hazards": [
+        "低照度",
+        "門禁鎖定",
+        "異形可能沿管線移動"
+      ]
     },
     {
       "id": "loc_deck_a",
       "name": "A 甲板主走廊",
-      "connections": ["loc_cryo", "loc_bridge", "loc_science", "loc_cargo"],
-      "features": ["船員名錄終端", "損壞的動作偵測器", "維修通道入口"],
-      "hazards": ["照明間歇失效", "血痕與酸液", "異形可能沿天花板移動"]
+      "connections": [
+        "loc_cryo",
+        "loc_bridge",
+        "loc_science",
+        "loc_cargo"
+      ],
+      "features": [
+        "船員名錄終端",
+        "損壞的動作偵測器",
+        "維修通道入口"
+      ],
+      "hazards": [
+        "照明間歇失效",
+        "血痕與酸液",
+        "異形可能沿天花板移動"
+      ]
     },
     {
       "id": "loc_bridge",
       "name": "橋樓",
-      "connections": ["loc_deck_a", "loc_mother_core"],
-      "features": ["MU-TH-UR 介面", "航行資料", "通訊台"],
-      "hazards": ["權限鎖定", "公司資料刪除程序"]
+      "connections": [
+        "loc_deck_a",
+        "loc_mother_core"
+      ],
+      "features": [
+        "MU-TH-UR 介面",
+        "航行資料",
+        "通訊台"
+      ],
+      "hazards": [
+        "權限鎖定",
+        "公司資料刪除程序"
+      ]
     },
     {
       "id": "loc_science",
       "name": "科學實驗區",
-      "connections": ["loc_deck_a", "loc_mother_core", "loc_service_corridor"],
-      "features": ["顯微鏡", "冷卻槽", "醫療掃描儀", "Ash 的分析台"],
-      "hazards": ["污染樣本", "化學噴淋", "Ash 的監控"]
+      "connections": [
+        "loc_deck_a",
+        "loc_mother_core",
+        "loc_service_corridor"
+      ],
+      "features": [
+        "顯微鏡",
+        "冷卻槽",
+        "醫療掃描儀",
+        "Ash 的分析台"
+      ],
+      "hazards": [
+        "污染樣本",
+        "化學噴淋",
+        "Ash 的監控"
+      ]
     },
     {
       "id": "loc_mother_core",
       "name": "MU-TH-UR 主機核心房",
-      "connections": ["loc_bridge", "loc_science", "loc_engine"],
-      "features": ["特別指令終端", "機械打字機介面", "核心權限端口"],
-      "hazards": ["未授權存取警報", "Ash 追蹤", "防火牆鎖定"]
+      "connections": [
+        "loc_bridge",
+        "loc_science",
+        "loc_engine"
+      ],
+      "features": [
+        "特別指令終端",
+        "機械打字機介面",
+        "核心權限端口"
+      ],
+      "hazards": [
+        "未授權存取警報",
+        "Ash 追蹤",
+        "防火牆鎖定"
+      ]
     },
     {
       "id": "loc_cargo",
       "name": "中央貨艙",
-      "connections": ["loc_deck_a", "loc_lower_deck", "loc_narcissus_airlock"],
-      "features": ["集裝箱", "起重機", "冷卻劑", "備用工具"],
-      "hazards": ["狹窄視線", "貨物倒塌", "通風管交錯"]
+      "connections": [
+        "loc_deck_a",
+        "loc_lower_deck",
+        "loc_narcissus_airlock"
+      ],
+      "features": [
+        "集裝箱",
+        "起重機",
+        "冷卻劑",
+        "備用工具"
+      ],
+      "hazards": [
+        "狹窄視線",
+        "貨物倒塌",
+        "通風管交錯"
+      ]
     },
     {
       "id": "loc_engine",
       "name": "機艙與反應爐控制區",
-      "connections": ["loc_mother_core", "loc_lower_deck", "loc_narcissus_airlock"],
-      "features": ["主機超載控制台", "冷卻閥", "高壓蒸氣管", "手動脫離控制"],
-      "hazards": ["高溫", "蒸氣", "電弧", "倒數啟動後的不可逆超載"]
+      "connections": [
+        "loc_mother_core",
+        "loc_lower_deck",
+        "loc_narcissus_airlock"
+      ],
+      "features": [
+        "主機超載控制台",
+        "冷卻閥",
+        "高壓蒸氣管",
+        "手動脫離控制"
+      ],
+      "hazards": [
+        "高溫",
+        "蒸氣",
+        "電弧",
+        "倒數啟動後的不可逆超載"
+      ]
     },
     {
       "id": "loc_lower_deck",
       "name": "下層維修甲板",
-      "connections": ["loc_cargo", "loc_engine", "loc_narcissus_airlock"],
-      "features": ["維修梯", "通風管", "重型安全門", "燃料管線"],
-      "hazards": ["坍塌", "火焰", "異形伏擊", "失去照明"]
+      "connections": [
+        "loc_cargo",
+        "loc_engine",
+        "loc_narcissus_airlock"
+      ],
+      "features": [
+        "維修梯",
+        "通風管",
+        "重型安全門",
+        "燃料管線"
+      ],
+      "hazards": [
+        "坍塌",
+        "火焰",
+        "異形伏擊",
+        "失去照明"
+      ]
     },
     {
       "id": "loc_narcissus_airlock",
       "name": "水仙號接駁氣閘",
-      "connections": ["loc_cargo", "loc_engine", "loc_lower_deck", "loc_narcissus"],
-      "features": ["氣閘門", "安全繩固定點", "手動脫離桿", "紅色排氣拉桿"],
-      "hazards": ["真空失壓", "酸液", "結構坍塌"]
+      "connections": [
+        "loc_cargo",
+        "loc_engine",
+        "loc_lower_deck",
+        "loc_narcissus"
+      ],
+      "features": [
+        "氣閘門",
+        "安全繩固定點",
+        "手動脫離桿",
+        "紅色排氣拉桿"
+      ],
+      "hazards": [
+        "真空失壓",
+        "酸液",
+        "結構坍塌"
+      ]
     },
     {
       "id": "loc_narcissus",
       "name": "水仙號駕駛艙",
-      "connections": ["loc_narcissus_airlock"],
-      "features": ["主推進器點火台", "低溫休眠艙", "生命維持管線", "防暴魚叉槍架"],
-      "hazards": ["無隔間", "艙壁脆弱", "異形藏匿", "開啟氣閘時的失壓"]
+      "connections": [
+        "loc_narcissus_airlock"
+      ],
+      "features": [
+        "主推進器點火台",
+        "低溫休眠艙",
+        "生命維持管線",
+        "防暴魚叉槍架"
+      ],
+      "hazards": [
+        "無隔間",
+        "艙壁脆弱",
+        "異形藏匿",
+        "開啟氣閘時的失壓"
+      ]
     }
   ],
   "npcs": [
@@ -129,74 +283,249 @@
       "name": "陸遠",
       "role": "資深輪迴者／臨時隊伍引導者",
       "initialStatus": "alive",
-      "knowledge": ["主神副本規則", "異形的酸血與通風管習性", "水仙號位置", "玩家不是原船員"],
-      "privateGoals": ["讓至少一名新人活著離開", "避免自己再次被異形近距離捕獲"],
+      "knowledge": [
+        "主神副本規則",
+        "異形的酸血與通風管習性",
+        "水仙號位置",
+        "玩家不是原船員"
+      ],
+      "privateGoals": [
+        "讓至少一名新人活著離開",
+        "避免自己再次被異形近距離捕獲"
+      ],
       "fearThreshold": "threat_stage=接觸 時可能進入掩護或犧牲策略",
-      "memoryRules": ["若玩家救過陸遠，信任上升並願意協同", "若玩家把陸遠當誘餌，信任下降且後續只提供必要協助", "若玩家造成陸遠死亡，後續世界只保存死亡事實與玩家是否在場"]
+      "memoryRules": [
+        "若玩家救過陸遠，信任上升並願意協同",
+        "若玩家把陸遠當誘餌，信任下降且後續只提供必要協助",
+        "若玩家造成陸遠死亡，後續世界只保存死亡事實與玩家是否在場"
+      ]
     },
     {
       "id": "npc_ash",
       "name": "Ash",
       "role": "科學官／生化人／937 執行者",
       "initialStatus": "alive",
-      "knowledge": ["樣本真實價值", "特別指令 937", "MU-TH-UR 權限", "部分水仙號系統資料"],
-      "privateGoals": ["保護並回收異形樣本", "確保 937 指令不因船員行動而失敗", "在必要時消滅阻礙者"],
-      "hardConstraints": ["普通交涉不能解除 937 核心命令", "不能在沒有代價的情況下交出完整弱點", "若玩家直接破壞樣本，敵對等級至少升至 hostile"],
-      "memoryRules": ["玩家曾偷看終端時，Ash 後續會優先封鎖情報路線", "玩家曾保護樣本時，Ash 可暫時利用玩家而非立刻攻擊", "玩家摧毀 Ash 後，後續副本可承接權限卡或殘存錄音"]
+      "knowledge": [
+        "樣本真實價值",
+        "特別指令 937",
+        "MU-TH-UR 權限",
+        "部分水仙號系統資料"
+      ],
+      "privateGoals": [
+        "保護並回收異形樣本",
+        "確保 937 指令不因船員行動而失敗",
+        "在必要時消滅阻礙者"
+      ],
+      "hardConstraints": [
+        "普通交涉不能解除 937 核心命令",
+        "不能在沒有代價的情況下交出完整弱點",
+        "若玩家直接破壞樣本，敵對等級至少升至 hostile"
+      ],
+      "memoryRules": [
+        "玩家曾偷看終端時，Ash 後續會優先封鎖情報路線",
+        "玩家曾保護樣本時，Ash 可暫時利用玩家而非立刻攻擊",
+        "玩家摧毀 Ash 後，後續副本可承接權限卡或殘存錄音"
+      ]
     },
     {
       "id": "npc_ripley",
       "name": "Ripley",
       "role": "原船員／理性生存者",
       "initialStatus": "alive",
-      "knowledge": ["船員失蹤的實況", "Ash 的可疑行為", "母船不值得信任"],
-      "privateGoals": ["保護仍然活著的人", "阻止樣本被公司帶走"],
-      "memoryRules": ["若存活並親眼見證玩家選擇，後續可成為可靠證人或懷疑者", "若未與玩家同場，不能直接知道玩家未公開的行動"]
+      "knowledge": [
+        "船員失蹤的實況",
+        "Ash 的可疑行為",
+        "母船不值得信任"
+      ],
+      "privateGoals": [
+        "保護仍然活著的人",
+        "阻止樣本被公司帶走"
+      ],
+      "memoryRules": [
+        "若存活並親眼見證玩家選擇，後續可成為可靠證人或懷疑者",
+        "若未與玩家同場，不能直接知道玩家未公開的行動"
+      ]
     },
     {
       "id": "npc_parker",
       "name": "Parker",
       "role": "工程師／自毀程序協助者",
       "initialStatus": "alive",
-      "knowledge": ["機艙、冷卻閥、蒸氣管與手動超載程序"],
-      "privateGoals": ["讓工程系統不要在自己眼前把所有人燒死", "若無法逃生，至少讓危險不要落入公司手中"]
+      "knowledge": [
+        "機艙、冷卻閥、蒸氣管與手動超載程序"
+      ],
+      "privateGoals": [
+        "讓工程系統不要在自己眼前把所有人燒死",
+        "若無法逃生，至少讓危險不要落入公司手中"
+      ]
     },
     {
       "id": "npc_lambert",
       "name": "Lambert",
       "role": "導航員／壓力反應明顯的船員",
       "initialStatus": "alive",
-      "knowledge": ["導航與水仙號脫離路線"],
-      "privateGoals": ["遠離異形", "在其他人做出決定前保住自己"]
+      "knowledge": [
+        "導航與水仙號脫離路線"
+      ],
+      "privateGoals": [
+        "遠離異形",
+        "在其他人做出決定前保住自己"
+      ]
     }
   ],
   "items": [
-    { "id": "item_flashlight", "name": "手電筒", "kind": "utility", "carryOver": false },
-    { "id": "item_desert_eagle", "name": "沙漠之鷹", "kind": "weapon", "carryOver": true },
-    { "id": "item_blowtorch", "name": "焊槍", "kind": "tool", "carryOver": false },
-    { "id": "item_access_card", "name": "科學官權限卡", "kind": "access", "carryOver": true },
-    { "id": "item_coolant_spray", "name": "低溫冷卻噴霧", "kind": "defense", "carryOver": false },
-    { "id": "item_harpoon_gun", "name": "水仙號防暴魚叉槍", "kind": "weapon", "carryOver": true },
-    { "id": "item_order_937_doc", "name": "特別指令 937 實體記錄", "kind": "evidence", "carryOver": true },
-    { "id": "item_xenomorph_tissue", "name": "異形生物組織樣本", "kind": "biological_sample", "carryOver": true },
-    { "id": "item_emergency_medkit", "name": "緊急醫療包", "kind": "medical", "carryOver": false }
+    {
+      "id": "item_flashlight",
+      "name": "手電筒",
+      "kind": "utility",
+      "carryOver": false
+    },
+    {
+      "id": "item_desert_eagle",
+      "name": "沙漠之鷹",
+      "kind": "weapon",
+      "carryOver": true
+    },
+    {
+      "id": "item_blowtorch",
+      "name": "焊槍",
+      "kind": "tool",
+      "carryOver": false
+    },
+    {
+      "id": "item_access_card",
+      "name": "科學官權限卡",
+      "kind": "access",
+      "carryOver": true
+    },
+    {
+      "id": "item_coolant_spray",
+      "name": "低溫冷卻噴霧",
+      "kind": "defense",
+      "carryOver": false
+    },
+    {
+      "id": "item_harpoon_gun",
+      "name": "水仙號防暴魚叉槍",
+      "kind": "weapon",
+      "carryOver": true
+    },
+    {
+      "id": "item_order_937_doc",
+      "name": "特別指令 937 實體記錄",
+      "kind": "evidence",
+      "carryOver": true
+    },
+    {
+      "id": "item_xenomorph_tissue",
+      "name": "異形生物組織樣本",
+      "kind": "biological_sample",
+      "carryOver": true
+    },
+    {
+      "id": "item_emergency_medkit",
+      "name": "緊急醫療包",
+      "kind": "medical",
+      "carryOver": false
+    }
   ],
   "clues": [
-    { "id": "clue_alien_trace", "name": "異形活動痕跡", "reveals": "船上存在能經通風管移動的非人掠食者" },
-    { "id": "clue_ship_map", "name": "船艦配置圖", "reveals": "休眠室、機艙、下層甲板與水仙號之間的可達路線" },
-    { "id": "clue_ash_synthetic", "name": "Ash 的生化人異常", "reveals": "Ash 沒有正常的人體生理反應" },
-    { "id": "clue_order_937", "name": "特別指令 937", "reveals": "樣本優先，船員可犧牲" },
-    { "id": "clue_narcissus_prep", "name": "水仙號處置資料", "reveals": "氣閘、推進器、安全繩與低溫休眠艙的操作條件" }
+    {
+      "id": "clue_alien_trace",
+      "name": "異形活動痕跡",
+      "reveals": "船上存在能經通風管移動的非人掠食者"
+    },
+    {
+      "id": "clue_ship_map",
+      "name": "船艦配置圖",
+      "reveals": "休眠室、機艙、下層甲板與水仙號之間的可達路線"
+    },
+    {
+      "id": "clue_motion_route",
+      "name": "動作偵測器路線",
+      "reveals": "大型物體曾沿維修走廊朝科學區附近移動"
+    },
+    {
+      "id": "clue_ash_synthetic",
+      "name": "Ash 的生化人異常",
+      "reveals": "Ash 沒有正常的人體生理反應"
+    },
+    {
+      "id": "clue_order_937",
+      "name": "特別指令 937",
+      "reveals": "樣本優先，船員可犧牲"
+    },
+    {
+      "id": "clue_narcissus_prep",
+      "name": "水仙號處置資料",
+      "reveals": "氣閘、推進器、安全繩與低溫休眠艙的操作條件"
+    }
   ],
   "stateSchema": {
-    "threatStage": ["潛伏", "追蹤", "貼近", "接觸"],
-    "npcStatus": ["alive", "injured", "critical", "suspicious", "destroyed", "dead", "survived"],
-    "infectionStatus": ["unknown", "suspected", "infected", "cleared"],
-    "sampleStatus": ["none", "tissue", "preserved", "destroyed"],
-    "shipStatus": ["stable", "damaged", "overload_started", "destroyed"],
-    "airlockPhase": ["unseen", "approach", "positioned", "depressurizing", "secured"],
-    "playerLocation": ["loc_cryo", "loc_deck_a", "loc_bridge", "loc_science", "loc_mother_core", "loc_cargo", "loc_engine", "loc_lower_deck", "loc_narcissus_airlock", "loc_narcissus"],
-    "injuryIds": ["acid_burn_minor", "acid_burn_major", "fracture_arm", "fracture_leg", "burn_minor", "burn_major", "bleeding_major", "suffocation_major", "unconscious"]
+    "threatStage": [
+      "潛伏",
+      "追蹤",
+      "貼近",
+      "接觸"
+    ],
+    "npcStatus": [
+      "alive",
+      "met",
+      "injured",
+      "critical",
+      "suspicious",
+      "destroyed",
+      "dead",
+      "survived"
+    ],
+    "infectionStatus": [
+      "unknown",
+      "suspected",
+      "infected",
+      "cleared"
+    ],
+    "sampleStatus": [
+      "none",
+      "tissue",
+      "preserved",
+      "destroyed"
+    ],
+    "shipStatus": [
+      "stable",
+      "damaged",
+      "overload_started",
+      "destroyed"
+    ],
+    "airlockPhase": [
+      "unseen",
+      "approach",
+      "positioned",
+      "depressurizing",
+      "secured"
+    ],
+    "playerLocation": [
+      "loc_cryo",
+      "loc_deck_a",
+      "loc_bridge",
+      "loc_science",
+      "loc_mother_core",
+      "loc_cargo",
+      "loc_engine",
+      "loc_lower_deck",
+      "loc_narcissus_airlock",
+      "loc_narcissus"
+    ],
+    "injuryIds": [
+      "acid_burn_minor",
+      "acid_burn_major",
+      "fracture_arm",
+      "fracture_leg",
+      "burn_minor",
+      "burn_major",
+      "bleeding_major",
+      "suffocation_major",
+      "unconscious"
+    ]
   },
   "scenes": [
     {
@@ -206,10 +535,22 @@
       "phase": "awakening",
       "defaultTransition": "stay",
       "purpose": "讓玩家理解自己在封閉船艦內、知道逃生目標，並在第一次選擇前看見異形留下的物理證據。",
-      "entryKnowledge": ["玩家知道自己被投放進陌生副本", "玩家不知道船員去哪裡", "玩家尚未知道 937 或 Ash 真相"],
-      "gmTruth": ["休眠室的六具空艙代表原船員已經離開或死亡，不直接證明每人死因", "拖痕與通風管聲音來自異形活動，但異形不必在本回合出現"],
+      "entryKnowledge": [
+        "玩家知道自己被投放進陌生副本",
+        "玩家不知道船員去哪裡",
+        "玩家尚未知道 937 或 Ash 真相"
+      ],
+      "gmTruth": [
+        "休眠室的六具空艙代表原船員已經離開或死亡，不直接證明每人死因",
+        "拖痕與通風管聲音來自異形活動，但異形不必在本回合出現"
+      ],
       "entryNarration": "防護罩散開後，休眠室只剩船艦的低頻震動。七座休眠艙中六座是空的，內襯仍保留著人形凹痕；半開的艙門外有一道拖行痕跡，旁邊的手電筒還亮著。擴音器反覆要求全體船員前往 A 甲板，通風管深處則傳來一次短促的金屬受壓聲。",
-      "beats": ["確認休眠室與空艙", "取得第一件工具或線索", "決定是否與母親通話", "離開或封鎖休眠室"],
+      "beats": [
+        "確認休眠室與空艙",
+        "取得第一件工具或線索",
+        "決定是否與母親通話",
+        "離開或封鎖休眠室"
+      ],
       "approaches": [
         {
           "id": "app_cryo_recon",
@@ -219,14 +560,108 @@
           "attribute": "感知",
           "skill": "偵察",
           "difficulty": "容易",
-          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_cryo_recon_done"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_cryo_recon_done"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "手電筒的光束沿著拖痕推進，照出牆面上新鮮的刮痕與一小片半透明皮膜。你不只確認痕跡通往 A 甲板，還在地面找到一枚仍有電的備用電池。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
-            "成功": { "text": "光束照出拖痕穿過門縫，末端消失在 A 甲板方向。痕跡旁的黏液還沒有乾，你取得手電筒，也知道這不是普通的搬運事故。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "你照著拖痕找到 A 甲板方向，但光束掃過通風格柵時，格柵內傳來一次回應般的輕響。你拿到了手電筒，卻也讓船上的某個東西知道休眠室有人醒來。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 1 } },
-            "些微失敗": { "text": "你被暗色痕跡分散注意，手電筒從指間滑落，滾到門外才停下。你仍看出拖痕朝 A 甲板延伸，但必須先離開休眠室取回它。", "effects": { "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。", "effects": { "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared", "flag_noise_made"], "timeCost": 1, "threatDelta": 1 } },
-            "慘烈失敗": { "text": "你蹲下檢查拖痕時，門外的通風格柵突然向下凹陷。你及時退開，卻被掉落的金屬片劃傷前臂，手電筒滾進格柵下方，再也拿不回來。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared", "flag_flashlight_lost"], "timeCost": 1, "threatDelta": 2 } }
+            "大成功": {
+              "text": "手電筒的光束沿著拖痕推進，照出牆面上新鮮的刮痕與一小片半透明皮膜。你不只確認痕跡通往 A 甲板，還在地面找到一枚仍有電的備用電池。",
+              "effects": {
+                "itemsAdd": [
+                  "item_flashlight"
+                ],
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "光束照出拖痕穿過門縫，末端消失在 A 甲板方向。痕跡旁的黏液還沒有乾，你取得手電筒，也知道這不是普通的搬運事故。",
+              "effects": {
+                "itemsAdd": [
+                  "item_flashlight"
+                ],
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你照著拖痕找到 A 甲板方向，但光束掃過通風格柵時，格柵內傳來一次回應般的輕響。你拿到了手電筒，卻也讓船上的某個東西知道休眠室有人醒來。",
+              "effects": {
+                "itemsAdd": [
+                  "item_flashlight"
+                ],
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你被暗色痕跡分散注意，手電筒從指間滑落，滾到門外才停下。你仍看出拖痕朝 A 甲板延伸，但必須先離開休眠室取回它。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你蹲下檢查拖痕時，門外的通風格柵突然向下凹陷。你及時退開，卻被掉落的金屬片劃傷前臂，手電筒滾進格柵下方，再也拿不回來。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
+                  "flag_cryo_cleared",
+                  "flag_flashlight_lost"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         },
         {
@@ -237,11 +672,49 @@
           "attribute": "力量",
           "skill": "體魄",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_cryo_seal_done"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_cryo_seal_done"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "你把卡死的艙門推回滑軌，休眠室與外面的黑暗暫時隔開。門鎖顯示紅色，但至少不會任由某個東西從走廊直接撞進來。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_cryo_sealed"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "艙門終於合上，卻在最後一段發出刺耳摩擦聲。鎖舌只卡住一半；你獲得片刻遮蔽，但不能把這裡視為永久安全區。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_cryo_sealed_partial"], "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_noise_made"], "timeCost": 1, "threatDelta": 1 } }
+            "成功": {
+              "text": "你把卡死的艙門推回滑軌，休眠室與外面的黑暗暫時隔開。門鎖顯示紅色，但至少不會任由某個東西從走廊直接撞進來。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
+                  "flag_cryo_sealed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "艙門終於合上，卻在最後一段發出刺耳摩擦聲。鎖舌只卡住一半；你獲得片刻遮蔽，但不能把這裡視為永久安全區。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
+                  "flag_cryo_sealed_partial"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            }
           }
         },
         {
@@ -252,14 +725,371 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_mother_contacted"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_mother_contacted"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你對著擴音器回話。母親沒有回答你的問題，只重複要求全體船員前往 A 甲板；最後多出一個短暫的資料等待音。", "effects": { "worldFlagsAdd": ["flag_mother_contacted", "flag_mother_contacted"], "timeCost": 0, "threatDelta": 0 } }
+            "自動": {
+              "text": "你對著擴音器回話。母親沒有回答你的問題，只重複要求全體船員前往 A 甲板；最後多出一個短暫的資料等待音。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_contacted",
+                  "flag_mother_contacted"
+                ],
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
           }
         },
-        {"id":"app_cryo_leave","label":"避開通風口摸進走廊","intent":"想離開休眠室並不驚動藏起來的東西","requiresCheck":true,"attribute":"敏捷","skill":"潛行","difficulty":"普通","required":{"items":[],"locations":["loc_cryo"]},"outcomes":{"大成功":{"text":"你貼著牆面避開通風口下方的陰影，沿 A 甲板走廊無聲前進。休眠室留在身後，科學區方向傳來一段規律得不像人類的金屬聲。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":0}},"成功":{"text":"你避開通風口摸進走廊，沒有驚動藏在管線深處的東西。遠處科學區亮著一盞穩定的白燈；你決定先往那裡確認船艦狀況。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":1}},"驚險成功":{"text":"你成功離開休眠室，但靴底擦過一片鬆動格柵，聲音沿著通風管傳開。你仍然搶在回音消失前進入走廊，科學區的白燈隨即亮了一次。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":2}},"失敗":{"text":"你在通風口下方停了一秒，管線裡的金屬聲立刻回應。你仍衝進走廊，但遠處有什麼東西已經知道休眠室有人醒來。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":2}},"慘烈失敗":{"text":"通風口的格柵突然向下凹陷，你在最後一刻翻出門外，前臂卻被掉落的金屬片劃開。走廊盡頭的科學區亮起紅色警示燈。","effects":{"injuriesAdd":["bleeding_major"],"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":3}}}}
+        {
+          "id": "app_cryo_leave",
+          "label": "避開通風口摸進走廊",
+          "intent": "想離開休眠室並不驚動藏起來的東西",
+          "requiresCheck": true,
+          "attribute": "敏捷",
+          "skill": "潛行",
+          "difficulty": "普通",
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_cryo"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你貼著艙壁避開通風格柵，沒有讓鞋底碰到拖痕。走廊的低光把你的身影吞進 A 甲板方向；你沒有驚動船上任何看不見的東西。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 0,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "成功": {
+              "text": "你壓低身體，沿著艙門邊緣穿進走廊。通風格柵沒有再發出聲音，你已經抵達 A 甲板方向，卻還不知道那道拖痕最後通往哪裡。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 0,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "驚險成功": {
+              "text": "你成功離開休眠室，但衣角擦過通風格柵，金屬在身後發出一聲短促的回響。你到了 A 甲板，船上的某個東西也可能聽見了。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_noise_made",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 1,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "失敗": {
+              "text": "你試圖無聲穿過門縫，肩膀卻撞上卡死的滑軌。警報燈在走廊盡頭亮起，你被迫帶著已經暴露的聲音離開休眠室。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_noise_made",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 2,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "慘烈失敗": {
+              "text": "你剛繞過格柵，頭頂的金屬片突然下陷。你閃開了最重的一塊，前臂仍被邊緣割開；你帶著傷勢跌進 A 甲板，身後的通風管持續傳來摩擦聲。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_noise_made",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 2,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            },
+            "些微失敗": {
+              "text": "你避開了格柵正下方，卻在門檻處踩到乾硬的皮膜。聲音沿著管線傳開；你仍然離開休眠室，必須在 A 甲板重新判斷下一步。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_noise_made",
+                  "flag_cryo_left"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 1,
+                "nextEvent": "evt_deck_a_recon",
+                "sceneTransition": "advance"
+              }
+            }
+          }
+        }
       ],
-      "sceneExit": { "normal": ["loc_deck_a"], "canReturn": false, "completeNode": "n1" }
+      "sceneExit": {
+        "normal": [
+          "loc_deck_a"
+        ],
+        "canReturn": false,
+        "completeNode": "n1",
+        "nextByLocation": {
+          "loc_deck_a": "evt_deck_a_recon"
+        }
+      }
+    },
+    {
+      "id": "evt_deck_a_recon",
+      "nodeId": "n1",
+      "location": "loc_deck_a",
+      "phase": "investigation",
+      "defaultTransition": "stay",
+      "exitConditions": [
+        {
+          "playerLeavesLocation": true
+        }
+      ],
+      "purpose": "讓玩家在真正前往科學區或貨艙前，先看見 A 甲板的船況，並與知道副本規則的陸遠建立第一個可持續的 NPC 關係。",
+      "entryKnowledge": [
+        "玩家已離開休眠室",
+        "玩家知道拖痕或異形活動的物理證據",
+        "玩家尚不知道 937 的完整內容"
+      ],
+      "gmTruth": [
+        "陸遠是另一名被主神投放進來的資深輪迴者，不是原船員",
+        "陸遠已在 A 甲板觀察船員失蹤與異形活動，願意提供有限協助",
+        "A 甲板可通往科學實驗區、中央貨艙與橋樓，不應把前往科學區寫成已經完成調查"
+      ],
+      "entryNarration": "A 甲板的照明每隔幾秒暗一次。船員名錄終端停在一張沒有結尾的名單上，牆面靠近通風管的位置留著被酸液咬出的孔洞。檢修梯旁站著一名持槍的人；他沒有穿諾斯托羅莫號的制服，腕上的主神計時器也亮著。看見你後，他先把槍口壓低，才說：「陸遠。先別往亮著的門走。」",
+      "beats": [
+        "確認 A 甲板的船員失蹤與異形痕跡",
+        "與陸遠交換有限情報",
+        "決定前往科學實驗區、中央貨艙或橋樓"
+      ],
+      "approaches": [
+        {
+          "id": "app_deck_luyuan_contact",
+          "label": "先與陸遠交換情報",
+          "intent": "想知道這艘船與異形目前的危險位置",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠沒有追問你從哪裡來，只用槍口指了指通風管與科學區方向。他告訴你，船上的東西會利用聲音和震動移動；如果要查真相，先不要把自己困在沒有第二條出口的房間。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_luyuan_met"
+                ],
+                "npcStatusChanges": {
+                  "npc_luyuan": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_luyuan": 1
+                },
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_scan_motion",
+          "label": "檢查 A 甲板的動作偵測器",
+          "intent": "想確認最近的異形活動方向",
+          "requiresCheck": true,
+          "attribute": "感知",
+          "skill": "偵察",
+          "difficulty": "普通",
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你修正動作偵測器的接點，短暫的綠色回波在螢幕上重疊成一條路線：活動從維修走廊往科學區附近移動，之後訊號消失。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "動作偵測器只恢復了幾秒，但足夠顯示一個大型物體曾沿著維修走廊朝船內移動。訊號在科學區附近中斷。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你看見一段不完整的移動回波，卻也讓偵測器重新發出尖銳提示音。陸遠把你拉離終端；訊號指向科學區，但船上的東西可能已經知道你們的位置。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_motion_route"
+                ],
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你只修好電源，沒有得到可靠的移動方向。終端的提示音卻吸引了遠處一陣金屬碰撞；陸遠要求你立刻離開原地。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "偵測器的螢幕在你碰到接點時整片熄滅。遠處的通風管回了一聲沉重的撞擊，陸遠已經拔出槍，要求你們離開終端。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_checked",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_to_science",
+          "label": "和陸遠一起前往科學實驗區",
+          "intent": "想沿著 A 甲板進入科學區查明 Ash 的行動",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠確認走廊另一端暫時沒有回波，示意你跟上。你們沿著 A 甲板往科學實驗區移動；門內亮著冷白色的分析燈，卻沒有任何船員前來迎接。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_science_route"
+                ],
+                "playerLocation": "loc_science",
+                "sceneTransition": "advance",
+                "nextEvent": "evt_meet_ash",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_deck_to_cargo",
+          "label": "轉往中央貨艙尋找工具",
+          "intent": "想先取得能對付封閉船艙與異形的工具",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_deck_a"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠沒有阻止你，只提醒貨艙的起重機與冷卻劑都可能留下聲音。你們轉進中央貨艙的入口，科學區暫時留在身後。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_deck_cargo_route"
+                ],
+                "playerLocation": "loc_cargo",
+                "sceneTransition": "advance",
+                "nextEvent": "evt_trigger_overload",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "normal": [
+          "loc_science",
+          "loc_cargo"
+        ],
+        "nextByLocation": {
+          "loc_science": "evt_meet_ash",
+          "loc_cargo": "evt_trigger_overload"
+        },
+        "canReturn": false
+      }
     },
     {
       "id": "evt_meet_ash",
@@ -268,15 +1098,40 @@
       "phase": "investigation",
       "defaultTransition": "stay",
       "exitConditions": [
-        { "anyFlags": ["flag_ash_destroyed", "flag_ash_ambush_unlocked"] },
-        { "allFlags": ["flag_ash_talked", "flag_937_path_known"] },
-        { "playerLeavesLocation": true }
+        {
+          "anyFlags": [
+            "flag_ash_destroyed",
+            "flag_ash_ambush_unlocked"
+          ]
+        },
+        {
+          "allFlags": [
+            "flag_ash_talked",
+            "flag_937_path_known"
+          ]
+        },
+        {
+          "playerLeavesLocation": true
+        }
       ],
       "purpose": "讓玩家第一次接觸 Ash，透過交涉、觀察與偷看終端逐步得到不完整真相。",
-      "entryKnowledge": ["玩家知道船上有異形痕跡", "玩家可能知道水仙號方向", "玩家不應直接知道 Ash 是生化人"],
-      "gmTruth": ["Ash 已收到 937 指令", "Ash 願意提供不完整的真實生物資料", "若玩家威脅或破壞樣本，Ash 的敵對程度上升"],
+      "entryKnowledge": [
+        "玩家知道船上有異形痕跡",
+        "玩家可能知道水仙號方向",
+        "玩家不應直接知道 Ash 是生化人"
+      ],
+      "gmTruth": [
+        "Ash 已收到 937 指令",
+        "Ash 願意提供不完整的真實生物資料",
+        "若玩家威脅或破壞樣本，Ash 的敵對程度上升"
+      ],
       "entryNarration": "科學實驗區比走廊乾淨，卻安靜得不自然。破裂的玻璃櫃內還留著灰黃色的組織切片；Ash 背對入口站在分析台前，鑷子在他手中穩定得沒有一絲顫抖。你們進門後，他過了幾秒才轉身，像是早已知道有人會來。",
-      "beats": ["Ash 質詢玩家身分", "玩家取得或失去部分生物情報", "玩家觀察 Ash 或終端", "決定和平離開、偷取樣本或提前衝突"],
+      "beats": [
+        "Ash 質詢玩家身分",
+        "玩家取得或失去部分生物情報",
+        "玩家觀察 Ash 或終端",
+        "決定和平離開、偷取樣本或提前衝突"
+      ],
       "approaches": [
         {
           "id": "app_ash_talk_quarantine",
@@ -286,14 +1141,107 @@
           "attribute": "意志",
           "skill": "交涉",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_ash_talked"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_ash_talked"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "Ash 提供酸性血液、外骨骼與對常規鈍擊的反應資料，卻刻意避開火焰與低溫。你也注意到他的說明直接引用了公司內部格式，取得了可追問的權限線索。", "effects": { "cluesAdd": ["clue_alien_trace"], "npcTrustDelta": { "npc_luyuan": 1 }, "worldFlagsAdd": ["flag_ash_talked"], "timeCost": 1, "threatDelta": 0 } },
-            "成功": { "text": "Ash 以檢疫條例為框架交出一份基礎生物特徵報告。他沒有說謊，但漏掉了最關鍵的弱點；你至少確認這種生物的體液會腐蝕船體。", "effects": { "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_ash_talked"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "Ash 勉強回答了問題，隨即要求交出武器以免污染樣本。你得到一部分情報，但實驗室內的對峙已經從詢問變成了互相衡量。", "effects": { "cluesAdd": ["clue_alien_trace"], "npcTrustDelta": { "npc_ash": -1 }, "worldFlagsAdd": ["flag_ash_suspicious"], "timeCost": 1, "threatDelta": 1 } },
-            "些微失敗": { "text": "Ash 以權限不足拒絕共享資料，並要求你們退回休眠室等待審查。他沒有攻擊，但實驗室的門禁在你們身後重新鎖定。", "effects": { "worldFlagsAdd": ["flag_science_locked"], "npcStatusChanges": { "npc_ash": "suspicious" }, "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "你的說法出現了 Ash 不可能忽略的矛盾。他關掉分析螢幕，冷靜地將你們標記為未授權滲透者；和平取得資料的路線暫時中斷。", "effects": { "worldFlagsAdd": ["flag_ash_hostile_pending"], "npcStatusChanges": { "npc_ash": "suspicious" }, "timeCost": 1, "threatDelta": 1 } },
-            "慘烈失敗": { "text": "當你提到要銷毀樣本時，Ash 的表情第一次失去人類式的延遲。他以不可能的速度扣住你的喉嚨，陸遠開槍擊中地面才迫使他鬆手；實驗室的和平狀態結束。", "effects": { "injuriesAdd": ["suffocation_major"], "npcStatusChanges": { "npc_ash": "suspicious" }, "worldFlagsAdd": ["flag_ash_ambush_unlocked"], "timeCost": 1, "threatDelta": 2, "unlockEvents": ["evt_ash_ambush"], "nextEvent": "evt_ash_ambush" } }
+            "大成功": {
+              "text": "Ash 提供酸性血液、外骨骼與對常規鈍擊的反應資料，卻刻意避開火焰與低溫。你也注意到他的說明直接引用了公司內部格式，取得了可追問的權限線索。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "npcTrustDelta": {
+                  "npc_luyuan": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_talked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "Ash 以檢疫條例為框架交出一份基礎生物特徵報告。他沒有說謊，但漏掉了最關鍵的弱點；你至少確認這種生物的體液會腐蝕船體。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_ash_talked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "Ash 勉強回答了問題，隨即要求交出武器以免污染樣本。你得到一部分情報，但實驗室內的對峙已經從詢問變成了互相衡量。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "npcTrustDelta": {
+                  "npc_ash": -1
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_suspicious"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "Ash 以權限不足拒絕共享資料，並要求你們退回休眠室等待審查。他沒有攻擊，但實驗室的門禁在你們身後重新鎖定。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_science_locked"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "suspicious"
+                },
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "你的說法出現了 Ash 不可能忽略的矛盾。他關掉分析螢幕，冷靜地將你們標記為未授權滲透者；和平取得資料的路線暫時中斷。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_ash_hostile_pending"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "suspicious"
+                },
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "當你提到要銷毀樣本時，Ash 的表情第一次失去人類式的延遲。他以不可能的速度扣住你的喉嚨，陸遠開槍擊中地面才迫使他鬆手；實驗室的和平狀態結束。",
+              "effects": {
+                "injuriesAdd": [
+                  "suffocation_major"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_ambush_unlocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2,
+                "unlockEvents": [
+                  "evt_ash_ambush"
+                ],
+                "nextEvent": "evt_ash_ambush"
+              }
+            }
           }
         },
         {
@@ -304,13 +1252,79 @@
           "attribute": "感知",
           "skill": "偵察",
           "difficulty": "困難",
-          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_ash_synthetic_known"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_ash_synthetic_known"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你看見他的瞳孔反應恆定、脈搏不存在，說話時胸口也沒有呼吸起伏。Ash 轉頭看向你；你在他開口前已經知道那層皮膚下面不是普通的人類。", "effects": { "cluesAdd": ["clue_ash_synthetic"], "worldFlagsAdd": ["flag_ash_synthetic_known"], "timeCost": 1, "threatDelta": 0 } },
-            "成功": { "text": "你捕捉到幾個不合人體的細節：沒有脈搏、眨眼過於規律，手腕轉動角度也超出正常關節範圍。你還不能證明身分，但已經不再相信他的外表。", "effects": { "cluesAdd": ["clue_ash_synthetic"], "worldFlagsAdd": ["flag_ash_suspicious"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "你察覺 Ash 的微笑與眨眼像是精準排程，他也同時察覺了你的視線。你得到可疑印象，卻讓 Ash 對你的戒心升高。", "effects": { "cluesAdd": ["clue_ash_synthetic"], "npcStatusChanges": { "npc_ash": "suspicious" }, "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "Ash 的偽裝沒有留下可供你抓住的破綻。他甚至遞給你一瓶未受污染的水，讓整場對話看起來像一次普通的安全檢查。", "effects": { "worldFlagsAdd": ["flag_ash_disarming"], "timeCost": 1, "threatDelta": 0 } },
-            "慘烈失敗": { "text": "你盯著 Ash 的臉，卻忽略了腳下的廢液桶。桶身倒下，實驗室啟動全面消毒噴淋；你們被迫退出，近距離觀察的機會消失。", "effects": { "injuriesAdd": ["acid_burn_minor"], "worldFlagsAdd": ["flag_science_locked"], "playerLocation": "loc_service_corridor", "timeCost": 1, "threatDelta": 1 } }
+            "大成功": {
+              "text": "你看見他的瞳孔反應恆定、脈搏不存在，說話時胸口也沒有呼吸起伏。Ash 轉頭看向你；你在他開口前已經知道那層皮膚下面不是普通的人類。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_ash_synthetic"
+                ],
+                "worldFlagsAdd": [
+                  "flag_ash_synthetic_known"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你捕捉到幾個不合人體的細節：沒有脈搏、眨眼過於規律，手腕轉動角度也超出正常關節範圍。你還不能證明身分，但已經不再相信他的外表。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_ash_synthetic"
+                ],
+                "worldFlagsAdd": [
+                  "flag_ash_suspicious"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你察覺 Ash 的微笑與眨眼像是精準排程，他也同時察覺了你的視線。你得到可疑印象，卻讓 Ash 對你的戒心升高。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_ash_synthetic"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "suspicious"
+                },
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "Ash 的偽裝沒有留下可供你抓住的破綻。他甚至遞給你一瓶未受污染的水，讓整場對話看起來像一次普通的安全檢查。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_ash_disarming"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "慘烈失敗": {
+              "text": "你盯著 Ash 的臉，卻忽略了腳下的廢液桶。桶身倒下，實驗室啟動全面消毒噴淋；你們被迫退出，近距離觀察的機會消失。",
+              "effects": {
+                "injuriesAdd": [
+                  "acid_burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_science_locked"
+                ],
+                "playerLocation": "loc_service_corridor",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            }
           }
         },
         {
@@ -321,17 +1335,97 @@
           "attribute": "敏捷",
           "skill": "潛行",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_937_path_known"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_937_path_known"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "陸遠的說話聲掩護了你的半步移動。你看見 MU-TH-UR DIRECTIVE 937 與主機核心房的臨時路徑，還把一組權限代碼記在腕錶裡。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_path_known"], "timeCost": 1, "threatDelta": 0 } },
-            "成功": { "text": "你只看清文件名稱：SPECIAL ORDER 937。終端立刻黑屏，但這幾個字已足以證明 Ash 隱瞞了公司指令。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_path_known"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "你看見特別指令 937 的標題，收回視線時終端已經鎖定。Ash 沒有當場質問你，但他知道你看到了不該看的東西。", "effects": { "cluesAdd": ["clue_order_937"], "npcStatusChanges": { "npc_ash": "suspicious" }, "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "Ash 在你靠近前關掉螢幕。他用商船法條款指出窺視企業資料等同商業間諜，實驗室的氣氛降到冰點。", "effects": { "worldFlagsAdd": ["flag_ash_hostile_pending"], "timeCost": 1, "threatDelta": 1 } },
-            "慘烈失敗": { "text": "你的鞋底踩碎玻璃試管，殘留神經毒素濺上腳踝。Ash 立刻把你們標記為敵對滲透者，安全鎖定程序開始封閉實驗區。", "effects": { "injuriesAdd": ["acid_burn_minor"], "worldFlagsAdd": ["flag_ash_ambush_unlocked"], "timeCost": 1, "threatDelta": 2, "unlockEvents": ["evt_ash_ambush"], "nextEvent": "evt_ash_ambush" } }
+            "大成功": {
+              "text": "陸遠的說話聲掩護了你的半步移動。你看見 MU-TH-UR DIRECTIVE 937 與主機核心房的臨時路徑，還把一組權限代碼記在腕錶裡。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_path_known"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你只看清文件名稱：SPECIAL ORDER 937。終端立刻黑屏，但這幾個字已足以證明 Ash 隱瞞了公司指令。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_path_known"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你看見特別指令 937 的標題，收回視線時終端已經鎖定。Ash 沒有當場質問你，但他知道你看到了不該看的東西。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "suspicious"
+                },
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "Ash 在你靠近前關掉螢幕。他用商船法條款指出窺視企業資料等同商業間諜，實驗室的氣氛降到冰點。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_ash_hostile_pending"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "你的鞋底踩碎玻璃試管，殘留神經毒素濺上腳踝。Ash 立刻把你們標記為敵對滲透者，安全鎖定程序開始封閉實驗區。",
+              "effects": {
+                "injuriesAdd": [
+                  "acid_burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_ash_ambush_unlocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2,
+                "unlockEvents": [
+                  "evt_ash_ambush"
+                ],
+                "nextEvent": "evt_ash_ambush"
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_mother_core", "loc_cargo"], "nextByLocation": { "loc_mother_core": "evt_order_937_reveal", "loc_cargo": "evt_trigger_overload" }, "canReturn": false, "completeNode": "n1" }
+      "sceneExit": {
+        "normal": [
+          "loc_mother_core",
+          "loc_cargo"
+        ],
+        "nextByLocation": {
+          "loc_mother_core": "evt_order_937_reveal",
+          "loc_cargo": "evt_trigger_overload"
+        },
+        "canReturn": false,
+        "completeNode": "n1"
+      }
     },
     {
       "id": "evt_order_937_reveal",
@@ -340,15 +1434,38 @@
       "phase": "revelation",
       "defaultTransition": "stay",
       "exitConditions": [
-        { "anyFlags": ["flag_937_evidence_saved", "flag_ash_ambush_unlocked"] },
-        { "stateEquals": { "shipStatus": "overload_started" } },
-        { "playerLeavesLocation": true }
+        {
+          "anyFlags": [
+            "flag_937_evidence_saved",
+            "flag_ash_ambush_unlocked"
+          ]
+        },
+        {
+          "stateEquals": {
+            "shipStatus": "overload_started"
+          }
+        },
+        {
+          "playerLeavesLocation": true
+        }
       ],
       "purpose": "把公司陰謀從模糊懷疑提升為可驗證真相，並讓玩家知道等待救援不再是合理的主要策略。",
-      "entryKnowledge": ["玩家可能已取得 937 標題或 Ash 生化人線索", "玩家知道母親仍在運作"],
-      "gmTruth": ["937 內容不能被普通查詢刪除或改寫", "查詢會留下安全審計紀錄", "Ash 會在警報後接近，但不一定立刻進入同一個房間"],
+      "entryKnowledge": [
+        "玩家可能已取得 937 標題或 Ash 生化人線索",
+        "玩家知道母親仍在運作"
+      ],
+      "gmTruth": [
+        "937 內容不能被普通查詢刪除或改寫",
+        "查詢會留下安全審計紀錄",
+        "Ash 會在警報後接近，但不一定立刻進入同一個房間"
+      ],
       "entryNarration": "主機核心房的黃燈排列得像一座沒有窗戶的城市。機械打字機自行歸位，螢幕先顯示航行資料，再逐字吐出一份權限等級遠高於船員職務的文件。陸遠把手按在槍套上，沒有催促你；他知道你即將看到的內容可能比異形本身更難處理。",
-      "beats": ["進入主機核心房", "取得部分或完整 937", "觸發未授權存取審計", "決定保存證據、封鎖 Ash 或撤離"],
+      "beats": [
+        "進入主機核心房",
+        "取得部分或完整 937",
+        "觸發未授權存取審計",
+        "決定保存證據、封鎖 Ash 或撤離"
+      ],
       "approaches": [
         {
           "id": "app_order_query",
@@ -358,14 +1475,100 @@
           "attribute": "智力",
           "skill": "技藝",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_mother_core"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_mother_core"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你避開表層權限，讓打字機列出完整指令、簽發部門與優先級。最後一行清楚寫著：CREW EXPENDABLE。你把資料複製到實體記錄中，取得了足以讓公司無法輕易否認的證據。", "effects": { "itemsAdd": ["item_order_937_doc"], "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_order_937_revealed", "flag_937_evidence_saved"], "timeCost": 1, "threatDelta": 1, "nextEvent": "evt_trigger_overload" } },
-            "成功": { "text": "終端顯示完整 937：優先採集該生物，其他考量次之，船員可視為可犧牲。簽名部分仍被遮蔽，但公司不會派來正常救援已經確定。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_order_937_revealed"], "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "你只來得及讀到『樣本優先』與『船員可犧牲』兩行，防火牆便切斷介面。真相已足夠，但你們的位置也被主機記錄下來。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_order_937_revealed", "flag_937_audit_active"], "timeCost": 1, "threatDelta": 2 } },
-            "些微失敗": { "text": "查詢沒有得到完整文件，卻讓終端在錯誤訊息中露出『CREW EXPENDABLE』的片段。你知道方向正確，但主要證據仍在加密區。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_partial"], "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "防火牆把介面鎖死，核心房的黃燈轉成紅色。你沒有取得新文件，卻清楚知道某個遠端程序已經收到未授權存取通知。", "effects": { "worldFlagsAdd": ["flag_937_audit_active"], "timeCost": 1, "threatDelta": 2 } },
-            "慘烈失敗": { "text": "權限回湧穿過操作台，整個核心房的燈同時熄滅。你被電弧掀倒，腕錶短暫失去顯示；門外傳來 Ash 沒有腳步重量的接近聲。", "effects": { "injuriesAdd": ["burn_minor"], "worldFlagsAdd": ["flag_937_audit_active", "flag_ash_ambush_unlocked"], "playerLocation": "loc_mother_core", "timeCost": 1, "threatDelta": 3, "unlockEvents": ["evt_ash_ambush"], "nextEvent": "evt_ash_ambush" } }
+            "大成功": {
+              "text": "你避開表層權限，讓打字機列出完整指令、簽發部門與優先級。最後一行清楚寫著：CREW EXPENDABLE。你把資料複製到實體記錄中，取得了足以讓公司無法輕易否認的證據。",
+              "effects": {
+                "itemsAdd": [
+                  "item_order_937_doc"
+                ],
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_order_937_revealed",
+                  "flag_937_evidence_saved"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "nextEvent": "evt_trigger_overload"
+              }
+            },
+            "成功": {
+              "text": "終端顯示完整 937：優先採集該生物，其他考量次之，船員可視為可犧牲。簽名部分仍被遮蔽，但公司不會派來正常救援已經確定。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_order_937_revealed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "你只來得及讀到『樣本優先』與『船員可犧牲』兩行，防火牆便切斷介面。真相已足夠，但你們的位置也被主機記錄下來。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_order_937_revealed",
+                  "flag_937_audit_active"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "查詢沒有得到完整文件，卻讓終端在錯誤訊息中露出『CREW EXPENDABLE』的片段。你知道方向正確，但主要證據仍在加密區。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_partial"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "防火牆把介面鎖死，核心房的黃燈轉成紅色。你沒有取得新文件，卻清楚知道某個遠端程序已經收到未授權存取通知。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_937_audit_active"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "權限回湧穿過操作台，整個核心房的燈同時熄滅。你被電弧掀倒，腕錶短暫失去顯示；門外傳來 Ash 沒有腳步重量的接近聲。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_audit_active",
+                  "flag_ash_ambush_unlocked"
+                ],
+                "playerLocation": "loc_mother_core",
+                "timeCost": 1,
+                "threatDelta": 3,
+                "unlockEvents": [
+                  "evt_ash_ambush"
+                ],
+                "nextEvent": "evt_ash_ambush"
+              }
+            }
           }
         },
         {
@@ -376,9 +1579,26 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_mother_core"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_mother_core"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "機械打字機列出一張被裁切過的摘要：採集優先、船員安全次之。摘要沒有完整簽名，但已足以讓等待救援失去合理性。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_partial"], "timeCost": 0, "threatDelta": 0 } }
+            "自動": {
+              "text": "機械打字機列出一張被裁切過的摘要：採集優先、船員安全次之。摘要沒有完整簽名，但已足以讓等待救援失去合理性。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_partial"
+                ],
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
           }
         },
         {
@@ -389,15 +1609,71 @@
           "attribute": "意志",
           "skill": "秘識",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_mother_core"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_mother_core"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "腕錶接上資料端口，複製出一份不完整但可驗證的 937 紀錄。主機沒有阻止你，但遠端審計已經開始追蹤這個連接。", "effects": { "itemsAdd": ["item_order_937_doc"], "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_evidence_saved", "flag_937_audit_active"], "timeCost": 1, "threatDelta": 2, "nextEvent": "evt_trigger_overload" } },
-            "失敗": { "text": "資料端口在複製中途斷開，腕錶吐出錯誤警報。你沒有帶走完整文件，卻讓母親知道外部裝置曾經嘗試讀取最高權限資料。", "effects": { "worldFlagsAdd": ["flag_937_audit_active"], "timeCost": 1, "threatDelta": 2 } },
-            "慘烈失敗": { "text": "短路的資料端口燒穿腕錶外殼，主機房的門在你身後落鎖。你必須改變位置或等待同伴破門，不能在原地重複接線。", "effects": { "injuriesAdd": ["burn_minor"], "worldFlagsAdd": ["flag_core_locked"], "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "腕錶接上資料端口，複製出一份不完整但可驗證的 937 紀錄。主機沒有阻止你，但遠端審計已經開始追蹤這個連接。",
+              "effects": {
+                "itemsAdd": [
+                  "item_order_937_doc"
+                ],
+                "cluesAdd": [
+                  "clue_order_937"
+                ],
+                "worldFlagsAdd": [
+                  "flag_937_evidence_saved",
+                  "flag_937_audit_active"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2,
+                "nextEvent": "evt_trigger_overload"
+              }
+            },
+            "失敗": {
+              "text": "資料端口在複製中途斷開，腕錶吐出錯誤警報。你沒有帶走完整文件，卻讓母親知道外部裝置曾經嘗試讀取最高權限資料。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_937_audit_active"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "短路的資料端口燒穿腕錶外殼，主機房的門在你身後落鎖。你必須改變位置或等待同伴破門，不能在原地重複接線。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_core_locked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_engine", "loc_deck_a", "loc_science"], "nextByLocation": { "loc_engine": "evt_trigger_overload", "loc_deck_a": "evt_trigger_overload", "loc_science": "evt_ash_ambush" }, "canReturn": false, "completeNode": "n2" }
+      "sceneExit": {
+        "normal": [
+          "loc_engine",
+          "loc_deck_a",
+          "loc_science"
+        ],
+        "nextByLocation": {
+          "loc_engine": "evt_trigger_overload",
+          "loc_deck_a": "evt_trigger_overload",
+          "loc_science": "evt_ash_ambush"
+        },
+        "canReturn": false,
+        "completeNode": "n2"
+      }
     },
     {
       "id": "evt_ash_ambush",
@@ -406,18 +1682,52 @@
       "phase": "confrontation",
       "defaultTransition": "stay",
       "threatPolicy": {
-        "allowedLevels": ["relief_2", "relief_1", "stable", "rise_1", "rise_2", "rise_3", "immediate_combat"],
-        "immediateCombatConditions": [{ "anyFlags": ["flag_ash_hostile", "flag_science_locked"] }]
+        "allowedLevels": [
+          "relief_2",
+          "relief_1",
+          "stable",
+          "rise_1",
+          "rise_2",
+          "rise_3",
+          "immediate_combat"
+        ],
+        "immediateCombatConditions": [
+          {
+            "anyFlags": [
+              "flag_ash_hostile",
+              "flag_science_locked"
+            ]
+          }
+        ]
       },
       "exitConditions": [
-        { "anyFlags": ["flag_ash_destroyed", "flag_ash_delayed"] },
-        { "playerLeavesLocation": true }
+        {
+          "anyFlags": [
+            "flag_ash_destroyed",
+            "flag_ash_delayed"
+          ]
+        },
+        {
+          "playerLeavesLocation": true
+        }
       ],
       "purpose": "回收 Ash 前面累積的異常，把交涉與觀察轉成不可逆的敵對行動。",
-      "entryKnowledge": ["玩家可能已經取得 937 或 Ash 生化人線索", "Ash 知道玩家正在妨礙任務"],
-      "gmTruth": ["Ash 的核心命令不能被說服取消", "Ash 可以受損、暫時失能或被迫撤退，但不應因一次普通交涉永久改變核心目標", "玩家可以選擇逃離而非擊毀 Ash"],
+      "entryKnowledge": [
+        "玩家可能已經取得 937 或 Ash 生化人線索",
+        "Ash 知道玩家正在妨礙任務"
+      ],
+      "gmTruth": [
+        "Ash 的核心命令不能被說服取消",
+        "Ash 可以受損、暫時失能或被迫撤退，但不應因一次普通交涉永久改變核心目標",
+        "玩家可以選擇逃離而非擊毀 Ash"
+      ],
       "entryNarration": "實驗室的門鎖一扇接一扇落下。Ash 從消毒霧後走出來，制服仍然整潔，只有右手腕的仿生皮膚露出一小段不自然的接縫。他沒有舉槍，也沒有要求你投降；他只是把視線停在裝有樣本的冷卻槽上，像是在計算哪一件物品比哪一條命更重要。",
-      "beats": ["Ash 宣告玩家為障礙", "玩家決定戰鬥、逃離、破壞環境或談判拖延", "結果必須改變 Ash 狀態或玩家位置", "取得權限卡、留下傷勢或失去證據"],
+      "beats": [
+        "Ash 宣告玩家為障礙",
+        "玩家決定戰鬥、逃離、破壞環境或談判拖延",
+        "結果必須改變 Ash 狀態或玩家位置",
+        "取得權限卡、留下傷勢或失去證據"
+      ],
       "approaches": [
         {
           "id": "app_ash_shoot",
@@ -427,14 +1737,113 @@
           "attribute": "感知",
           "skill": "射擊",
           "difficulty": "困難",
-          "required": { "items": ["item_desert_eagle"], "locations": ["loc_science"] },
+          "required": {
+            "items": [
+              "item_desert_eagle"
+            ],
+            "locations": [
+              "loc_science"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "子彈擊穿 Ash 的顱側仿生層，露出底下的金屬結構。第二發擊中核心連接，他倒在分析台旁，權限卡從制服內袋滑出；樣本冷卻槽仍然完整。", "effects": { "itemsAdd": ["item_access_card"], "npcStatusChanges": { "npc_ash": "destroyed" }, "worldFlagsAdd": ["flag_ash_destroyed"], "timeCost": 1, "threatDelta": 1, "unlockEvents": ["evt_order_937_reveal", "evt_trigger_overload"], "nextEvent": "evt_order_937_reveal" } },
-            "成功": { "text": "你擊中 Ash 的肩頸連接，他的動作短暫失去同步。趁他修復前，你們取得足夠時間撤離；他沒有被摧毀，但短時間內無法正常追擊。", "effects": { "npcStatusChanges": { "npc_ash": "injured" }, "worldFlagsAdd": ["flag_ash_damaged"], "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "子彈撕開 Ash 的仿生皮膚，卻被底下的金屬骨架偏轉。你們逼出退路，但冷卻槽被濺出的液體腐蝕，樣本狀態變得不穩定。", "effects": { "itemsAdd": ["item_xenomorph_tissue"], "npcStatusChanges": { "npc_ash": "injured" }, "sampleStatus": "tissue", "worldFlagsAdd": ["flag_ash_damaged", "flag_sample_unstable"], "timeCost": 1, "threatDelta": 2 } },
-            "些微失敗": { "text": "你擊中 Ash 的手臂，卻沒有阻止他。他抓住分析台將你們隔開，退路仍在，但科學區的主要門禁已被他控制。", "effects": { "npcStatusChanges": { "npc_ash": "injured" }, "worldFlagsAdd": ["flag_science_locked"], "playerLocation": "loc_service_corridor", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "子彈打在 Ash 背後的金屬櫃上。Ash 沒有躲避的慌亂，只用一隻手扭住你的槍腕，把你撞向分析台；你們必須從另一條路離開。", "effects": { "injuriesAdd": ["fracture_arm"], "worldFlagsAdd": ["flag_ash_hostile"], "playerLocation": "loc_service_corridor", "timeCost": 1, "threatDelta": 2 } },
-            "慘烈失敗": { "text": "槍聲讓冷卻槽破裂，酸性樣本沿地面擴散。Ash 趁你退避時將你摔穿玻璃隔板；你帶著嚴重酸蝕傷被迫逃往下層，權限卡仍在他手中。", "effects": { "injuriesAdd": ["acid_burn_major"], "npcStatusChanges": { "npc_ash": "alive" }, "worldFlagsAdd": ["flag_sample_spilled", "flag_ash_hostile"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 3 } }
+            "大成功": {
+              "text": "子彈擊穿 Ash 的顱側仿生層，露出底下的金屬結構。第二發擊中核心連接，他倒在分析台旁，權限卡從制服內袋滑出；樣本冷卻槽仍然完整。",
+              "effects": {
+                "itemsAdd": [
+                  "item_access_card"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "destroyed"
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_destroyed"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "unlockEvents": [
+                  "evt_order_937_reveal",
+                  "evt_trigger_overload"
+                ],
+                "nextEvent": "evt_order_937_reveal"
+              }
+            },
+            "成功": {
+              "text": "你擊中 Ash 的肩頸連接，他的動作短暫失去同步。趁他修復前，你們取得足夠時間撤離；他沒有被摧毀，但短時間內無法正常追擊。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ash": "injured"
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_damaged"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "子彈撕開 Ash 的仿生皮膚，卻被底下的金屬骨架偏轉。你們逼出退路，但冷卻槽被濺出的液體腐蝕，樣本狀態變得不穩定。",
+              "effects": {
+                "itemsAdd": [
+                  "item_xenomorph_tissue"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "injured"
+                },
+                "sampleStatus": "tissue",
+                "worldFlagsAdd": [
+                  "flag_ash_damaged",
+                  "flag_sample_unstable"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "你擊中 Ash 的手臂，卻沒有阻止他。他抓住分析台將你們隔開，退路仍在，但科學區的主要門禁已被他控制。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_ash": "injured"
+                },
+                "worldFlagsAdd": [
+                  "flag_science_locked"
+                ],
+                "playerLocation": "loc_service_corridor",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "子彈打在 Ash 背後的金屬櫃上。Ash 沒有躲避的慌亂，只用一隻手扭住你的槍腕，把你撞向分析台；你們必須從另一條路離開。",
+              "effects": {
+                "injuriesAdd": [
+                  "fracture_arm"
+                ],
+                "worldFlagsAdd": [
+                  "flag_ash_hostile"
+                ],
+                "playerLocation": "loc_service_corridor",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "槍聲讓冷卻槽破裂，酸性樣本沿地面擴散。Ash 趁你退避時將你摔穿玻璃隔板；你帶著嚴重酸蝕傷被迫逃往下層，權限卡仍在他手中。",
+              "effects": {
+                "injuriesAdd": [
+                  "acid_burn_major"
+                ],
+                "npcStatusChanges": {
+                  "npc_ash": "alive"
+                },
+                "worldFlagsAdd": [
+                  "flag_sample_spilled",
+                  "flag_ash_hostile"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
           }
         },
         {
@@ -445,15 +1854,64 @@
           "attribute": "敏捷",
           "skill": "求生",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_science"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_science"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "你擊穿上方的消毒管，白霧灌入實驗室，讓 Ash 的視覺與動作感測同時受到干擾。你們從側門離開，沒有擊敗他，但保住了自己的位置與行動選擇。", "effects": { "worldFlagsAdd": ["flag_ash_delayed"], "playerLocation": "loc_deck_a", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "噴淋啟動了，卻也讓地面變得濕滑。你們逃出實驗區，陸遠在轉角摔傷膝蓋；Ash 沒有追出來，但已經知道你們往哪個方向走。", "effects": { "npcStatusChanges": { "npc_luyuan": "injured" }, "worldFlagsAdd": ["flag_ash_delayed"], "playerLocation": "loc_deck_a", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "你拉錯了管線，防火門反而落下。Ash 被隔在另一側，但你也被困在科學區的次要走廊；下一步不能再使用同一個控制台。", "effects": { "worldFlagsAdd": ["flag_science_locked"], "playerLocation": "loc_service_corridor", "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "你擊穿上方的消毒管，白霧灌入實驗室，讓 Ash 的視覺與動作感測同時受到干擾。你們從側門離開，沒有擊敗他，但保住了自己的位置與行動選擇。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_ash_delayed"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "噴淋啟動了，卻也讓地面變得濕滑。你們逃出實驗區，陸遠在轉角摔傷膝蓋；Ash 沒有追出來，但已經知道你們往哪個方向走。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_luyuan": "injured"
+                },
+                "worldFlagsAdd": [
+                  "flag_ash_delayed"
+                ],
+                "playerLocation": "loc_deck_a",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "你拉錯了管線，防火門反而落下。Ash 被隔在另一側，但你也被困在科學區的次要走廊；下一步不能再使用同一個控制台。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_science_locked"
+                ],
+                "playerLocation": "loc_service_corridor",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_deck_a", "loc_lower_deck"], "nextByLocation": { "loc_deck_a": "evt_trigger_overload", "loc_lower_deck": "evt_vent_ambush_escape" }, "canReturn": false, "completeNode": "n2" }
+      "sceneExit": {
+        "normal": [
+          "loc_deck_a",
+          "loc_lower_deck"
+        ],
+        "nextByLocation": {
+          "loc_deck_a": "evt_trigger_overload",
+          "loc_lower_deck": "evt_vent_ambush_escape"
+        },
+        "canReturn": false,
+        "completeNode": "n2"
+      }
     },
     {
       "id": "evt_trigger_overload",
@@ -462,14 +1920,33 @@
       "phase": "countdown",
       "defaultTransition": "stay",
       "exitConditions": [
-        { "stateEquals": { "shipStatus": "overload_started" } },
-        { "playerLeavesLocation": true }
+        {
+          "stateEquals": {
+            "shipStatus": "overload_started"
+          }
+        },
+        {
+          "playerLeavesLocation": true
+        }
       ],
       "purpose": "讓玩家真正做出離船決定，並把時間預算與環境危機轉化成持續狀態。",
-      "entryKnowledge": ["玩家知道正常救援不可信", "玩家知道水仙號大致方向", "玩家可能持有 937 證據或 Ash 權限卡"],
-      "gmTruth": ["主機超載啟動後 shipStatus 變為 overload_started", "timeBudget 仍由引擎以五十個效率回合計算，剩餘回合在結算時轉為速度獎勵", "啟動超載不是立即結束場景，而是解鎖逃生路線並增加失敗代價"],
+      "entryKnowledge": [
+        "玩家知道正常救援不可信",
+        "玩家知道水仙號大致方向",
+        "玩家可能持有 937 證據或 Ash 權限卡"
+      ],
+      "gmTruth": [
+        "主機超載啟動後 shipStatus 變為 overload_started",
+        "timeBudget 仍由引擎以五十個效率回合計算，剩餘回合在結算時轉為速度獎勵",
+        "啟動超載不是立即結束場景，而是解鎖逃生路線並增加失敗代價"
+      ],
       "entryNarration": "反應爐控制區的溫度比上層高了數度。紅色燈帶沿著地面指向兩組互相獨立的控制台；一組需要工程權限，另一組保留給緊急手動操作。牆上的時鐘沒有顯示分鐘，只顯示一個正在減少的效率預算；剩餘時間可換成速度獎勵，但不能取代逃生判斷。你按下啟動前，所有人仍然有回頭的可能；按下之後，船艦將只剩下一條向水仙號延伸的逃生方向。",
-      "beats": ["確認超載條件", "玩家或 NPC 完成拉閥／輸入", "船艦進入不可逆倒數", "下層路線與異形迫近度改變"],
+      "beats": [
+        "確認超載條件",
+        "玩家或 NPC 完成拉閥／輸入",
+        "船艦進入不可逆倒數",
+        "下層路線與異形迫近度改變"
+      ],
       "approaches": [
         {
           "id": "app_overload_manual",
@@ -479,14 +1956,107 @@
           "attribute": "力量",
           "skill": "技藝",
           "difficulty": "困難",
-          "required": { "items": [], "locations": ["loc_engine"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_engine"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你在兩組警報間完成同步操作。反應爐進入不可逆超載，水仙號脫離程序自動解鎖，第一段逃生路徑沒有立刻坍塌。", "effects": { "shipStatus": "overload_started", "worldFlagsAdd": ["flag_overload_active", "flag_narcissus_route_unlocked"], "timeCost": 1, "threatDelta": 1, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "成功": { "text": "第二組閥門在你手中轉到底，母親開始播報核心臨界程序。你完成了決定，卻也讓全船的金屬結構開始以固定節奏震動。", "effects": { "shipStatus": "overload_started", "worldFlagsAdd": ["flag_overload_active"], "timeCost": 1, "threatDelta": 2, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "驚險成功": { "text": "你成功拉下閥門，但第三次鎖定花掉了額外時間。自毀程序已開始，出口方向卻有一段冷卻管線爆裂，玩家必須改走下層旁路。", "effects": { "shipStatus": "overload_started", "worldFlagsAdd": ["flag_overload_active", "flag_engine_route_damaged"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 2, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "些微失敗": { "text": "你拉下第一組閥門，第二組卡在半途。短路讓控制台冒出火花；超載尚未完整啟動，但機艙已經變成必須離開的危險區。", "effects": { "shipStatus": "damaged", "worldFlagsAdd": ["flag_engine_damaged"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "閥門在最後一段卡死，熱蒸氣從腳邊竄出。你沒有啟動超載，卻失去了機艙的安全位置；若要再嘗試，必須先找到工具或讓 Parker 協助。", "effects": { "injuriesAdd": ["burn_minor"], "worldFlagsAdd": ["flag_engine_route_damaged"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 2 } },
-            "慘烈失敗": { "text": "你錯把冷卻旁路當成超載閥。整個控制台產生爆裂，火焰吞過機艙；超載倒數被強制啟動，但你被衝擊波拋進下層維修甲板。", "effects": { "shipStatus": "overload_started", "injuriesAdd": ["burn_major"], "worldFlagsAdd": ["flag_overload_active", "flag_player_displaced"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 3, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } }
+            "大成功": {
+              "text": "你在兩組警報間完成同步操作。反應爐進入不可逆超載，水仙號脫離程序自動解鎖，第一段逃生路徑沒有立刻坍塌。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "worldFlagsAdd": [
+                  "flag_overload_active",
+                  "flag_narcissus_route_unlocked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "成功": {
+              "text": "第二組閥門在你手中轉到底，母親開始播報核心臨界程序。你完成了決定，卻也讓全船的金屬結構開始以固定節奏震動。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "worldFlagsAdd": [
+                  "flag_overload_active"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "驚險成功": {
+              "text": "你成功拉下閥門，但第三次鎖定花掉了額外時間。自毀程序已開始，出口方向卻有一段冷卻管線爆裂，玩家必須改走下層旁路。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "worldFlagsAdd": [
+                  "flag_overload_active",
+                  "flag_engine_route_damaged"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 2,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "些微失敗": {
+              "text": "你拉下第一組閥門，第二組卡在半途。短路讓控制台冒出火花；超載尚未完整啟動，但機艙已經變成必須離開的危險區。",
+              "effects": {
+                "shipStatus": "damaged",
+                "worldFlagsAdd": [
+                  "flag_engine_damaged"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "閥門在最後一段卡死，熱蒸氣從腳邊竄出。你沒有啟動超載，卻失去了機艙的安全位置；若要再嘗試，必須先找到工具或讓 Parker 協助。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_engine_route_damaged"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "你錯把冷卻旁路當成超載閥。整個控制台產生爆裂，火焰吞過機艙；超載倒數被強制啟動，但你被衝擊波拋進下層維修甲板。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "injuriesAdd": [
+                  "burn_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_overload_active",
+                  "flag_player_displaced"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 3,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            }
           }
         },
         {
@@ -497,11 +2067,67 @@
           "attribute": "意志",
           "skill": "交涉",
           "difficulty": "容易",
-          "required": { "items": [], "locations": ["loc_engine"], "npcStatuses": { "npc_parker": ["alive"] } },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_engine"
+            ],
+            "npcStatuses": {
+              "npc_parker": [
+                "alive"
+              ]
+            }
+          },
           "outcomes": {
-            "成功": { "text": "Parker 理解你的手勢，兩邊閥門在同一個節拍被拉下。超載程序啟動，工程區的部分蒸氣被提前導向旁路；這不是無傷通關，但逃生路線少了一個立即的阻礙。", "effects": { "shipStatus": "overload_started", "worldFlagsAdd": ["flag_overload_active", "flag_parker_assisted"], "timeCost": 1, "threatDelta": 1, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "驚險成功": { "text": "Parker 慢了半拍才完成第二組操作。超載已經啟動，但他被反衝的閥門撞傷；你們必須帶著一名受傷工程師前往下層。", "effects": { "shipStatus": "overload_started", "npcStatusChanges": { "npc_parker": "injured" }, "worldFlagsAdd": ["flag_overload_active"], "playerLocation": "loc_lower_deck", "timeCost": 1, "threatDelta": 2, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "失敗": { "text": "Parker 誤判了第二組閥門的壓力，兩人被迫鬆手。機艙內的控制面板只完成部分重置；他失去對你們的信任，還需要另一個方案才能啟動超載。", "effects": { "shipStatus": "damaged", "npcTrustDelta": { "npc_parker": -1 }, "worldFlagsAdd": ["flag_engine_damaged"], "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "Parker 理解你的手勢，兩邊閥門在同一個節拍被拉下。超載程序啟動，工程區的部分蒸氣被提前導向旁路；這不是無傷通關，但逃生路線少了一個立即的阻礙。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "worldFlagsAdd": [
+                  "flag_overload_active",
+                  "flag_parker_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "驚險成功": {
+              "text": "Parker 慢了半拍才完成第二組操作。超載已經啟動，但他被反衝的閥門撞傷；你們必須帶著一名受傷工程師前往下層。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "npcStatusChanges": {
+                  "npc_parker": "injured"
+                },
+                "worldFlagsAdd": [
+                  "flag_overload_active"
+                ],
+                "playerLocation": "loc_lower_deck",
+                "timeCost": 1,
+                "threatDelta": 2,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "失敗": {
+              "text": "Parker 誤判了第二組閥門的壓力，兩人被迫鬆手。機艙內的控制面板只完成部分重置；他失去對你們的信任，還需要另一個方案才能啟動超載。",
+              "effects": {
+                "shipStatus": "damaged",
+                "npcTrustDelta": {
+                  "npc_parker": -1
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_damaged"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         },
         {
@@ -512,14 +2138,54 @@
           "attribute": "智力",
           "skill": "技藝",
           "difficulty": "普通",
-          "required": { "items": ["item_access_card"], "locations": ["loc_engine"] },
+          "required": {
+            "items": [
+              "item_access_card"
+            ],
+            "locations": [
+              "loc_engine"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "權限卡讓你跳過一層安全鎖，但母親仍要求手動確認。你完成最後的確認，超載程序啟動；公司權限不再是安全保證，而是把你送進了自毀倒數。", "effects": { "shipStatus": "overload_started", "worldFlagsAdd": ["flag_overload_active", "flag_authority_used"], "timeCost": 1, "threatDelta": 1, "unlockEvents": ["evt_vent_ambush_escape"], "nextEvent": "evt_vent_ambush_escape" } },
-            "失敗": { "text": "權限卡被母親判定為受損或未授權，控制台把門禁改成封鎖狀態。你仍保有權限卡，但不能在同一個控制台再次嘗試。", "effects": { "worldFlagsAdd": ["flag_engine_locked"], "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "權限卡讓你跳過一層安全鎖，但母親仍要求手動確認。你完成最後的確認，超載程序啟動；公司權限不再是安全保證，而是把你送進了自毀倒數。",
+              "effects": {
+                "shipStatus": "overload_started",
+                "worldFlagsAdd": [
+                  "flag_overload_active",
+                  "flag_authority_used"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "unlockEvents": [
+                  "evt_vent_ambush_escape"
+                ],
+                "nextEvent": "evt_vent_ambush_escape"
+              }
+            },
+            "失敗": {
+              "text": "權限卡被母親判定為受損或未授權，控制台把門禁改成封鎖狀態。你仍保有權限卡，但不能在同一個控制台再次嘗試。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_locked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_lower_deck"], "nextByLocation": { "loc_lower_deck": "evt_vent_ambush_escape" }, "canReturn": false, "completeNode": "n3" }
+      "sceneExit": {
+        "normal": [
+          "loc_lower_deck"
+        ],
+        "nextByLocation": {
+          "loc_lower_deck": "evt_vent_ambush_escape"
+        },
+        "canReturn": false,
+        "completeNode": "n3"
+      }
     },
     {
       "id": "evt_vent_ambush_escape",
@@ -528,14 +2194,34 @@
       "phase": "escape",
       "defaultTransition": "stay",
       "exitConditions": [
-        { "anyFlags": ["flag_escaped_to_narcissus", "flag_alien_followed"] },
-        { "playerLeavesLocation": true }
+        {
+          "anyFlags": [
+            "flag_escaped_to_narcissus",
+            "flag_alien_followed"
+          ]
+        },
+        {
+          "playerLeavesLocation": true
+        }
       ],
       "purpose": "將判定失敗的威脅、時間與位置真正轉化為逃生壓力，讓玩家不能用同一個最高骰池方法連續解決所有問題。",
-      "entryKnowledge": ["超載已經開始或機艙已受損", "水仙號位於前方約一段可達路線", "異形正在利用震動追蹤玩家"],
-      "gmTruth": ["這裡不是擊殺異形的戰鬥，而是爭取抵達氣閘的窗口", "玩家可以射擊、奔跑、利用火焰、蒸氣、重物或 NPC 掩護", "成功不代表水仙號已安全，最多只完成母船到接駁艇的轉移"],
+      "entryKnowledge": [
+        "超載已經開始或機艙已受損",
+        "水仙號位於前方約一段可達路線",
+        "異形正在利用震動追蹤玩家"
+      ],
+      "gmTruth": [
+        "這裡不是擊殺異形的戰鬥，而是爭取抵達氣閘的窗口",
+        "玩家可以射擊、奔跑、利用火焰、蒸氣、重物或 NPC 掩護",
+        "成功不代表水仙號已安全，最多只完成母船到接駁艇的轉移"
+      ],
       "entryNarration": "下層維修甲板的燈一盞接一盞熄滅。母親開始用固定音量播報核心臨界，冷卻水從管線裂口噴出，地面每隔幾秒就震動一次。前方三十米處，水仙號黃色的接駁氣閘燈仍然亮著；頭頂的通風管卻在你們前方突然向下凹陷。",
-      "beats": ["確認水仙號位置", "異形堵住三十米通道", "玩家利用武器、速度或環境製造窗口", "衝入氣閘並切斷母船回路"],
+      "beats": [
+        "確認水仙號位置",
+        "異形堵住三十米通道",
+        "玩家利用武器、速度或環境製造窗口",
+        "衝入氣閘並切斷母船回路"
+      ],
       "approaches": [
         {
           "id": "app_escape_recover_toolkit",
@@ -545,9 +2231,23 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_lower_deck"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_lower_deck"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你在傾斜的維修箱裡找到一把還有電的焊槍。它不能替你解決異形，但能切開卡死的隔板，也能在必要時把燃料變成一道短暫火牆。", "effects": { "itemsAdd": ["item_blowtorch"], "timeCost": 1, "threatDelta": 0 } }
+            "自動": {
+              "text": "你在傾斜的維修箱裡找到一把還有電的焊槍。它不能替你解決異形，但能切開卡死的隔板，也能在必要時把燃料變成一道短暫火牆。",
+              "effects": {
+                "itemsAdd": [
+                  "item_blowtorch"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
           }
         },
         {
@@ -558,14 +2258,102 @@
           "attribute": "感知",
           "skill": "射擊",
           "difficulty": "困難",
-          "required": { "items": ["item_desert_eagle"], "locations": ["loc_lower_deck"] },
+          "required": {
+            "items": [
+              "item_desert_eagle"
+            ],
+            "locations": [
+              "loc_lower_deck"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你連續擊中異形的下肢關節，強酸血液濺向兩側而非你的身上。它失去平衡，整條通道出現足夠讓隊伍通過的窗口。", "effects": { "worldFlagsAdd": ["flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 1 } },
-            "成功": { "text": "子彈打穿一片外骨骼，異形被迫跪下。你們趁牠重新站起前衝到氣閘，卻把槍內剩餘彈藥消耗大半。", "effects": { "itemsDamage": ["item_desert_eagle"], "worldFlagsAdd": ["flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "射擊逼退了異形，但一滴酸液穿過你的靴面。你帶著腿部灼傷滾進氣閘，成功抵達水仙號方向，卻失去快速移動的能力。", "effects": { "injuriesAdd": ["acid_burn_minor"], "worldFlagsAdd": ["flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 2 } },
-            "些微失敗": { "text": "第一發命中，後續射擊被尾刃打偏。你失去手上的槍，卻在同伴掩護下滾進氣閘；異形沒有被擊敗，只是暫時被隔在母船一側。", "effects": { "itemsRemove": ["item_desert_eagle"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_weapon_lost"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "子彈在頭冠上彈開，異形的前爪擊中你的胸口。你被撞進氣閘內，帶著重傷活下來，但隔離門還沒有完全鎖死。", "effects": { "injuriesAdd": ["fracture_arm"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_airlock_damaged"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 3 } },
-            "慘烈失敗": { "text": "你未能造成有效阻滯。尾刃貫穿你的肩膀，陸遠在最後一刻把你拖進氣閘；母船一側的防爆門因撞擊變形，異形有機會跟著進入接駁艇。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_alien_followed"], "playerLocation": "loc_narcissus", "timeCost": 1, "threatDelta": 3, "unlockEvents": ["evt_narcissus_shadow_wake"] } }
+            "大成功": {
+              "text": "你連續擊中異形的下肢關節，強酸血液濺向兩側而非你的身上。它失去平衡，整條通道出現足夠讓隊伍通過的窗口。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "成功": {
+              "text": "子彈打穿一片外骨骼，異形被迫跪下。你們趁牠重新站起前衝到氣閘，卻把槍內剩餘彈藥消耗大半。",
+              "effects": {
+                "itemsDamage": [
+                  "item_desert_eagle"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "射擊逼退了異形，但一滴酸液穿過你的靴面。你帶著腿部灼傷滾進氣閘，成功抵達水仙號方向，卻失去快速移動的能力。",
+              "effects": {
+                "injuriesAdd": [
+                  "acid_burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "第一發命中，後續射擊被尾刃打偏。你失去手上的槍，卻在同伴掩護下滾進氣閘；異形沒有被擊敗，只是暫時被隔在母船一側。",
+              "effects": {
+                "itemsRemove": [
+                  "item_desert_eagle"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_weapon_lost"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "子彈在頭冠上彈開，異形的前爪擊中你的胸口。你被撞進氣閘內，帶著重傷活下來，但隔離門還沒有完全鎖死。",
+              "effects": {
+                "injuriesAdd": [
+                  "fracture_arm"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_airlock_damaged"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            },
+            "慘烈失敗": {
+              "text": "你未能造成有效阻滯。尾刃貫穿你的肩膀，陸遠在最後一刻把你拖進氣閘；母船一側的防爆門因撞擊變形，異形有機會跟著進入接駁艇。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_alien_followed"
+                ],
+                "playerLocation": "loc_narcissus",
+                "timeCost": 1,
+                "threatDelta": 3,
+                "unlockEvents": [
+                  "evt_narcissus_shadow_wake"
+                ]
+              }
+            }
           }
         },
         {
@@ -576,13 +2364,86 @@
           "attribute": "敏捷",
           "skill": "體魄",
           "difficulty": "困難",
-          "required": { "items": [], "locations": ["loc_lower_deck"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_lower_deck"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "你利用蒸氣與集裝箱的遮蔽滑過異形下方，尾刃刺進你剛才所在的位置。你撞進氣閘，第一道門在身後閉合。", "effects": { "worldFlagsAdd": ["flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "你成功穿過攻擊盲區，但戰術背包被尾刃撕開，醫療包和備用工具掉進火海。你保住性命，卻失去尚未使用的常規物資。", "effects": { "itemsRemove": ["item_emergency_medkit"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_supplies_lost"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 1 } },
-            "些微失敗": { "text": "你被鋼筋絆倒，膝蓋撞上門框。你仍然爬進氣閘，但行動速度明顯下降；後面的門鎖需要更長時間才能完成。", "effects": { "injuriesAdd": ["fracture_leg"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_airlock_damaged"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "尾刃擊中你的背部，把你向前抽進氣閘。你沒有被拖回去，但深可見骨的傷口讓接下來的氣閘操作變得危險。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 3 } },
-            "慘烈失敗": { "text": "坍塌的橫樑封住路線，異形從煙霧中踏出。陸遠引爆手雷把你掀進氣閘，但你被火焰嚴重灼傷，且異形已經抓住了接駁艇外門。", "effects": { "injuriesAdd": ["burn_major"], "worldFlagsAdd": ["flag_escaped_to_narcissus", "flag_alien_followed"], "playerLocation": "loc_narcissus", "timeCost": 1, "threatDelta": 3, "unlockEvents": ["evt_narcissus_shadow_wake"] } }
+            "成功": {
+              "text": "你利用蒸氣與集裝箱的遮蔽滑過異形下方，尾刃刺進你剛才所在的位置。你撞進氣閘，第一道門在身後閉合。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "你成功穿過攻擊盲區，但戰術背包被尾刃撕開，醫療包和備用工具掉進火海。你保住性命，卻失去尚未使用的常規物資。",
+              "effects": {
+                "itemsRemove": [
+                  "item_emergency_medkit"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_supplies_lost"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你被鋼筋絆倒，膝蓋撞上門框。你仍然爬進氣閘，但行動速度明顯下降；後面的門鎖需要更長時間才能完成。",
+              "effects": {
+                "injuriesAdd": [
+                  "fracture_leg"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_airlock_damaged"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "尾刃擊中你的背部，把你向前抽進氣閘。你沒有被拖回去，但深可見骨的傷口讓接下來的氣閘操作變得危險。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            },
+            "慘烈失敗": {
+              "text": "坍塌的橫樑封住路線，異形從煙霧中踏出。陸遠引爆手雷把你掀進氣閘，但你被火焰嚴重灼傷，且異形已經抓住了接駁艇外門。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_alien_followed"
+                ],
+                "playerLocation": "loc_narcissus",
+                "timeCost": 1,
+                "threatDelta": 3,
+                "unlockEvents": [
+                  "evt_narcissus_shadow_wake"
+                ]
+              }
+            }
           }
         },
         {
@@ -593,15 +2454,68 @@
           "attribute": "敏捷",
           "skill": "求生",
           "difficulty": "普通",
-          "required": { "items": ["item_blowtorch"], "locations": ["loc_lower_deck"] },
+          "required": {
+            "items": [
+              "item_blowtorch"
+            ],
+            "locations": [
+              "loc_lower_deck"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "焊槍點燃地面洩漏的燃料，火牆在你和異形之間升起。牠沒有被擊敗，只是退回通風口；你們獲得足夠時間完成氣閘轉移。", "effects": { "worldFlagsAdd": ["flag_firewall_created", "flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "火牆升起，但回火燒到你的背部。異形退開了，你也成功抵達氣閘，只能帶著灼傷繼續操作。", "effects": { "injuriesAdd": ["burn_minor"], "worldFlagsAdd": ["flag_firewall_created", "flag_escaped_to_narcissus"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "火勢沿著管線蔓延，沒有形成穩定火牆，反而讓下層走廊開始坍塌。你必須改走貨艙側門，異形也從另一條通風管繞了過來。", "effects": { "worldFlagsAdd": ["flag_lower_deck_collapsed"], "playerLocation": "loc_cargo", "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "焊槍點燃地面洩漏的燃料，火牆在你和異形之間升起。牠沒有被擊敗，只是退回通風口；你們獲得足夠時間完成氣閘轉移。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_firewall_created",
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "火牆升起，但回火燒到你的背部。異形退開了，你也成功抵達氣閘，只能帶著灼傷繼續操作。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_firewall_created",
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "火勢沿著管線蔓延，沒有形成穩定火牆，反而讓下層走廊開始坍塌。你必須改走貨艙側門，異形也從另一條通風管繞了過來。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_lower_deck_collapsed"
+                ],
+                "playerLocation": "loc_cargo",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_narcissus_airlock", "loc_narcissus"], "nextByLocation": { "loc_narcissus_airlock": "evt_narcissus_shadow_wake", "loc_narcissus": "evt_narcissus_shadow_wake" }, "canReturn": false, "completeNode": "n3" }
+      "sceneExit": {
+        "normal": [
+          "loc_narcissus_airlock",
+          "loc_narcissus"
+        ],
+        "nextByLocation": {
+          "loc_narcissus_airlock": "evt_narcissus_shadow_wake",
+          "loc_narcissus": "evt_narcissus_shadow_wake"
+        },
+        "canReturn": false,
+        "completeNode": "n3"
+      }
     },
     {
       "id": "evt_narcissus_shadow_wake",
@@ -609,14 +2523,42 @@
       "location": "loc_narcissus",
       "phase": "false_safety",
       "threatPolicy": {
-        "allowedLevels": ["relief_2", "relief_1", "stable", "rise_1", "rise_2", "rise_3", "immediate_combat"],
-        "immediateCombatConditions": [{ "anyFlags": ["flag_alien_alert", "flag_alien_followed"] }]
+        "allowedLevels": [
+          "relief_2",
+          "relief_1",
+          "stable",
+          "rise_1",
+          "rise_2",
+          "rise_3",
+          "immediate_combat"
+        ],
+        "immediateCombatConditions": [
+          {
+            "anyFlags": [
+              "flag_alien_alert",
+              "flag_alien_followed"
+            ]
+          }
+        ]
       },
       "purpose": "在玩家以為抵達安全區後揭露異形已登艇，並讓宇航服、安全繩與氣閘準備成為可操作的前置條件。",
-      "entryKnowledge": ["玩家已經離開或正在脫離母船", "玩家可能知道異形是否跟上來", "玩家未必已經穿戴宇航服"],
-      "gmTruth": ["異形是否進入水仙號由 flag_alien_followed 或高威脅逃生結果決定", "水仙號沒有足以長時間戰鬥的隔間", "盲目開火可能擊穿艙壁，但不是所有槍械行動都自動死亡"],
+      "entryKnowledge": [
+        "玩家已經離開或正在脫離母船",
+        "玩家可能知道異形是否跟上來",
+        "玩家未必已經穿戴宇航服"
+      ],
+      "gmTruth": [
+        "異形是否進入水仙號由 flag_alien_followed 或高威脅逃生結果決定",
+        "水仙號沒有足以長時間戰鬥的隔間",
+        "盲目開火可能擊穿艙壁，但不是所有槍械行動都自動死亡"
+      ],
       "entryNarration": "諾斯托羅莫號在舷窗外化成遠處的白色火球。水仙號的自動巡航接管了短暫的安靜，直到休眠艙後方傳來一滴液體落在金屬外殼上的聲音。酸腐氣味穿過生命維持管線，黑色身影從電纜與導管之間慢慢分離；牠一直在船上。",
-      "beats": ["確認異形已登艇", "在不驚動牠的情況下取得裝備", "選擇穿戴宇航服或搶取魚叉", "讓異形進入氣閘決戰狀態"],
+      "beats": [
+        "確認異形已登艇",
+        "在不驚動牠的情況下取得裝備",
+        "選擇穿戴宇航服或搶取魚叉",
+        "讓異形進入氣閘決戰狀態"
+      ],
       "approaches": [
         {
           "id": "app_shadow_find_coolant",
@@ -626,9 +2568,23 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你打開氣閘旁的紅色物資櫃，從固定架上取下一罐低溫冷卻噴霧。罐身只剩一次有效噴射，但在狹窄空間裡，一次就可能改變位置。", "effects": { "itemsAdd": ["item_coolant_spray"], "timeCost": 1, "threatDelta": 0 } }
+            "自動": {
+              "text": "你打開氣閘旁的紅色物資櫃，從固定架上取下一罐低溫冷卻噴霧。罐身只剩一次有效噴射，但在狹窄空間裡，一次就可能改變位置。",
+              "effects": {
+                "itemsAdd": [
+                  "item_coolant_spray"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
           }
         },
         {
@@ -639,13 +2595,75 @@
           "attribute": "敏捷",
           "skill": "潛行",
           "difficulty": "困難",
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你以幾乎沒有聲音的速度套上宇航服，安全繩扣入駕駛席底座。異形仍伏在管線裡，你取得了後續失壓作戰所需的完整防護。", "effects": { "worldFlagsAdd": ["flag_suit_ready", "flag_tether_ready"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 1 } },
-            "成功": { "text": "宇航服密封完成，安全繩也咬住固定點。頭盔內的呼吸聲取代了酸腐氣味；異形已經醒來，但你至少不會在第一秒被真空帶走。", "effects": { "worldFlagsAdd": ["flag_suit_ready", "flag_tether_ready"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "你穿好宇航服，面罩卡扣卻發出清脆聲音。管線中的黑影轉動頭顱，沒有立即撲出；安全繩固定完成，但異形已經完全醒來。", "effects": { "worldFlagsAdd": ["flag_suit_ready", "flag_tether_ready", "flag_alien_alert"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "工具箱被你的袖口碰落，聲音在狹窄艙室中放大。異形從管線裡立起，你還沒有扣上頭盔，只能在不完整防護下迎接下一個行動。", "effects": { "worldFlagsAdd": ["flag_alien_alert"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 3 } },
-            "慘烈失敗": { "text": "高壓氧氣筒被撞倒，異形在半秒內撲出。尾刃貫穿你的腹部，把你釘在休眠艙外殼上；水仙號還在航行，卻已經失去一名可行動的乘員。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_player_dead_combat"], "playerLocation": "loc_narcissus", "timeCost": 1, "threatDelta": 3 } }
+            "大成功": {
+              "text": "你以幾乎沒有聲音的速度套上宇航服，安全繩扣入駕駛席底座。異形仍伏在管線裡，你取得了後續失壓作戰所需的完整防護。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_suit_ready",
+                  "flag_tether_ready"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "成功": {
+              "text": "宇航服密封完成，安全繩也咬住固定點。頭盔內的呼吸聲取代了酸腐氣味；異形已經醒來，但你至少不會在第一秒被真空帶走。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_suit_ready",
+                  "flag_tether_ready"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "你穿好宇航服，面罩卡扣卻發出清脆聲音。管線中的黑影轉動頭顱，沒有立即撲出；安全繩固定完成，但異形已經完全醒來。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_suit_ready",
+                  "flag_tether_ready",
+                  "flag_alien_alert"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "工具箱被你的袖口碰落，聲音在狹窄艙室中放大。異形從管線裡立起，你還沒有扣上頭盔，只能在不完整防護下迎接下一個行動。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_alien_alert"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            },
+            "慘烈失敗": {
+              "text": "高壓氧氣筒被撞倒，異形在半秒內撲出。尾刃貫穿你的腹部，把你釘在休眠艙外殼上；水仙號還在航行，卻已經失去一名可行動的乘員。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_player_dead_combat"
+                ],
+                "playerLocation": "loc_narcissus",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
           }
         },
         {
@@ -656,13 +2674,80 @@
           "attribute": "敏捷",
           "skill": "求生",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "你取下魚叉槍並退到氣閘控制位，整個過程只留下槍栓輕微摩擦聲。異形沒有立刻撲出，後續決戰的第一步由你掌握。", "effects": { "itemsAdd": ["item_harpoon_gun"], "worldFlagsAdd": ["flag_harpoon_ready"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 1 } },
-            "成功": { "text": "你把魚叉槍扯下並退到紅色拉桿旁。沉重武器在手，卻沒有安全繩與完整宇航服；你取得攻擊選擇，也保留了明確風險。", "effects": { "itemsAdd": ["item_harpoon_gun"], "worldFlagsAdd": ["flag_harpoon_ready"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "魚叉槍到手，槍栓聲卻讓黑影抬頭。異形已經走出管線，堵在你與氣閘之間；武器給了你主動權，距離卻縮短了。", "effects": { "itemsAdd": ["item_harpoon_gun"], "worldFlagsAdd": ["flag_harpoon_ready", "flag_alien_alert"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "尾刃掃過槍架，魚叉槍的握把被打碎。你沒有拿到武器，異形則完全離開陰影，現在位於駕駛席與氣閘之間。", "effects": { "worldFlagsAdd": ["flag_alien_alert"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 3 } },
-            "慘烈失敗": { "text": "你剛伸手，巨爪便壓碎右腕。控制台被你的身體撞出一片電火花，水仙號的導航暫時失控；異形把你拖進後艙陰影。", "effects": { "injuriesAdd": ["fracture_arm"], "worldFlagsAdd": ["flag_player_dead_combat"], "timeCost": 1, "threatDelta": 3 } }
+            "大成功": {
+              "text": "你取下魚叉槍並退到氣閘控制位，整個過程只留下槍栓輕微摩擦聲。異形沒有立刻撲出，後續決戰的第一步由你掌握。",
+              "effects": {
+                "itemsAdd": [
+                  "item_harpoon_gun"
+                ],
+                "worldFlagsAdd": [
+                  "flag_harpoon_ready"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "成功": {
+              "text": "你把魚叉槍扯下並退到紅色拉桿旁。沉重武器在手，卻沒有安全繩與完整宇航服；你取得攻擊選擇，也保留了明確風險。",
+              "effects": {
+                "itemsAdd": [
+                  "item_harpoon_gun"
+                ],
+                "worldFlagsAdd": [
+                  "flag_harpoon_ready"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "魚叉槍到手，槍栓聲卻讓黑影抬頭。異形已經走出管線，堵在你與氣閘之間；武器給了你主動權，距離卻縮短了。",
+              "effects": {
+                "itemsAdd": [
+                  "item_harpoon_gun"
+                ],
+                "worldFlagsAdd": [
+                  "flag_harpoon_ready",
+                  "flag_alien_alert"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "尾刃掃過槍架，魚叉槍的握把被打碎。你沒有拿到武器，異形則完全離開陰影，現在位於駕駛席與氣閘之間。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_alien_alert"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            },
+            "慘烈失敗": {
+              "text": "你剛伸手，巨爪便壓碎右腕。控制台被你的身體撞出一片電火花，水仙號的導航暫時失控；異形把你拖進後艙陰影。",
+              "effects": {
+                "injuriesAdd": [
+                  "fracture_arm"
+                ],
+                "worldFlagsAdd": [
+                  "flag_player_dead_combat"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
           }
         },
         {
@@ -673,9 +2758,31 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_narcissus"], "flags": ["flag_suit_ready", "flag_tether_ready"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ],
+            "flags": [
+              "flag_suit_ready",
+              "flag_tether_ready"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你扣上宇航服、確認安全繩固定在氣閘導軌，然後把自己和異形一起逼進最後一段狹窄空間。外艙門的紅色指示燈亮起；接下來沒有退路，只有把牠送出去。", "effects": { "playerLocation": "loc_narcissus_airlock", "airlockPhase": "approach", "worldFlagsAdd": ["flag_airlock_entered"], "timeCost": 1, "threatDelta": 1, "nextEvent": "evt_narcissus_final_purge", "sceneTransition": "advance" } }
+            "自動": {
+              "text": "你扣上宇航服、確認安全繩固定在氣閘導軌，然後把自己和異形一起逼進最後一段狹窄空間。外艙門的紅色指示燈亮起；接下來沒有退路，只有把牠送出去。",
+              "effects": {
+                "playerLocation": "loc_narcissus_airlock",
+                "airlockPhase": "approach",
+                "worldFlagsAdd": [
+                  "flag_airlock_entered"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1,
+                "nextEvent": "evt_narcissus_final_purge",
+                "sceneTransition": "advance"
+              }
+            }
           }
         },
         {
@@ -686,15 +2793,61 @@
           "attribute": "敏捷",
           "skill": "潛行",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "應急燈一盞接一盞熄滅，水仙號陷入黑暗。異形仍能依靠熱、震動與氣味定位，但它失去了一個可以直接判斷你位置的視覺參照。", "effects": { "worldFlagsAdd": ["flag_cabin_dark"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 1 } },
-            "驚險成功": { "text": "照明熄滅了，卻同時觸發短促廣播噪音。你獲得第一個黑暗窗口，但異形已經知道玩家位於駕駛台一側。", "effects": { "worldFlagsAdd": ["flag_cabin_dark", "flag_alien_alert"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 2 } },
-            "失敗": { "text": "你摸錯開關，駕駛台發出一聲尖銳提示音。黑影從管線中落下，照明仍在，玩家必須改變位置。", "effects": { "worldFlagsAdd": ["flag_alien_alert"], "playerLocation": "loc_narcissus_airlock", "timeCost": 1, "threatDelta": 2 } }
+            "成功": {
+              "text": "應急燈一盞接一盞熄滅，水仙號陷入黑暗。異形仍能依靠熱、震動與氣味定位，但它失去了一個可以直接判斷你位置的視覺參照。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cabin_dark"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "照明熄滅了，卻同時觸發短促廣播噪音。你獲得第一個黑暗窗口，但異形已經知道玩家位於駕駛台一側。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cabin_dark",
+                  "flag_alien_alert"
+                ],
+                "airlockPhase": "approach",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "你摸錯開關，駕駛台發出一聲尖銳提示音。黑影從管線中落下，照明仍在，玩家必須改變位置。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_alien_alert"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_narcissus_airlock"], "nextByLocation": { "loc_narcissus_airlock": "evt_narcissus_final_purge" }, "canReturn": false, "completionMode": "combat_or_final_purge", "nextEvent": "evt_narcissus_final_purge" }
+      "sceneExit": {
+        "normal": [
+          "loc_narcissus_airlock"
+        ],
+        "nextByLocation": {
+          "loc_narcissus_airlock": "evt_narcissus_final_purge"
+        },
+        "canReturn": false,
+        "completionMode": "combat_or_final_purge",
+        "nextEvent": "evt_narcissus_final_purge"
+      }
     },
     {
       "id": "evt_narcissus_final_purge",
@@ -702,10 +2855,24 @@
       "location": "loc_narcissus_airlock",
       "phase": "finale",
       "purpose": "以兩階段終局處理取代單一必然戰鬥：先把異形置於氣閘位置，再完成排氣與推進器淨化。",
-      "entryKnowledge": ["異形已在水仙號內", "玩家知道氣閘與推進器的功能", "玩家應能從裝備與位置判斷是否具備安全條件"],
-      "gmTruth": ["第一階段是 position_alien_at_airlock", "第二階段是 depressurize_and_purge", "沒有 flag_suit_ready 與 flag_tether_ready 時，開啟氣閘可能導向死亡，但其他戰術行動仍可改變結果", "最終戰節點由 combat API 結算；本事件資料提供引擎可驗證的戰術與敘事上下文"],
+      "entryKnowledge": [
+        "異形已在水仙號內",
+        "玩家知道氣閘與推進器的功能",
+        "玩家應能從裝備與位置判斷是否具備安全條件"
+      ],
+      "gmTruth": [
+        "第一階段是 position_alien_at_airlock",
+        "第二階段是 depressurize_and_purge",
+        "沒有 flag_suit_ready 與 flag_tether_ready 時，開啟氣閘可能導向死亡，但其他戰術行動仍可改變結果",
+        "最終戰節點由 combat API 結算；本事件資料提供引擎可驗證的戰術與敘事上下文"
+      ],
       "entryNarration": "異形把自己固定在駕駛艙與氣閘之間，尾刃掃過儀表台，電火花沿著艙壁跳動。紅色排氣拉桿就在你伸手可及的位置，安全繩固定點則位於另一側。水仙號的推進器點火台亮著待命黃燈；要讓這個計畫成立，你必須先把牠推到氣閘凹槽，再在失壓中保住自己的位置。",
-      "beats": ["驅趕或牽制異形", "確認氣閘位置與安全繩", "進入失壓窗口", "切斷攀附、啟動推進器或承受失敗後果"],
+      "beats": [
+        "驅趕或牽制異形",
+        "確認氣閘位置與安全繩",
+        "進入失壓窗口",
+        "切斷攀附、啟動推進器或承受失敗後果"
+      ],
       "phases": [
         {
           "id": "position",
@@ -719,12 +2886,76 @@
               "attribute": "敏捷",
               "skill": "求生",
               "difficulty": "普通",
-              "required": { "items": ["item_coolant_spray"], "locations": ["loc_narcissus_airlock", "loc_narcissus"] },
+              "required": {
+                "items": [
+                  "item_coolant_spray"
+                ],
+                "locations": [
+                  "loc_narcissus_airlock",
+                  "loc_narcissus"
+                ]
+              },
               "outcomes": {
-                "成功": { "text": "低溫白霧正面擊中異形頭部，牠向後撞進氣閘凹槽。噴霧罐的壓力快速下降，但牠暫時失去重新撲出的角度。", "effects": { "itemsRemove": ["item_coolant_spray"], "airlockPhase": "positioned", "worldFlagsAdd": ["flag_alien_positioned"], "timeCost": 1, "threatDelta": 1 } },
-                "驚險成功": { "text": "冷卻劑逼退了異形，但尾刃劃裂你的面罩外層。你完成位置控制，卻必須在有限氣密條件下完成下一步。", "effects": { "itemsRemove": ["item_coolant_spray"], "injuriesAdd": ["suffocation_major"], "airlockPhase": "positioned", "worldFlagsAdd": ["flag_alien_positioned", "flag_helmet_damaged"], "timeCost": 1, "threatDelta": 2 } },
-                "失敗": { "text": "噴霧只逼退牠兩米，罐體隨即被拍扁。異形仍在氣閘邊緣，但沒有進入可以安全排氣的位置。", "effects": { "itemsRemove": ["item_coolant_spray"], "airlockPhase": "approach", "worldFlagsAdd": ["flag_coolant_spent"], "timeCost": 1, "threatDelta": 2 } },
-                "慘烈失敗": { "text": "罐體在搏鬥中爆裂，白霧遮住整個艙室。異形在盲區中擊碎你的腿骨，將你按在儀表台上；下一回合只能由同伴或極端自由行動改變局面。", "effects": { "itemsRemove": ["item_coolant_spray"], "injuriesAdd": ["fracture_leg"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 3 } }
+                "成功": {
+                  "text": "低溫白霧正面擊中異形頭部，牠向後撞進氣閘凹槽。噴霧罐的壓力快速下降，但牠暫時失去重新撲出的角度。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_coolant_spray"
+                    ],
+                    "airlockPhase": "positioned",
+                    "worldFlagsAdd": [
+                      "flag_alien_positioned"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 1
+                  }
+                },
+                "驚險成功": {
+                  "text": "冷卻劑逼退了異形，但尾刃劃裂你的面罩外層。你完成位置控制，卻必須在有限氣密條件下完成下一步。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_coolant_spray"
+                    ],
+                    "injuriesAdd": [
+                      "suffocation_major"
+                    ],
+                    "airlockPhase": "positioned",
+                    "worldFlagsAdd": [
+                      "flag_alien_positioned",
+                      "flag_helmet_damaged"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 2
+                  }
+                },
+                "失敗": {
+                  "text": "噴霧只逼退牠兩米，罐體隨即被拍扁。異形仍在氣閘邊緣，但沒有進入可以安全排氣的位置。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_coolant_spray"
+                    ],
+                    "airlockPhase": "approach",
+                    "worldFlagsAdd": [
+                      "flag_coolant_spent"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 2
+                  }
+                },
+                "慘烈失敗": {
+                  "text": "罐體在搏鬥中爆裂，白霧遮住整個艙室。異形在盲區中擊碎你的腿骨，將你按在儀表台上；下一回合只能由同伴或極端自由行動改變局面。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_coolant_spray"
+                    ],
+                    "injuriesAdd": [
+                      "fracture_leg"
+                    ],
+                    "airlockPhase": "approach",
+                    "timeCost": 1,
+                    "threatDelta": 3
+                  }
+                }
               }
             },
             {
@@ -735,12 +2966,73 @@
               "attribute": "感知",
               "skill": "射擊",
               "difficulty": "普通",
-              "required": { "items": ["item_harpoon_gun"], "locations": ["loc_narcissus_airlock", "loc_narcissus"] },
+              "required": {
+                "items": [
+                  "item_harpoon_gun"
+                ],
+                "locations": [
+                  "loc_narcissus_airlock",
+                  "loc_narcissus"
+                ]
+              },
               "outcomes": {
-                "成功": { "text": "魚叉在近距離穿透胸甲，異形被釘進氣閘門框。槍管被酸血腐蝕，但牠暫時失去撲擊角度。", "effects": { "itemsRemove": ["item_harpoon_gun"], "airlockPhase": "positioned", "worldFlagsAdd": ["flag_alien_positioned"], "timeCost": 1, "threatDelta": 1 } },
-                "驚險成功": { "text": "箭矢命中肩部，異形退到凹槽，魚叉槍卻被酸血腐蝕報廢。你取得位置優勢，失去重型武器。", "effects": { "itemsRemove": ["item_harpoon_gun"], "airlockPhase": "positioned", "worldFlagsAdd": ["flag_alien_positioned", "flag_harpoon_destroyed"], "timeCost": 1, "threatDelta": 1 } },
-                "失敗": { "text": "箭矢打在門框上，異形扭身捏碎槍身。牠仍在氣閘附近，但已經重新取得主動位置。", "effects": { "itemsRemove": ["item_harpoon_gun"], "airlockPhase": "approach", "worldFlagsAdd": ["flag_harpoon_destroyed"], "timeCost": 1, "threatDelta": 2 } },
-                "慘烈失敗": { "text": "魚叉槍在開火瞬間炸膛，金屬破片刺入你的手臂。異形撲到你身上，氣閘仍未開啟。", "effects": { "itemsRemove": ["item_harpoon_gun"], "injuriesAdd": ["fracture_arm"], "airlockPhase": "approach", "timeCost": 1, "threatDelta": 3 } }
+                "成功": {
+                  "text": "魚叉在近距離穿透胸甲，異形被釘進氣閘門框。槍管被酸血腐蝕，但牠暫時失去撲擊角度。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_harpoon_gun"
+                    ],
+                    "airlockPhase": "positioned",
+                    "worldFlagsAdd": [
+                      "flag_alien_positioned"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 1
+                  }
+                },
+                "驚險成功": {
+                  "text": "箭矢命中肩部，異形退到凹槽，魚叉槍卻被酸血腐蝕報廢。你取得位置優勢，失去重型武器。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_harpoon_gun"
+                    ],
+                    "airlockPhase": "positioned",
+                    "worldFlagsAdd": [
+                      "flag_alien_positioned",
+                      "flag_harpoon_destroyed"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 1
+                  }
+                },
+                "失敗": {
+                  "text": "箭矢打在門框上，異形扭身捏碎槍身。牠仍在氣閘附近，但已經重新取得主動位置。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_harpoon_gun"
+                    ],
+                    "airlockPhase": "approach",
+                    "worldFlagsAdd": [
+                      "flag_harpoon_destroyed"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 2
+                  }
+                },
+                "慘烈失敗": {
+                  "text": "魚叉槍在開火瞬間炸膛，金屬破片刺入你的手臂。異形撲到你身上，氣閘仍未開啟。",
+                  "effects": {
+                    "itemsRemove": [
+                      "item_harpoon_gun"
+                    ],
+                    "injuriesAdd": [
+                      "fracture_arm"
+                    ],
+                    "airlockPhase": "approach",
+                    "timeCost": 1,
+                    "threatDelta": 3
+                  }
+                }
               }
             }
           ]
@@ -748,7 +3040,9 @@
         {
           "id": "purge",
           "name": "排氣與推進器淨化",
-          "requiredStates": ["airlockPhase=positioned"],
+          "requiredStates": [
+            "airlockPhase=positioned"
+          ],
           "approaches": [
             {
               "id": "app_purge_classic",
@@ -758,13 +3052,85 @@
               "attribute": "力量",
               "skill": "求生",
               "difficulty": "困難",
-              "required": { "items": [], "locations": ["loc_narcissus_airlock", "loc_narcissus"], "flags": ["flag_suit_ready", "flag_tether_ready"] },
+              "required": {
+                "items": [],
+                "locations": [
+                  "loc_narcissus_airlock",
+                  "loc_narcissus"
+                ],
+                "flags": [
+                  "flag_suit_ready",
+                  "flag_tether_ready"
+                ]
+              },
               "outcomes": {
-                "大成功": { "text": "安全繩承住第一波失壓，你拉下紅色拉桿，再撲向推進器點火台。藍白尾焰吞沒氣閘外的異形，水仙號重新關閉艙門，這次逃生真正結束。", "effects": { "airlockPhase": "secured", "shipStatus": "stable", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured"], "timeCost": 1, "threatDelta": -5 } },
-                "成功": { "text": "你完成排氣與點火，異形失去攀附點後被尾焰焚毀。推進器的一條輔助線路受損，水仙號仍能航行，但之後需要維修。", "effects": { "airlockPhase": "secured", "shipStatus": "damaged", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured", "flag_narcissus_damaged"], "timeCost": 1, "threatDelta": -4 } },
-                "驚險成功": { "text": "氣閘開啟與推進器點火都成功了，但安全繩猛然繃緊，讓你的肩膀脫臼。異形被焚毀，水仙號保住密封。", "effects": { "airlockPhase": "secured", "shipStatus": "stable", "injuriesAdd": ["fracture_arm"], "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured"], "timeCost": 1, "threatDelta": -4 } },
-                "失敗": { "text": "氣閘開啟延遲，異形在最後一秒扯斷副駕駛扶手。你仍完成點火，牠被失壓帶走，但水仙號失去部分推進能力。", "effects": { "airlockPhase": "secured", "shipStatus": "damaged", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured"], "timeCost": 1, "threatDelta": -3 } },
-                "慘烈失敗": { "text": "你沒有扣緊安全繩就拉下氣閘。真空同時抓住你與異形；你在被扯出艙外前只看見推進器遠去的藍光。", "effects": { "airlockPhase": "depressurizing", "worldFlagsAdd": ["flag_player_dead_vacuum"], "timeCost": 1, "threatDelta": 3 } }
+                "大成功": {
+                  "text": "安全繩承住第一波失壓，你拉下紅色拉桿，再撲向推進器點火台。藍白尾焰吞沒氣閘外的異形，水仙號重新關閉艙門，這次逃生真正結束。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "stable",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -5
+                  }
+                },
+                "成功": {
+                  "text": "你完成排氣與點火，異形失去攀附點後被尾焰焚毀。推進器的一條輔助線路受損，水仙號仍能航行，但之後需要維修。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "damaged",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured",
+                      "flag_narcissus_damaged"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -4
+                  }
+                },
+                "驚險成功": {
+                  "text": "氣閘開啟與推進器點火都成功了，但安全繩猛然繃緊，讓你的肩膀脫臼。異形被焚毀，水仙號保住密封。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "stable",
+                    "injuriesAdd": [
+                      "fracture_arm"
+                    ],
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -4
+                  }
+                },
+                "失敗": {
+                  "text": "氣閘開啟延遲，異形在最後一秒扯斷副駕駛扶手。你仍完成點火，牠被失壓帶走，但水仙號失去部分推進能力。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "damaged",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -3
+                  }
+                },
+                "慘烈失敗": {
+                  "text": "你沒有扣緊安全繩就拉下氣閘。真空同時抓住你與異形；你在被扯出艙外前只看見推進器遠去的藍光。",
+                  "effects": {
+                    "airlockPhase": "depressurizing",
+                    "worldFlagsAdd": [
+                      "flag_player_dead_vacuum"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 3
+                  }
+                }
               }
             },
             {
@@ -775,12 +3141,75 @@
               "attribute": "敏捷",
               "skill": "射擊",
               "difficulty": "普通",
-              "required": { "items": ["item_desert_eagle"], "locations": ["loc_narcissus_airlock", "loc_narcissus"], "flags": ["flag_suit_ready", "flag_tether_ready"] },
+              "required": {
+                "items": [
+                  "item_desert_eagle"
+                ],
+                "locations": [
+                  "loc_narcissus_airlock",
+                  "loc_narcissus"
+                ],
+                "flags": [
+                  "flag_suit_ready",
+                  "flag_tether_ready"
+                ]
+              },
               "outcomes": {
-                "成功": { "text": "你在失重與狂風中打碎異形的攀附指節。牠被吸入太空，推進器隨後焚毀殘留軌跡；你拉回自己，重新鎖死氣閘。", "effects": { "airlockPhase": "secured", "shipStatus": "stable", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured"], "timeCost": 1, "threatDelta": -5 } },
-                "驚險成功": { "text": "你擊斷攀附點，卻被後座力撞上艙頂。異形被排出，水仙號保住密封，你帶著挫傷完成關門。", "effects": { "airlockPhase": "secured", "shipStatus": "stable", "injuriesAdd": ["fracture_arm"], "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured"], "timeCost": 1, "threatDelta": -4 } },
-                "失敗": { "text": "子彈打空，異形的尾刃劃破你的大腿宇航服。你仍抓住固定點，但失壓警報亮起；牠還沒有被清除。", "effects": { "injuriesAdd": ["suffocation_major"], "airlockPhase": "depressurizing", "shipStatus": "damaged", "worldFlagsAdd": ["flag_airlock_damaged"], "timeCost": 1, "threatDelta": 2 } },
-                "慘烈失敗": { "text": "跳彈打穿安全繩。你在抓住門框前被真空拉向外門，異形纏住你的下半身，兩個身影一起消失在深空。", "effects": { "airlockPhase": "depressurizing", "worldFlagsAdd": ["flag_player_dead_vacuum"], "timeCost": 1, "threatDelta": 3 } }
+                "成功": {
+                  "text": "你在失重與狂風中打碎異形的攀附指節。牠被吸入太空，推進器隨後焚毀殘留軌跡；你拉回自己，重新鎖死氣閘。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "stable",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -5
+                  }
+                },
+                "驚險成功": {
+                  "text": "你擊斷攀附點，卻被後座力撞上艙頂。異形被排出，水仙號保住密封，你帶著挫傷完成關門。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "stable",
+                    "injuriesAdd": [
+                      "fracture_arm"
+                    ],
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": -4
+                  }
+                },
+                "失敗": {
+                  "text": "子彈打空，異形的尾刃劃破你的大腿宇航服。你仍抓住固定點，但失壓警報亮起；牠還沒有被清除。",
+                  "effects": {
+                    "injuriesAdd": [
+                      "suffocation_major"
+                    ],
+                    "airlockPhase": "depressurizing",
+                    "shipStatus": "damaged",
+                    "worldFlagsAdd": [
+                      "flag_airlock_damaged"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 2
+                  }
+                },
+                "慘烈失敗": {
+                  "text": "跳彈打穿安全繩。你在抓住門框前被真空拉向外門，異形纏住你的下半身，兩個身影一起消失在深空。",
+                  "effects": {
+                    "airlockPhase": "depressurizing",
+                    "worldFlagsAdd": [
+                      "flag_player_dead_vacuum"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 3
+                  }
+                }
               }
             },
             {
@@ -791,18 +3220,109 @@
               "attribute": "敏捷",
               "skill": "求生",
               "difficulty": "容易",
-              "required": { "items": [], "locations": ["loc_narcissus_airlock", "loc_narcissus"], "npcStatuses": { "npc_luyuan": ["alive", "injured"], "npc_ripley": ["alive", "injured"], "npc_parker": ["alive", "injured"] }, "flags": ["flag_suit_ready", "flag_tether_ready"] },
+              "required": {
+                "items": [],
+                "locations": [
+                  "loc_narcissus_airlock",
+                  "loc_narcissus"
+                ],
+                "npcStatuses": {
+                  "npc_luyuan": [
+                    "alive",
+                    "injured"
+                  ],
+                  "npc_ripley": [
+                    "alive",
+                    "injured"
+                  ],
+                  "npc_parker": [
+                    "alive",
+                    "injured"
+                  ]
+                },
+                "flags": [
+                  "flag_suit_ready",
+                  "flag_tether_ready"
+                ]
+              },
               "outcomes": {
-                "成功": { "text": "同伴在駕駛席倒數，你在安全繩末端牽制異形。氣閘、點火與關門在同一個節拍完成；異形被尾焰吞沒，而你的同伴也活著留在水仙號內。", "effects": { "airlockPhase": "secured", "shipStatus": "stable", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured", "flag_npc_assisted"], "npcStatusChanges": { "npc_luyuan": "survived" }, "timeCost": 1, "threatDelta": -5 } },
-                "驚險成功": { "text": "同伴慢了一秒才按下點火，異形仍被焚毀，但爪尖劃破你的防護靴。水仙號密封完成，隊伍保住了至少一名倖存者。", "effects": { "airlockPhase": "secured", "shipStatus": "damaged", "injuriesAdd": ["acid_burn_minor"], "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured", "flag_npc_assisted"], "npcStatusChanges": { "npc_luyuan": "survived" }, "timeCost": 1, "threatDelta": -4 } },
-                "失敗": { "text": "同伴的點火延遲讓異形多抓住一個固定點。你們仍把牠推出去，但水仙號推進器受損，倖存者只能在低速航行中等待結算。", "effects": { "airlockPhase": "secured", "shipStatus": "damaged", "worldFlagsAdd": ["flag_xenomorph_killed", "flag_narcissus_secured", "flag_npc_assisted"], "npcStatusChanges": { "npc_luyuan": "survived" }, "timeCost": 1, "threatDelta": -3 } },
-                "慘烈失敗": { "text": "同伴踩空，協同節奏崩潰。氣閘風暴把你撞向外門；若沒有另一名角色立刻抓住固定點，這一回合會直接進入真空死亡。", "effects": { "airlockPhase": "depressurizing", "worldFlagsAdd": ["flag_airlock_damaged"], "timeCost": 1, "threatDelta": 3 } }
+                "成功": {
+                  "text": "同伴在駕駛席倒數，你在安全繩末端牽制異形。氣閘、點火與關門在同一個節拍完成；異形被尾焰吞沒，而你的同伴也活著留在水仙號內。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "stable",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured",
+                      "flag_npc_assisted"
+                    ],
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "timeCost": 1,
+                    "threatDelta": -5
+                  }
+                },
+                "驚險成功": {
+                  "text": "同伴慢了一秒才按下點火，異形仍被焚毀，但爪尖劃破你的防護靴。水仙號密封完成，隊伍保住了至少一名倖存者。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "damaged",
+                    "injuriesAdd": [
+                      "acid_burn_minor"
+                    ],
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured",
+                      "flag_npc_assisted"
+                    ],
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "timeCost": 1,
+                    "threatDelta": -4
+                  }
+                },
+                "失敗": {
+                  "text": "同伴的點火延遲讓異形多抓住一個固定點。你們仍把牠推出去，但水仙號推進器受損，倖存者只能在低速航行中等待結算。",
+                  "effects": {
+                    "airlockPhase": "secured",
+                    "shipStatus": "damaged",
+                    "worldFlagsAdd": [
+                      "flag_xenomorph_killed",
+                      "flag_narcissus_secured",
+                      "flag_npc_assisted"
+                    ],
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "timeCost": 1,
+                    "threatDelta": -3
+                  }
+                },
+                "慘烈失敗": {
+                  "text": "同伴踩空，協同節奏崩潰。氣閘風暴把你撞向外門；若沒有另一名角色立刻抓住固定點，這一回合會直接進入真空死亡。",
+                  "effects": {
+                    "airlockPhase": "depressurizing",
+                    "worldFlagsAdd": [
+                      "flag_airlock_damaged"
+                    ],
+                    "timeCost": 1,
+                    "threatDelta": 3
+                  }
+                }
               }
             }
           ]
         }
       ],
-      "sceneExit": { "normal": ["loc_narcissus"], "canReturn": false, "completionMode": "combat_or_final_purge" }
+      "sceneExit": {
+        "normal": [
+          "loc_narcissus"
+        ],
+        "canReturn": false,
+        "completionMode": "combat_or_final_purge"
+      }
     },
     {
       "id": "evt_hypersleep_return",
@@ -810,10 +3330,23 @@
       "location": "loc_narcissus",
       "phase": "settlement",
       "purpose": "讓玩家在通關後仍有一次有意義的狀態確認：感染、樣本、NPC、生還證據與世界線影響。",
-      "entryKnowledge": ["異形已被處理或玩家已進入劣勢結局", "水仙號正在航行", "玩家尚未必知道是否遭到寄生"],
-      "gmTruth": ["普通酸液傷不等於感染", "只有有感染來源的事件才可以把 infectionStatus 設為 suspected 或 infected", "休眠會結束本局並產生 scenarioOutcome"],
+      "entryKnowledge": [
+        "異形已被處理或玩家已進入劣勢結局",
+        "水仙號正在航行",
+        "玩家尚未必知道是否遭到寄生"
+      ],
+      "gmTruth": [
+        "普通酸液傷不等於感染",
+        "只有有感染來源的事件才可以把 infectionStatus 設為 suspected 或 infected",
+        "休眠會結束本局並產生 scenarioOutcome"
+      ],
       "entryNarration": "戰鬥結束後，水仙號只剩儀表板的低鳴。凍結的酸液黏在氣閘邊緣，兩具低溫休眠艙在後方展開。腕錶上的倒數停止了，卻沒有立刻顯示獎勵；它先列出一份體徵檢查與物資清單，提醒你仍有幾件事可以在合蓋前處理。",
-      "beats": ["處理傷勢與感染疑慮", "保存或摧毀樣本", "留下日誌或確認 NPC 狀態", "進入休眠並輸出副本結算資料"],
+      "beats": [
+        "處理傷勢與感染疑慮",
+        "保存或摧毀樣本",
+        "留下日誌或確認 NPC 狀態",
+        "進入休眠並輸出副本結算資料"
+      ],
       "approaches": [
         {
           "id": "app_return_check_clean",
@@ -823,14 +3356,104 @@
           "attribute": "智力",
           "skill": "醫療",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "大成功": { "text": "掃描儀完成多重波段檢查，排除寄生體與主要酸液污染。你還發現一處被忽略的傷口，及時完成處理後才躺進休眠艙。", "effects": { "infectionStatus": "cleared", "worldFlagsAdd": ["flag_infection_cleared", "flag_hypersleep_entered"], "timeCost": 1 } },
-            "成功": { "text": "掃描結果顯示沒有外來生物組織，酸液傷也只停留在體表。你記下結果，將醫療包放回儲格，準備進入休眠。", "effects": { "infectionStatus": "cleared", "worldFlagsAdd": ["flag_infection_cleared", "flag_hypersleep_entered"], "timeCost": 1 } },
-            "驚險成功": { "text": "掃描儀檢出一小片壞死組織，但沒有寄生反應。你切除並包紮傷口後進入休眠，帶著明確的傷勢而不是未知感染。", "effects": { "infectionStatus": "cleared", "injuriesAdd": ["acid_burn_minor"], "worldFlagsAdd": ["flag_infection_cleared", "flag_hypersleep_entered"], "timeCost": 1 } },
-            "些微失敗": { "text": "掃描儀在胸腔下方失去電力，只能確認體表沒有幼體痕跡。你帶著疑慮進入休眠，感染狀態保持未知，不應直接判定為感染。", "effects": { "infectionStatus": "unknown", "worldFlagsAdd": ["flag_hypersleep_entered", "flag_infection_unresolved"], "timeCost": 1 } },
-            "失敗": { "text": "你無法解讀複合光譜，系統把一處陰影標成不確定項。你沒有證據說自己已經感染，也沒有足夠理由宣稱安全；休眠前的風險被保留下來。", "effects": { "infectionStatus": "suspected", "worldFlagsAdd": ["flag_hypersleep_entered", "flag_infection_suspected"], "timeCost": 1 } },
-            "慘烈失敗": { "text": "酸液殘留讓探頭短路，儀器吐出一份錯誤的健康報告。只有在此前確實接觸過抱臉體或幼體時，未被檢出的寄生體才會跟著你離開；否則，這次失敗只留下未排除的感染疑慮。", "effects": { "worldFlagsAdd": ["flag_hypersleep_entered"], "timeCost": 1 }, "conditionalEffects": [{ "ifFlags": ["flag_parasite_exposure"], "effects": { "infectionStatus": "infected", "worldFlagsAdd": ["flag_infected"] } }, { "ifFlagsAbsent": ["flag_parasite_exposure"], "effects": { "infectionStatus": "suspected", "worldFlagsAdd": ["flag_infection_suspected"] } }] }
+            "大成功": {
+              "text": "掃描儀完成多重波段檢查，排除寄生體與主要酸液污染。你還發現一處被忽略的傷口，及時完成處理後才躺進休眠艙。",
+              "effects": {
+                "infectionStatus": "cleared",
+                "worldFlagsAdd": [
+                  "flag_infection_cleared",
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 1
+              }
+            },
+            "成功": {
+              "text": "掃描結果顯示沒有外來生物組織，酸液傷也只停留在體表。你記下結果，將醫療包放回儲格，準備進入休眠。",
+              "effects": {
+                "infectionStatus": "cleared",
+                "worldFlagsAdd": [
+                  "flag_infection_cleared",
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 1
+              }
+            },
+            "驚險成功": {
+              "text": "掃描儀檢出一小片壞死組織，但沒有寄生反應。你切除並包紮傷口後進入休眠，帶著明確的傷勢而不是未知感染。",
+              "effects": {
+                "infectionStatus": "cleared",
+                "injuriesAdd": [
+                  "acid_burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_infection_cleared",
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 1
+              }
+            },
+            "些微失敗": {
+              "text": "掃描儀在胸腔下方失去電力，只能確認體表沒有幼體痕跡。你帶著疑慮進入休眠，感染狀態保持未知，不應直接判定為感染。",
+              "effects": {
+                "infectionStatus": "unknown",
+                "worldFlagsAdd": [
+                  "flag_hypersleep_entered",
+                  "flag_infection_unresolved"
+                ],
+                "timeCost": 1
+              }
+            },
+            "失敗": {
+              "text": "你無法解讀複合光譜，系統把一處陰影標成不確定項。你沒有證據說自己已經感染，也沒有足夠理由宣稱安全；休眠前的風險被保留下來。",
+              "effects": {
+                "infectionStatus": "suspected",
+                "worldFlagsAdd": [
+                  "flag_hypersleep_entered",
+                  "flag_infection_suspected"
+                ],
+                "timeCost": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "酸液殘留讓探頭短路，儀器吐出一份錯誤的健康報告。只有在此前確實接觸過抱臉體或幼體時，未被檢出的寄生體才會跟著你離開；否則，這次失敗只留下未排除的感染疑慮。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 1
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_parasite_exposure"
+                  ],
+                  "effects": {
+                    "infectionStatus": "infected",
+                    "worldFlagsAdd": [
+                      "flag_infected"
+                    ]
+                  }
+                },
+                {
+                  "ifFlagsAbsent": [
+                    "flag_parasite_exposure"
+                  ],
+                  "effects": {
+                    "infectionStatus": "suspected",
+                    "worldFlagsAdd": [
+                      "flag_infection_suspected"
+                    ]
+                  }
+                }
+              ]
+            }
           }
         },
         {
@@ -841,9 +3464,23 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你沒有再拆開任何箱子，也沒有把傷口交給儀器確認。休眠艙合上，水仙號帶著已知與未知的一切駛向人類核心星區。", "effects": { "infectionStatus": "unknown", "worldFlagsAdd": ["flag_hypersleep_entered"], "timeCost": 0 } }
+            "自動": {
+              "text": "你沒有再拆開任何箱子，也沒有把傷口交給儀器確認。休眠艙合上，水仙號帶著已知與未知的一切駛向人類核心星區。",
+              "effects": {
+                "infectionStatus": "unknown",
+                "worldFlagsAdd": [
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 0
+              }
+            }
           }
         },
         {
@@ -854,10 +3491,36 @@
           "attribute": "智力",
           "skill": "技藝",
           "difficulty": "容易",
-          "required": { "items": ["item_xenomorph_tissue"], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [
+              "item_xenomorph_tissue"
+            ],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "成功": { "text": "你把仍具活性的組織密封在低溫儲格，確認溫度鎖定後才關閉艙門。這份樣本不是普通戰利品；它會把公司的注意力與後續世界線一起帶回去。", "effects": { "sampleStatus": "preserved", "worldFlagsAdd": ["flag_sample_preserved", "flag_hypersleep_entered"], "timeCost": 1 } },
-            "失敗": { "text": "儲格的溫控設定錯誤，組織在玻璃管內失去活性。你保留了失敗的證據，卻沒有把可用樣本帶出副本。", "effects": { "sampleStatus": "destroyed", "worldFlagsAdd": ["flag_sample_destroyed"], "timeCost": 1 } }
+            "成功": {
+              "text": "你把仍具活性的組織密封在低溫儲格，確認溫度鎖定後才關閉艙門。這份樣本不是普通戰利品；它會把公司的注意力與後續世界線一起帶回去。",
+              "effects": {
+                "sampleStatus": "preserved",
+                "worldFlagsAdd": [
+                  "flag_sample_preserved",
+                  "flag_hypersleep_entered"
+                ],
+                "timeCost": 1
+              }
+            },
+            "失敗": {
+              "text": "儲格的溫控設定錯誤，組織在玻璃管內失去活性。你保留了失敗的證據，卻沒有把可用樣本帶出副本。",
+              "effects": {
+                "sampleStatus": "destroyed",
+                "worldFlagsAdd": [
+                  "flag_sample_destroyed"
+                ],
+                "timeCost": 1
+              }
+            }
           }
         },
         {
@@ -868,136 +3531,353 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_narcissus"] },
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_narcissus"
+            ]
+          },
           "outcomes": {
-            "自動": { "text": "你把諾斯托羅莫號、937、Ash 與異形的經過錄入水仙號黑盒子。這份紀錄未必能被公司承認，但它成為後來者可以追查的第一個節點。", "effects": { "worldFlagsAdd": ["flag_survivor_log_saved"], "timeCost": 0 } }
+            "自動": {
+              "text": "你把諾斯托羅莫號、937、Ash 與異形的經過錄入水仙號黑盒子。這份紀錄未必能被公司承認，但它成為後來者可以追查的第一個節點。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_survivor_log_saved"
+                ],
+                "timeCost": 0
+              }
+            }
           }
         }
       ],
-      "sceneExit": { "normal": ["settlement"], "canReturn": false, "completionMode": "settlement_after_combat" }
+      "sceneExit": {
+        "normal": [
+          "settlement"
+        ],
+        "canReturn": false,
+        "completionMode": "settlement_after_combat"
+      }
     }
   ],
   "endings": [
     {
       "id": "end_solo_survivor",
       "kind": "survival",
-      "conditions": ["flag_xenomorph_killed", "flag_hypersleep_entered", "infectionStatus != infected", "sampleStatus != preserved", "no NPC with status survived"],
+      "conditions": [
+        "flag_xenomorph_killed",
+        "flag_hypersleep_entered",
+        "infectionStatus != infected",
+        "sampleStatus != preserved",
+        "no NPC with status survived"
+      ],
       "text": "水仙號在深空中留下微弱藍光。諾斯托羅莫號的殘骸逐漸遠去，沒有人能替你證明那艘船上發生過什麼；只有你的傷勢、腕錶裡的紀錄，以及一段沒有被公司承認的座標。",
       "worldDelta": [
-        { "key": "nostromo.status", "value": "destroyed", "persistence": "world", "provenance": "evt_narcissus_final_purge" },
-        { "key": "company.nostromo_record", "value": "disaster_unresolved", "persistence": "world", "provenance": "end_solo_survivor" },
-        { "key": "special_order_937.exposure", "value": "limited_or_lost", "persistence": "world", "provenance": "end_solo_survivor" }
+        {
+          "key": "nostromo.status",
+          "value": "destroyed",
+          "persistence": "world",
+          "provenance": "evt_narcissus_final_purge"
+        },
+        {
+          "key": "company.nostromo_record",
+          "value": "disaster_unresolved",
+          "persistence": "world",
+          "provenance": "end_solo_survivor"
+        },
+        {
+          "key": "special_order_937.exposure",
+          "value": "limited_or_lost",
+          "persistence": "world",
+          "provenance": "end_solo_survivor"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["player_survived_nostromo_incident", "company_denies_direct_evidence"],
-      "unresolvedThreads": ["company_coverup_active", "nostromo_coordinates_may_be_recovered"]
+      "memorySeeds": [
+        "player_survived_nostromo_incident",
+        "company_denies_direct_evidence"
+      ],
+      "unresolvedThreads": [
+        "company_coverup_active",
+        "nostromo_coordinates_may_be_recovered"
+      ]
     },
     {
       "id": "end_heroic_rescue",
       "kind": "survival_with_npc",
-      "conditions": ["flag_xenomorph_killed", "flag_hypersleep_entered", "npc_luyuan.status == survived OR npc_ripley.status == survived"],
+      "conditions": [
+        "flag_xenomorph_killed",
+        "flag_hypersleep_entered",
+        "npc_luyuan.status == survived OR npc_ripley.status == survived"
+      ],
       "text": "水仙號的兩具休眠艙同時亮起綠燈。你沒有只把自己塞進逃生路線；有人會帶著對 937、Ash 與異形的第一手記憶一起離開。",
       "worldDelta": [
-        { "key": "nostromo.status", "value": "destroyed", "persistence": "world", "provenance": "end_heroic_rescue" },
-        { "key": "special_order_937.exposure", "value": "witnessed_by_survivor", "persistence": "world", "provenance": "end_heroic_rescue" },
-        { "key": "company.coverup_pressure", "value": "increased", "persistence": "world", "provenance": "end_heroic_rescue" }
+        {
+          "key": "nostromo.status",
+          "value": "destroyed",
+          "persistence": "world",
+          "provenance": "end_heroic_rescue"
+        },
+        {
+          "key": "special_order_937.exposure",
+          "value": "witnessed_by_survivor",
+          "persistence": "world",
+          "provenance": "end_heroic_rescue"
+        },
+        {
+          "key": "company.coverup_pressure",
+          "value": "increased",
+          "persistence": "world",
+          "provenance": "end_heroic_rescue"
+        }
       ],
       "npcDeltas": [
-        { "npcId": "npc_luyuan", "status": "survived", "relationship": "trusted_comrade", "memorySeeds": ["player_shared_escape", "player_protected_survivors"] },
-        { "npcId": "npc_ripley", "status": "survived", "relationship": "cautious_witness", "memorySeeds": ["player_helped_expose_937"] }
+        {
+          "npcId": "npc_luyuan",
+          "status": "survived",
+          "relationship": "trusted_comrade",
+          "memorySeeds": [
+            "player_shared_escape",
+            "player_protected_survivors"
+          ]
+        },
+        {
+          "npcId": "npc_ripley",
+          "status": "survived",
+          "relationship": "cautious_witness",
+          "memorySeeds": [
+            "player_helped_expose_937"
+          ]
+        }
       ],
-      "memorySeeds": ["survivor_testimony_exists", "company_may_attempt_suppression"],
-      "unresolvedThreads": ["survivor_testimony_may_be_suppressed", "company_retrieval_team_possible"]
+      "memorySeeds": [
+        "survivor_testimony_exists",
+        "company_may_attempt_suppression"
+      ],
+      "unresolvedThreads": [
+        "survivor_testimony_may_be_suppressed",
+        "company_retrieval_team_possible"
+      ]
     },
     {
       "id": "end_corporate_agent",
       "kind": "survival_with_sample",
-      "conditions": ["flag_xenomorph_killed", "flag_hypersleep_entered", "sampleStatus == preserved", "infectionStatus != infected"],
+      "conditions": [
+        "flag_xenomorph_killed",
+        "flag_hypersleep_entered",
+        "sampleStatus == preserved",
+        "infectionStatus != infected"
+      ],
       "text": "低溫儲格在休眠艙旁持續發出冷卻聲。你帶走的不只是組織，而是一把能打開公司下一個計畫的鑰匙。",
       "worldDelta": [
-        { "key": "xenomorph_sample.status", "value": "preserved_and_removed", "persistence": "world", "provenance": "end_corporate_agent" },
-        { "key": "company.bio_weapon_program", "value": "accelerated", "persistence": "world", "provenance": "end_corporate_agent" },
-        { "key": "special_order_937.exposure", "value": "controlled_by_holder", "persistence": "world", "provenance": "end_corporate_agent" }
+        {
+          "key": "xenomorph_sample.status",
+          "value": "preserved_and_removed",
+          "persistence": "world",
+          "provenance": "end_corporate_agent"
+        },
+        {
+          "key": "company.bio_weapon_program",
+          "value": "accelerated",
+          "persistence": "world",
+          "provenance": "end_corporate_agent"
+        },
+        {
+          "key": "special_order_937.exposure",
+          "value": "controlled_by_holder",
+          "persistence": "world",
+          "provenance": "end_corporate_agent"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["player_carried_live_xenomorph_material", "company_wants_recovery_or_elimination"],
-      "unresolvedThreads": ["sample_tracking_active", "corporate_retrieval_contract_possible"]
+      "memorySeeds": [
+        "player_carried_live_xenomorph_material",
+        "company_wants_recovery_or_elimination"
+      ],
+      "unresolvedThreads": [
+        "sample_tracking_active",
+        "corporate_retrieval_contract_possible"
+      ]
     },
     {
       "id": "end_dark_infection",
       "kind": "survival_with_hidden_cost",
-      "conditions": ["flag_hypersleep_entered", "infectionStatus == infected"],
+      "conditions": [
+        "flag_hypersleep_entered",
+        "infectionStatus == infected"
+      ],
       "text": "休眠艙合上的時候，你以為任務已經結束。真正的警報在傳送之後才出現：體內有某個不屬於人類的東西，正在等待下一次醒來。",
       "worldDelta": [
-        { "key": "player.infection", "value": "alien_parasite_carrier", "persistence": "player", "provenance": "end_dark_infection" },
-        { "key": "medical_database.alien_trace", "value": "recorded", "persistence": "world", "provenance": "end_dark_infection" }
+        {
+          "key": "player.infection",
+          "value": "alien_parasite_carrier",
+          "persistence": "player",
+          "provenance": "end_dark_infection"
+        },
+        {
+          "key": "medical_database.alien_trace",
+          "value": "recorded",
+          "persistence": "world",
+          "provenance": "end_dark_infection"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["player_survived_but_carried_hidden_infection"],
-      "unresolvedThreads": ["infection_treatment_needed", "parasite_may_affect_future_scenarios"]
+      "memorySeeds": [
+        "player_survived_but_carried_hidden_infection"
+      ],
+      "unresolvedThreads": [
+        "infection_treatment_needed",
+        "parasite_may_affect_future_scenarios"
+      ]
     },
     {
       "id": "end_expire_ruins",
       "kind": "degraded_survival",
-      "conditions": ["flag_expire_triggered", "player_not_in_narcissus"],
+      "conditions": [
+        "flag_expire_triggered",
+        "player_not_in_narcissus"
+      ],
       "text": "倒數歸零，船體在你身邊解體。主神機制把你從爆炸邊緣拖回來，但沒有把隊友、證據與原本可以取得的報酬一起帶走。",
       "worldDelta": [
-        { "key": "nostromo.status", "value": "destroyed", "persistence": "world", "provenance": "end_expire_ruins" },
-        { "key": "nostromo.survivor_record", "value": "none", "persistence": "world", "provenance": "end_expire_ruins" }
+        {
+          "key": "nostromo.status",
+          "value": "destroyed",
+          "persistence": "world",
+          "provenance": "end_expire_ruins"
+        },
+        {
+          "key": "nostromo.survivor_record",
+          "value": "none",
+          "persistence": "world",
+          "provenance": "end_expire_ruins"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["player_failed_to_reach_narcissus", "no_reliable_witness_survived"],
-      "unresolvedThreads": ["deep_space_wreckage_unresolved"]
+      "memorySeeds": [
+        "player_failed_to_reach_narcissus",
+        "no_reliable_witness_survived"
+      ],
+      "unresolvedThreads": [
+        "deep_space_wreckage_unresolved"
+      ]
     },
     {
       "id": "end_death_alien_feast",
       "kind": "death",
-      "conditions": ["flag_player_dead_combat"],
+      "conditions": [
+        "flag_player_dead_combat"
+      ],
       "text": "最後留下的不是你的名字，而是通風管內拖行的聲音。異形把你的遺留物帶進黑暗，母船的倒數仍然繼續。",
       "worldDelta": [
-        { "key": "player.status", "value": "dead_in_scenario", "persistence": "player", "provenance": "end_death_alien_feast" },
-        { "key": "player.remnants", "value": "may_remain_on_nostromo", "persistence": "world", "provenance": "end_death_alien_feast" }
+        {
+          "key": "player.status",
+          "value": "dead_in_scenario",
+          "persistence": "player",
+          "provenance": "end_death_alien_feast"
+        },
+        {
+          "key": "player.remnants",
+          "value": "may_remain_on_nostromo",
+          "persistence": "world",
+          "provenance": "end_death_alien_feast"
+        }
       ],
       "npcDeltas": [],
       "memorySeeds": [],
-      "unresolvedThreads": ["player_equipment_may_be_recovered"]
+      "unresolvedThreads": [
+        "player_equipment_may_be_recovered"
+      ]
     },
     {
       "id": "end_death_overload_vaporized",
       "kind": "death",
-      "conditions": ["flag_player_dead_overload"],
+      "conditions": [
+        "flag_player_dead_overload"
+      ],
       "text": "母親的倒數在核心崩潰中歸零。船、樣本、異形與玩家的所有行動一起被高溫抹去。",
       "worldDelta": [
-        { "key": "nostromo.status", "value": "destroyed", "persistence": "world", "provenance": "end_death_overload_vaporized" },
-        { "key": "nostromo.survivor_record", "value": "none", "persistence": "world", "provenance": "end_death_overload_vaporized" }
+        {
+          "key": "nostromo.status",
+          "value": "destroyed",
+          "persistence": "world",
+          "provenance": "end_death_overload_vaporized"
+        },
+        {
+          "key": "nostromo.survivor_record",
+          "value": "none",
+          "persistence": "world",
+          "provenance": "end_death_overload_vaporized"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["nostromo_incident_left_no_reliable_survivor"],
-      "unresolvedThreads": ["company_may_classify_incident_as_accident"]
+      "memorySeeds": [
+        "nostromo_incident_left_no_reliable_survivor"
+      ],
+      "unresolvedThreads": [
+        "company_may_classify_incident_as_accident"
+      ]
     },
     {
       "id": "end_death_vacuum_breach",
       "kind": "death",
-      "conditions": ["flag_player_dead_vacuum"],
+      "conditions": [
+        "flag_player_dead_vacuum"
+      ],
       "text": "沒有宇航服，也沒有安全繩。你被氣閘的風帶入深空，水仙號在視線中縮成一點藍光。",
       "worldDelta": [
-        { "key": "player.status", "value": "lost_in_deep_space", "persistence": "player", "provenance": "end_death_vacuum_breach" },
-        { "key": "player.remnants", "value": "possible_deep_space_drift", "persistence": "world", "provenance": "end_death_vacuum_breach" }
+        {
+          "key": "player.status",
+          "value": "lost_in_deep_space",
+          "persistence": "player",
+          "provenance": "end_death_vacuum_breach"
+        },
+        {
+          "key": "player.remnants",
+          "value": "possible_deep_space_drift",
+          "persistence": "world",
+          "provenance": "end_death_vacuum_breach"
+        }
       ],
       "npcDeltas": [],
-      "memorySeeds": ["unknown_human_remains_may_be_found_later"],
-      "unresolvedThreads": ["deep_space_recovery_possible"]
+      "memorySeeds": [
+        "unknown_human_remains_may_be_found_later"
+      ],
+      "unresolvedThreads": [
+        "deep_space_recovery_possible"
+      ]
     }
   ],
   "alignmentSignals": {
     "description": "陣營只記錄玩家選擇的趨勢，不強制玩家行動，也不直接取代技能或骰子。",
-    "axes": ["善良_邪惡", "守序_混亂"],
+    "axes": [
+      "善良_邪惡",
+      "守序_混亂"
+    ],
     "signalExamples": [
-      { "action": "冒險救回仍可救的船員", "善良_邪惡": -1, "守序_混亂": 0 },
-      { "action": "為保全自己把無辜者當成誘餌", "善良_邪惡": 1, "守序_混亂": 0 },
-      { "action": "遵守船艦安全程序並接受分工", "善良_邪惡": 0, "守序_混亂": -1 },
-      { "action": "拆掉限制、利用漏洞或臨場發明極端方案", "善良_邪惡": 0, "守序_混亂": 1 },
-      { "action": "為了奇怪但合理的個人目標破壞計畫", "善良_邪惡": 0, "守序_混亂": 2 }
+      {
+        "action": "冒險救回仍可救的船員",
+        "善良_邪惡": -1,
+        "守序_混亂": 0
+      },
+      {
+        "action": "為保全自己把無辜者當成誘餌",
+        "善良_邪惡": 1,
+        "守序_混亂": 0
+      },
+      {
+        "action": "遵守船艦安全程序並接受分工",
+        "善良_邪惡": 0,
+        "守序_混亂": -1
+      },
+      {
+        "action": "拆掉限制、利用漏洞或臨場發明極端方案",
+        "善良_邪惡": 0,
+        "守序_混亂": 1
+      },
+      {
+        "action": "為了奇怪但合理的個人目標破壞計畫",
+        "善良_邪惡": 0,
+        "守序_混亂": 2
+      }
     ],
     "rule": "同一行動可以同時改變兩條軸；系統只保存累積信號與摘要，不把守序、混亂、善良或邪惡當作玩家不能選擇其他行動的限制。"
   },

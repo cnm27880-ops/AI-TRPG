@@ -103,8 +103,18 @@ if (!recon) throw new Error("開場沒有找到 app_cryo_recon");
 const afterRecon = await json(await playTurn({ request: request({ sessionId, chosenOption: recon }), env }));
 results.push(compactTurn("cryo_recon_real_gemini", afterRecon));
 
-const ashTalk = findOption(afterRecon.body, "app_ash_talk_quarantine");
-if (!ashTalk) throw new Error(`偵察後沒有找到 Ash 交涉 approach；目前事件是 ${afterRecon.body.scenario?.reference?.eventId}`);
+const luyuanContact = findOption(afterRecon.body, "app_deck_luyuan_contact");
+if (!luyuanContact) throw new Error(`偵察後沒有找到陸遠交涉 approach；目前事件是 ${afterRecon.body.scenario?.reference?.eventId}`);
+const afterDeck = await json(await playTurn({ request: request({ sessionId, chosenOption: luyuanContact }), env }));
+results.push(compactTurn("deck_luyuan_contact_real_gemini", afterDeck));
+
+const scienceRoute = findOption(afterDeck.body, "app_deck_to_science");
+if (!scienceRoute) throw new Error(`A甲板沒有找到前往科學區的 approach；目前事件是 ${afterDeck.body.scenario?.reference?.eventId}`);
+const afterScience = await json(await playTurn({ request: request({ sessionId, chosenOption: scienceRoute }), env }));
+results.push(compactTurn("enter_science_real_gemini", afterScience));
+
+const ashTalk = findOption(afterScience.body, "app_ash_talk_quarantine");
+if (!ashTalk) throw new Error(`進入科學區後沒有找到 Ash 交涉 approach；目前事件是 ${afterScience.body.scenario?.reference?.eventId}`);
 const afterAsh = await json(await playTurn({ request: request({ sessionId, chosenOption: ashTalk }), env }));
 results.push(compactTurn("ash_quarantine_dialogue", afterAsh));
 

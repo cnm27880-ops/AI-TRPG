@@ -27,10 +27,11 @@ test("內建範例副本結構符合這次的需求：初始場景 + 三個重�
   assert.ok(finaleNodes[0].bossEncounter, "最終戰節點要帶敵人樣板");
 });
 
-test("新建流程預設使用 Alien V2，舊 V1 仍可顯式讀取", () => {
+test("V2 是唯一異形預設，退役 V1 不得重新進入 registry", () => {
   assert.equal(DEFAULT_SCENARIO_ID, "scenario.nostromo-01-v2");
-  assert.equal(getScenarioPack("scenario.nostromo-01-v2")?.id, "scenario.nostromo-01-v2");
-  assert.equal(getScenarioPack("scenario.nostromo-01")?.id, "scenario.nostromo-01");
+  assert.equal(getScenarioPack("scenario.nostromo-01-v2")?.id, DEFAULT_SCENARIO_ID);
+  assert.equal(getScenarioPack("scenario.nostromo-01"), null);
+  assert.equal(listScenarios().some((entry) => entry.id === "scenario.nostromo-01"), false);
 });
 
 test("Alien V2 authoring JSON 與 Cloudflare runtime sidecar 保持同步", () => {
