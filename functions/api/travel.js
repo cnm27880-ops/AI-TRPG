@@ -68,8 +68,10 @@ export async function onRequestPost(context) {
 
   const sessionId = typeof body?.sessionId === "string" ? body.sessionId.trim() : "";
   const to = typeof body?.to === "string" ? body.to.trim() : "";
+  const requestId = typeof body?.requestId === "string" ? body.requestId.trim() : "";
   if (!sessionId || !to) return error({ error: "body 必須包含 sessionId 與目的地 to" }, 400);
   if (to.length > 80) return error({ error: "目的地格式不合法" }, 400);
+  if (requestId.length > 160) return error({ error: "requestId 格式不合法" }, 400);
 
   const session = await store.get(sessionId);
   if (!session) return error({ error: `找不到存檔 ${sessionId}` }, 404);
@@ -82,6 +84,17 @@ export async function onRequestPost(context) {
       scenarioId: session.scenario.packId,
       error: "這份存檔使用已退役的 V1 異形副本，不能進入舊文字流程；請重新開始 V2《異形：生化深淵》。",
     }, 410);
+  }
+
+  // response 遺失時，瀏覽器會以同一 requestId 重送；先回放已保存的公開結果，
+  // 不再重新驗證當前位置或扣除第二次時間／威脅。這個檢查必須早於 combat／pending guard，
+  // 因為玩家可能在第一次成功後才因網路延遲而重送。
+  const replay = requestId && session.travelReplay?.requestId === requestId ? session.travelReplay : null;
+  if (replay) {
+    if (replay.to !== to || !replay.response || typeof replay.response !== "object") {
+      return error({ code: "TRAVEL_REQUEST_REUSED", error: "同一 requestId 不能用於不同目的地。" }, 409);
+    }
+    return json({ ...replay.response, replayed: true, travelRequestId: requestId });
   }
 
   const pack = session.scenario ? getScenarioPack(session.scenario.packId) : null;
@@ -196,6 +209,7 @@ export async function onRequestPost(context) {
       riskLevel: resolution.risk.level,
       threatDelta: threatChange.delta,
       nextSceneId: travelResult.nextSceneId,
+      requestId: requestId || null,
     },
     { timestamp, scenarioId: pack.id, turn }
   );
@@ -227,8 +241,6 @@ export async function onRequestPost(context) {
     );
   }
 
-  await store.put(session);
-
   const hud = scenarioHudView(pack, nextProgress);
   const scenario = {
     ...hud,
@@ -243,11 +255,13 @@ export async function onRequestPost(context) {
     ...(nextProgress.pendingCombat ? { combatRequired: true } : {}),
   };
 
-  return json({
+  const responseBody = {
     ok: true,
     sessionId: session.id,
     persistent: store.persistent,
     turnCount: turn,
+    travelRequestId: requestId || null,
+    replayed: false,
     character: session.character,
     scenario,
     options: nextOptions,
@@ -268,5 +282,15 @@ export async function onRequestPost(context) {
       arrivalSourceEventIds: travelResult.arrivalSourceEventIds,
     },
     ...(nextProgress.pendingCombat ? { combatRequired: true } : {}),
-  });
+  };
+  if (requestId) {
+    session.travelReplay = {
+      requestId,
+      to,
+      response: responseBody,
+      savedAt: timestamp,
+    };
+  }
+  await store.put(session);
+  return json(responseBody);
 }

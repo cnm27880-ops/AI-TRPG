@@ -6,6 +6,7 @@ let turnInFlight = false;
 let travelInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
+let lastTravelRequest = null;
 // scenario HUD 可能因 turn、travel、重整與戰鬥回應反覆重繪；同一 session 的系統通知只進故事流一次。
 let scenarioNoticeSessionId = null;
 const scenarioNoticeKeys = new Set();
@@ -645,6 +646,7 @@ async function submitChargen() {
     if (!res.ok) throw new Error((res.errors ?? []).join("；") || res.error || "建卡失敗");
 
     currentSessionId = res.session.id;
+    lastTravelRequest = null;
     resetScenarioNoticeDedup(currentSessionId);
     localStorage.setItem(SESSION_KEY, currentSessionId);
     lastThreatStage = null;
@@ -1598,8 +1600,10 @@ function renderExplorationTerminal(view) {
   }
 }
 
-async function travelToLocation(destinationId) {
+async function travelToLocation(destinationId, existingRequestId = null) {
   if (!destinationId || !currentSessionId || turnInFlight || travelInFlight) return;
+  const requestId = existingRequestId || `travel:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  lastTravelRequest = { destinationId, requestId };
   travelInFlight = true;
   setTurnInputLocked(true);
   renderExplorationTerminal(lastExplorationView);
@@ -1607,7 +1611,7 @@ async function travelToLocation(destinationId) {
     const httpResponse = await fetch("/api/travel", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId: currentSessionId, to: destinationId }),
+      body: JSON.stringify({ sessionId: currentSessionId, to: destinationId, requestId }),
     });
     const response = await httpResponse.json().catch(() => ({ ok: false, error: "伺服器回傳不是合法 JSON" }));
     if (!httpResponse.ok || !response.ok) {
@@ -1631,10 +1635,21 @@ async function travelToLocation(destinationId) {
     renderOptions(response.options || []);
     if (response.turnCount) document.getElementById("turn-counter").textContent = response.turnCount;
     if (response.scenario) updateScenarioHud(response.scenario);
+    lastTravelRequest = null;
     refreshJournalIfOpen();
   } catch (err) {
     console.error("[TRAVEL_FAILURE] /api/travel 呼叫失敗", err);
-    appendFeedEvent("fault", "移動連線失敗", escapeHtml(`無法完成移動：${err.message}`));
+    const block = appendFeedEvent("fault", "移動結果未確認", escapeHtml(`無法確認移動是否已保存：${err.message}`));
+    if (block) {
+      block.querySelector(".feed-event-body")?.insertAdjacentHTML(
+        "beforeend",
+        `<div class="feed-event-actions"><button data-travel-retry class="feed-event-retry">重試這次移動</button></div>`
+      );
+      block.querySelector("[data-travel-retry]")?.addEventListener("click", () => {
+        const pending = lastTravelRequest;
+        if (pending) travelToLocation(pending.destinationId, pending.requestId);
+      });
+    }
   } finally {
     travelInFlight = false;
     setTurnInputLocked(false);
@@ -2847,6 +2862,7 @@ async function resumeSession(id) {
   }
 
   currentSessionId = id;
+  lastTravelRequest = null;
   resetScenarioNoticeDedup(currentSessionId);
   localStorage.setItem(SESSION_KEY, id);
   // 已結算存檔直接進 server-owned 主神空間；不要先進 game screen 再由前端猜 runSummary。
@@ -3451,6 +3467,7 @@ async function deleteSession(id) {
     if (!res.ok) throw new Error(res.error || "刪除失敗");
     if (id === currentSessionId) {
       currentSessionId = null;
+      lastTravelRequest = null;
       localStorage.removeItem(SESSION_KEY);
     }
     await refreshSessionList();

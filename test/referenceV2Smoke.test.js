@@ -299,11 +299,23 @@ test("V2 travel endpoint is server-authoritative and does not call the LLM", asy
       env,
     }));
     const afterLeave = await readJson(await travel({
-      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }),
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a", requestId: "travel-idem-1" }),
       env,
     }));
     assert.equal(afterLeave.status, 200, JSON.stringify(afterLeave.body));
+    assert.equal(afterLeave.body.replayed, false);
     assert.equal(afterLeave.body.travel.from, "loc_cryo");
+    const afterLeaveReplay = await readJson(await travel({
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a", requestId: "travel-idem-1" }),
+      env,
+    }));
+    assert.equal(afterLeaveReplay.status, 200, JSON.stringify(afterLeaveReplay.body));
+    assert.equal(afterLeaveReplay.body.replayed, true);
+    assert.equal(afterLeaveReplay.body.turnCount, afterLeave.body.turnCount);
+    assert.equal(afterLeaveReplay.body.travel.timeBudget.spentRounds, afterLeave.body.travel.timeBudget.spentRounds);
+    const afterReplaySession = await resolveSessionStore(env).get(sessionId);
+    assert.equal(afterReplaySession.log.events.filter((event) => event.type === "travel").length, 1);
+    assert.equal(afterReplaySession.log.events.filter((event) => event.type === "time_spent").length, 1);
     assert.equal(afterLeave.body.travel.to, "loc_deck_a");
     assert.equal(afterLeave.body.scenario.reference.eventId, "evt_deck_a_recon");
     assert.equal(mock.prompts.length, 0, "初始 route travel 不應呼叫 LLM");
@@ -317,6 +329,12 @@ test("V2 travel endpoint is server-authoritative and does not call the LLM", asy
     const scienceRoute = afterLuyuan.body.scenario.reference.exploration.nearbyRoutes.find(
       (route) => route.to === "loc_science"
     );
+    const requestReuse = await readJson(await travel({
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_science", requestId: "travel-idem-1" }),
+      env,
+    }));
+    assert.equal(requestReuse.status, 409);
+    assert.equal(requestReuse.body.code, "TRAVEL_REQUEST_REUSED");
     assert.equal(scienceRoute.actionReady, true);
     assert.equal(scienceRoute.timeCost, 1);
 
