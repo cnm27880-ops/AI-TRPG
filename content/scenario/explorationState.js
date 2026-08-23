@@ -57,6 +57,11 @@ function unique(values) {
   return [...new Set(asArray(values).filter(Boolean))];
 }
 
+function narrativeText(value) {
+  if (Array.isArray(value)) return value.filter((part) => typeof part === "string" && part.trim()).join("\n\n");
+  return typeof value === "string" ? value : "";
+}
+
 function flagsOf(state) {
   return new Set(asArray(state?.flags));
 }
@@ -298,7 +303,9 @@ export function applyTravelAction(reference, state, resolution) {
       effects: { cluesAdd: resolution.routeEffects.cluesAdd },
     });
   }
-  const arrivalText = resolution.nextScene?.entryNarration ?? null;
+  const arrivalText = narrativeText(
+    resolution.nextScene?.narrativeSource?.entryText ?? resolution.nextScene?.entryNarration ?? null
+  ) || null;
   return {
     applied: true,
     state: next,

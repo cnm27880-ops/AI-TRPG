@@ -364,3 +364,61 @@ test("travel resolver only authorizes adjacent forward routes with fixed gates",
   assert.equal(nonAdjacent.ok, false);
   assert.equal(nonAdjacent.code, "NOT_ADJACENT");
 });
+
+
+test("canonical narrative source replaces player text without changing reference effects", () => {
+  const character = emptyCharacter("測試者");
+  const state = createReferenceState(reference);
+  const options = buildReferenceOptions(reference, state);
+  const resolution = resolveReferenceAction({
+    reference,
+    state,
+    chosenOption: options.find((option) => option.reference.approachId === "app_cryo_recon"),
+    character,
+  });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "成功" });
+
+  assert.equal(applied.applied, true);
+  assert.match(applied.resultText, /金屬扣針/);
+  assert.match(applied.resultText, /非人物種/);
+  assert.equal(applied.state.lastResultText, applied.resultText);
+  assert.ok(applied.state.clues.includes("clue_alien_trace"));
+  assert.equal(applied.effects.timeCost, 1);
+  assert.equal(applied.effects.threatDelta, 0);
+});
+
+test("canonical scene entry is returned by an authorized travel action", () => {
+  const state = createReferenceState(reference);
+  const resolution = resolveTravelAction(reference, state, "loc_deck_a");
+  assert.equal(resolution.ok, true);
+
+  const travel = applyTravelAction(reference, state, resolution);
+  assert.equal(travel.applied, true);
+  assert.equal(travel.nextSceneId, "evt_deck_a_recon");
+  assert.match(travel.arrivalText, /橋樓主走廊內亮著斷續的應急紅光/);
+  assert.match(travel.arrivalText, /黑盒子終端指示燈/);
+});
+
+test("Ash canonical result remains progressive while the server controls disclosure flags", () => {
+  const state = {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_cryo_left", "flag_luyuan_met", "flag_deck_science_route"],
+    visitedLocations: ["loc_cryo", "loc_deck_a", "loc_science"],
+  };
+  const character = emptyCharacter("測試者");
+  const options = buildReferenceOptions(reference, state);
+  const resolution = resolveReferenceAction({
+    reference,
+    state,
+    chosenOption: options.find((option) => option.reference.approachId === "app_ash_observe_abnormal"),
+    character,
+  });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "成功" });
+
+  assert.equal(applied.applied, true);
+  assert.match(applied.resultText, /頸側大動脈/);
+  assert.ok(applied.state.clues.includes("clue_ash_synthetic"));
+  assert.ok(applied.state.flags.includes("flag_ash_synthetic_known") === false);
+});

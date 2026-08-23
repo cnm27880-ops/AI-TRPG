@@ -149,6 +149,15 @@ function firstScene(reference) {
   return allScenes(reference)[0] ?? null;
 }
 
+function narrativeEntryText(scene) {
+  return scene?.narrativeSource?.entryText ?? scene?.entryNarration ?? "";
+}
+
+function narrativeResultText(scene, approach, outcomeTier, selected) {
+  const sourceOutcomes = scene?.narrativeSource?.outcomes?.[approach?.id] ?? {};
+  return sourceOutcomes[outcomeTier] ?? sourceOutcomes[selected?.key] ?? selected?.result?.text ?? "";
+}
+
 function isFinaleScene(reference, scene) {
   return Boolean(scene?.isFinale) || Boolean(reference?.finaleNodeIds?.includes(scene?.nodeId));
 }
@@ -638,6 +647,8 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     return { applied: false, state, error: `事件「${resolution.approach.id}」沒有結果「${outcomeTier}」的文字或後果資料` };
   }
 
+  const resultText = narrativeResultText(resolution.scene, resolution.approach, outcomeTier, selected);
+  const narrativeResult = { ...selected.result, text: resultText };
   const conditionalEffects = conditionalEffectsFor(selected.result, state);
   let nextState = applyBasicEffects(state, selected.result.effects ?? {});
   for (const effects of conditionalEffects) nextState = applyBasicEffects(nextState, effects);
@@ -684,13 +695,13 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     sceneTurnCount: sceneAdvanced ? 0 : sceneTurnCount,
     lastApproachId: resolution.approach.id,
     lastOutcomeTier: outcomeTier,
-    lastResultText: selected.result.text ?? null,
+    lastResultText: resultText || null,
     actionHistory: [...(nextState.actionHistory ?? []), actionEntry].slice(-24),
   };
   nextState = recordReferenceDiscoveries(reference, nextState, {
     scene: resolution.scene,
     approach: resolution.approach,
-    result: selected.result,
+    result: narrativeResult,
     effects: discoveryEffects,
   });
 
@@ -712,7 +723,7 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
   return {
     applied: true,
     state: nextState,
-    resultText: selected.result.text ?? "",
+    resultText,
     resultKey: selected.key,
     effects: selected.result.effects ?? {},
     effectSummary: effectSummary(selected.result.effects),
@@ -750,7 +761,12 @@ export function buildReferencePromptBlock({
     `事件真相：${(scene.gmTruth ?? []).join("；") || "依 reference 資料與已保存狀態裁定"}`,
     `玩家目前可知：${(scene.entryKnowledge ?? []).join("；") || "依故事歷史"}`,
     `本事件節拍：${(scene.beats ?? []).join(" → ") || "依玩家行動推進"}`,
-    ...(applied && currentScene?.id !== scene.id ? [`下一事件：${currentScene?.id ?? "依狀態決定"}`] : []),
+    ...(applied && currentScene?.id !== scene.id
+      ? [
+          `下一事件：${currentScene?.id ?? "依狀態決定"}`,
+          `下一事件固定進入文字：${narrativeEntryText(currentScene) || "依目前事件資料演出抵達場景"}`,
+        ]
+      : []),
     `玩家最近確認的探索紀錄：${publicExplorationDiscoveries(state).map((item) => `${item.title}：${item.text}`).join("；") || "尚無"}`,
     `玩家未解問題：${publicUnresolvedQuestions(state).filter((item) => item.status !== "answered").map((item) => item.text).join("；") || "尚無"}`,
     "",

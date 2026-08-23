@@ -162,7 +162,7 @@ export async function onRequestPost(context) {
   const timestamp = new Date().toISOString();
   const targetName = resolution.target.name ?? resolution.to;
   const travelAction = `移動至${targetName}`;
-  const systemNarration = travelResult.arrivalText ?? `你抵達${targetName}。`;
+  const systemNarration = travelResult.arrivalText ?? resolution.nextScene?.narrativeSource?.entryText ?? `你抵達${targetName}。`;
   const warnings = [...resolution.risk.notes];
   if (isExpired(nextProgress.timeBudget)) warnings.push("這次移動用盡了副本效率回合；下一步必須接受時間耗盡的後果。");
   if (threatChange.contact) warnings.push("迫近度已達接觸上限；必須先處理戰鬥，不能繼續普通探索。");
@@ -251,7 +251,7 @@ export async function onRequestPost(context) {
     character: session.character,
     scenario,
     options: nextOptions,
-    narration: travelResult.arrivalText,
+    narration: systemNarration,
     travel: {
       from: resolution.from,
       to: resolution.to,
