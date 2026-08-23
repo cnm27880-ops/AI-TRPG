@@ -9,7 +9,7 @@
 // 注意：referenceState 存在 session.scenario.referenceState，不放進 progress。
 // progress 仍然只負責章節、節點、時間、迫近度與套路，避免破壞舊存檔。
 
-import { validateOption } from "../turnOptions.js";
+import { difficultyToDc, validateOption } from "../turnOptions.js";
 import { applyDamage } from "../../core/health.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
@@ -299,6 +299,7 @@ function publicReferenceOption(approach, sceneId, phaseId) {
     attribute: approach.requiresCheck === true ? approach.attribute : null,
     skill: approach.requiresCheck === true ? approach.skill ?? null : null,
     difficulty: approach.requiresCheck === true ? approach.difficulty : null,
+    dc: approach.requiresCheck === true ? difficultyToDc(approach.difficulty) : null,
     source: "reference",
     reference: {
       sceneId,

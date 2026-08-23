@@ -69,6 +69,7 @@ test("V2 reference action is persisted before an unavailable LLM response", asyn
   assert.equal(loadedBody.ok, true);
   assert.equal(loadedBody.session.scenario.referenceState.lastApproachId, "app_cryo_recon");
   assert.equal(loadedBody.session.scenario.referenceState.lastOutcomeTier !== null, true);
-  assert.equal(loadedBody.session.scenario.referenceState.currentSceneId, "evt_meet_ash");
+  assert.equal(loadedBody.session.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
+  assert.ok(loadedBody.session.scenario.referenceState.flags.includes("flag_cryo_recon_done"));
   assert.equal(loadedBody.session.log.events.some((entry) => entry.type === "reference_action"), true);
 });

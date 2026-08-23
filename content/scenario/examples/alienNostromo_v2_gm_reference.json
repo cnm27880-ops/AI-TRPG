@@ -204,7 +204,7 @@
       "nodeId": "n1",
       "location": "loc_cryo",
       "phase": "awakening",
-      "defaultTransition": "advance",
+      "defaultTransition": "stay",
       "purpose": "讓玩家理解自己在封閉船艦內、知道逃生目標，並在第一次選擇前看見異形留下的物理證據。",
       "entryKnowledge": ["玩家知道自己被投放進陌生副本", "玩家不知道船員去哪裡", "玩家尚未知道 937 或 Ash 真相"],
       "gmTruth": ["休眠室的六具空艙代表原船員已經離開或死亡，不直接證明每人死因", "拖痕與通風管聲音來自異形活動，但異形不必在本回合出現"],
@@ -219,14 +219,14 @@
           "attribute": "感知",
           "skill": "偵察",
           "difficulty": "容易",
-          "required": { "items": [], "locations": ["loc_cryo"] },
+          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_cryo_recon_done"] },
           "outcomes": {
-            "大成功": { "text": "手電筒的光束沿著拖痕推進，照出牆面上新鮮的刮痕與一小片半透明皮膜。你不只確認痕跡通往 A 甲板，還在地面找到一枚仍有電的備用電池。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
-            "成功": { "text": "光束照出拖痕穿過門縫，末端消失在 A 甲板方向。痕跡旁的黏液還沒有乾，你取得手電筒，也知道這不是普通的搬運事故。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "你照著拖痕找到 A 甲板方向，但光束掃過通風格柵時，格柵內傳來一次回應般的輕響。你拿到了手電筒，卻也讓船上的某個東西知道休眠室有人醒來。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_cleared"], "timeCost": 1, "threatDelta": 1 } },
-            "些微失敗": { "text": "你被暗色痕跡分散注意，手電筒從指間滑落，滾到門外才停下。你仍看出拖痕朝 A 甲板延伸，但必須先離開休眠室取回它。", "effects": { "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_cleared"], "playerLocation": "loc_deck_a", "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。", "effects": { "worldFlagsAdd": ["flag_cryo_cleared", "flag_noise_made"], "playerLocation": "loc_deck_a", "timeCost": 1, "threatDelta": 1 } },
-            "慘烈失敗": { "text": "你蹲下檢查拖痕時，門外的通風格柵突然向下凹陷。你及時退開，卻被掉落的金屬片劃傷前臂，手電筒滾進格柵下方，再也拿不回來。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_cryo_cleared", "flag_flashlight_lost"], "playerLocation": "loc_deck_a", "timeCost": 1, "threatDelta": 2 } }
+            "大成功": { "text": "手電筒的光束沿著拖痕推進，照出牆面上新鮮的刮痕與一小片半透明皮膜。你不只確認痕跡通往 A 甲板，還在地面找到一枚仍有電的備用電池。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
+            "成功": { "text": "光束照出拖痕穿過門縫，末端消失在 A 甲板方向。痕跡旁的黏液還沒有乾，你取得手電筒，也知道這不是普通的搬運事故。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 0 } },
+            "驚險成功": { "text": "你照著拖痕找到 A 甲板方向，但光束掃過通風格柵時，格柵內傳來一次回應般的輕響。你拿到了手電筒，卻也讓船上的某個東西知道休眠室有人醒來。", "effects": { "itemsAdd": ["item_flashlight"], "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 1 } },
+            "些微失敗": { "text": "你被暗色痕跡分散注意，手電筒從指間滑落，滾到門外才停下。你仍看出拖痕朝 A 甲板延伸，但必須先離開休眠室取回它。", "effects": { "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared"], "timeCost": 1, "threatDelta": 1 } },
+            "失敗": { "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。", "effects": { "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared", "flag_noise_made"], "timeCost": 1, "threatDelta": 1 } },
+            "慘烈失敗": { "text": "你蹲下檢查拖痕時，門外的通風格柵突然向下凹陷。你及時退開，卻被掉落的金屬片劃傷前臂，手電筒滾進格柵下方，再也拿不回來。", "effects": { "injuriesAdd": ["bleeding_major"], "worldFlagsAdd": ["flag_cryo_recon_done", "flag_cryo_cleared", "flag_flashlight_lost"], "timeCost": 1, "threatDelta": 2 } }
           }
         },
         {
@@ -237,11 +237,11 @@
           "attribute": "力量",
           "skill": "體魄",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_cryo"] },
+          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_cryo_seal_done"] },
           "outcomes": {
-            "成功": { "text": "你把卡死的艙門推回滑軌，休眠室與外面的黑暗暫時隔開。門鎖顯示紅色，但至少不會任由某個東西從走廊直接撞進來。", "effects": { "worldFlagsAdd": ["flag_cryo_sealed"], "timeCost": 1, "threatDelta": 0 } },
-            "驚險成功": { "text": "艙門終於合上，卻在最後一段發出刺耳摩擦聲。鎖舌只卡住一半；你獲得片刻遮蔽，但不能把這裡視為永久安全區。", "effects": { "worldFlagsAdd": ["flag_cryo_sealed_partial"], "timeCost": 1, "threatDelta": 1 } },
-            "失敗": { "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。", "effects": { "worldFlagsAdd": ["flag_noise_made"], "timeCost": 1, "threatDelta": 1 } }
+            "成功": { "text": "你把卡死的艙門推回滑軌，休眠室與外面的黑暗暫時隔開。門鎖顯示紅色，但至少不會任由某個東西從走廊直接撞進來。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_cryo_sealed"], "timeCost": 1, "threatDelta": 0 } },
+            "驚險成功": { "text": "艙門終於合上，卻在最後一段發出刺耳摩擦聲。鎖舌只卡住一半；你獲得片刻遮蔽，但不能把這裡視為永久安全區。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_cryo_sealed_partial"], "timeCost": 1, "threatDelta": 1 } },
+            "失敗": { "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。", "effects": { "worldFlagsAdd": ["flag_cryo_seal_done", "flag_noise_made"], "timeCost": 1, "threatDelta": 1 } }
           }
         },
         {
@@ -252,13 +252,14 @@
           "attribute": null,
           "skill": null,
           "difficulty": null,
-          "required": { "items": [], "locations": ["loc_cryo"] },
+          "required": { "items": [], "locations": ["loc_cryo"], "flagsAbsent": ["flag_mother_contacted"] },
           "outcomes": {
-            "自動": { "text": "你對著擴音器回話。母親沒有回答你的問題，只重複要求全體船員前往 A 甲板；最後多出一個短暫的資料等待音。", "effects": { "worldFlagsAdd": ["flag_mother_contacted"], "timeCost": 0, "threatDelta": 0 } }
+            "自動": { "text": "你對著擴音器回話。母親沒有回答你的問題，只重複要求全體船員前往 A 甲板；最後多出一個短暫的資料等待音。", "effects": { "worldFlagsAdd": ["flag_mother_contacted", "flag_mother_contacted"], "timeCost": 0, "threatDelta": 0 } }
           }
-        }
+        },
+        {"id":"app_cryo_leave","label":"避開通風口摸進走廊","intent":"想離開休眠室並不驚動藏起來的東西","requiresCheck":true,"attribute":"敏捷","skill":"潛行","difficulty":"普通","required":{"items":[],"locations":["loc_cryo"]},"outcomes":{"大成功":{"text":"你貼著牆面避開通風口下方的陰影，沿 A 甲板走廊無聲前進。休眠室留在身後，科學區方向傳來一段規律得不像人類的金屬聲。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":0}},"成功":{"text":"你避開通風口摸進走廊，沒有驚動藏在管線深處的東西。遠處科學區亮著一盞穩定的白燈；你決定先往那裡確認船艦狀況。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":1}},"驚險成功":{"text":"你成功離開休眠室，但靴底擦過一片鬆動格柵，聲音沿著通風管傳開。你仍然搶在回音消失前進入走廊，科學區的白燈隨即亮了一次。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":2}},"失敗":{"text":"你在通風口下方停了一秒，管線裡的金屬聲立刻回應。你仍衝進走廊，但遠處有什麼東西已經知道休眠室有人醒來。","effects":{"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":2}},"慘烈失敗":{"text":"通風口的格柵突然向下凹陷，你在最後一刻翻出門外，前臂卻被掉落的金屬片劃開。走廊盡頭的科學區亮起紅色警示燈。","effects":{"injuriesAdd":["bleeding_major"],"worldFlagsAdd":["flag_cryo_cleared","flag_cryo_left","flag_noise_made"],"nextEvent":"evt_meet_ash","sceneTransition":"advance","timeCost":1,"threatDelta":3}}}}
       ],
-      "sceneExit": { "normal": ["loc_deck_a"], "nextEvent": "evt_meet_ash", "canReturn": false, "completeNode": "n1" }
+      "sceneExit": { "normal": ["loc_deck_a"], "canReturn": false, "completeNode": "n1" }
     },
     {
       "id": "evt_meet_ash",
@@ -285,7 +286,7 @@
           "attribute": "意志",
           "skill": "交涉",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_science"] },
+          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_ash_talked"] },
           "outcomes": {
             "大成功": { "text": "Ash 提供酸性血液、外骨骼與對常規鈍擊的反應資料，卻刻意避開火焰與低溫。你也注意到他的說明直接引用了公司內部格式，取得了可追問的權限線索。", "effects": { "cluesAdd": ["clue_alien_trace"], "npcTrustDelta": { "npc_luyuan": 1 }, "worldFlagsAdd": ["flag_ash_talked"], "timeCost": 1, "threatDelta": 0 } },
             "成功": { "text": "Ash 以檢疫條例為框架交出一份基礎生物特徵報告。他沒有說謊，但漏掉了最關鍵的弱點；你至少確認這種生物的體液會腐蝕船體。", "effects": { "cluesAdd": ["clue_alien_trace"], "worldFlagsAdd": ["flag_ash_talked"], "timeCost": 1, "threatDelta": 0 } },
@@ -303,7 +304,7 @@
           "attribute": "感知",
           "skill": "偵察",
           "difficulty": "困難",
-          "required": { "items": [], "locations": ["loc_science"] },
+          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_ash_synthetic_known"] },
           "outcomes": {
             "大成功": { "text": "你看見他的瞳孔反應恆定、脈搏不存在，說話時胸口也沒有呼吸起伏。Ash 轉頭看向你；你在他開口前已經知道那層皮膚下面不是普通的人類。", "effects": { "cluesAdd": ["clue_ash_synthetic"], "worldFlagsAdd": ["flag_ash_synthetic_known"], "timeCost": 1, "threatDelta": 0 } },
             "成功": { "text": "你捕捉到幾個不合人體的細節：沒有脈搏、眨眼過於規律，手腕轉動角度也超出正常關節範圍。你還不能證明身分，但已經不再相信他的外表。", "effects": { "cluesAdd": ["clue_ash_synthetic"], "worldFlagsAdd": ["flag_ash_suspicious"], "timeCost": 1, "threatDelta": 0 } },
@@ -320,7 +321,7 @@
           "attribute": "敏捷",
           "skill": "潛行",
           "difficulty": "普通",
-          "required": { "items": [], "locations": ["loc_science"] },
+          "required": { "items": [], "locations": ["loc_science"], "flagsAbsent": ["flag_937_path_known"] },
           "outcomes": {
             "大成功": { "text": "陸遠的說話聲掩護了你的半步移動。你看見 MU-TH-UR DIRECTIVE 937 與主機核心房的臨時路徑，還把一組權限代碼記在腕錶裡。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_path_known"], "timeCost": 1, "threatDelta": 0 } },
             "成功": { "text": "你只看清文件名稱：SPECIAL ORDER 937。終端立刻黑屏，但這幾個字已足以證明 Ash 隱瞞了公司指令。", "effects": { "cluesAdd": ["clue_order_937"], "worldFlagsAdd": ["flag_937_path_known"], "timeCost": 1, "threatDelta": 0 } },

@@ -119,15 +119,29 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterRecon.body.ok, true);
   assert.ok(afterRecon.body.checkResult, "開場行動應該經過既有骰子引擎");
   assert.ok(afterRecon.body.outcome, "開場行動應該產生結果分級");
-  assert.match(afterRecon.body.narration, /光束|拖痕|科學實驗區/);
-  assert.equal(afterRecon.body.scenario.reference.eventId, "evt_meet_ash");
+  assert.match(afterRecon.body.narration, /光束|拖痕|休眠室/);
+  assert.equal(afterRecon.body.scenario.reference.eventId, "evt_cryo_clearance");
   assert.equal(afterRecon.body.scenario.reference.npcs.length >= 5, true);
-  assert.equal(afterRecon.body.options.some((option) => option.reference?.sceneId === "evt_meet_ash"), true);
+  assert.equal(afterRecon.body.options.some((option) => option.reference?.sceneId === "evt_cryo_clearance"), true);
+  assert.equal(afterRecon.body.options.every((option) => option.requiresCheck === false || Number.isInteger(option.dc)), true);
   assert.match(mock.prompts[0], /evt_cryo_clearance/);
   assert.match(mock.prompts[0], /app_cryo_recon/);
   assert.match(mock.prompts[0], /已套用狀態效果/);
 
-  const ashAction = afterRecon.body.options.find((option) => option.reference?.approachId === "app_ash_talk_quarantine");
+  const leaveAction = afterRecon.body.options.find((option) => option.reference?.approachId === "app_cryo_leave");
+  assert.ok(leaveAction, "休眠室調查後應提供明確離開 approach");
+  const afterLeave = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: leaveAction }),
+    env,
+  }));
+  assert.equal(afterLeave.status, 200, JSON.stringify(afterLeave.body));
+  assert.equal(afterLeave.body.ok, true);
+  assert.equal(afterLeave.body.scenario.reference.eventId, "evt_meet_ash");
+  assert.equal(afterLeave.body.options.every((option) => option.requiresCheck === false || Number.isInteger(option.dc)), true);
+  assert.match(mock.prompts[1], /evt_cryo_clearance/);
+  assert.match(mock.prompts[1], /app_cryo_leave/);
+
+  const ashAction = afterLeave.body.options.find((option) => option.reference?.approachId === "app_ash_talk_quarantine");
   assert.ok(ashAction, "抵達 Ash 場景後應提供檢疫交涉 approach");
   const afterAsh = await readJson(await playTurn({
     request: jsonRequest("https://test.local/api/turn", {
@@ -142,8 +156,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.match(afterAsh.body.narration, /Ash/);
   assert.equal(afterAsh.body.scenario.reference.eventId, "evt_meet_ash");
   assert.equal(afterAsh.body.scenario.reference.sceneTurnCount, 1);
-  assert.match(mock.prompts[1], /evt_meet_ash/);
-  assert.match(mock.prompts[1], /Ash 已收到 937 指令/);
+  assert.match(mock.prompts[2], /evt_meet_ash/);
+  assert.match(mock.prompts[2], /Ash 已收到 937 指令/);
 
   const loaded = await readJson(await getSession({
     request: new Request(`https://test.local/api/session?id=${sessionId}`),
@@ -163,14 +177,15 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   }
   assert.equal(referenceState.currentSceneId, afterAsh.body.scenario.reference.eventId);
   const referenceActions = referenceActionsFrom(saved);
-  assert.equal(referenceActions.length, 2);
-  assert.equal(saved.history.length >= 2, true);
+  assert.equal(referenceActions.length, 3);
+  assert.equal(saved.history.length >= 3, true);
 
   console.log(JSON.stringify({
     sessionId,
     llmCalls: mock.prompts.length,
     openingEvent: opening.body.scenario?.reference?.eventId ?? null,
     afterReconEvent: afterRecon.body.scenario.reference.eventId,
+    afterLeaveEvent: afterLeave.body.scenario.reference.eventId,
     afterAshEvent: afterAsh.body.scenario.reference.eventId,
     afterAshSceneTurnCount: afterAsh.body.scenario.reference.sceneTurnCount,
     checkOutcomes: [afterRecon.body.outcome.tier, afterAsh.body.outcome.tier],

@@ -31,7 +31,11 @@ test("V2 完整成功路線：從休眠室走到水仙號休眠結算場景", ()
   });
 
   state = applyApproach(state, "app_cryo_recon", "成功").state;
-  assert.equal(state.currentSceneId, "evt_meet_ash");
+  assert.equal(state.currentSceneId, "evt_cryo_clearance", "調查休眠室後仍應留在原場景");
+  assert.ok(state.flags.includes("flag_cryo_recon_done"));
+
+  state = applyApproach(state, "app_cryo_leave", "成功").state;
+  assert.equal(state.currentSceneId, "evt_meet_ash", "只有明確離開休眠室後才進入 Ash 場景");
 
   state = applyApproach(state, "app_ash_talk_quarantine", "成功").state;
   assert.equal(state.currentSceneId, "evt_meet_ash");

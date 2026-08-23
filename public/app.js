@@ -1982,7 +1982,8 @@ function renderOptions(options) {
     const retreadTag = opt.retread
       ? `<span class="decision-card-tag decision-card-tag-retread" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
       : "";
-    const shownDc = opt.effectiveDc ?? opt.dc;
+    const rawDc = opt.effectiveDc ?? opt.dc;
+    const shownDc = Number.isFinite(Number(rawDc)) ? String(rawDc) : "待裁定";
 
     // hint（這個行動想達成什麼）刻意排在第二行、字級比骰池數字大：
     // 測玩回饋是「我就是看選項哪個數字高就按哪個」——那不是玩家的問題，是版面把
@@ -1995,7 +1996,7 @@ function renderOptions(options) {
     // 玩家先看行動意義，再看規則細節；這裡只負責把後端已算好的資訊分層呈現。
     const metaHtml = isFreeAction
       ? `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-comment-dots"></i>純敘事行動</span><span class="decision-card-rule-secondary">不擲骰 · 場景仍會推進</span></span>`
-      : `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-dice-d20"></i>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${shownDc}</span><span class="decision-card-rule-secondary">骰池 ${dp}</span>${warningHtml ? `<span class="decision-card-risk-wrap">${warningHtml}</span>` : ""}</span>`;
+      : `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-dice-d20"></i>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${escapeHtml(shownDc)}</span><span class="decision-card-rule-secondary">骰池 ${dp}</span>${warningHtml ? `<span class="decision-card-risk-wrap">${warningHtml}</span>` : ""}</span>`;
 
     const cardTone = isFallback ? "decision-card-fallback" : isFreeAction ? "decision-card-free" : "";
 

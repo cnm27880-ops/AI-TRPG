@@ -22,8 +22,15 @@ test("reference adapter builds opening approaches and matches a chosen option", 
 
   assert.equal(state.currentSceneId, "evt_cryo_clearance");
   assert.equal(state.currentLocation, "loc_cryo");
-  assert.equal(options.length, 3);
+  assert.equal(options.length, 4);
+  assert.deepEqual(options.map((option) => option.reference.approachId), [
+    "app_cryo_recon",
+    "app_cryo_seal",
+    "app_cryo_answer_mother",
+    "app_cryo_leave",
+  ]);
   assert.equal(options[0].reference.approachId, "app_cryo_recon");
+  assert.equal(options[0].dc, 1);
 
   const resolution = resolveReferenceAction({
     reference,
@@ -50,22 +57,31 @@ test("free input can match a reference approach without keyword checkIntent", ()
   assert.equal(resolution.approach.id, "app_cryo_recon");
 });
 
-test("reference success applies items, clues, scene transition and explicit threat delta", () => {
+test("reference success stays in cryo until the player explicitly leaves", () => {
   const character = emptyCharacter("測試者");
   const state = createReferenceState(reference);
   const options = buildReferenceOptions(reference, state);
   const resolution = resolveReferenceAction({ reference, state, chosenOption: options[0], character });
-  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "成功" });
+  const recon = applyReferenceResult({ reference, state, resolution, outcomeTier: "成功" });
 
-  assert.equal(applied.applied, true);
-  assert.equal(applied.state.currentSceneId, "evt_meet_ash");
-  assert.equal(applied.state.currentLocation, "loc_science");
-  assert.ok(applied.state.inventory.includes("item_flashlight"));
-  assert.ok(applied.state.clues.includes("clue_alien_trace"));
-  assert.ok(applied.state.flags.includes("flag_cryo_cleared"));
-  assert.equal(applied.effects.timeCost, 1);
-  assert.equal(applied.effects.threatDelta, 0);
-  assert.equal(applied.nodeComplete, null);
+  assert.equal(recon.applied, true);
+  assert.equal(recon.state.currentSceneId, "evt_cryo_clearance");
+  assert.equal(recon.state.currentLocation, "loc_cryo");
+  assert.ok(recon.state.inventory.includes("item_flashlight"));
+  assert.ok(recon.state.clues.includes("clue_alien_trace"));
+  assert.ok(recon.state.flags.includes("flag_cryo_cleared"));
+  assert.ok(recon.state.flags.includes("flag_cryo_recon_done"));
+  assert.equal(recon.effects.timeCost, 1);
+  assert.equal(recon.effects.threatDelta, 0);
+  assert.equal(recon.nodeComplete, null);
+  assert.equal(buildReferenceOptions(reference, recon.state).some((option) => option.reference.approachId === "app_cryo_recon"), false);
+
+  const leave = buildReferenceOptions(reference, recon.state).find((option) => option.reference.approachId === "app_cryo_leave");
+  const leaveResolution = resolveReferenceAction({ reference, state: recon.state, chosenOption: leave, character });
+  const exited = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
+  assert.equal(exited.state.currentSceneId, "evt_meet_ash");
+  assert.equal(exited.state.currentLocation, "loc_science");
+  assert.equal(exited.nodeComplete, null, "同一 n1 節點的 scene 轉場不應提前完成節點");
 });
 
 test("multi-turn Ash scene stays in place and advances only on an explicit exit result", () => {
@@ -73,7 +89,10 @@ test("multi-turn Ash scene stays in place and advances only on an explicit exit 
   const openingState = createReferenceState(reference);
   const openingOption = buildReferenceOptions(reference, openingState)[0];
   const openingResolution = resolveReferenceAction({ reference, state: openingState, chosenOption: openingOption, character });
-  const entered = applyReferenceResult({ reference, state: openingState, resolution: openingResolution, outcomeTier: "成功" });
+  const recon = applyReferenceResult({ reference, state: openingState, resolution: openingResolution, outcomeTier: "成功" });
+  const leaveOption = buildReferenceOptions(reference, recon.state).find((option) => option.reference.approachId === "app_cryo_leave");
+  const leaveResolution = resolveReferenceAction({ reference, state: recon.state, chosenOption: leaveOption, character });
+  const entered = applyReferenceResult({ reference, state: recon.state, resolution: leaveResolution, outcomeTier: "成功" });
   assert.equal(entered.state.currentSceneId, "evt_meet_ash");
 
   const ashOption = buildReferenceOptions(reference, entered.state).find((option) => option.reference.approachId === "app_ash_talk_quarantine");

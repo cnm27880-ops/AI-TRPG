@@ -529,7 +529,7 @@ export default {
       "nodeId": "n1",
       "location": "loc_cryo",
       "phase": "awakening",
-      "defaultTransition": "advance",
+      "defaultTransition": "stay",
       "purpose": "讓玩家理解自己在封閉船艦內、知道逃生目標，並在第一次選擇前看見異形留下的物理證據。",
       "entryKnowledge": [
         "玩家知道自己被投放進陌生副本",
@@ -560,6 +560,9 @@ export default {
             "items": [],
             "locations": [
               "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_cryo_recon_done"
             ]
           },
           "outcomes": {
@@ -573,6 +576,7 @@ export default {
                   "clue_alien_trace"
                 ],
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared"
                 ],
                 "timeCost": 1,
@@ -589,6 +593,7 @@ export default {
                   "clue_alien_trace"
                 ],
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared"
                 ],
                 "timeCost": 1,
@@ -605,6 +610,7 @@ export default {
                   "clue_alien_trace"
                 ],
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared"
                 ],
                 "timeCost": 1,
@@ -618,9 +624,9 @@ export default {
                   "clue_alien_trace"
                 ],
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared"
                 ],
-                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
                 "threatDelta": 1
               }
@@ -629,10 +635,10 @@ export default {
               "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。",
               "effects": {
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared",
                   "flag_noise_made"
                 ],
-                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
                 "threatDelta": 1
               }
@@ -644,10 +650,10 @@ export default {
                   "bleeding_major"
                 ],
                 "worldFlagsAdd": [
+                  "flag_cryo_recon_done",
                   "flag_cryo_cleared",
                   "flag_flashlight_lost"
                 ],
-                "playerLocation": "loc_deck_a",
                 "timeCost": 1,
                 "threatDelta": 2
               }
@@ -666,6 +672,9 @@ export default {
             "items": [],
             "locations": [
               "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_cryo_seal_done"
             ]
           },
           "outcomes": {
@@ -673,6 +682,7 @@ export default {
               "text": "你把卡死的艙門推回滑軌，休眠室與外面的黑暗暫時隔開。門鎖顯示紅色，但至少不會任由某個東西從走廊直接撞進來。",
               "effects": {
                 "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
                   "flag_cryo_sealed"
                 ],
                 "timeCost": 1,
@@ -683,6 +693,7 @@ export default {
               "text": "艙門終於合上，卻在最後一段發出刺耳摩擦聲。鎖舌只卡住一半；你獲得片刻遮蔽，但不能把這裡視為永久安全區。",
               "effects": {
                 "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
                   "flag_cryo_sealed_partial"
                 ],
                 "timeCost": 1,
@@ -693,6 +704,7 @@ export default {
               "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。",
               "effects": {
                 "worldFlagsAdd": [
+                  "flag_cryo_seal_done",
                   "flag_noise_made"
                 ],
                 "timeCost": 1,
@@ -713,6 +725,9 @@ export default {
             "items": [],
             "locations": [
               "loc_cryo"
+            ],
+            "flagsAbsent": [
+              "flag_mother_contacted"
             ]
           },
           "outcomes": {
@@ -720,10 +735,99 @@ export default {
               "text": "你對著擴音器回話。母親沒有回答你的問題，只重複要求全體船員前往 A 甲板；最後多出一個短暫的資料等待音。",
               "effects": {
                 "worldFlagsAdd": [
+                  "flag_mother_contacted",
                   "flag_mother_contacted"
                 ],
                 "timeCost": 0,
                 "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_cryo_leave",
+          "label": "避開通風口摸進走廊",
+          "intent": "想離開休眠室並不驚動藏起來的東西",
+          "requiresCheck": true,
+          "attribute": "敏捷",
+          "skill": "潛行",
+          "difficulty": "普通",
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_cryo"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你貼著牆面避開通風口下方的陰影，沿 A 甲板走廊無聲前進。休眠室留在身後，科學區方向傳來一段規律得不像人類的金屬聲。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left"
+                ],
+                "nextEvent": "evt_meet_ash",
+                "sceneTransition": "advance",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你避開通風口摸進走廊，沒有驚動藏在管線深處的東西。遠處科學區亮著一盞穩定的白燈；你決定先往那裡確認船艦狀況。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left"
+                ],
+                "nextEvent": "evt_meet_ash",
+                "sceneTransition": "advance",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "你成功離開休眠室，但靴底擦過一片鬆動格柵，聲音沿著通風管傳開。你仍然搶在回音消失前進入走廊，科學區的白燈隨即亮了一次。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left",
+                  "flag_noise_made"
+                ],
+                "nextEvent": "evt_meet_ash",
+                "sceneTransition": "advance",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "你在通風口下方停了一秒，管線裡的金屬聲立刻回應。你仍衝進走廊，但遠處有什麼東西已經知道休眠室有人醒來。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left",
+                  "flag_noise_made"
+                ],
+                "nextEvent": "evt_meet_ash",
+                "sceneTransition": "advance",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "通風口的格柵突然向下凹陷，你在最後一刻翻出門外，前臂卻被掉落的金屬片劃開。走廊盡頭的科學區亮起紅色警示燈。",
+              "effects": {
+                "injuriesAdd": [
+                  "bleeding_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cryo_cleared",
+                  "flag_cryo_left",
+                  "flag_noise_made"
+                ],
+                "nextEvent": "evt_meet_ash",
+                "sceneTransition": "advance",
+                "timeCost": 1,
+                "threatDelta": 3
               }
             }
           }
@@ -733,7 +837,6 @@ export default {
         "normal": [
           "loc_deck_a"
         ],
-        "nextEvent": "evt_meet_ash",
         "canReturn": false,
         "completeNode": "n1"
       }
@@ -792,6 +895,9 @@ export default {
             "items": [],
             "locations": [
               "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_ash_talked"
             ]
           },
           "outcomes": {
@@ -900,6 +1006,9 @@ export default {
             "items": [],
             "locations": [
               "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_ash_synthetic_known"
             ]
           },
           "outcomes": {
@@ -980,6 +1089,9 @@ export default {
             "items": [],
             "locations": [
               "loc_science"
+            ],
+            "flagsAbsent": [
+              "flag_937_path_known"
             ]
           },
           "outcomes": {
@@ -3541,4 +3653,4 @@ export default {
       "evidence": []
     }
   }
-};
+}
