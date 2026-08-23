@@ -258,7 +258,7 @@
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_deck_a"], "nextEvent": "evt_meet_ash", "canReturn": true, "completeNode": "n1" }
+      "sceneExit": { "normal": ["loc_deck_a"], "nextEvent": "evt_meet_ash", "canReturn": false, "completeNode": "n1" }
     },
     {
       "id": "evt_meet_ash",
@@ -396,7 +396,7 @@
           }
         }
       ],
-      "sceneExit": { "normal": ["loc_engine", "loc_deck_a", "loc_science"], "nextByLocation": { "loc_engine": "evt_trigger_overload", "loc_deck_a": "evt_trigger_overload", "loc_science": "evt_ash_ambush" }, "canReturn": true, "completeNode": "n2" }
+      "sceneExit": { "normal": ["loc_engine", "loc_deck_a", "loc_science"], "nextByLocation": { "loc_engine": "evt_trigger_overload", "loc_deck_a": "evt_trigger_overload", "loc_science": "evt_ash_ambush" }, "canReturn": false, "completeNode": "n2" }
     },
     {
       "id": "evt_ash_ambush",

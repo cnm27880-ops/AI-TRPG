@@ -45,8 +45,9 @@ function makeEnv() {
 const req = (env, body) => ({ request: { json: async () => body }, env });
 const rj = async (res) => JSON.parse(await res.text());
 
-async function startGame(env, draft = SPECIALIST) {
-  const s = await rj(await sessionPost(req(env, { draft })));
+async function startGame(env, draft = SPECIALIST, scenarioId = "scenario.nostromo-01") {
+  // 這裡測的是通用 AI turn guidance；明確指定舊版範例，避免 V2 的 reference opening 改變測試的起始牌組。
+  const s = await rj(await sessionPost(req(env, { draft, scenarioId })));
   assert.equal(s.ok, true, JSON.stringify(s.errors ?? s.error));
   const opening = await rj(await turnPost(req(env, { sessionId: s.session.id })));
   return { sessionId: s.session.id, opening };
@@ -126,7 +127,7 @@ test("套路懲罰會寫進prompt，讓AI把難度變化寫成劇情而不是憑
 
 test("回應要帶上玩家看得懂的目標與副本簡介（不是只有節點標題那句謎語）", async () => {
   const env = makeEnv();
-  const { opening } = await startGame(env);
+  const { opening } = await startGame(env, SPECIALIST, DEFAULT_SCENARIO_ID);
 
   const node = opening.scenario.activeNode;
   assert.ok(node.goal, "活躍節點要帶 playerGoal");

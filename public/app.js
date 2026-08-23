@@ -1385,6 +1385,67 @@ function appendTurnError(message, res) {
   });
 }
 
+// --- Alien V2 人物關係：資料由 server-owned reference response 提供 ---
+const NPC_TRUST_TONE_CLASS = Object.freeze({
+  muted: "npc-trust-muted",
+  neutral: "npc-trust-neutral",
+  good: "npc-trust-good",
+  strong: "npc-trust-strong",
+  warn: "npc-trust-warn",
+  danger: "npc-trust-danger",
+});
+
+function renderNpcRelationships(npcs) {
+  const tab = document.getElementById("tab-btn-npcs");
+  const panel = document.getElementById("sidebar-tab-npcs");
+  const roster = document.getElementById("npc-roster");
+  const empty = document.getElementById("npc-empty");
+  const count = document.getElementById("npc-tab-count");
+  const note = document.getElementById("npc-panel-note");
+  const list = Array.isArray(npcs) ? npcs.filter((npc) => npc?.id && npc?.name) : [];
+
+  const hadActiveNpcTab = Boolean(tab?.classList.contains("active"));
+  if (tab) tab.hidden = list.length === 0;
+  if (panel) {
+    panel.setAttribute("aria-hidden", list.length === 0 ? "true" : "false");
+    panel.classList.toggle("hidden", list.length === 0 || !hadActiveNpcTab);
+  }
+  if (!list.length && hadActiveNpcTab) window.switchSidebarTab?.("attr");
+  if (count) {
+    count.hidden = list.length === 0;
+    count.textContent = list.length ? String(list.length) : "";
+  }
+  if (!roster || !empty) return;
+  if (!list.length) {
+    roster.innerHTML = "";
+    empty.style.display = "block";
+    if (note) note.textContent = "等待副本資料";
+    return;
+  }
+
+  empty.style.display = "none";
+  if (note) note.textContent = `${list.length} 位人物`;
+  roster.innerHTML = list.map((npc) => {
+    const tone = NPC_TRUST_TONE_CLASS[npc.trustTone] ?? NPC_TRUST_TONE_CLASS.muted;
+    const trustValue = npc.trust === null || npc.trust === undefined
+      ? "—"
+      : `${Number(npc.trust) > 0 ? "+" : ""}${npc.trust}`;
+    return `<article class="npc-card ${tone}" data-npc-id="${escapeHtml(npc.id)}">
+      <div class="npc-card-head">
+        <div class="min-w-0">
+          <div class="npc-card-name">${escapeHtml(npc.name)}</div>
+          <div class="npc-card-role">${escapeHtml(npc.role ?? "副本人物")}</div>
+        </div>
+        <span class="npc-card-status">${escapeHtml(npc.statusLabel ?? npc.status ?? "未知")}</span>
+      </div>
+      <div class="npc-card-foot">
+        <span>關係</span>
+        <strong>${escapeHtml(npc.trustLabel ?? "待接觸")} <em>${escapeHtml(trustValue)}</em></strong>
+      </div>
+    </article>`;
+  }).join("");
+}
+
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
 const TIME_STATUS_STYLE = {
   充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -1395,6 +1456,7 @@ const TIME_STATUS_STYLE = {
 
 function updateScenarioHud(scenario) {
   const hud = document.getElementById("scenario-hud");
+  renderNpcRelationships(scenario?.reference?.npcs ?? []);
   if (!hud) return;
 
   // 節點結算被引擎擋下時，玩家會看到「我明明做完了，進度條卻沒動」。
@@ -2407,15 +2469,15 @@ function appendNarrationBlock(text, opts = {}) {
   appendFeedEvent("narration", "", renderNarrationHtml(text), opts);
 }
 
-// --- 首頁存檔 ---
+// --- 首頁輪迴者檔案 ---
 async function checkLocalSession() {
   const savedId = localStorage.getItem(SESSION_KEY);
   const box = document.getElementById("portal-resume-box");
   const accountNote = document.getElementById("resume-account-note");
   const accountText = document.getElementById("resume-account-text");
 
-  // 登入的人先問帳號：存檔是綁在帳號上的，localStorage 只是「這台瀏覽器上次玩哪一份」。
-  // 換一台電腦、清過瀏覽器資料的玩家，localStorage 是空的但帳號裡的存檔還在，
+  // 登入的人先問帳號：輪迴者檔案綁在帳號上，localStorage 只是「這台瀏覽器上次接續哪一名角色」。
+  // 換一台電腦、清過瀏覽器資料的玩家，localStorage 是空的但帳號裡的角色檔案還在，
   // 這時候仍然要讓他在首頁直接看得到、點得到——那正是登入的意義。
   if (currentUser) await refreshSessionList();
 
@@ -2431,21 +2493,21 @@ async function checkLocalSession() {
     if (res.ok && res.session) {
       resumeTargetId = targetId;
       if (box) box.style.display = "block";
-      // 有有效存檔的回訪玩家已經被主神選中，不必再次觀看初次邀請過場。
+      // 有效的輪迴者檔案已被主神選中；這是接續目前角色，不是回溯副本進度。
       revealMainGodSpace("resume");
       document.getElementById("resume-char-name").textContent =
         res.session.character?.concept?.name || "未命名輪迴者";
 
-      // 存檔不是持久的時候，「繼續遊戲」這個框本身就是最該講這件事的地方——
-      // 玩家正要按下去的按鈕，很可能指向一份已經蒸發的存檔。
+      // 檔案不是持久的時候，「接續目前輪迴」這個框本身就是最該講這件事的地方——
+      // 玩家正要按下去的按鈕，很可能指向一份已經蒸發的角色檔案。
       const note = document.getElementById("resume-persistence-note");
       if (note) note.style.display = res.persistent ? "none" : "block";
 
-      // 帳號裡還有別份存檔時講一聲，並指路到存檔管理——否則玩家只會看到最新的那一份，
+      // 帳號裡還有別名輪迴者時講一聲，並指路到輪迴者檔案——否則玩家只會看到最新的一名，
       // 以為其他角色都不見了。
       if (accountNote && accountText) {
         if (currentUser && mySessions.length > 1) {
-          accountText.textContent = `這個帳號底下還有 ${mySessions.length - 1} 份其他存檔，可到「存檔管理」切換。`;
+          accountText.textContent = `這個帳號底下還有 ${mySessions.length - 1} 名其他輪迴者，可到「輪迴者檔案」切換。`;
           accountNote.style.display = "block";
         } else if (currentUser && res.persistent) {
           accountText.textContent = "已綁定你的 Google 帳號，換裝置登入就找得回來。";
@@ -2455,7 +2517,7 @@ async function checkLocalSession() {
         }
       }
     } else {
-      // 存檔查不到不是壞事(可能只是舊ID)，但也不該完全靜音——留給F12看得到。
+      // 角色檔案查不到不是壞事（可能只是舊 ID），但也不該完全靜音——留給 F12 看得到。
       console.warn("[SESSION_LOOKUP] 記著的存檔ID讀不到：", targetId, res.error);
       if (box) box.style.display = "none";
     }
@@ -2464,7 +2526,7 @@ async function checkLocalSession() {
   }
 }
 
-/** 首頁「接續輪迴任務」實際要讀的那一份（可能來自帳號清單，不一定是 localStorage 那個）。 */
+/** 首頁「接續目前輪迴」實際要讀的那一份（可能來自帳號清單，不一定是 localStorage 那個）。 */
 let resumeTargetId = null;
 
 /**
@@ -2515,30 +2577,30 @@ function renderSaveStatus(persistent) {
   el.textContent = text;
   el.className = `px-2 py-0.5 rounded bg-panel border hairline-border ${cls}`;
   el.title = currentUser
-    ? "存檔已綁定你的 Google 帳號，換裝置登入後可以在「存檔管理」裡找到。"
-    : "存檔目前只跟這台瀏覽器綁在一起。登入 Google 之後才會綁到帳號。";
+    ? "輪迴者檔案已綁定你的 Google 帳號，換裝置登入後可以在「輪迴者檔案」裡找到。"
+    : "輪迴者檔案目前只跟這台瀏覽器綁在一起。登入 Google 之後才會綁到帳號。";
   if (changed) flashElement(el);
 }
 
 async function resumeLocalSession() {
   const savedId = resumeTargetId || localStorage.getItem(SESSION_KEY);
   if (!savedId) return;
-  // [2026-08-16 修正] 這裡以前是 `if (savedId) await resumeSession(savedId)`，
+  // [2026-08-16 修正] 這裡以前是 `if (savedId) await resumeSession(savedId)`；此處只接續目前角色，不能重玩已走過的副本。
   // 而 resumeSession() 內部用 `catch { return false }` 吞掉一切錯誤、呼叫端又不看回傳值。
-  // 玩家按下「繼續遊戲」之後畫面完全不動，也沒有任何訊息，只能自己猜是不是壞了。
+  // 玩家按下「接續目前輪迴」之後畫面完全不動，也沒有任何訊息，只能自己猜是不是壞了。
   try {
     await resumeSession(savedId);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
     showToast(
-      `讀取存檔失敗：${err.message}\n存檔ID：${savedId}\n（如果這份存檔是在沒有KV設定的環境下建立的，它可能已經消失了。）`
+      `讀取輪迴者檔案失敗：${err.message}\n檔案 ID：${savedId}\n（如果這份檔案是在沒有 KV 設定的環境下建立的，它可能已經消失了。）`
     );
   }
 }
 
 async function resumeSession(id) {
   const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}&view=runtime`)).json();
-  if (!res.ok) throw new Error(res.error || "讀取存檔失敗");
+  if (!res.ok) throw new Error(res.error || "讀取輪迴者檔案失敗");
 
   currentSessionId = id;
   localStorage.setItem(SESSION_KEY, id);
@@ -3008,7 +3070,7 @@ async function handleResumeFromModal() {
     await resumeSession(id);
   } catch (err) {
     console.error("[RESUME_FAILURE]", err);
-    showToast(`讀取存檔失敗：${err.message}`);
+    showToast(`讀取輪迴者檔案失敗：${err.message}`);
   }
 }
 
@@ -3037,15 +3099,15 @@ async function googleLogout() {
 }
 
 // ---------------------------------------------------------------------------
-// 「我的存檔」清單
+// 「我的輪迴者檔案」清單
 //
 // [2026-08-16 新增] Google 登入接上、KV binding 也接上之後，前端還缺最後一塊：
-// **登入了，然後呢**。在這之前登入只會讓右上角多一顆頭像，存檔仍然只能靠 localStorage
-// 記著的那一個 ID 找回來——換一台電腦、清一次瀏覽器資料，那份存在 KV 裡好好的存檔
-// 就再也點不到了。存檔綁在帳號上這件事，玩家要看得到才算數。
+// **登入了，然後呢**。在這之前登入只會讓右上角多一顆頭像，輪迴者檔案仍然只能靠 localStorage
+// 記著的那一個 ID 找回來——換一台電腦、清一次瀏覽器資料，那份存在 KV 裡好好的角色檔案
+// 就再也點不到了。檔案綁在帳號上這件事，玩家要看得到才算數。
 // ---------------------------------------------------------------------------
 
-/** 上一次抓到的存檔清單，首頁與存檔管理視窗共用，不重複打API。 */
+/** 上一次抓到的輪迴者檔案清單，首頁與檔案視窗共用，不重複打 API。 */
 let mySessions = [];
 
 async function refreshSessionList() {
@@ -3059,7 +3121,7 @@ async function refreshSessionList() {
     list.innerHTML = authEnabled
       ? `<div class="p-3 rounded border hairline-border border-dashed text-center space-y-2">
           <div class="text-[11px] text-zinc-400 leading-snug">
-            存檔目前只跟這台瀏覽器綁在一起。登入之後，存檔會綁到你的 Google 帳號，
+            輪迴者檔案目前只跟這台瀏覽器綁在一起。登入之後，檔案會綁到你的 Google 帳號，
             換裝置或清掉瀏覽器資料都找得回來。
           </div>
           <button onclick="startGoogleLogin()" class="px-3 py-1.5 rounded bg-panel hover:bg-zinc-800 border hairline-border text-[11px] text-zinc-200 transition-all">
@@ -3067,8 +3129,8 @@ async function refreshSessionList() {
           </button>
         </div>`
       : `<div class="p-3 rounded border hairline-border border-dashed text-[11px] text-zinc-400 leading-snug">
-          這個部署沒有設定 Google 登入，存檔只跟這台瀏覽器綁在一起。
-          用下面的 Session ID 手動保存，換裝置時貼回來就能繼續。
+          這個部署沒有設定 Google 登入，輪迴者檔案只跟這台瀏覽器綁在一起。
+          用下面的 Session ID 手動保存，換裝置時貼回來就能接續目前輪迴。
         </div>`;
     if (status) status.textContent = "";
     return;
@@ -3079,10 +3141,10 @@ async function refreshSessionList() {
     const res = await (await fetch("/api/session")).json();
     mySessions = res.sessions ?? [];
     renderSessionList(mySessions);
-    if (status) status.textContent = `${mySessions.length} 份`;
+    if (status) status.textContent = `${mySessions.length} 名`;
   } catch (err) {
     console.error("[SESSION_LIST_FAILURE]", err);
-    list.innerHTML = `<div class="text-[11px] text-red-400">存檔清單讀取失敗：${escapeHtml(err.message)}</div>`;
+    list.innerHTML = `<div class="text-[11px] text-red-400">輪迴者檔案清單讀取失敗：${escapeHtml(err.message)}</div>`;
     if (status) status.textContent = "";
   }
 }
@@ -3092,7 +3154,7 @@ function renderSessionList(sessions) {
   if (!list) return;
 
   if (!sessions.length) {
-    list.innerHTML = `<div class="text-[11px] text-zinc-400 p-2">這個帳號底下還沒有存檔。</div>`;
+    list.innerHTML = `<div class="text-[11px] text-zinc-400 p-2">這個帳號底下還沒有輪迴者檔案。</div>`;
     return;
   }
 
@@ -3109,8 +3171,8 @@ function renderSessionList(sessions) {
           </div>
           <div class="text-[10px] text-zinc-500">${escapeHtml(formatSaveTime(s.updatedAt))} · ${s.turns ?? 0} 回合 · ${s.eventCount ?? 0} 筆紀錄</div>
         </div>
-        <button data-load-session="${escapeHtml(s.id)}" class="shrink-0 px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/25 transition-all">讀取</button>
-        <button data-delete-session="${escapeHtml(s.id)}" title="刪除這份存檔" class="shrink-0 px-2 py-1 rounded border hairline-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-all">
+        <button data-load-session="${escapeHtml(s.id)}" class="shrink-0 px-2.5 py-1 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/25 transition-all">接續</button>
+        <button data-delete-session="${escapeHtml(s.id)}" title="刪除這名輪迴者的檔案" class="shrink-0 px-2 py-1 rounded border hairline-border text-zinc-400 hover:text-red-400 hover:border-red-500/40 transition-all">
           <i class="fas fa-trash text-[10px]"></i>
         </button>
       </div>`;
@@ -3118,7 +3180,7 @@ function renderSessionList(sessions) {
     .join("");
 }
 
-/** 存檔時間顯示成「幾分鐘前」這種人看得懂的相對時間，絕對時間放 title。 */
+/** 輪迴者檔案時間顯示成「幾分鐘前」這種人看得懂的相對時間，絕對時間放 title。 */
 function formatSaveTime(iso) {
   if (!iso) return "時間未知";
   const then = new Date(iso).getTime();
@@ -3132,7 +3194,7 @@ function formatSaveTime(iso) {
 }
 
 async function deleteSession(id) {
-  if (!confirm("確定要刪除這份存檔嗎？這個動作沒辦法復原。")) return;
+  if (!confirm("確定要刪除這名輪迴者的檔案嗎？這個動作沒辦法復原。")) return;
   try {
     const res = await (await fetch(`/api/session?id=${encodeURIComponent(id)}`, { method: "DELETE" })).json();
     if (!res.ok) throw new Error(res.error || "刪除失敗");
@@ -3144,7 +3206,7 @@ async function deleteSession(id) {
     await checkLocalSession();
   } catch (err) {
     console.error("[SESSION_DELETE_FAILURE]", err);
-    showToast(`刪除存檔失敗：${err.message}`);
+    showToast(`刪除輪迴者檔案失敗：${err.message}`);
   }
 }
 
@@ -3183,8 +3245,8 @@ function renderAuthState(user) {
     name.textContent = user.name || user.email || "已登入";
   });
 
-  // 登入狀態一變，「我的存檔」就要跟著變。沒有這一步的話，玩家登入後打開存檔管理
-  // 還是會看到「請先登入」——因為那塊是上一次的狀態畫的。
+// 登入狀態一變，「我的輪迴者檔案」就要跟著變。沒有這一步的話，玩家登入後打開檔案視窗
+      // 還是會看到「請先登入」——因為那塊是上一次的狀態畫的。
   refreshSessionList();
 }
 
@@ -3205,7 +3267,7 @@ function consumeLoginRedirect() {
   if (status === "ok") {
     console.info("[AUTH] 登入成功");
     if (localStorage.getItem(SESSION_KEY)) {
-      pendingLoginNotice = "已登入。這台瀏覽器上的存檔已經綁定到你的 Google 帳號，換裝置登入後也找得回來。";
+      pendingLoginNotice = "已登入。這台瀏覽器上的輪迴者檔案已經綁定到你的 Google 帳號，換裝置登入後也找得回來。";
     }
   } else if (status === "cancelled") {
     console.info("[AUTH] 使用者取消了登入");

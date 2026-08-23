@@ -19,11 +19,11 @@ test("rollDicePool: DP=0 或負數會改用機運骰(最多只擲出很少的骰
 });
 
 test("rollDicePool: 骰池統計特性——大量骰子時成功率應接近理論值(8/9/10共30%基礎成功率，含加骰會略高)", () => {
-  const dp = 1000;
+  const dp = 10000;
   const { successes } = rollDicePool(dp);
   const rate = successes / dp;
-  // 理論上單骰基礎成功率 30%，加上10再骰的期望值加成，合理範圍抓寬鬆一點做統計健檢
-  assert.ok(rate > 0.28 && rate < 0.42, `成功率 ${rate} 超出合理統計範圍，可能骰子邏輯有誤`);
+  // 理論上含 10 再骰的成功率約為 1/3；提高樣本量，避免1000顆時偶發落在邊界而誤報。
+  assert.ok(rate > 0.30 && rate < 0.37, `成功率 ${rate} 超出合理統計範圍，可能骰子邏輯有誤`);
 });
 
 test("legendaryAttributeBonus: 對應規則書「傳奇屬性」舉例 n=floor((值-1)/5)", () => {

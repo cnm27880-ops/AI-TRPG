@@ -12,6 +12,21 @@ function request(url, body) {
   });
 }
 
+test("new session without scenarioId defaults to Alien V2 and seeds reference state", async () => {
+  const created = await createSession({
+    request: request("https://test.local/api/session", {
+      character: emptyCharacter("預設副本測試者"),
+    }),
+    env: {},
+  });
+  const body = await created.json();
+  assert.equal(created.status, 200, JSON.stringify(body));
+  assert.equal(body.ok, true);
+  assert.equal(body.session.scenario.packId, "scenario.nostromo-01-v2");
+  assert.equal(body.session.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
+  assert.ok(body.session.scenario.referenceState.npcStatuses.npc_luyuan);
+});
+
 test("V2 reference action is persisted before an unavailable LLM response", async () => {
   const env = {};
   const character = emptyCharacter("Reference 測試者");

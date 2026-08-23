@@ -14,6 +14,8 @@ import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore, newSessionId } from "../content/storage/sessionStore.js";
 import { DEFAULT_SCENARIO_ID, getScenarioPack } from "../content/scenario/registry.js";
 
+const LEGACY_SCENARIO_ID = "scenario.nostromo-01";
+
 const DRAFT = {
   concept: { name: "測試輪迴者", gender: "男" },
   attributes: { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 1, 感知: 2, 意志: 2 },
@@ -63,9 +65,10 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
     { narration: "AI試圖用嘴巴打贏最終戰(應該被引擎擋下)", nodeComplete: { divergenceTier: 4 } },
   ]);
 
-  let r = await readJson(await sessionPost(req(env, { draft: DRAFT })));
+  // 這是舊版節點／戰鬥整合的完整流程 fixture；V2 的 reference runtime 由專屬 smoke 覆蓋。
+  let r = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: LEGACY_SCENARIO_ID })));
   assert.equal(r.ok, true);
-  assert.equal(r.session.scenario.packId, DEFAULT_SCENARIO_ID);
+  assert.equal(r.session.scenario.packId, LEGACY_SCENARIO_ID);
   const sessionId = r.session.id;
 
   // 開場：不應該有任何節點被完成，而且這一回合是固定開頭（不經過AI）
@@ -102,7 +105,7 @@ test("副本整合：開場不消耗節點，三個主線節點依序完成，�
   assert.notEqual(r.combat.enemy.name, "掠奪者", "最終戰不該用預設雜魚樣板");
   // armor 拿副本包裡寫的那個值來比，不要寫死數字：換一個預設副本就會失效，
   // 而這條測試要鎖的是「boss樣板的armor有沒有被複製過去」，不是「armor剛好等於幾」。
-  const finaleTemplate = getScenarioPack(DEFAULT_SCENARIO_ID)
+  const finaleTemplate = getScenarioPack(LEGACY_SCENARIO_ID)
     .entries.flatMap((ch) => ch.nodes)
     .find((n) => n.isFinale).bossEncounter;
   assert.equal(

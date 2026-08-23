@@ -13,7 +13,7 @@
 //
 // 版本號寫死在快取名稱裡：改這個檔案裡快取的內容(APP_SHELL)時，記得把 CACHE_NAME
 // 的版號也往上加一；network-first 是線上安全網，版本 bump 則負責清除舊離線殼。
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v5";
 const CACHE_NAME = `echoes-shell-${CACHE_VERSION}`;
 
 const APP_SHELL = [

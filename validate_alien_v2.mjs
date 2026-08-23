@@ -77,6 +77,10 @@ function visitEffects(effects, where) {
     if (!knownNpcs.has(id)) errors.push(`${where}: unknown npc ${id}`);
     if (!reference.stateSchema.npcStatus.includes(statuses)) errors.push(`${where}: unknown npc status ${statuses}`);
   }
+  for (const [id, delta] of Object.entries(effects.npcTrustDelta ?? {})) {
+    if (!knownNpcs.has(id)) errors.push(`${where}: unknown npc ${id}`);
+    if (!Number.isFinite(Number(delta))) errors.push(`${where}: invalid npc trust delta ${id}=${delta}`);
+  }
   for (const id of effects.injuriesAdd ?? []) if (!reference.stateSchema.injuryIds.includes(id)) errors.push(`${where}: unknown injury ${id}`);
   if (effects.playerLocation && !knownLocations.has(effects.playerLocation)) errors.push(`${where}: unknown location ${effects.playerLocation}`);
   if (effects.infectionStatus && !reference.stateSchema.infectionStatus.includes(effects.infectionStatus)) errors.push(`${where}: unknown infection status ${effects.infectionStatus}`);
@@ -89,6 +93,7 @@ function visitEffects(effects, where) {
 
 for (const scene of reference.scenes) {
   if (!scene.id.startsWith("evt_")) errors.push(`scene id malformed: ${scene.id}`);
+  if (scene.sceneExit?.canReturn !== false) errors.push(`${scene.id}: scene must be one-way (sceneExit.canReturn=false)`);
   for (const target of [scene.nextEvent, scene.sceneExit?.nextEvent, ...Object.values(scene.sceneExit?.nextByLocation ?? {})].filter(Boolean)) {
     if (!knownSceneIds.has(target)) errors.push(`${scene.id}: unknown scene transition target ${target}`);
   }

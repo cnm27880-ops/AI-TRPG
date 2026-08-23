@@ -2,7 +2,7 @@
 
 這個專案將《無限恐怖》2.35 規則整理成可測試的純運算核心，並在其上提供 AI 敘事、Cloudflare Pages Functions API 與單頁文字遊戲介面。**骰子、成功數、生命值轉換、經驗值、商店價格與戰鬥結果由程式碼計算；AI 只負責依照引擎結果產生敘事與下一輪選項。**
 
-> **文件對照基準：** `main` 分支目前已推送至 commit `1358b96`（2026-08-23）；本次全專案 audit 的修正會在工作樹完成驗證後另行提交。README 的測試數量、目錄與功能描述應以目前工作樹為準；規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
+> **文件對照基準：** 本 README 以目前工作樹與最新 `main` 的 Alien V2 runtime 為準；提交 hash 會在本輪驗證完成後由 Git 歷史記錄。規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
 
 ## 專案定位
 
@@ -19,7 +19,7 @@ npm install
 npm test
 ```
 
-目前測試套件共有 **57 個測試檔案、792 個測試案例**，正常結果應為 `# pass 792`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry，以及手機設定／PWA／故事主畫面 UI 靜態契約；PWA Service Worker 另以 production JavaScript syntax、差異檢查與部署後瀏覽器驗證。
+目前測試套件共有 **67 個 `.test.js` 測試檔案、831 個可重現測試案例**，正常結果應為 `# pass 831`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry、Alien V2 reference runtime，以及手機設定／PWA／故事主畫面 UI 靜態契約。兩個 `runRealGemini*.mjs` 是需要本地 `.dev.vars` 與真實供應商金鑰的手動連線測試，不會納入一般 `npm test`；可用 `npm run test:real-gemini` 額外執行。
 
 若要重新產生前端使用的 Tailwind 靜態 CSS，執行：
 
@@ -46,7 +46,8 @@ npx wrangler pages dev
 
 | 指令 | 用途 |
 |---|---|
-| `npm test` | 執行 Node 內建測試跑者的全部測試 |
+| `npm test` | 執行 67 個可重現 `.test.js` 測試檔案，共 831 個案例 |
+| `npm run test:real-gemini` | 使用本地 `.dev.vars` 執行兩個真實 Gemini／Alien V2 連線 smoke test |
 | `npm run build:css` | 由 `src/tailwind.css` 產生 `public/tailwind.css` |
 | `npm run watch:css` | 監看 CSS 來源並持續產生靜態 CSS |
 | `npm run deploy` | 執行 `wrangler pages deploy`；正式部署前請先完成 Cloudflare 設定 |
@@ -77,7 +78,8 @@ content/                    可替換內容與服務層
   turnOptions.js             AI 選項查驗與保底選項
   checkIntent.js             自然語言行動到檢定參數的對照層
   narrativeStyle.js          說書人文筆與人格設定
-  scenario/                  副本註冊、節點、進度、迫近度、時間預算與結算
+  scenario/                  副本註冊、節點、進度、迫近度、時間預算、reference adapter 與結算
+    examples/                 Alien V1／V2 範例副本與 V2 GM reference authoring/runtime sidecar
   combat/                    遭遇狀態與目前的單敵人戰鬥內容
   shop/                      商店目錄、價格、錢包、購買、型態與存取規則
   contracts/                 契約內容包結構
@@ -116,7 +118,7 @@ public/                      Cloudflare Pages 靜態資源
   sw.js                      Service Worker
 
 src/tailwind.css             Tailwind CSS 輸入來源
-test/                        57 個測試檔案，共 792 個測試案例
+test/                        67 個 `.test.js` 測試檔案，共 824 個測試案例；另有2個手動連線 smoke script
 rules-2.35.txt               原始規則書資料
 wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 ```
@@ -125,9 +127,9 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 
 前端目前提供從邀請頁、建卡、主神空間到副本回合的完整主路徑。玩家可以建立角色、進行人生路徑問答與肉體重塑，建立存檔後進入回合循環；每輪由 API 回傳最多四個經過查驗的選項，玩家也可以輸入第五種自訂行動。
 
-遊戲主畫面包含角色 HUD、任務與副本狀態、最近五則故事窗口、決策卡、休息、存檔、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板。主畫面只保留最近五則現場訊息；完整長期劇情由主神商店旁的「劇情回顧」頁按需讀取，支援小說式回顧、事件事實與副本結束後可複製／下載的 AI-ready 劇情包。當 LLM 在規則層完成後暫時失敗，伺服器會保存 pendingTurn，玩家重試時沿用原骰面，不會重複扣時間、迫近度或寫入重複歷史。寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
+遊戲主畫面包含角色 HUD、任務與副本狀態、最近五則故事窗口、決策卡、休息、輪迴者檔案、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板；Alien V2 另在角色側欄提供副本人物 roster、存活狀態與 server-owned 好感度摘要。主畫面只保留最近五則現場訊息；完整長期劇情由主神商店旁的「劇情回顧」頁按需讀取，支援小說式回顧、事件事實與副本結束後可複製／下載的 AI-ready 劇情包。當 LLM 在規則層完成後暫時失敗，伺服器會保存 pendingTurn，玩家重試時沿用原骰面，不會重複扣時間、迫近度或寫入重複歷史。寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
 
-登入不是遊戲的必要條件。未登入時可以使用匿名存檔；登入後，新存檔會綁定帳號，既有的瀏覽器匿名存檔也會在登入後嘗試認領。存檔、登入與 KV 的詳細取捨請看 `DEPLOYMENT.md` 與 `ARCHITECTURE.md`。
+所有副本都是單向道：活躍中的輪迴者檔案只能接續目前進度，不能回到過去 scene 或重玩同一副本；想重玩時必須回到主神空間／首頁建立一名新的輪迴者。登入不是遊戲的必要條件。未登入時可以使用匿名輪迴者檔案；登入後，新檔案會綁定帳號，既有的瀏覽器匿名檔案也會在登入後嘗試認領。未來 Google 登入的檔案頁應管理多名角色及各自歷程，而不是作為回放選單。存檔、登入與 KV 的詳細取捨請看 `DEPLOYMENT.md` 與 `ARCHITECTURE.md`。
 
 ## 已對照規則書或引擎契約驗證的部分
 
@@ -163,7 +165,7 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 - 500+ 頁資源型錄的全面批量轉換工具，以及更完整的血統、技能樹與道具資料。
 - 戰鬥的進階動作、範圍攻擊、混合傷害、不良狀態、載具與多敵人內容仍需擴充；目前的戰鬥 UI 與單敵人 MVP 不代表完整戰鬥內容已完成。
 - 建卡目前使用輕量化的角色建立路徑；完整規則書建卡模型與遊戲內 XP 升級流程仍需視產品方向補齊。
-- 資源包套用、NPC 好感度的完整遊戲流程，以及更完整的副本內容包仍在擴充；部分規則模組與 API 骨架已存在，但不代表所有玩家流程都已接上。
+- 資源包套用、NPC 長期記憶／對話分支與更完整的副本內容包仍在擴充；Alien V2 已接上 reference adapter、公開人物 roster、狀態與好感度摘要，但 GM privateGoals／knowledge 不會直接暴露給玩家。
 - Cloudflare Pages 正式部署、KV binding、Google 登入與各家 LLM 供應商的實際連線，仍必須在使用者自己的帳號、網域與金鑰環境驗證。Repository 內的 `wrangler.toml` 與相關文件是部署骨架與操作指南，不是本地測試已完成的部署證明。
 
 ## 重要文件

@@ -47,7 +47,8 @@ const req = (env, body) => ({ request: { json: async () => body }, env });
 const readJson = async (res) => JSON.parse(await res.text());
 
 async function newSession(env, body = {}) {
-  const r = await readJson(await sessionPost(req(env, { draft: DRAFT, ...body })));
+  // 這組測試驗證舊版通用 scripted-opening contract；Alien V2 的新預設另由 referenceV2Smoke 覆蓋。
+  const r = await readJson(await sessionPost(req(env, { draft: DRAFT, scenarioId: "scenario.nostromo-01", ...body })));
   assert.equal(r.ok, true, r.error);
   return r.session.id;
 }
@@ -63,7 +64,7 @@ test("開場回合完全不呼叫AI，直接回傳副本寫好的固定開頭", 
   assert.equal(r.degraded.narrationSource, "scripted");
   assert.equal(r.checkResult, null, "開場不擲骰");
 
-  const chapter = getScenarioPack(DEFAULT_SCENARIO_ID).entries[0];
+  const chapter = getScenarioPack("scenario.nostromo-01").entries[0];
   assert.equal(r.narration, chapter.openingNarration, "開場文字必須一字不改");
   assert.equal(r.options.length, OPTION_COUNT);
   assert.equal(r.options[0].label, chapter.openingOptions[0].label);

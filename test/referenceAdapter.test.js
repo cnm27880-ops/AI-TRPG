@@ -12,6 +12,7 @@ import {
   applyReferenceCharacterEffects,
   narrativeModeForScene,
   validateThreatAssessment,
+  referenceStateForResponse,
 } from "../content/scenario/referenceAdapter.js";
 
 test("reference adapter builds opening approaches and matches a chosen option", () => {
@@ -149,6 +150,35 @@ test("threatAssessment is bounded by scene policy and narrative mode follows act
   const stableWithoutReason = validateThreatAssessment(reference, state, { level: "stable" });
   assert.equal(stableWithoutReason.accepted, true);
   assert.match(stableWithoutReason.reason, /AI 未提供理由/);
+});
+
+test("public reference response exposes safe NPC roster and trust labels only", () => {
+  const state = createReferenceState(reference);
+  const response = referenceStateForResponse(reference, state);
+  const luyuan = response.npcs.find((npc) => npc.id === "npc_luyuan");
+
+  assert.equal(response.npcs.length, reference.npcs.length);
+  assert.equal(luyuan.name, "陸遠");
+  assert.equal(luyuan.status, "alive");
+  assert.equal(luyuan.statusLabel, "存活");
+  assert.equal(luyuan.trust, null);
+  assert.equal(luyuan.trustLabel, "待接觸");
+  assert.equal(luyuan.trustTone, "muted");
+  assert.deepEqual(Object.keys(luyuan).sort(), [
+    "id", "name", "role", "status", "statusLabel", "trust", "trustLabel", "trustTone",
+  ].sort());
+  assert.equal("knowledge" in luyuan, false);
+  assert.equal("privateGoals" in luyuan, false);
+
+  const trusted = referenceStateForResponse(reference, {
+    ...state,
+    npcTrust: { npc_luyuan: 3 },
+    npcStatuses: { ...state.npcStatuses, npc_luyuan: "injured" },
+  }).npcs.find((npc) => npc.id === "npc_luyuan");
+  assert.equal(trusted.statusLabel, "受傷");
+  assert.equal(trusted.trust, 3);
+  assert.equal(trusted.trustLabel, "緊密");
+  assert.equal(trusted.trustTone, "strong");
 });
 
 test("known reference injuries affect the existing B/L/A hp tracks", () => {

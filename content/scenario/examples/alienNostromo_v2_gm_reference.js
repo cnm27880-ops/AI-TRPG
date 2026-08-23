@@ -734,7 +734,7 @@ export default {
           "loc_deck_a"
         ],
         "nextEvent": "evt_meet_ash",
-        "canReturn": true,
+        "canReturn": false,
         "completeNode": "n1"
       }
     },
@@ -1309,7 +1309,7 @@ export default {
           "loc_deck_a": "evt_trigger_overload",
           "loc_science": "evt_ash_ambush"
         },
-        "canReturn": true,
+        "canReturn": false,
         "completeNode": "n2"
       }
     },

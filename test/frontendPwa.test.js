@@ -23,6 +23,19 @@ test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約",
   assert.match(turnApi, /recentChronicleTotal: Array\.isArray\(session\?\.chronicle\)/);
 });
 
+test("Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference 隱藏契約", () => {
+  assert.match(index, /id="tab-btn-npcs"/);
+  assert.match(index, /id="sidebar-tab-npcs"/);
+  assert.match(index, /id="npc-roster"/);
+  assert.match(index, /class="npc-tab-count"/);
+  assert.match(index, /\.npc-card/);
+  assert.match(app, /NPC_TRUST_TONE_CLASS/);
+  assert.match(app, /function renderNpcRelationships\(npcs\)/);
+  assert.match(app, /renderNpcRelationships\(scenario\?\.reference\?\.npcs \?\? \[\]\)/);
+  assert.match(index, /\['attr', 'skills', 'traits', 'npcs', 'journal'\]/);
+  assert.match(index, /五個分頁/);
+});
+
 test("玩家行動、命運判定與說書人 pending 使用不同視覺層級", () => {
   assert.match(index, /#recent-story-list > \.feed-event-action/);
   assert.match(index, /#recent-story-list > \.feed-event-check/);
@@ -52,12 +65,21 @@ test("PWA 在 iOS 與 Android 沒有自動 prompt 時仍提供安裝指引入口
   assert.match(index, /openModal\('pwaInstallModal'\)/);
 });
 
+test("輪迴者檔案文案區分接續目前角色與建立新角色", () => {
+  assert.match(index, /輪迴者檔案/);
+  assert.match(index, /查看／接續不同角色/);
+  assert.match(index, /接續目前輪迴/);
+  assert.match(index, /不是回溯或重玩/);
+  assert.match(app, /不是回溯副本進度/);
+  assert.match(app, /名其他輪迴者/);
+});
+
 test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.equal(manifest.display, "standalone");
   assert.equal(manifest.scope, "/");
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260823-r12/);
-  assert.match(sw, /CACHE_VERSION = "v4"/);
+  assert.match(index, /app\.js\?v=20260823-r13/);
+  assert.match(sw, /CACHE_VERSION = "v5"/);
 });

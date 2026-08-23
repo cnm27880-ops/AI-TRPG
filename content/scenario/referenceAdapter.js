@@ -591,6 +591,7 @@ function effectSummary(effects = {}) {
     injuriesAdded: effects.injuriesAdd ?? [],
     location: effects.playerLocation ?? null,
     npcStatusChanges: effects.npcStatusChanges ?? {},
+    npcTrustDelta: effects.npcTrustDelta ?? {},
     infectionStatus: effects.infectionStatus ?? null,
     sampleStatus: effects.sampleStatus ?? null,
     shipStatus: effects.shipStatus ?? null,
@@ -735,6 +736,48 @@ export function buildReferencePromptBlock({
   return lines.join("\n");
 }
 
+function npcTrustView(value) {
+  if (!Number.isFinite(value)) return { value: null, label: "待接觸", tone: "muted" };
+  if (value <= -3) return { value, label: "敵對", tone: "danger" };
+  if (value <= -1) return { value, label: "疏離", tone: "warn" };
+  if (value === 0) return { value, label: "觀望", tone: "neutral" };
+  if (value <= 2) return { value, label: "信任", tone: "good" };
+  return { value, label: "緊密", tone: "strong" };
+}
+
+function publicNpcRoster(reference, state) {
+  const trustMap = state?.npcTrust ?? {};
+  const statusMap = state?.npcStatuses ?? {};
+  return (reference?.npcs ?? [])
+    .filter((npc) => npc?.id && npc?.name)
+    .map((npc) => {
+      const rawTrust = Object.hasOwn(trustMap, npc.id) ? Number(trustMap[npc.id]) : NaN;
+      const trust = npcTrustView(rawTrust);
+      const status = statusMap[npc.id] ?? npc.initialStatus ?? "unknown";
+      return {
+        id: npc.id,
+        name: npc.name,
+        role: npc.role ?? "副本人物",
+        status,
+        statusLabel: NPC_STATUS_LABELS[status] ?? status,
+        trust: trust.value,
+        trustLabel: trust.label,
+        trustTone: trust.tone,
+      };
+    });
+}
+
+const NPC_STATUS_LABELS = Object.freeze({
+  alive: "存活",
+  injured: "受傷",
+  critical: "危急",
+  suspicious: "戒備",
+  destroyed: "已摧毀",
+  dead: "死亡",
+  survived: "生還",
+  unknown: "未知",
+});
+
 export function referenceStateForResponse(reference, state) {
   const scene = findScene(reference, state?.currentSceneId);
   return {
@@ -747,6 +790,7 @@ export function referenceStateForResponse(reference, state) {
     lastApproachId: state?.lastApproachId ?? null,
     lastOutcomeTier: state?.lastOutcomeTier ?? null,
     endingId: state?.endingId ?? null,
+    npcs: publicNpcRoster(reference, state),
   };
 }
 

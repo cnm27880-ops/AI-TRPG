@@ -2210,6 +2210,55 @@
             .story-log-footer { gap: .55rem; padding: .65rem .85rem; }
             .story-log-footer > span { min-width: 0; }
         }
+        /* ================= Alien V2 人物關係側欄 ================= */
+        .npc-tab-count {
+            display: inline-grid; place-items: center; min-width: 1rem; height: 1rem; margin-left: .25rem;
+            padding: 0 .22rem; border: 1px solid rgb(var(--c-accent) / .36); border-radius: 999px;
+            color: var(--accent); background: rgb(var(--c-accent) / .08); font: 700 .52rem/1 'JetBrains Mono', monospace;
+        }
+        .folder-tab[hidden] { display: none; }
+        .npc-panel-kicker { color: var(--accent); font: 700 .58rem/1 'JetBrains Mono', monospace; letter-spacing: .12em; }
+        .npc-panel-note { color: var(--ink-500); font: .56rem/1 'JetBrains Mono', monospace; }
+        .npc-roster { display: grid; gap: .55rem; }
+        .npc-card {
+            position: relative; overflow: hidden; padding: .62rem .68rem .58rem;
+            border: 1px solid rgb(var(--c-line) / .18); border-left: 2px solid rgb(var(--c-line) / .34);
+            border-radius: 4px; background: rgb(var(--c-surface-1) / .46);
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / .035); transition: border-color .18s ease, background .18s ease, transform .18s ease;
+        }
+        .npc-card::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent, rgb(255 255 255 / .035), transparent); transform: translateX(-100%); transition: transform .45s ease; }
+        .npc-card:hover { transform: translateY(-1px); border-color: rgb(var(--c-accent) / .36); background: rgb(var(--c-surface-1) / .66); }
+        .npc-card:hover::after { transform: translateX(100%); }
+        .npc-card-head, .npc-card-foot { display: flex; align-items: center; justify-content: space-between; gap: .55rem; }
+        .npc-card-name { color: var(--ink-100); font: 700 .82rem/1.25 'Noto Serif TC', serif; letter-spacing: .05em; }
+        .npc-card-role { margin-top: .18rem; color: var(--ink-500); font: .56rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .npc-card-status { flex: 0 0 auto; padding: .2rem .35rem; border: 1px solid rgb(var(--c-line) / .22); border-radius: 999px; color: var(--ink-400); font: .52rem/1 'JetBrains Mono', monospace; }
+        .npc-card-foot { margin-top: .48rem; padding-top: .4rem; border-top: 1px solid rgb(var(--c-line) / .1); color: var(--ink-500); font: .56rem/1 'JetBrains Mono', monospace; }
+        .npc-card-foot strong { color: var(--ink-300); font-weight: 600; }
+        .npc-card-foot em { margin-left: .2rem; color: var(--ink-500); font-style: normal; }
+        .npc-trust-muted { border-left-color: rgb(var(--c-line) / .34); }
+        .npc-trust-neutral { border-left-color: rgb(var(--c-accent-base) / .48); }
+        .npc-trust-good, .npc-trust-strong { border-left-color: rgb(var(--c-accent-base) / .68); }
+        .npc-trust-warn { border-left-color: rgb(var(--c-warn-base) / .72); }
+        .npc-trust-danger { border-left-color: rgb(var(--c-danger-base) / .78); }
+        .npc-trust-neutral .npc-card-foot strong { color: var(--accent); }
+        .npc-trust-good .npc-card-foot strong, .npc-trust-strong .npc-card-foot strong { color: var(--accent); }
+        .npc-trust-warn .npc-card-foot strong { color: rgb(var(--c-warn-text)); }
+        .npc-trust-danger .npc-card-foot strong { color: rgb(var(--c-danger-text)); }
+        html[data-theme="light"] .npc-card { background: rgba(255,255,255,.68); border-color: rgba(87,73,57,.16); box-shadow: inset 0 1px 0 rgba(255,255,255,.84), 0 8px 18px -16px rgba(75,58,38,.42); }
+        html[data-theme="light"] .npc-card:hover { background: rgba(255,255,255,.9); border-color: rgba(140,96,45,.34); }
+        html[data-theme="light"] .npc-card-name { color: #2d2924; }
+        html[data-theme="light"] .npc-trust-neutral .npc-card-foot strong { color: #8c5b30; }
+        html[data-theme="light"] .npc-trust-good .npc-card-foot strong, html[data-theme="light"] .npc-trust-strong .npc-card-foot strong { color: #47734e; }
+        html[data-theme="light"] .npc-trust-warn .npc-card-foot strong { color: #9a6631; }
+        html[data-theme="light"] .npc-trust-danger .npc-card-foot strong { color: #a24e3c; }
+        @media (max-width: 767px) {
+            .npc-card { padding: .58rem .58rem .52rem; }
+            .npc-card-name { font-size: .78rem; }
+            .npc-card-role { font-size: .53rem; }
+            .npc-card-status { font-size: .49rem; }
+        }
+
         /* ================= V2 結算與首次主神空間演出 ================= */
         .settlement-screen {
             position: fixed;
@@ -2362,7 +2411,7 @@
             </button>
             <button onclick="openModal('sessionModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
-                <span>存檔管理</span>
+                <span>輪迴者檔案</span>
             </button>
             <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
                 <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
@@ -2440,17 +2489,17 @@
         <!-- 剛登入回來時的一句話（見 app.js 的 consumeLoginRedirect） -->
         <div id="portal-login-notice" style="display:none" class="w-full max-w-sm text-[11px] font-mono text-emerald-300 border border-emerald-500/40 bg-emerald-500/5 rounded p-2.5 text-left"></div>
 
-        <!-- 檢測到存檔 -->
+        <!-- 檢測到既有輪迴者檔案 -->
         <div id="portal-resume-box" style="display:none" class="w-full max-w-sm hud-float border border-emerald-500/40 text-left font-mono text-xs space-y-2.5 pulse-glow p-3.5">
             <div class="flex justify-between items-center text-zinc-300 text-[11px]">
-                <span class="section-tag">讀取到一份輪迴記錄</span>
+                <span class="section-tag">找到一名輪迴者</span>
                 <span class="text-emerald-300 font-bold" id="resume-char-name">輪迴者</span>
             </div>
             <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px flex items-center justify-center gap-2">
-                <i class="fas fa-play text-xs"></i> 接續輪迴任務
+                <i class="fas fa-play text-xs"></i> 接續目前輪迴
             </button>
-            <!-- 沒有設定 KV binding 時，這份存檔隨時會消失。玩家正要按下去的按鈕
-                 很可能指向一份已經蒸發的存檔，所以警告就放在按鈕旁邊。 -->
+            <!-- 沒有設定 KV binding 時，這份輪迴者檔案隨時會消失。玩家正要按下去的按鈕
+                 很可能指向一份已經蒸發的目前進度，所以警告就放在按鈕旁邊。 -->
             <div id="resume-account-note" style="display:none" class="text-[10px] leading-snug text-emerald-300/90">
                 <i class="fas fa-cloud"></i> <span id="resume-account-text"></span>
             </div>
@@ -2508,8 +2557,8 @@
             </button>
             <button onclick="openModal('sessionModal')" class="action-tile hub-object hub-object-records">
                 <i class="fas fa-file-lines action-tile-icon"></i>
-                <span class="action-tile-label">輪迴記錄</span>
-                <span class="action-tile-sub">讀取既有存檔</span>
+                <span class="action-tile-label">輪迴者檔案</span>
+                <span class="action-tile-sub">查看／接續不同角色</span>
             </button>
             <button onclick="openHubExchange()" class="action-tile hub-object hub-object-shop">
                 <i class="fas fa-gem action-tile-icon"></i>
@@ -2764,11 +2813,12 @@
             <!-- 分頁 Tab：檔案夾造型。
                  sidebar-tab-btn 這個 class 已經拿掉——它既沒有 CSS 定義，也沒有任何 JS 讀它
                  （切換分頁是靠 id="tab-btn-*" 抓的，見下面的 switchSidebarTab）。
-                 換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「四個分頁，現在在第一個」。 -->
+                 換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「五個分頁，現在在第一個」。 -->
             <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b" role="tablist" aria-label="角色資訊分頁">
                 <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" role="tab" aria-selected="true" aria-controls="sidebar-tab-attr" class="folder-tab active">屬性</button>
                 <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" role="tab" aria-selected="false" aria-controls="sidebar-tab-skills" class="folder-tab">技能</button>
                 <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">特質</button>
+                <button onclick="switchSidebarTab('npcs')" id="tab-btn-npcs" role="tab" aria-selected="false" aria-controls="sidebar-tab-npcs" class="folder-tab">人物<span id="npc-tab-count" class="npc-tab-count" hidden></span></button>
                 <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
             </div>
 
@@ -2786,6 +2836,14 @@
                     </div>
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
+                </div>
+                <div id="sidebar-tab-npcs" role="tabpanel" aria-labelledby="tab-btn-npcs" class="hidden space-y-2">
+                    <div class="flex items-center justify-between gap-2 px-0.5">
+                        <span class="npc-panel-kicker">副本人物／關係</span>
+                        <span id="npc-panel-note" class="npc-panel-note">等待副本資料</span>
+                    </div>
+                    <div id="npc-roster" class="npc-roster"></div>
+                    <div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div>
                 </div>
                 <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2">
                     <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
@@ -3054,7 +3112,7 @@
                 </div>
             </div>
             <div class="system-tool-actions">
-                <button type="button" onclick="openModal('sessionModal')" title="存檔管理"><i class="fas fa-database"></i><span>存檔</span></button>
+                <button type="button" onclick="openModal('sessionModal')" title="輪迴者檔案"><i class="fas fa-database"></i><span>檔案</span></button>
                 <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
                 <button type="button" data-pwa-install onclick="handlePwaInstallClick()" style="display:none" title="安裝 App"><i class="fas fa-mobile-screen-button"></i><span>安裝</span></button>
                 <button type="button" onclick="openModal('settingsModal')" title="設定"><i class="fas fa-sliders"></i><span>設定</span></button>
@@ -3104,36 +3162,35 @@
 
     <!-- Modals -->
     <div id="sessionModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="輪迴存檔管理" tabindex="-1">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="輪迴者檔案" tabindex="-1">
             <div class="flex justify-between items-center pb-1">
                 <div class="ribbon-banner ribbon-sm">
                     <i class="fas fa-database text-[11px]"></i>
-                    <span>輪迴存檔管理</span>
+                    <span>輪迴者檔案</span>
                 </div>
                 <button onclick="closeModal('sessionModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
-                <!-- 我的存檔：登入之後才有東西。這是 Google 登入真正的用途——
-                     存檔綁在帳號上，換一台電腦、清掉瀏覽器資料都還找得回來。
-                     沒登入時顯示提示，而不是一塊空白。 -->
+                <!-- 輪迴者檔案：登入之後可管理同一帳號下的多名角色與各自歷程。
+                     每份檔案都是單向副本進度；接續是讀取目前角色的進度，不是回溯或重玩。 -->
                 <div>
                     <div class="flex items-center justify-between mb-1">
-                        <label class="text-zinc-300">我的存檔</label>
+                        <label class="text-zinc-300">我的輪迴者檔案</label>
                         <span id="session-list-status" class="text-[10px] text-zinc-500"></span>
                     </div>
                     <div id="session-list" class="space-y-1.5 max-h-56 overflow-y-auto"></div>
                 </div>
                 <div class="pt-2 hairline-t">
-                    <label class="text-zinc-300 block mb-1">當前 Session ID</label>
+                    <label class="text-zinc-300 block mb-1">目前輪迴者 Session ID</label>
                     <div class="flex gap-2">
-                        <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 select-all font-mono" placeholder="尚未建立存檔">
+                        <input id="modal-session-id" type="text" readonly class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-200 select-all font-mono" placeholder="尚未建立輪迴者檔案">
                         <button onclick="copySessionId()" class="px-3 bg-zinc-800 hover:bg-zinc-700 rounded text-zinc-100 transition-all hover:-translate-y-px">複製</button>
                     </div>
                 </div>
                 <div class="pt-2 hairline-t">
-                    <label class="text-zinc-300 block mb-1">輸入 Session ID 讀取存檔</label>
+                    <label class="text-zinc-300 block mb-1">輸入 Session ID 讀取輪迴者檔案</label>
                     <div class="flex gap-2">
-                        <input id="input-resume-session" type="text" placeholder="貼上存檔 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition font-mono">
+                        <input id="input-resume-session" type="text" placeholder="貼上輪迴者檔案 ID..." class="flex-1 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition font-mono">
                         <button onclick="handleResumeFromModal()" class="px-4 bg-emerald-500/20 border border-emerald-500/50 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px">讀取</button>
                     </div>
                 </div>
@@ -3627,7 +3684,7 @@
             });
         });
         function switchSidebarTab(tabKey) {
-            ['attr', 'skills', 'traits', 'journal'].forEach(k => {
+            ['attr', 'skills', 'traits', 'npcs', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
                 const b = document.getElementById(`tab-btn-${k}`);
                 if (k === tabKey) {
@@ -3641,7 +3698,7 @@
                     b?.setAttribute('aria-selected', 'false');
                 }
             });
-            // 日誌是唯一需要去伺服器拿資料的分頁（其餘三個畫的都是手上已經有的角色卡）。
+            // 日誌是唯一需要去伺服器拿資料的分頁（人物關係則由 scenario response 隨回合同步）。
             // 只在真的切過去的時候抓，不要每回合都預抓一份沒有人在看的日誌。
             if (tabKey === 'journal') window.loadJournal?.();
         }
@@ -3897,6 +3954,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260823-r12"></script>
+    <script src="./app.js?v=20260823-r13"></script>
 </body>
 </html>

@@ -5,7 +5,8 @@
   "type": "module",
   "description": "無限恐怖TRPG 2.35 核心運算引擎——純規則運算，不含AI/LLM呼叫。",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.js",
+    "test:real-gemini": "node test/runRealGeminiSmoke.mjs && node test/runRealGeminiV2Interaction.mjs",
     "deploy": "wrangler pages deploy",
     "build:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --minify",
     "watch:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --watch"

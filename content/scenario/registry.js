@@ -11,10 +11,9 @@ import { NOSTROMO_SCENARIO } from "./examples/alienNostromo.js";
 import { NOSTROMO_SCENARIO_V2 } from "./examples/alienNostromo_v2.js";
 import NOSTROMO_REFERENCE from "./examples/alienNostromo_v2_gm_reference.js";
 
-// 排在最前面的是新手副本(諾斯托羅莫號)：它是 DEFAULT_SCENARIO_ID，也就是玩家建完卡
-// 沒有特別選副本時直接進去的那一個。它比 echoInstitute 多了固定開頭與迫近度設定，
-// 教學意圖最完整，所以放第一個。
-const ALL_PACKS = [NOSTROMO_SCENARIO, NOSTROMO_SCENARIO_V2, ECHO_INSTITUTE_SCENARIO];
+// 舊版諾斯托羅莫號仍保留在註冊表，供舊存檔與明確指定的相容測試使用。
+// 新建角色若沒有另外指定副本，現在一律進入 Alien V2；它才是目前正式測試中的主線版本。
+const ALL_PACKS = [NOSTROMO_SCENARIO_V2, NOSTROMO_SCENARIO, ECHO_INSTITUTE_SCENARIO];
 
 const SCENARIO_REFERENCES = Object.freeze({
   "reference.alien-nostromo-01-v2": NOSTROMO_REFERENCE,
@@ -29,8 +28,8 @@ for (const pack of ALL_PACKS) {
   SCENARIO_REGISTRY[pack.id] = pack;
 }
 
-/** 沒有指定 scenarioId 時的預設副本 —— 新手副本《異形》諾斯托羅莫號。 */
-export const DEFAULT_SCENARIO_ID = NOSTROMO_SCENARIO.id;
+/** 沒有指定 scenarioId 時的新建預設副本 —— Alien V2《異形：生化深淵》。 */
+export const DEFAULT_SCENARIO_ID = NOSTROMO_SCENARIO_V2.id;
 
 /** @returns {object|null} */
 export function getScenarioPack(id) {

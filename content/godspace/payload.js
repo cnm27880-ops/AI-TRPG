@@ -64,9 +64,9 @@ export function buildGodspaceActions({ session, pack, lifecycle }) {
     ),
     action(
       "resume_scenario",
-      "回到副本",
+      "繼續當前副本",
       lifecycle.status === "active" && lifecycle.canAct,
-      lifecycle.status === "active" ? "副本仍在進行中" : lifecycle.reason
+      lifecycle.status === "active" ? "只可接續目前進度，副本沒有回頭路" : lifecycle.reason
     ),
     action(
       "enter_godspace",
