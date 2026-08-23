@@ -38,5 +38,6 @@ export function scenarioHudView(pack, progress) {
     nodeCompleted: null,
     progress: getProgressSummary(pack, progress),
     threat: threatSummary(progress?.threat, pack.threatTrack),
+    ...(progress?.runSummary ? { runSummary: progress.runSummary } : {}),
   };
 }

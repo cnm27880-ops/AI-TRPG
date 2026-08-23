@@ -71,6 +71,7 @@ test("summarizeForJournal：EVENT_TYPES 裡的每一種都要有摘要，新增�
     [EVENT_TYPES.POINTS_GRANT]: { total: 300, reason: "完成節點「甲板」" },
     [EVENT_TYPES.FORM]: { event: "啟動", formId: "f1", label: "獸化" },
     [EVENT_TYPES.REST]: { kind: "打坐", location: "副本中", summary: "恢復2點衝擊傷" },
+    [EVENT_TYPES.REFERENCE_ACTION]: { sceneId: "evt_test", approachId: "app_test", outcomeTier: "成功", resultKey: "成功" },
   };
 
   const log = createEventLog();

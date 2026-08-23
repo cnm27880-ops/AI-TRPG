@@ -55,6 +55,7 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * @property {number} [timeLimitRounds] 選填。這個章節的時間預算(見 content/scenario/timeBudget.js)，
  *   主線節點推進與NPC好感度養成共用同一筆預算。不填代表這個章節沒有時間限制。
  * @property {string} [onExpireNodeId] 選填。時間預算耗盡時觸發的劣化結局節點id，只在有 timeLimitRounds 時有意義。
+ * @property {{pointsPerRemainingRound?: number, maxPoints?: number}} [speedReward] 選填。結算時由 server 依剩餘回合換算速度積分。
  */
 
 /**
@@ -92,6 +93,16 @@ export function validateScenarioPack(pack) {
   }
   if (pack.difficulty != null && !SCENARIO_DIFFICULTIES.includes(pack.difficulty)) {
     errors.push(`difficulty必須是${SCENARIO_DIFFICULTIES.join("/")}其中之一，實際是「${pack.difficulty}」`);
+  }
+  if (pack.speedReward != null) {
+    if (!pack.speedReward || typeof pack.speedReward !== "object") errors.push("speedReward 必須是物件");
+    else {
+      for (const key of ["pointsPerRemainingRound", "maxPoints"]) {
+        if (pack.speedReward[key] != null && (!Number.isInteger(pack.speedReward[key]) || pack.speedReward[key] < 0)) {
+          errors.push(`speedReward.${key} 必須是非負整數`);
+        }
+      }
+    }
   }
   // 甦醒過場的房間描述。內容是自由文字（沒辦法自動驗「有沒有以防護罩收尾」），
   // 但型別要擋——寫成物件或空字串的話，玩家會在那一幕看到一段空白而不是錯誤。

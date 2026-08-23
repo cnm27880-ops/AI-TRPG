@@ -123,7 +123,7 @@ export async function callLlm({
     case PROTOCOLS.GEMINI:
       return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn });
     case PROTOCOLS.OPENAI_CHAT:
-      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn });
+      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     default:
       throw new LlmError(`供應商「${cfg.id}」的線路格式「${cfg.protocol}」還沒有實作`, {
         provider: cfg.id,
@@ -149,6 +149,12 @@ function shouldRetryWithoutSchema(status, sentSchema) {
   return Boolean(sentSchema) && status === 400;
 }
 
+function requestTimeoutMs(env = {}) {
+  const value = Number(env.LLM_REQUEST_TIMEOUT_MS);
+  if (!Number.isFinite(value) || value <= 0) return 90_000;
+  return Math.max(1_000, Math.min(300_000, Math.trunc(value)));
+}
+
 function logSchemaFallback(cfg, detail) {
   console.warn("[LLM_JSON_MODE_UNSUPPORTED]", JSON.stringify({
     provider: cfg.id,
@@ -158,7 +164,7 @@ function logSchemaFallback(cfg, detail) {
   }));
 }
 
-async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch }) {
+async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
   if (!cfg.baseUrl) {
     throw new LlmError(
       `供應商「${cfg.id}」沒有baseUrl。若是自訂第三方接口，請設定環境變數 LLM_BASE_URL ` +
@@ -180,14 +186,16 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
 
   const useSchema = responseSchema && cfg.jsonMode === "openai-schema";
 
-  const send = (withSchema) =>
-    fetchFn(`${cfg.baseUrl}/chat/completions`, {
+  const send = async (withSchema) => {
+    const controller = typeof AbortController === "function" && fetchFn === fetch ? new AbortController() : null;
+    const options = {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${cfg.apiKey}`,
         ...(cfg.extraHeaders ?? {}),
       },
+      ...(controller ? { signal: controller.signal } : {}),
       body: JSON.stringify({
         model: cfg.model,
         messages,
@@ -201,7 +209,26 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
             }
           : {}),
       }),
+    };
+    const request = fetchFn(`${cfg.baseUrl}/chat/completions`, options);
+    if (!controller) return request;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new LlmError(`${cfg.label} 請求超過 ${timeoutMs}ms 未回應`, {
+          provider: cfg.id,
+          model: cfg.model,
+          stage: "timeout",
+        }));
+      }, timeoutMs);
     });
+    try {
+      return await Promise.race([request, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
 
   let response = await send(useSchema);
 

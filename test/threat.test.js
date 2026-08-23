@@ -122,6 +122,8 @@ test("階段表覆蓋 0~THREAT_MAX 每一格，不會有查不到階段的數字
     assert.ok(stage.directive.length > 20, `階段「${stage.id}」的指令太短，AI讀不出要做什麼`);
   }
   assert.equal(getThreatStage(THREAT_MAX).id, THREAT_STAGES.at(-1).id);
+  assert.equal(getThreatStage(6).id, "貼近");
+  assert.equal(getThreatStage(7).id, "接觸");
 });
 
 test("舊存檔沒有 threat 欄位時自動補一條全新軌道，不會壞掉", () => {
@@ -136,10 +138,19 @@ test("buildThreatDirective：副本自己的風味文字會被帶進去，且不
   const flavor = { name: "異形迫近度", subject: "異形", stages: { 貼近: "它就在同一段走廊裡" } };
   const text = buildThreatDirective({ level: 5, peak: 5, encounters: 0 }, flavor, { delta: 2, before: 3 });
 
-  assert.match(text, /異形迫近度：5\/6/);
+  assert.match(text, /異形迫近度：5\/7/);
   assert.match(text, /它就在同一段走廊裡/);
   assert.match(text, /不是你決定的/, "必須明講這個數字不是AI算的");
   assert.match(text, /往你推進了 2 格/, "要把這一回合的變化講出來，敘事才接得上因果");
+
+  const freeInputText = buildThreatDirective(
+    { level: 2, peak: 2, encounters: 0 },
+    flavor,
+    { delta: 0, before: 2 },
+    { freeInput: true }
+  );
+  assert.match(freeInputText, /未命中 approach 的自由輸入覆寫/);
+  assert.match(freeInputText, /不要把追蹤寫成已進入同一空間/);
 });
 
 test("threatSummary：給前端的摘要不含給AI的指令原文", () => {

@@ -12,9 +12,15 @@ import {
   resolveSessionStore,
   newSessionId,
 } from "../../content/storage/sessionStore.js";
-import { getScenarioPack, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
+import { getScenarioPack, getScenarioReference, DEFAULT_SCENARIO_ID, listScenarios } from "../../content/scenario/registry.js";
 import { initScenarioProgress } from "../../content/scenario/progress.js";
+import {
+  createReferenceState,
+  normalizeReferenceState,
+  referenceStateForResponse,
+} from "../../content/scenario/referenceAdapter.js";
 import { scenarioHudView } from "../../content/scenario/hudView.js";
+import { scenarioLifecycle } from "../../content/scenario/lifecycle.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
 import { combatOptions } from "../../content/combat/encounterState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
@@ -89,7 +95,12 @@ export async function onRequestPost(context) {
     sceneContext: sceneContext ?? openingScene ?? "",
     ownerId: user?.sub ?? null,
   });
-  session.scenario = { packId: pack.id, progress: scenarioProgress };
+  const reference = getScenarioReference(pack);
+  session.scenario = {
+    packId: pack.id,
+    progress: scenarioProgress,
+    ...(reference ? { referenceState: createReferenceState(reference) } : {}),
+  };
   await store.put(session);
   if (user?.sub) await indexSessionForOwner(store, user.sub, session.id);
 
@@ -137,6 +148,10 @@ export async function onRequestGet(context) {
       await indexSessionForOwner(store, user.sub, session.id);
     }
   }
+  const lifecycle = scenarioLifecycle({
+    session,
+    pack: session.scenario ? getScenarioPack(session.scenario.packId) : null,
+  });
   // downState / revival 一起回傳：玩家重整頁面回到一張昏迷或死亡的角色卡時，
   // 畫面必須立刻反映出來，而不是等他按下一個選項、撞到 /api/turn 的閘門才知道。
   // 主遊戲續接只需要最近幾筆訊息；完整 chronicle 改由 /api/chronicle 按需載入。
@@ -167,6 +182,11 @@ export async function onRequestGet(context) {
     user,
     downState: getDownState(session.character),
     revival: revivalQuote(session.character),
+    lifecycle,
+    godspace: {
+      available: lifecycle.canEnterGodspace,
+      endpoint: "/api/godspace",
+    },
     // [2026-08-17 第九輪] 續戰時的行動列。**這是同一個洞的第二半**：上一輪把戰鬥行動列
     // 從「index.html 裡寫死的兩顆按鈕」改成引擎算的 combatOptions()，但只接了
     // /api/combat/start 與 act 兩條回應——**重整頁面回到一場進行中的戰鬥時沒有人算它**，
@@ -177,7 +197,20 @@ export async function onRequestGet(context) {
     // 一起算出來。先前只有 /api/turn 會回這一份，所以重整頁面接續遊戲的玩家會看到一條空的
     // 頂欄，得再打一個回合才知道自己現在的目標是什麼——狀態一直都在存檔裡，只是沒人讀。
     scenario: session.scenario
-      ? scenarioHudView(getScenarioPack(session.scenario.packId), session.scenario.progress)
+      ? (() => {
+          const pack = getScenarioPack(session.scenario.packId);
+          const reference = getScenarioReference(pack);
+          const hud = scenarioHudView(pack, session.scenario.progress);
+          return reference
+            ? {
+                ...hud,
+                reference: referenceStateForResponse(
+                  reference,
+                  normalizeReferenceState(reference, session.scenario.referenceState)
+                ),
+              }
+            : hud;
+        })()
       : null,
   });
 }

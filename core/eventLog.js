@@ -21,6 +21,8 @@ export const EVENT_TYPES = Object.freeze({
   FORM: "form",
   // 休息(主神空間的完全恢復／副本中的打坐)。副本中的那一種會另外記一筆 TIME_SPENT。
   REST: "rest",
+  // Scenario reference adapter 的事件裁定；payload 只存引擎已套用的結果與效果摘要。
+  REFERENCE_ACTION: "reference_action",
 });
 
 const VALID_TYPES = new Set(Object.values(EVENT_TYPES));
@@ -122,6 +124,12 @@ function journalSummary(event) {
       return (
         `休息（${p.kind ?? "未知方式"}${p.location ? `於${p.location}` : ""}）` +
         `${p.summary ? `：${p.summary}` : ""}`
+      );
+    case EVENT_TYPES.REFERENCE_ACTION:
+      return (
+        `副本事件「${p.sceneId ?? "未知事件"}」採取「${p.approachId ?? "未知行動"}」` +
+        `，結果${p.outcomeTier ?? "未知"}` +
+        `${p.resultKey ? `（${p.resultKey}）` : ""}`
       );
     default:
       return "未知事件";

@@ -21,7 +21,8 @@
 //   副本進行中          → 恐怖片中
 //   戰鬥中              → 恐怖片中(而且另外擋一次，理由見 shopAccess)
 
-import { getProgressSummary, findActiveNode } from "../scenario/progress.js";
+import { findActiveNode, getProgressSummary } from "../scenario/progress.js";
+import { scenarioLifecycle } from "../scenario/lifecycle.js";
 import { formatPrice } from "./wallet.js";
 
 export const LOCATIONS = Object.freeze(["主神空間", "恐怖片中"]);
@@ -43,21 +44,27 @@ export const IN_MOVIE_XP_MULTIPLIER = 2;
  */
 export function locationOf(session, getPack) {
   const inCombat = Boolean(session?.combat?.active);
-  if (!session?.scenario) {
-    return { location: "主神空間", reason: "還沒進入任何副本", inCombat };
-  }
-  const pack = getPack?.(session.scenario.packId) ?? null;
-  if (!pack) {
+  const pack = session?.scenario ? getPack?.(session.scenario.packId) ?? null : null;
+  if (session?.scenario && !pack) {
     // 副本包找不到時，保守地當成「還在副本裡」——寧可讓玩家買不到，
     // 也不要因為一個查不到的 packId 就把主神空間的門打開。
     return { location: "恐怖片中", reason: `副本包「${session.scenario.packId}」查不到，保守視為仍在副本中`, inCombat };
   }
-  const label = packLabel(pack);
-  const summary = getProgressSummary(pack, session.scenario.progress);
-  if (summary.scenarioComplete) {
-    return { location: "主神空間", reason: `副本「${label}」已通關，回到主神空間`, inCombat };
+
+  const lifecycle = scenarioLifecycle({ session, pack });
+  const legacyComplete = Boolean(
+    session.scenario?.progress &&
+      getProgressSummary(pack, session.scenario.progress).scenarioComplete
+  );
+  if (lifecycle.location === "主神空間" || legacyComplete) {
+    const reason = lifecycle.status === "no_scenario"
+      ? "還沒進入任何副本"
+      : lifecycle.status === "settled"
+        ? `副本「${packLabel(pack)}」已通關並完成封存，回到主神空間`
+        : `副本「${packLabel(pack)}」主線已完成，沿用舊存檔相容地視為主神地點`;
+    return { location: "主神空間", reason, inCombat };
   }
-  return { location: "恐怖片中", reason: `副本「${label}」進行中`, inCombat };
+  return { location: "恐怖片中", reason: lifecycle.reason, inCombat };
 }
 
 /**
@@ -157,6 +164,10 @@ export function sceneKeyOf(session, getPack) {
   if (location === "主神空間") return "主神空間";
 
   const packId = session?.scenario?.packId ?? "未知副本";
+  // reference adapter 若已建立房間狀態，房間就是更精確的場景邊界；
+  // 舊副本與舊存檔沒有這欄位時，退回原本的 active node 行為。
+  const referenceLocation = session?.scenario?.referenceState?.currentLocation;
+  if (referenceLocation) return `恐怖片中:${packId}:${referenceLocation}`;
   const pack = getPack?.(packId) ?? null;
   // 副本包查不到時退回 packId 當地點：不精確，但仍然是一把穩定的鑰匙——
   // 不會每次呼叫都變（那會讓型態一啟動就過期），也不會跟別的地點撞在一起。

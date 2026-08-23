@@ -21,6 +21,8 @@ import { getScenarioPack } from "../../content/scenario/registry.js";
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
+import { getDownState, revivalQuote } from "../../content/downState.js";
+import { buildGodspacePayload } from "../../content/godspace/payload.js";
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -48,6 +50,17 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   }
 
+  const downState = getDownState(session.character);
+  if (downState.dead) {
+    return json({
+      ok: false,
+      code: "REVIVAL_REQUIRED",
+      blockers: [{ code: "死亡", message: "角色已死亡，不能用主神空間完全恢復代替復活。" }],
+      downState,
+      revival: revivalQuote(session.character),
+    }, 409);
+  }
+
   // 戰鬥中不能休息。這不是規則書的條文，是常識，而且引擎層面也講得通：
   // 打坐要花的是「回合」這個劇情時間單位，戰鬥輪不是同一種時間。
   if (session.combat?.active) {
@@ -72,6 +85,11 @@ export async function onRequestPost(context) {
       recovered: result.recovered,
       summary: describeRest(result.recovered),
       character: session.character,
+      hub: buildGodspacePayload({
+        session,
+        pack: session.scenario ? getScenarioPack(session.scenario.packId) : null,
+        persistent: store.persistent,
+      }),
     });
   }
 

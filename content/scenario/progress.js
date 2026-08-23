@@ -37,6 +37,7 @@ export function initScenarioProgress(pack) {
     // 迫近度軌（見 threat.js）：判定成敗會累積在這裡，這是「成功和失敗有決定性差異」
     // 的載體——語氣指令留不到下一回合，但這個數字會。
     threat: createThreatTrack(0),
+    pendingCombat: false,
     // 套路紀錄（見 repetition.js）：同一個「屬性＋技能」連續用會愈來愈難，
     // 擋掉「把單一屬性技能點高就能一路按同一個選項通關」。
     usageStreak: createUsageStreak(),
@@ -225,7 +226,7 @@ export function getUsageStreak(progress) {
 
 /** 開戰時呼叫：追兵變成正面衝突，迫近度回落（見 threat.js 的 dischargeThreat）。 */
 export function dischargeThreatOnEncounter(progress) {
-  return { ...progress, threat: dischargeThreat(progress?.threat) };
+  return { ...progress, threat: dischargeThreat(progress?.threat), pendingCombat: false };
 }
 
 /** 讀出目前活躍節點已經卡了幾回合(還沒卡過就是0)，給 buildNodeGuidance() 用。 */

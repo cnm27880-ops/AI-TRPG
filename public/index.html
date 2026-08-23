@@ -2210,6 +2210,120 @@
             .story-log-footer { gap: .55rem; padding: .65rem .85rem; }
             .story-log-footer > span { min-width: 0; }
         }
+        /* ================= V2 結算與首次主神空間演出 ================= */
+        .settlement-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            overflow-y: auto;
+            padding: clamp(1rem, 3vw, 3.5rem);
+            background:
+                radial-gradient(circle at 78% 9%, rgba(16, 185, 129, .14), transparent 29rem),
+                radial-gradient(circle at 10% 82%, rgba(139, 92, 246, .08), transparent 23rem),
+                linear-gradient(135deg, #07090a 0%, #0b1110 52%, #090b0d 100%);
+            color: #e4e4e7;
+        }
+        .settlement-screen::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: .16;
+            background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px);
+            background-size: 4px 4px, 4px 4px;
+            mix-blend-mode: screen;
+        }
+        .settlement-shell {
+            position: relative;
+            width: min(100%, 70rem);
+            margin: 0 auto;
+            padding: clamp(1.1rem, 3vw, 2.4rem);
+            border: 1px solid rgba(52, 211, 153, .25);
+            background: linear-gradient(145deg, rgba(15, 23, 21, .96), rgba(7, 12, 12, .94));
+            box-shadow: 0 2rem 6rem rgba(0, 0, 0, .42), 0 0 5rem rgba(16, 185, 129, .06);
+        }
+        .settlement-topline, .settlement-footer-status {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            color: rgba(110, 231, 183, .7);
+            font: 700 .62rem/1.2 "JetBrains Mono", monospace;
+            letter-spacing: .2em;
+            text-transform: uppercase;
+        }
+        .settlement-topline-line { height: 1px; flex: 1; background: rgba(52, 211, 153, .25); }
+        .settlement-topline-mark, .settlement-footer-status span:first-child { width: .4rem; height: .4rem; border-radius: 999px; background: #34d399; box-shadow: 0 0 .8rem rgba(52, 211, 153, .9); }
+        .settlement-hero { display: flex; align-items: end; justify-content: space-between; gap: 2rem; padding: clamp(2.2rem, 6vw, 5rem) 0 1.5rem; }
+        .settlement-kicker { color: rgba(167, 243, 208, .65); font: 700 .67rem/1.2 "JetBrains Mono", monospace; letter-spacing: .28em; }
+        .settlement-hero h2 { margin: .55rem 0 .5rem; color: #f4f4f5; font: 700 clamp(2rem, 6vw, 4.6rem)/.95 "Noto Serif TC", serif; letter-spacing: -.04em; }
+        .settlement-hero p { max-width: 34rem; margin: 0; color: rgba(212, 212, 216, .72); font: 600 clamp(.85rem, 1.6vw, 1.05rem)/1.7 "Noto Serif TC", serif; }
+        .settlement-grade-wrap { flex: 0 0 auto; text-align: center; }
+        .settlement-grade { color: #a7f3d0; font: 700 clamp(5.5rem, 14vw, 10rem)/.76 "JetBrains Mono", monospace; letter-spacing: -.13em; text-shadow: 0 0 1.5rem rgba(52, 211, 153, .46); }
+        .settlement-grade-label { margin-top: .8rem; color: #6ee7b7; font: 700 .75rem/1.2 "JetBrains Mono", monospace; letter-spacing: .17em; }
+        .settlement-divider { display: flex; align-items: center; gap: .8rem; margin: .5rem 0 1rem; color: rgba(52, 211, 153, .65); }
+        .settlement-divider span { height: 1px; flex: 1; background: linear-gradient(90deg, transparent, rgba(52, 211, 153, .35)); }
+        .settlement-divider span:last-child { background: linear-gradient(90deg, rgba(52, 211, 153, .35), transparent); }
+        .settlement-evaluation { max-width: 47rem; margin: 0 auto 1.6rem; color: rgba(228, 228, 231, .92); font: 600 1rem/1.9 "Noto Serif TC", serif; text-align: center; }
+        .settlement-main-grid, .settlement-lower-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, .88fr); gap: .8rem; }
+        .settlement-lower-grid { margin-top: .8rem; }
+        .settlement-card { min-width: 0; padding: 1.15rem; border: 1px solid rgba(161, 161, 170, .16); background: rgba(24, 24, 27, .58); }
+        .settlement-card-primary { border-color: rgba(52, 211, 153, .3); background: linear-gradient(145deg, rgba(16, 185, 129, .1), rgba(24, 24, 27, .58) 55%); }
+        .settlement-card-heading { display: flex; justify-content: space-between; color: rgba(110, 231, 183, .68); font: 700 .62rem/1.2 "JetBrains Mono", monospace; letter-spacing: .19em; }
+        .settlement-card-index { color: rgba(161, 161, 170, .42); }
+        .settlement-ending-title { margin: 1.5rem 0 .55rem; color: #f4f4f5; font: 700 clamp(1.4rem, 3vw, 2.15rem)/1.2 "Noto Serif TC", serif; }
+        .settlement-ending-copy { min-height: 3.2rem; color: rgba(212, 212, 216, .72); font: 600 .82rem/1.8 "Noto Serif TC", serif; }
+        .settlement-micro-label { margin-top: 1.3rem; color: rgba(161, 161, 170, .45); font: .58rem/1.2 "JetBrains Mono", monospace; letter-spacing: .14em; }
+        .settlement-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; margin-top: 1.35rem; }
+        .settlement-stat { padding: .75rem; border-left: 2px solid rgba(52, 211, 153, .32); background: rgba(9, 9, 11, .45); }
+        .settlement-stat span, .settlement-score-item span { display: block; color: rgba(161, 161, 170, .7); font: 600 .68rem/1.35 "Noto Serif TC", serif; }
+        .settlement-stat strong { display: block; margin-top: .25rem; color: #f4f4f5; font: 700 1.35rem/1.1 "JetBrains Mono", monospace; }
+        .settlement-card-scores { margin-top: .8rem; border-color: rgba(139, 92, 246, .28); background: linear-gradient(120deg, rgba(139, 92, 246, .1), rgba(24, 24, 27, .66)); }
+        .settlement-score-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .65rem; margin-top: 1.2rem; }
+        .settlement-score-item { padding: .85rem .8rem; border-top: 1px solid rgba(161, 161, 170, .22); }
+        .settlement-score-item strong { display: block; margin-top: .35rem; color: #f4f4f5; font: 700 1.8rem/1 "JetBrains Mono", monospace; }
+        .settlement-score-item small { display: block; margin-top: .4rem; color: rgba(161, 161, 170, .45); font: .55rem/1.2 "JetBrains Mono", monospace; letter-spacing: .12em; }
+        .settlement-score-accent { border-color: rgba(52, 211, 153, .75); background: rgba(16, 185, 129, .07); }
+        .settlement-score-accent strong { color: #6ee7b7; }
+        .settlement-score-xp { border-color: rgba(251, 191, 36, .55); }
+        .settlement-score-xp strong { color: #fcd34d; }
+        .settlement-meter-label { display: flex; justify-content: space-between; margin-top: 1.2rem; color: rgba(212, 212, 216, .65); font: .65rem/1.2 "JetBrains Mono", monospace; }
+        .settlement-meter { height: .45rem; margin-top: .45rem; overflow: hidden; background: rgba(9, 9, 11, .7); border: 1px solid rgba(161, 161, 170, .14); }
+        .settlement-meter span { display: block; width: 0; height: 100%; background: linear-gradient(90deg, #34d399, #a7f3d0); box-shadow: 0 0 .8rem rgba(52, 211, 153, .65); transition: width .6s cubic-bezier(.23,1,.32,1); }
+        .settlement-outcomes { display: grid; gap: .55rem; margin-top: 1rem; }
+        .settlement-outcome-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .65rem .7rem; border: 1px solid rgba(161, 161, 170, .13); background: rgba(9, 9, 11, .42); font: .7rem/1.35 "Noto Serif TC", serif; }
+        .settlement-outcome-row span:first-child { color: rgba(212, 212, 216, .65); }
+        .settlement-outcome-row strong { color: #a7f3d0; font: 700 .7rem/1.2 "JetBrains Mono", monospace; text-align: right; }
+        .settlement-card-note p { margin: 1rem 0 1.2rem; color: rgba(228, 228, 231, .86); font: 600 .85rem/1.8 "Noto Serif TC", serif; }
+        .settlement-reward-line { display: flex; gap: .55rem; align-items: center; margin-top: .65rem; color: rgba(161, 161, 170, .68); font: .67rem/1.4 "JetBrains Mono", monospace; }
+        .settlement-reward-line i { width: 1rem; color: #6ee7b7; text-align: center; }
+        .settlement-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid rgba(52, 211, 153, .18); }
+        .settlement-return-btn, .godspace-first-story-btn { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; padding: .8rem 1.1rem; border: 1px solid rgba(52, 211, 153, .62); background: rgba(16, 185, 129, .12); color: #a7f3d0; font: 700 .72rem/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; transition: transform .16s ease-out, background-color .16s ease-out, box-shadow .16s ease-out; }
+        .settlement-return-btn:hover, .godspace-first-story-btn:hover { transform: translateY(-1px); background: rgba(16, 185, 129, .22); box-shadow: 0 0 1.5rem rgba(52, 211, 153, .15); }
+        .settlement-return-btn:active, .godspace-first-story-btn:active { transform: scale(.97); }
+        .godspace-first-story { position: fixed; inset: 0; z-index: 65; display: flex; align-items: center; justify-content: center; padding: 1.2rem; background: radial-gradient(circle at 50% 48%, rgba(255,255,255,.96), rgba(226, 232, 240, .88) 40%, rgba(148, 163, 184, .7)); backdrop-filter: blur(8px); }
+        .godspace-first-story-panel { width: min(100%, 36rem); padding: clamp(1.5rem, 5vw, 3.2rem); border: 1px solid rgba(15, 23, 42, .18); background: rgba(255,255,255,.88); box-shadow: 0 2rem 6rem rgba(15, 23, 42, .25); color: #0f172a; }
+        .godspace-first-story-kicker { color: rgba(15, 23, 42, .5); font: 700 .62rem/1.2 "JetBrains Mono", monospace; letter-spacing: .24em; }
+        .godspace-first-story-signal { display: flex; gap: .35rem; margin-top: 1.6rem; }
+        .godspace-first-story-signal span { width: .35rem; height: .35rem; border-radius: 50%; background: #0f172a; opacity: .22; }
+        .godspace-first-story-signal span:first-child { opacity: .9; background: #10b981; box-shadow: 0 0 .8rem rgba(16, 185, 129, .7); }
+        .godspace-first-story-panel h2 { margin: 1.8rem 0 .9rem; font: 700 clamp(1.55rem, 5vw, 2.6rem)/1.15 "Noto Serif TC", serif; letter-spacing: -.04em; }
+        .godspace-first-story-copy { color: rgba(15, 23, 42, .73); font: 600 .92rem/2 "Noto Serif TC", serif; white-space: pre-line; }
+        .godspace-first-story-foot { margin-top: 1.6rem; padding-top: .9rem; border-top: 1px solid rgba(15, 23, 42, .12); color: rgba(15, 23, 42, .48); font: .63rem/1.5 "JetBrains Mono", monospace; }
+        .godspace-first-story-btn { margin-top: 1.4rem; border-color: rgba(15, 23, 42, .35); background: rgba(15, 23, 42, .06); color: #0f172a; }
+        .godspace-first-story-btn:hover { background: rgba(15, 23, 42, .12); box-shadow: 0 0 1.5rem rgba(15, 23, 42, .1); }
+        @media (max-width: 640px) {
+            .settlement-hero { align-items: start; flex-direction: column; gap: 1.8rem; }
+            .settlement-grade-wrap { display: flex; align-items: end; gap: 1rem; text-align: left; }
+            .settlement-grade { font-size: 5.5rem; }
+            .settlement-grade-label { margin: 0 0 .55rem; }
+            .settlement-main-grid, .settlement-lower-grid { grid-template-columns: 1fr; }
+            .settlement-score-row { grid-template-columns: 1fr 1fr; }
+            .settlement-footer { align-items: stretch; flex-direction: column; }
+            .settlement-return-btn { width: 100%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .settlement-return-btn, .godspace-first-story-btn, .settlement-meter span { transition: none; }
+        }
     </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
@@ -2346,6 +2460,45 @@
             </div>
         </div>
 
+        <!-- Phase A：上一場副本封存後的 server-owned aftercare。沒有 debrief 時保持隱藏。 -->
+        <section id="portal-aftercare-panel" style="display:none" class="w-full max-w-2xl text-left font-mono border border-emerald-500/25 bg-zinc-950/55 rounded-xl p-4 sm:p-5 shadow-[0_12px_50px_rgba(0,0,0,.25)] anim-fade-up" aria-live="polite">
+            <div class="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+                <div>
+                    <div class="text-[10px] tracking-[0.28em] text-emerald-300/80">AFTERCARE // SERVER RECORD</div>
+                    <h2 id="hub-aftercare-title" class="mt-1 text-base sm:text-lg font-bold text-white">上一場輪迴已封存</h2>
+                    <p id="hub-aftercare-status" class="mt-1 text-[11px] text-zinc-400">正在讀取主神記錄……</p>
+                </div>
+                <button id="hub-view-debrief" onclick="openLastRunDebrief()" class="px-3 py-2 rounded border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">查看完整結算</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
+                    <div class="text-[10px] tracking-widest text-zinc-500">THE JUDGEMENT</div>
+                    <div id="hub-aftercare-grade" class="mt-1 text-3xl font-black text-emerald-300">—</div>
+                    <div id="hub-aftercare-evaluation" class="text-[11px] text-zinc-300">尚無結算資料</div>
+                    <div id="hub-aftercare-score" class="mt-2 text-[10px] text-zinc-500">QUALITY — · SPEED — · OVERALL —</div>
+                </div>
+                <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
+                    <div class="text-[10px] tracking-widest text-zinc-500">AFTERCARE</div>
+                    <div id="hub-health-hp" class="mt-2 text-sm text-white">HP —</div>
+                    <div id="hub-health-willpower" class="mt-1 text-[11px] text-zinc-300">意志力 —</div>
+                    <div id="hub-health-energy" class="mt-1 text-[11px] text-zinc-400">能量池 —</div>
+                    <div id="hub-health-status" class="mt-2 text-[10px] text-emerald-300">狀態正常</div>
+                    <div class="flex gap-2 mt-3">
+                        <button id="hub-rest-button" onclick="restFromGodspace()" class="flex-1 px-2 py-1.5 rounded border border-sky-400/35 bg-sky-500/10 text-sky-200 text-[10px] hover:bg-sky-500/20">完全恢復</button>
+                        <button id="hub-revive-button" onclick="reviveFromGodspace()" class="flex-1 px-2 py-1.5 rounded border border-rose-400/35 bg-rose-500/10 text-rose-200 text-[10px] hover:bg-rose-500/20">復活</button>
+                    </div>
+                </div>
+                <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
+                    <div class="text-[10px] tracking-widest text-zinc-500">RESOURCES</div>
+                    <div id="hub-resource-wallet" class="mt-2 text-[11px] text-white">資源讀取中……</div>
+                    <div id="hub-resource-items" class="mt-1 text-[10px] text-zinc-400">道具 —</div>
+                    <div id="hub-resource-activity" class="mt-2 text-[10px] text-zinc-500">活動 —</div>
+                </div>
+            </div>
+            <div id="hub-aftercare-objectives" class="mt-3 text-[10px] leading-relaxed text-zinc-400"></div>
+            <div id="hub-aftercare-error" style="display:none" class="mt-3 rounded border border-rose-500/40 bg-rose-500/10 p-2 text-[11px] text-rose-200"></div>
+        </section>
+
         <!-- 主選單功能磚 -->
         <div class="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono anim-fade-up" style="animation-delay:.16s">
             <button onclick="startNewChargen()" class="action-tile primary hub-object hub-object-mission col-span-2 sm:col-span-1">
@@ -2375,6 +2528,20 @@
             <span>輪迴者待命 · 主神空間</span>
         </div>
         <div class="platform-footnote text-[10px] font-mono text-zinc-500">主神記錄：下一場輪迴尚未開始</div>
+        </div>
+    </div>
+
+    <!-- 首次進入主神空間的固定劇情：不呼叫 LLM，只播放一次，避免第一次體驗被 API 延遲或格式失敗打斷。 -->
+    <div id="portal-first-story" class="godspace-first-story" style="display:none" aria-hidden="true">
+        <div class="godspace-first-story-panel" role="dialog" aria-modal="true" aria-labelledby="godspace-first-story-title" tabindex="-1">
+            <div class="godspace-first-story-kicker">MAIN GOD // FIRST CONTACT</div>
+            <div class="godspace-first-story-signal"><span></span><span></span><span></span></div>
+            <h2 id="godspace-first-story-title">白色平台沒有盡頭。</h2>
+            <div id="godspace-first-story-copy" class="godspace-first-story-copy"></div>
+            <div id="godspace-first-story-foot" class="godspace-first-story-foot">主神空間正在等待你的第一個決定。</div>
+            <button type="button" onclick="continueFirstGodspaceStory()" class="godspace-first-story-btn">
+                <span>接受這個空間</span><i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </button>
         </div>
     </div>
 
@@ -2797,6 +2964,80 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- 副本結算頁：數字與評價全部來自 server-computed runSummary；前端只負責呈現。 -->
+    <div id="scenario-settlement-screen" class="settlement-screen" style="display:none" aria-hidden="true">
+        <div class="settlement-shell" role="dialog" aria-modal="true" aria-labelledby="settlement-title" tabindex="-1">
+            <div class="settlement-topline">
+                <span class="settlement-topline-mark"></span>
+                <span>輪迴紀錄 / INSTANCE CLOSED</span>
+                <span class="settlement-topline-line"></span>
+                <span id="settlement-version">V2</span>
+            </div>
+            <header class="settlement-hero">
+                <div class="settlement-hero-copy">
+                    <div class="settlement-kicker">NOSTROMO // AFTERMATH REPORT</div>
+                    <h2 id="settlement-title">副本結算</h2>
+                    <p id="settlement-subtitle">這場輪迴留下的，不只有一個活下來的人。</p>
+                </div>
+                <div class="settlement-grade-wrap" aria-label="副本評價">
+                    <div id="settlement-grade" class="settlement-grade">—</div>
+                    <div id="settlement-grade-label" class="settlement-grade-label">等待評價</div>
+                </div>
+            </header>
+
+            <div class="settlement-divider"><span></span><i class="fas fa-crosshairs" aria-hidden="true"></i><span></span></div>
+            <p id="settlement-evaluation" class="settlement-evaluation"></p>
+
+            <section class="settlement-main-grid" aria-label="副本結算摘要">
+                <div class="settlement-card settlement-card-primary">
+                    <div class="settlement-card-heading"><span>ENDING</span><span class="settlement-card-index">01</span></div>
+                    <div id="settlement-ending-title" class="settlement-ending-title">—</div>
+                    <div id="settlement-ending-copy" class="settlement-ending-copy">—</div>
+                    <div id="settlement-ending-id" class="settlement-micro-label">—</div>
+                </div>
+                <div class="settlement-card">
+                    <div class="settlement-card-heading"><span>RUN METRICS</span><span class="settlement-card-index">02</span></div>
+                    <div class="settlement-stat-grid">
+                        <div class="settlement-stat"><span>花費回合</span><strong id="settlement-spent-rounds">—</strong></div>
+                        <div class="settlement-stat"><span>剩餘回合</span><strong id="settlement-remaining-rounds">—</strong></div>
+                        <div class="settlement-stat"><span>威脅峰值</span><strong id="settlement-threat-peak">—</strong></div>
+                        <div class="settlement-stat"><span>遭遇戰鬥</span><strong id="settlement-encounters">—</strong></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="settlement-card settlement-card-scores" aria-label="副本評分">
+                <div class="settlement-card-heading"><span>THE JUDGEMENT</span><span class="settlement-card-index">03</span></div>
+                <div class="settlement-score-row">
+                    <div class="settlement-score-item"><span>品質評價</span><strong id="settlement-quality-score">0</strong><small>QUALITY</small></div>
+                    <div class="settlement-score-item settlement-score-accent"><span>速度獎勵</span><strong id="settlement-speed-score">0</strong><small>SPEED POINTS</small></div>
+                    <div class="settlement-score-item"><span>綜合分數</span><strong id="settlement-overall-score">0</strong><small>OVERALL</small></div>
+                    <div class="settlement-score-item settlement-score-xp"><span>取得 XP</span><strong id="settlement-xp">0</strong><small>CAMPAIGN XP</small></div>
+                </div>
+                <div class="settlement-meter-label"><span>品質完成度</span><span id="settlement-quality-meter-text">0</span></div>
+                <div class="settlement-meter"><span id="settlement-quality-meter-fill"></span></div>
+            </section>
+
+            <section class="settlement-lower-grid">
+                <div class="settlement-card">
+                    <div class="settlement-card-heading"><span>WHAT REMAINS</span><span class="settlement-card-index">04</span></div>
+                    <div id="settlement-outcomes" class="settlement-outcomes"></div>
+                </div>
+                <div class="settlement-card settlement-card-note">
+                    <div class="settlement-card-heading"><span>MAIN GOD NOTE</span><span class="settlement-card-index">05</span></div>
+                    <p id="settlement-note">紀錄已封存。獎勵已由主神系統入帳。</p>
+                    <div class="settlement-reward-line"><i class="fas fa-gem" aria-hidden="true"></i><span>速度獎勵已加入獎勵點數</span></div>
+                    <div class="settlement-reward-line"><i class="fas fa-database" aria-hidden="true"></i><span>本頁只讀取伺服器結算紀錄</span></div>
+                </div>
+            </section>
+
+            <footer class="settlement-footer">
+                <div class="settlement-footer-status"><span></span><span>RUN SUMMARY SEALED</span></div>
+                <button type="button" onclick="returnToMainGodSpace()" class="settlement-return-btn"><span>進入主神空間</span><i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+            </footer>
+        </div>
     </div>
 
     <!-- 遊戲內系統工具：收進左下角，避免非遊戲功能在最上方永久佔一整列。 -->

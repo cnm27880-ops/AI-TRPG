@@ -181,6 +181,24 @@ st_thought 是給你自己用的後台盤算，玩家看不到，寫80字以內�
  * 這份 schema 放在這個檔案而不是 content/llm/client.js：client.js 只該懂「線路格式」，
  * 不該懂「一回合長什麼樣」。呼叫端（functions/api/turn.js）負責把兩者接起來。
  */
+export const REFERENCE_TURN_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    st_thought: { type: "string" },
+    narration: { type: "string" },
+    narrativeMode: { type: "string", enum: ["micro", "normal", "major", "reveal", "combat"] },
+    threatAssessment: {
+      type: "object",
+      properties: {
+        level: { type: "string", enum: ["relief_2", "relief_1", "stable", "rise_1", "rise_2", "rise_3", "immediate_combat"] },
+        reason: { type: "string" },
+      },
+      required: ["level"],
+    },
+  },
+  required: ["st_thought", "narration"],
+};
+
 export const TURN_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
@@ -237,6 +255,25 @@ export const TURN_RESPONSE_SCHEMA = {
  *
  * @returns {{ok: true, data: object} | {ok: false, error: string}}
  */
+export function buildReferenceResponseSpec() {
+  return `【Reference GM 回覆格式】
+這是 reference 副本回合，不要產生 options 陣列；玩家可做的 approach 已由伺服器提供並會重新查驗。
+只輸出單一合法 JSON 物件：
+{
+  "st_thought": "玩家看不到的短摘要，80字以內",
+  "narration": "依引擎已裁定事實寫出的敘事",
+  "narrativeMode": "micro|normal|major|reveal|combat",
+  "threatAssessment": { "level": "stable", "reason": "只有自由行動需要，說明威脅為何上升或下降" }
+}
+
+narrativeMode 是敘事規模提示，不是世界狀態；以場景與行動規模為準。固定 reference approach 已有 threatDelta 時不要提出 threatAssessment。
+自由行動的 threatAssessment 只是提議，不能自行宣稱戰鬥、加滿威脅或改寫物品、旗標、骰子與結局；伺服器會驗證，不合法就按 stable 處理。
+
+敘事邊界：只把 <Reference_Event> 與 <Engine_Result> 已提供的事實寫成玩家感官可知的畫面。不要創造資料中沒有的時間、距離、數量、條款編號、精確位置、傷害或其他數字；沒有明確數字時使用「很近」「片刻後」「幾座」等非數值表達。不要把參考 approach 改寫成「玩家只有這幾個選擇」，仍要保留玩家可以提出其他合理行動的空間。不要替玩家完成未宣告的行動，也不要把 threatAssessment 的提議當成已發生的世界事實。
+
+若 <Reference_Event> 標示「未命中任何 approach 的自由行動」：這回合只有一次嘗試與引擎判定，不等於已獲得任何新的 effect。除非資料明確列出並由 engine effect 套用，禁止把門已打開／鎖死、通道已打通／封死、物品已取得／遺失、NPC已執行特殊指令、異形已直接接觸／衝出、路徑已確定可通、位置或傷勢已改變寫成完成事實。可以描寫施力、阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應與不確定的危險；請以「試圖」「似乎」「尚未」「被阻住」「無法確認」等語氣保留玩家下一步的裁量。即使引擎分級為成功，也只能寫成這次嘗試的可觀察成功部分，不得自行兌現未授權的持久世界改變。`;
+}
+
 export function parseTurnResponse(text) {
   if (typeof text !== "string" || !text.trim()) {
     return { ok: false, error: "AI回傳空白內容" };
@@ -361,6 +398,7 @@ export function validateOption(raw, character) {
       difficulty: null,
       dc: null,
     };
+    if (raw.reference && typeof raw.reference === "object") option.reference = { ...raw.reference };
     if (hint) option.hint = hint;
     // 有填屬性/技能/難度不算錯，但要講出來：這代表AI對這個選項的性質猶豫，
     // 而引擎已經照它自己填的 requiresCheck 把那些欄位丟掉了。
@@ -380,6 +418,7 @@ export function validateOption(raw, character) {
   }
 
   const option = { label, requiresCheck: true, attribute: raw.attribute };
+  if (raw.reference && typeof raw.reference === "object") option.reference = { ...raw.reference };
   if (hint) option.hint = hint;
 
   // --- 技能：不在規則書技能表裡就降級成純屬性檢定，不採用AI自創的技能名 ---

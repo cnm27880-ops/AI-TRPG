@@ -23,6 +23,7 @@
 import { fixedSessionXp } from "../../core/campaignXp.js";
 import { earn } from "../shop/wallet.js";
 import { MAX_TIER } from "./divergence.js";
+import { remainingRounds } from "./timeBudget.js";
 
 /**
  * 完成一個節點的獎勵入帳：**獎勵點數**，不是 XP。
@@ -106,27 +107,142 @@ export function deriveSessionTiers(pack, progress, character) {
 }
 
 /**
- * 副本通關結算：算出 XP 並存進錢包。
- *
- * **一份存檔只結算一次**，靠 progress.settledAt 這個時間戳擋住重複結算——
- * 通關之後玩家還會繼續在主神空間逛商店，每一次 /api/turn 都會重新看到
- * 「副本已完成」，沒有這道閘門就會每回合再發一次獎勵。
- *
- * @returns {{ settled: boolean, wallet: object, progress: object, xp?: number, breakdown?: object, tiers?: object }}
+ * 從 server 既有時間預算推導速度獎勵。AI、前端與玩家輸入都不能提供這個數字。
+ * 目前預設每剩一回合換 1 點，V2 可用 speedReward 覆寫，但一律取整數並受上限保護。
  */
-export function settleScenario(pack, progress, character, wallet) {
+export function deriveSpeedBonus(pack, progress) {
+  const budget = progress?.timeBudget;
+  if (!budget || !(budget.totalRounds > 0)) {
+    return { totalRounds: null, spentRounds: 0, remainingRounds: 0, pointsPerRemainingRound: 0, maxPoints: 0, speedBonusPoints: 0 };
+  }
+  const policy = pack?.speedReward ?? pack?.rewardPolicy?.speed ?? {};
+  const rate = Number.isFinite(Number(policy.pointsPerRemainingRound))
+    ? Math.max(0, Math.trunc(Number(policy.pointsPerRemainingRound)))
+    : 1;
+  const cap = Number.isFinite(Number(policy.maxPoints))
+    ? Math.max(0, Math.trunc(Number(policy.maxPoints)))
+    : budget.totalRounds;
+  const spent = Math.max(0, Math.trunc(Number(budget.spentRounds) || 0));
+  const remaining = remainingRounds(budget);
+  return {
+    totalRounds: Math.max(0, Math.trunc(Number(budget.totalRounds))),
+    spentRounds: spent,
+    remainingRounds: remaining,
+    pointsPerRemainingRound: rate,
+    maxPoints: cap,
+    speedBonusPoints: Math.min(cap, remaining * rate),
+  };
+}
+
+/**
+ * 品質分數只使用完成節點、扭轉度與 reference 已保存的可驗證狀態，作為未來品質榜的穩定基礎。
+ * 這不是排行榜 API；它只是結算時不可變的 server-computed 欄位。
+ */
+export function deriveQualityScore(pack, progress, referenceState = null) {
+  const completed = Object.entries(progress?.nodes ?? {}).filter(([, node]) => node?.completed);
+  const nodeScore = completed.reduce(
+    (sum, [, node]) => sum + 25 + Math.max(0, Math.min(MAX_TIER, Number(node?.divergenceTier) || 0)) * 10,
+    0
+  );
+  const finaleIds = new Set(
+    (pack?.entries ?? []).flatMap((chapter) => (chapter.nodes ?? []).filter((node) => node.isFinale).map((node) => node.id))
+  );
+  const finaleBonus = completed.some(([id]) => finaleIds.has(id)) ? 50 : 0;
+  const evidenceBonus = referenceState?.flags?.includes("flag_937_evidence_saved") ? 20 : 0;
+  const sampleBonus = referenceState?.sampleStatus === "preserved" ? 20 : 0;
+  const survivorBonus = Object.values(referenceState?.npcStatuses ?? {}).some((status) => status === "survived") ? 10 : 0;
+  return nodeScore + finaleBonus + evidenceBonus + sampleBonus + survivorBonus;
+}
+
+const EVALUATION_BANDS = Object.freeze([
+  { grade: "S", label: "深淵回應者", minQuality: 190, summary: "你不只活了下來，還把這場事故留下的真相與代價一併帶回。" },
+  { grade: "A", label: "高品質生還", minQuality: 145, summary: "你在效率與真相之間維持了罕見的平衡。" },
+  { grade: "B", label: "代價中的生還", minQuality: 100, summary: "你完成了主要目標，但仍有一些證據、同伴或安全餘裕留在黑暗裡。" },
+  { grade: "C", label: "勉強脫離", minQuality: 55, summary: "你活著離開了副本，但這更接近逃脫，而不是完整地解決危機。" },
+  { grade: "D", label: "殘存紀錄", minQuality: 0, summary: "這次輪迴留下的主要成果，是一份關於失敗與代價的紀錄。" },
+]);
+
+/** 結算頁使用的固定評價，不讀取 LLM 文本，也不接受前端傳入的分數。 */
+export function deriveEvaluation(qualityScore, speedScore = 0) {
+  const quality = Math.max(0, Math.trunc(Number(qualityScore) || 0));
+  const speed = Math.max(0, Math.trunc(Number(speedScore) || 0));
+  const band = EVALUATION_BANDS.find((candidate) => quality >= candidate.minQuality) ?? EVALUATION_BANDS.at(-1);
+  return {
+    grade: band.grade,
+    label: band.label,
+    summary: band.summary,
+    qualityScore: quality,
+    speedScore: speed,
+    overallScore: quality + speed,
+  };
+}
+
+/** 建立未來 speed / quality / overall 榜單可直接讀取的 immutable-shaped 摘要。 */
+export function buildRunSummary(pack, progress, character, settlement, referenceState = null) {
+  const speed = deriveSpeedBonus(pack, progress);
+  const objectiveIds = Object.entries(progress?.nodes ?? {})
+    .filter(([, node]) => node?.completed)
+    .map(([id]) => id)
+    .sort();
+  const objectiveTotal = (pack?.entries ?? []).reduce((sum, chapter) => sum + (chapter.nodes?.length ?? 0), 0);
+  const qualityPoints = deriveQualityScore(pack, progress, referenceState);
+  const endingId = referenceState?.endingId ?? progress?.endingId ?? null;
+  const qualityScore = qualityPoints;
+  const evaluation = deriveEvaluation(qualityScore, speed.speedBonusPoints);
+  const overallScore = evaluation.overallScore;
+  return {
+    contractVersion: 1,
+    scenarioId: pack?.id ?? null,
+    scenarioVersion: pack?.version ?? null,
+    endingId,
+    objectiveIds,
+    objectiveTotal,
+    spentRounds: speed.spentRounds,
+    remainingRounds: speed.remainingRounds,
+    totalRounds: speed.totalRounds,
+    threat: {
+      level: Number(progress?.threat?.level) || 0,
+      peak: Number(progress?.threat?.peak) || 0,
+      encounters: Number(progress?.threat?.encounters) || 0,
+    },
+    npcStatuses: { ...(referenceState?.npcStatuses ?? {}) },
+    sampleStatus: referenceState?.sampleStatus ?? null,
+    infectionStatus: referenceState?.infectionStatus ?? null,
+    xp: Number(settlement?.xp) || 0,
+    speedBonusPoints: speed.speedBonusPoints,
+    qualityPoints,
+    speedScore: speed.speedBonusPoints,
+    qualityScore,
+    overallScore,
+    evaluation,
+  };
+}
+
+/**
+ * 副本通關結算：算出 XP、速度獎勵並存進錢包。
+ * **一份存檔只結算一次**，靠 progress.settledAt 這個時間戳擋住重複結算。
+ * @returns {{ settled: boolean, wallet: object, progress: object, xp?: number, speedBonusPoints?: number, runSummary?: object, breakdown?: object, tiers?: object }}
+ */
+export function settleScenario(pack, progress, character, wallet, { referenceState = null } = {}) {
   if (!progress) return { settled: false, wallet, progress };
   if (progress.settledAt) return { settled: false, wallet, progress, reason: "這個副本已經結算過了" };
 
   const tiers = deriveSessionTiers(pack, progress, character);
   const { total, breakdown } = fixedSessionXp(tiers);
+  const speed = deriveSpeedBonus(pack, progress);
+  const runSummary = buildRunSummary(pack, progress, character, { xp: total }, referenceState);
+  const settledAt = new Date().toISOString();
+  const nextProgress = { ...progress, settledAt, runSummary: { ...runSummary } };
 
   return {
     settled: true,
     xp: total,
     breakdown,
     tiers,
-    wallet: earn(wallet, { xp: total }),
-    progress: { ...progress, settledAt: new Date().toISOString() },
+    speedBonusPoints: speed.speedBonusPoints,
+    speedBonus: speed,
+    runSummary,
+    wallet: earn(wallet, { xp: total, points: speed.speedBonusPoints }),
+    progress: nextProgress,
   };
 }

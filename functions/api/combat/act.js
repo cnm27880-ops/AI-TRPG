@@ -19,7 +19,8 @@ import {
 } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { buildCombatNarrationPrompt } from "../../../content/gemini/promptContract.js";
-import { getScenarioPack } from "../../../content/scenario/registry.js";
+import { getScenarioPack, getScenarioReference } from "../../../content/scenario/registry.js";
+import { applyReferenceFinaleVictory, normalizeReferenceState } from "../../../content/scenario/referenceAdapter.js";
 import { completeNodeAndAdvance, getProgressSummary } from "../../../content/scenario/progress.js";
 import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
 import { registerChroniclePackage } from "../../../content/storage/chronicle.js";
@@ -224,7 +225,20 @@ export async function onRequestPost(context) {
 
         // 最終戰打完通常就是通關，所以結算也要在這條路徑上跑一次——
         // 不然玩家打贏之後如果沒有再送出任何一輪敘事，XP 就永遠不會入帳。
-        const settlement = settleScenario(pack, progress, session.character, session.wallet);
+        // reference 終局狀態先由 adapter 產生，再交給 settlement 建立 server-computed runSummary。
+        const reference = getScenarioReference(pack);
+        const referenceStateBeforeVictory = reference
+          ? normalizeReferenceState(reference, session.scenario.referenceState)
+          : null;
+        const completedReferenceState = reference
+          ? applyReferenceFinaleVictory(reference, referenceStateBeforeVictory)
+          : null;
+        const referenceSettlementReady = !reference || Boolean(
+          completedReferenceState?.endingId || completedReferenceState?.flags?.includes("flag_hypersleep_entered")
+        );
+        const settlement = referenceSettlementReady
+          ? settleScenario(pack, progress, session.character, session.wallet, { referenceState: completedReferenceState })
+          : { settled: false, wallet: session.wallet, progress, reason: "reference 終局仍需完成休眠前結算" };
         if (settlement.settled) {
           session.wallet = settlement.wallet;
           progress = settlement.progress;
@@ -234,10 +248,22 @@ export async function onRequestPost(context) {
             { total: settlement.xp, reason: `副本「${pack.briefing?.title ?? pack.id}」通關結算`, breakdown: settlement.breakdown },
             { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
           );
-          scenarioWarnings.push(`副本通關結算：獲得 ${settlement.xp} XP。回到主神空間，商店已開放。`);
+          if (settlement.speedBonusPoints > 0) {
+            appendEvent(
+              session.log,
+              EVENT_TYPES.POINTS_GRANT,
+              { total: settlement.speedBonusPoints, reason: "剩餘效率回合速度獎勵", speedBonus: settlement.speedBonus, runSummary: settlement.runSummary },
+              { timestamp: ts }
+            );
+          }
+          scenarioWarnings.push(`副本通關結算：獲得 ${settlement.xp} XP，速度獎勵 ${settlement.speedBonusPoints} 點。回到主神空間，商店已開放。`);
         }
 
-        session.scenario = { packId: pack.id, progress };
+        session.scenario = {
+          packId: pack.id,
+          progress,
+          ...(reference ? { referenceState: completedReferenceState } : {}),
+        };
         const packageRegistration = getProgressSummary(pack, progress).scenarioComplete
           ? registerChroniclePackage(session.chroniclePackages, {
               scenarioId: pack.id,
@@ -251,6 +277,12 @@ export async function onRequestPost(context) {
         scenarioResult = {
           nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward },
           ...(packageRegistration.created && packageRegistration.record ? { chroniclePackage: packageRegistration.record } : {}),
+          ...(reference
+            ? { reference: { enabled: true, eventId: session.scenario.referenceState.currentSceneId, location: session.scenario.referenceState.currentLocation } }
+            : {}),
+          ...(settlement.settled
+            ? { settlement: { xp: settlement.xp, speedBonusPoints: settlement.speedBonusPoints, runSummary: settlement.runSummary } }
+            : {}),
         };
       }
     }

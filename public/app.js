@@ -125,6 +125,7 @@ function awakeningStepIndex() {
 let portalMode = "invitation";
 let portalTransitionTimer = null;
 let chargenAdvanceTimer = null;
+const GODSPACE_FIRST_STORY_KEY = "ai-trpg-godspace-first-story-v1";
 
 function resetPortalInvitation() {
   window.clearTimeout(portalTransitionTimer);
@@ -171,7 +172,10 @@ function finishPortalReveal(reason = "new") {
   main.classList.add("is-visible");
   main.setAttribute("aria-hidden", "false");
 
-  if (reason === "new") {
+  const firstStorySeen = localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1";
+  if (!firstStorySeen) {
+    window.setTimeout(() => showFirstGodspaceStory(), reason === "new" ? 520 : 160);
+  } else if (reason === "new") {
     window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 600);
   }
 }
@@ -201,6 +205,32 @@ function revealMainGodSpace(reason = "new") {
 
 function acceptMainGodInvitation() {
   revealMainGodSpace("new");
+}
+
+function showFirstGodspaceStory() {
+  const layer = document.getElementById("portal-first-story");
+  const panel = layer?.querySelector(".godspace-first-story-panel");
+  if (!layer || !panel || localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1") return;
+  document.getElementById("godspace-first-story-title").textContent = "白色平台沒有盡頭。";
+  document.getElementById("godspace-first-story-copy").textContent =
+    "你原本以為自己只是打開了一個網站。\n\n" +
+    "那只是門。\n\n" +
+    "白色沒有牆，也沒有天花板；遠處只有一個無法測量距離的光源。你的身體已經被主神系統重新確認，原本的生活則被留在門的另一側。\n\n" +
+    "看不見的聲音說：『輪迴者，歡迎來到主神空間。下一場恐怖片開始以前，你可以先決定自己要帶什麼進去。』";
+  document.getElementById("godspace-first-story-foot").textContent =
+    "這段記錄只會播放一次。主神空間正在等待你的第一個決定。";
+  layer.style.display = "flex";
+  layer.removeAttribute("aria-hidden");
+  requestAnimationFrame(() => panel.focus());
+}
+
+function continueFirstGodspaceStory() {
+  const layer = document.getElementById("portal-first-story");
+  if (!layer) return;
+  localStorage.setItem(GODSPACE_FIRST_STORY_KEY, "1");
+  layer.style.display = "none";
+  layer.setAttribute("aria-hidden", "true");
+  document.querySelector("#portal-main-content .action-tile.primary")?.focus();
 }
 
 async function startNewChargen() {
@@ -1163,6 +1193,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
       if (res.scenario.chroniclePackage) {
         showToast("副本已封存為 AI-ready 劇情包；開啟「劇情回顧」即可複製或下載。", { kind: "info", timeout: 6000 });
       }
+      if (res.scenario.settlement?.runSummary) showScenarioSettlement(res.scenario.settlement);
     }
     // 日誌分頁開著的時候要跟著這一回合更新，不然玩家會看到一份停在上一回合的日誌。
     refreshJournalIfOpen();
@@ -1492,6 +1523,277 @@ function updateScenarioHud(scenario) {
  * 收合狀態交給 <details> 自己管，這裡只負責填內容與決定要不要顯示整塊。
  * 沒有 briefing 的副本(例如 echoInstitute)整塊不顯示，行為跟以前一樣。
  */
+const SETTLEMENT_ENDINGS = Object.freeze({
+  end_solo_survivor: { title: "孤獨生還者", copy: "水仙號在深空中留下微弱藍光。沒有人能替你證明那艘船上發生過什麼；只有傷勢、腕錶裡的紀錄，以及一段沒有被公司承認的座標。" },
+  end_heroic_rescue: { title: "帶著證人離開", copy: "水仙號的兩具休眠艙同時亮起綠燈。你沒有只把自己塞進逃生路線；有人會帶著對 937、Ash 與異形的第一手記憶一起離開。" },
+  end_corporate_agent: { title: "公司的新鑰匙", copy: "低溫儲格在休眠艙旁持續發出冷卻聲。你帶走的不只是組織，而是一把能打開公司下一個計畫的鑰匙。" },
+  end_dark_infection: { title: "沉睡的感染", copy: "休眠艙合上的時候，你以為任務已經結束。真正的警報在傳送之後才出現：體內有某個不屬於人類的東西，正在等待下一次醒來。" },
+  end_expire_ruins: { title: "倒數中的殘骸", copy: "倒數歸零，船體在你身邊解體。主神機制把你從爆炸邊緣拖回來，但沒有把隊友、證據與原本可以取得的報酬一起帶走。" },
+  end_death_alien_feast: { title: "通風管裡的名字", copy: "最後留下的不是你的名字，而是通風管內拖行的聲音。異形把你的遺留物帶進黑暗，母船的倒數仍然繼續。" },
+  end_death_overload_vaporized: { title: "高溫抹除", copy: "母親的倒數在核心崩潰中歸零。船、樣本、異形與玩家的所有行動一起被高溫抹去。" },
+  end_death_vacuum_breach: { title: "深空失壓", copy: "沒有宇航服，也沒有安全繩。你被氣閘的風帶入深空，水仙號在視線中縮成一點藍光。" },
+});
+
+const SETTLEMENT_STATUS_LABELS = Object.freeze({
+  sampleStatus: { none: "未取得", tissue: "未穩定組織", preserved: "已保存", destroyed: "已毀損" },
+  infectionStatus: { unknown: "未知", suspected: "疑似", infected: "已感染", cleared: "已排除" },
+});
+const SETTLEMENT_NPC_LABELS = Object.freeze({ npc_ash: "Ash", npc_luyuan: "陸遠", npc_ripley: "Ripley", npc_parker: "Parker" });
+
+function settlementValue(map, value) {
+  return map?.[value] ?? (value == null ? "未記錄" : String(value));
+}
+
+function showScenarioSettlement(settlement) {
+  const summary = settlement?.runSummary;
+  const layer = document.getElementById("scenario-settlement-screen");
+  const shell = layer?.querySelector(".settlement-shell");
+  if (!summary || !layer || !shell) return;
+  const evaluation = summary.evaluation ?? {};
+  const ending = SETTLEMENT_ENDINGS[summary.endingId] ?? { title: "未命名結局", copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。" };
+  const nodes = [
+    ["樣本", settlementValue(SETTLEMENT_STATUS_LABELS.sampleStatus, summary.sampleStatus)],
+    ["感染", settlementValue(SETTLEMENT_STATUS_LABELS.infectionStatus, summary.infectionStatus)],
+    ["完成節點", `${summary.objectiveIds?.length ?? 0} / ${summary.objectiveTotal ?? summary.objectiveIds?.length ?? 0}`],
+  ];
+  const npcEntries = Object.entries(summary.npcStatuses ?? {})
+    .filter(([, status]) => status === "survived" || status === "dead" || status === "injured" || status === "destroyed")
+    .map(([id, status]) => [SETTLEMENT_NPC_LABELS[id] ?? id, status === "survived" ? "已帶離" : status === "dead" ? "死亡" : status === "destroyed" ? "摧毀" : "受傷"]);
+  nodes.push(...npcEntries);
+
+  document.getElementById("settlement-version").textContent = summary.scenarioVersion ? `V${summary.scenarioVersion}` : "V2";
+  document.getElementById("settlement-title").textContent = "副本結算";
+  document.getElementById("settlement-subtitle").textContent = summary.endingId?.startsWith("end_death") ? "這次輪迴沒有回到休眠艙，但紀錄仍然完成封存。" : "這場輪迴留下的，不只有一個活下來的人。";
+  document.getElementById("settlement-grade").textContent = evaluation.grade ?? "—";
+  document.getElementById("settlement-grade-label").textContent = evaluation.label ?? "歷史結算";
+  document.getElementById("settlement-evaluation").textContent = evaluation.summary ?? "評價由伺服器根據本次輪迴的引擎事實產生。";
+  document.getElementById("settlement-ending-title").textContent = ending.title;
+  document.getElementById("settlement-ending-copy").textContent = ending.copy;
+  document.getElementById("settlement-ending-id").textContent = summary.endingId ?? "ENDING_PENDING";
+  document.getElementById("settlement-spent-rounds").textContent = `${summary.spentRounds ?? 0}`;
+  document.getElementById("settlement-remaining-rounds").textContent = `${summary.remainingRounds ?? 0}`;
+  document.getElementById("settlement-threat-peak").textContent = `${summary.threat?.peak ?? summary.threat?.level ?? 0} / 7`;
+  document.getElementById("settlement-encounters").textContent = `${summary.threat?.encounters ?? 0}`;
+  document.getElementById("settlement-quality-score").textContent = `${evaluation.qualityScore ?? summary.qualityScore ?? 0}`;
+  document.getElementById("settlement-speed-score").textContent = `+${evaluation.speedScore ?? summary.speedScore ?? summary.speedBonusPoints ?? 0}`;
+  document.getElementById("settlement-overall-score").textContent = `${evaluation.overallScore ?? summary.overallScore ?? 0}`;
+  document.getElementById("settlement-xp").textContent = `${summary.xp ?? settlement.xp ?? 0}`;
+  document.getElementById("settlement-quality-meter-text").textContent = `${evaluation.qualityScore ?? summary.qualityScore ?? 0} pts`;
+  const qualityScore = Number(evaluation.qualityScore ?? summary.qualityScore ?? 0);
+  document.getElementById("settlement-quality-meter-fill").style.width = `${Math.min(100, Math.max(0, Math.round((qualityScore / 225) * 100)))}%`;
+  document.getElementById("settlement-outcomes").innerHTML = nodes.map(([label, value]) =>
+    `<div class="settlement-outcome-row"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`
+  ).join("");
+  document.getElementById("settlement-note").textContent =
+    `紀錄已封存。${summary.remainingRounds > 0 ? `你保留了 ${summary.remainingRounds} 回合效率資源。` : "你把最後一點時間也留在了這艘船上。"} 獎勵已由主神系統入帳。`;
+
+  layer.style.display = "flex";
+  layer.removeAttribute("aria-hidden");
+  document.body.classList.add("is-settlement-open");
+  requestAnimationFrame(() => shell.focus());
+}
+
+let currentGodspacePayload = null;
+let godspaceBusy = false;
+
+async function loadGodspace(sessionId = currentSessionId, { reveal = false } = {}) {
+  if (!sessionId) {
+    currentGodspacePayload = null;
+    renderGodspace(null);
+    return null;
+  }
+  const res = await (await fetch(`/api/godspace?sessionId=${encodeURIComponent(sessionId)}`)).json();
+  if (!res.ok) throw new Error(res.error || "主神空間記錄讀取失敗");
+  currentGodspacePayload = res;
+  if (reveal) {
+    showScreen("portal");
+    finishPortalReveal("resume");
+  }
+  renderGodspace(res);
+  return res;
+}
+
+function hubAction(id) {
+  return currentGodspacePayload?.actions?.find((item) => item.id === id) ?? null;
+}
+
+function applyHubActionButton(buttonId, actionId) {
+  const button = document.getElementById(buttonId);
+  const meta = hubAction(actionId);
+  if (!button) return;
+  button.disabled = !meta?.enabled;
+  button.title = meta?.reason ?? "目前不可用";
+  button.classList.toggle("opacity-40", !meta?.enabled);
+  button.classList.toggle("cursor-not-allowed", !meta?.enabled);
+}
+
+function renderGodspace(payload) {
+  const panel = document.getElementById("portal-aftercare-panel");
+  if (!panel) return;
+  const debrief = payload?.debrief;
+  const lifecycle = payload?.lifecycle;
+  if (!payload || (!debrief && lifecycle?.status === "no_scenario")) {
+    panel.style.display = "none";
+    applyHubActionButton("hub-rest-button", "rest");
+    applyHubActionButton("hub-revive-button", "revive");
+    return;
+  }
+  panel.style.display = "block";
+  setText("hub-aftercare-title", debrief?.scenario?.title ?? "主神空間記錄");
+  setText("hub-aftercare-status", lifecycle?.reason ?? "server 已回傳目前狀態");
+  setText("hub-aftercare-grade", debrief?.evaluation?.grade ?? "—");
+  setText("hub-aftercare-evaluation", debrief?.evaluation?.label ?? "尚無結算資料");
+  setText(
+    "hub-aftercare-score",
+    debrief
+      ? `QUALITY ${debrief.evaluation.qualityPoints ?? 0} · SPEED ${debrief.evaluation.speedPoints ?? 0} · OVERALL ${debrief.evaluation.overallScore ?? 0}`
+      : "等待副本結算封存",
+  );
+
+  const health = payload.health ?? {};
+  const hp = health.hp ?? {};
+  setText("hub-health-hp", `HP ${hp.intact ?? 0} 完好 · B ${hp.B ?? 0} · L ${hp.L ?? 0} · A ${hp.A ?? 0}`);
+  setText("hub-health-willpower", `意志力 ${health.willpower?.current ?? 0} / ${health.willpower?.max ?? 0}`);
+  const poolText = Object.entries(health.energyPools ?? {})
+    .map(([id, pool]) => `${id} ${pool.current}/${pool.max}`)
+    .join(" · ") || "無能量池資料";
+  setText("hub-health-energy", `能量池 ${poolText}`);
+  const down = health.downState ?? {};
+  const healthStatus = down.dead ? "角色已死亡 · 需要復活" : down.unconscious ? "角色昏迷 · 暫不可行動" : "狀態可行動";
+  setText("hub-health-status", healthStatus);
+  const healthStatusEl = document.getElementById("hub-health-status");
+  if (healthStatusEl) healthStatusEl.className = `mt-2 text-[10px] ${down.dead ? "text-rose-300" : down.unconscious ? "text-amber-300" : "text-emerald-300"}`;
+
+  const wallet = payload.resources?.wallet ?? {};
+  const tokens = Object.entries(wallet.tokens ?? {}).filter(([, count]) => count > 0).map(([tier, count]) => `${tier}×${count}`).join(" ") || "無支線";
+  setText("hub-resource-wallet", `支線 ${tokens} · 獎勵點數 ${wallet.points ?? 0} · XP ${wallet.xp ?? 0}`);
+  const items = payload.resources?.referenceInventory ?? [];
+  setText("hub-resource-items", `副本道具：${items.length ? items.join("、") : "無"}`);
+  const activity = debrief?.activity;
+  setText("hub-resource-activity", activity ? `回合 ${activity.turns ?? 0} · 判定 ${activity.checks ?? 0} · 戰鬥 ${activity.combatActions ?? 0}` : "尚無副本活動統計");
+
+  const objectives = debrief?.objectives ?? [];
+  setText(
+    "hub-aftercare-objectives",
+    objectives.length
+      ? `已封存節點：${objectives.map((objective) => `${objective.title}${objective.divergenceTier != null ? `（${objective.divergenceTier}）` : ""}`).join("、")}`
+      : debrief ? "本場沒有可列出的已完成節點。" : "目前沒有已封存的副本結算。",
+  );
+  applyHubActionButton("hub-view-debrief", "view_debrief");
+  applyHubActionButton("hub-rest-button", "rest");
+  applyHubActionButton("hub-revive-button", "revive");
+}
+
+function openLastRunDebrief() {
+  const summary = currentGodspacePayload?.debrief?.runSummary;
+  if (!summary) {
+    showToast("目前沒有可查看的已封存結算。");
+    return;
+  }
+  showScenarioSettlement({ runSummary: summary });
+}
+
+async function enterGodspaceFromSettlement(source = "settlement") {
+  if (!currentSessionId) {
+    showScreen("portal");
+    finishPortalReveal("resume");
+    return true;
+  }
+  if (godspaceBusy) return false;
+  godspaceBusy = true;
+  const errorEl = document.getElementById("hub-aftercare-error");
+  if (errorEl) errorEl.style.display = "none";
+  try {
+    const response = await (await fetch("/api/godspace/enter", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, source }),
+    })).json();
+    if (!response.ok) throw new Error(response.error || "目前不能返回主神空間");
+    currentGodspacePayload = response;
+    const layer = document.getElementById("scenario-settlement-screen");
+    if (layer) {
+      layer.style.display = "none";
+      layer.setAttribute("aria-hidden", "true");
+    }
+    document.body.classList.remove("is-settlement-open");
+    currentCombat = null;
+    showScreen("portal");
+    document.getElementById("portal-subtitle").textContent = "上一場輪迴已封存。主神空間正在等待你的下一個決定。";
+    finishPortalReveal("resume");
+    renderGodspace(response);
+    return true;
+  } catch (error) {
+    if (errorEl) {
+      errorEl.textContent = error.message;
+      errorEl.style.display = "block";
+    }
+    showToast(`不能返回主神空間：${error.message}`);
+    return false;
+  } finally {
+    godspaceBusy = false;
+  }
+}
+
+async function returnToMainGodSpace() {
+  await enterGodspaceFromSettlement("settlement");
+}
+
+async function restFromGodspace() {
+  if (!currentSessionId || godspaceBusy) return;
+  const meta = hubAction("rest");
+  if (!meta?.enabled) {
+    showToast(meta?.reason || "目前不能完全恢復");
+    return;
+  }
+  godspaceBusy = true;
+  try {
+    const response = await (await fetch("/api/rest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+    if (!response.ok) throw new Error(response.error || response.blockers?.[0]?.message || "完全恢復失敗");
+    if (response.character) adoptCharacter(response.character);
+    if (response.hub?.ok) {
+      currentGodspacePayload = response.hub;
+      renderGodspace(response.hub);
+    } else {
+      await loadGodspace(currentSessionId);
+    }
+    showToast(response.summary || "主神空間已完成恢復。");
+  } catch (error) {
+    showToast(`完全恢復失敗：${error.message}`);
+  } finally {
+    godspaceBusy = false;
+  }
+}
+
+async function reviveFromGodspace() {
+  if (!currentSessionId || godspaceBusy) return;
+  const meta = hubAction("revive");
+  if (!meta?.enabled) {
+    showToast(meta?.reason || "目前不能復活");
+    return;
+  }
+  godspaceBusy = true;
+  try {
+    const response = await (await fetch("/api/revive", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId }),
+    })).json();
+    if (!response.ok) throw new Error(response.error || "復活失敗");
+    if (response.character) adoptCharacter(response.character);
+    await loadGodspace(currentSessionId);
+    showToast(`復活完成，支付 ${response.cost ?? 0} 點。`);
+  } catch (error) {
+    showToast(`復活失敗：${error.message}`);
+  } finally {
+    godspaceBusy = false;
+  }
+}
+
 function renderBriefing(briefing) {
   const box = document.getElementById("scenario-briefing");
   if (!box) return;
@@ -2240,6 +2542,15 @@ async function resumeSession(id) {
 
   currentSessionId = id;
   localStorage.setItem(SESSION_KEY, id);
+  // 已結算存檔直接進 server-owned 主神空間；不要先進 game screen 再由前端猜 runSummary。
+  if (res.lifecycle?.canEnterGodspace) {
+    lastThreatStage = null;
+    adoptCharacter(res.session.character);
+    renderPersistenceWarning(res.persistent);
+    currentCombat = null;
+    await loadGodspace(id, { reveal: true });
+    return true;
+  }
   // 換一份存檔＝換一條迫近度軌，上一場的階段不能留著，否則第一次更新會誤報一次「階段變化」。
   lastThreatStage = null;
   adoptCharacter(res.session.character);
@@ -2256,7 +2567,10 @@ async function resumeSession(id) {
   // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
   // 讀取存檔時就畫出來。先前這一份只有 /api/turn 的回應才有，於是重整頁面接續遊戲的人
   // 會看到一條空的頂欄，一直到他再送出一個回合為止——那正是最需要「我現在要幹嘛」的時刻。
-  if (res.scenario) updateScenarioHud(res.scenario);
+  if (res.scenario) {
+    updateScenarioHud(res.scenario);
+    if (res.scenario.runSummary) showScenarioSettlement({ runSummary: res.scenario.runSummary });
+  }
   renderDownState(res.downState, res.revival);
 
   // [2026-08-16 修正] 還原「重整頁面時人在戰鬥中」的狀態。
@@ -2630,6 +2944,10 @@ async function combatAttack(weaponKey) {
     // 打贏最終戰卻沒結算成獎勵時，後端會說明原因（見 functions/api/combat/act.js）。
     // 這種事以前是完全靜音的：玩家打贏boss、沒有XP、沒有提示，跟沒打贏長得一樣。
     (res.scenario?.warnings || []).forEach((w) => appendCombatSystemLine(w, "text-yellow-300"));
+    if (res.scenario) {
+      updateScenarioHud(res.scenario);
+      if (res.scenario.settlement?.runSummary) showScenarioSettlement(res.scenario.settlement);
+    }
     renderCombat();
     refreshJournalIfOpen();
   } catch (err) {
@@ -3477,6 +3795,7 @@ async function buyGood(goodId) {
     // 買到的東西會改角色卡（屬性/技能/生命上限），側邊欄要跟著更新
     if (res.character) adoptCharacter(res.character);
     refreshJournalIfOpen();
+    if (currentGodspacePayload?.lifecycle?.canEnterGodspace) await loadGodspace(currentSessionId);
   } catch (err) {
     toast.style.display = "block";
     toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-red-300 bg-red-500/10";
@@ -3507,6 +3826,13 @@ window.openChronicle = openChronicle;
 window.openStoryLog = openChronicle;
 window.revealMainGodSpace = revealMainGodSpace;
 window.resetPortalInvitation = resetPortalInvitation;
+window.continueFirstGodspaceStory = continueFirstGodspaceStory;
+window.returnToMainGodSpace = returnToMainGodSpace;
+window.loadGodspace = loadGodspace;
+window.openLastRunDebrief = openLastRunDebrief;
+window.restFromGodspace = restFromGodspace;
+window.reviveFromGodspace = reviveFromGodspace;
+window.showScenarioSettlement = showScenarioSettlement;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;

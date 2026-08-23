@@ -9,7 +9,7 @@
 // 於是「成功」與「失敗」在第3回合看起來完全一樣：場景還在原地，玩家可以再潛行一次。
 // 語氣指令再怎麼寫得兇，也擋不住這件事，因為問題不在文筆，在於**世界狀態沒有變**。
 //
-// 這個模組補上那個狀態：一條 0~6 的迫近度軌道，存在存檔裡，每一回合依判定分級查表增減。
+// 這個模組補上那個狀態：一條 0~7 的迫近度軌道，存在存檔裡，每一回合依判定分級或事件資料增減。
 //   成功 -> 威脅遠離（買到距離、買到時間）
 //   失敗 -> 威脅逼近（而且是累積的，連兩次失敗就跨一個階段）
 // 階段一變，餵給AI的強制指令就跟著換一段完全不同的文字（見 THREAT_STAGES）。
@@ -21,8 +21,8 @@
 // 這是 [設計]，規則書沒有這套機制，數值是草案，之後依實際測玩調整
 // （調整時記得同步更新 test/threat.test.js，不要無測試地改）。
 
-/** 迫近度上限。到頂＝威脅直接站在玩家面前，見 THREAT_STAGES 的「接觸」階段。 */
-export const THREAT_MAX = 6;
+/** 迫近度上限。到 7 格＝威脅直接接觸並觸發戰鬥，見 THREAT_STAGES 的「接觸」階段。 */
+export const THREAT_MAX = 7;
 
 /** 開戰後迫近度回落到哪一級（追兵變成正面衝突，追蹤過程重新開始累積）。 */
 export const THREAT_AFTER_ENCOUNTER = 3;
@@ -77,7 +77,7 @@ export const THREAT_STAGES = [
   },
   {
     id: "貼近",
-    maxLevel: 5,
+    maxLevel: 6,
     summary: "威脅就在同一個空間裡，只隔一層遮蔽",
     directive:
       "威脅已經進到你所在的這個空間，只隔著一層遮蔽物（一道門、一排貨櫃、一段管道）。" +
@@ -149,6 +149,37 @@ export function applyOutcomeToThreat(track, outcome) {
   };
 }
 
+/**
+ * 套用副本 reference result 明確寫出的迫近度變化。
+ *
+ * 這不是 AI 自己決定的數字；它來自副本資料的結果 effects。與判定分級的
+ * applyOutcomeToThreat() 分開，是因為 reference 結果可能需要表達「驚險成功仍讓
+ * 異形靠近一格」等劇本作者明確指定的例外。呼叫端應在同一回合最多呼叫一次。
+ */
+export function applyDirectThreatDelta(track, rawDelta) {
+  const current = normalizeTrack(track);
+  const requested = Number(rawDelta ?? 0);
+  const delta = Number.isFinite(requested) ? Math.trunc(requested) : 0;
+  const before = current.level;
+  const after = clampLevel(before + delta);
+  const beforeStage = getThreatStage(before);
+  const stage = getThreatStage(after);
+  const next = {
+    ...current,
+    level: after,
+    peak: Math.max(current.peak ?? 0, after),
+  };
+  return {
+    track: next,
+    before,
+    after,
+    delta: after - before,
+    stage,
+    escalated: stage.id !== beforeStage.id,
+    contact: after >= THREAT_MAX,
+  };
+}
+
 /** 開戰時呼叫：追兵變成正面衝突，迫近度回落，encounters 計數 +1。 */
 export function dischargeThreat(track) {
   const current = normalizeTrack(track);
@@ -185,7 +216,7 @@ export function getThreatStage(level) {
  * @param {{delta: number, before: number}} [change] 這一回合的變化，有給的話會一起寫進指令，
  *   讓AI知道「這一格是因為玩家剛剛失敗才推上來的」，敘事才接得上因果。
  */
-export function buildThreatDirective(track, flavor = {}, change = null) {
+export function buildThreatDirective(track, flavor = {}, change = null, { freeInput = false } = {}) {
   const current = normalizeTrack(track);
   const stage = getThreatStage(current.level);
   const subject = flavor.subject ?? "威脅";
@@ -209,6 +240,13 @@ export function buildThreatDirective(track, flavor = {}, change = null) {
 
   lines.push(stage.directive.replaceAll("威脅", subject));
   if (packStageText) lines.push(`這個副本在這個階段的具體樣貌：${packStageText}`);
+  if (freeInput) {
+    lines.push(
+      "【未命中 approach 的自由輸入覆寫】只可依上述已裁定階段描寫威脅的痕跡、聲音、方向與壓力；" +
+        "不要把追蹤寫成已進入同一空間，不要把貼近寫成已直接接觸，更不要寫成戰鬥已發生。" +
+        "只有 reference 或 engine effect 明確授權的狀態，才可以寫成門、路徑、位置、傷勢、物品或威脅接觸已經改變。"
+    );
+  }
 
   return lines.join("\n");
 }
