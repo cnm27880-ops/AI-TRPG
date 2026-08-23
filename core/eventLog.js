@@ -23,6 +23,10 @@ export const EVENT_TYPES = Object.freeze({
   REST: "rest",
   // Scenario reference adapter 的事件裁定；payload 只存引擎已套用的結果與效果摘要。
   REFERENCE_ACTION: "reference_action",
+  // 探索終端的 server-authoritative 移動與公開線索／問題更新。
+  TRAVEL: "travel",
+  DISCOVERY: "discovery",
+  QUESTION_UPDATE: "question_update",
 });
 
 const VALID_TYPES = new Set(Object.values(EVENT_TYPES));
@@ -131,6 +135,12 @@ function journalSummary(event) {
         `，結果${p.outcomeTier ?? "未知"}` +
         `${p.resultKey ? `（${p.resultKey}）` : ""}`
       );
+    case EVENT_TYPES.TRAVEL:
+      return `探索移動：${p.from ?? "未知位置"} → ${p.location ?? p.to ?? "未知位置"}，花費 ${p.timeCost ?? "?"} 回合${p.threatDelta ? `，迫近度 ${p.threatDelta > 0 ? "+" : ""}${p.threatDelta}` : ""}`;
+    case EVENT_TYPES.DISCOVERY:
+      return `發現${p.kind === "clue" ? "線索" : "事件結果"}「${p.title ?? p.id ?? "未知"}」`;
+    case EVENT_TYPES.QUESTION_UPDATE:
+      return `未解問題更新：${(p.questions ?? []).map((q) => `${q.id ?? "未知"}=${q.status ?? "未知"}`).join("、") || "無"}`;
     default:
       return "未知事件";
   }

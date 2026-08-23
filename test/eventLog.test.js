@@ -72,6 +72,9 @@ test("summarizeForJournal：EVENT_TYPES 裡的每一種都要有摘要，新增�
     [EVENT_TYPES.FORM]: { event: "啟動", formId: "f1", label: "獸化" },
     [EVENT_TYPES.REST]: { kind: "打坐", location: "副本中", summary: "恢復2點衝擊傷" },
     [EVENT_TYPES.REFERENCE_ACTION]: { sceneId: "evt_test", approachId: "app_test", outcomeTier: "成功", resultKey: "成功" },
+    [EVENT_TYPES.TRAVEL]: { from: "loc_a", to: "loc_b", location: "科學區", timeCost: 1, threatDelta: 1 },
+    [EVENT_TYPES.DISCOVERY]: { id: "clue_test", kind: "clue", title: "測試線索" },
+    [EVENT_TYPES.QUESTION_UPDATE]: { questions: [{ id: "q_test", status: "updated" }] },
   };
 
   const log = createEventLog();

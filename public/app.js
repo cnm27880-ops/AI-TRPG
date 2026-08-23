@@ -3,6 +3,7 @@
 let currentCharacter = null;
 let currentOptions = [];
 let turnInFlight = false;
+let travelInFlight = false;
 let currentSessionId = null;
 let chargenRules = null;
 
@@ -1481,6 +1482,7 @@ function renderExplorationTerminal(view) {
   const terminalMap = document.getElementById("exploration-terminal-map");
   const terminalRoutes = document.getElementById("exploration-terminal-routes");
   const terminalDiscoveries = document.getElementById("exploration-terminal-discoveries");
+  const terminalQuestions = document.getElementById("exploration-terminal-questions");
   const terminalNpcs = document.getElementById("exploration-terminal-npcs");
   const terminalEnvironment = document.getElementById("exploration-terminal-environment");
   if (!terminalMap) return;
@@ -1493,6 +1495,7 @@ function renderExplorationTerminal(view) {
     terminalMap.innerHTML = `<div class="text-[11px] text-zinc-500">目前尚未取得玩家可見的地圖資料。</div>`;
     if (terminalRoutes) terminalRoutes.innerHTML = "";
     if (terminalDiscoveries) terminalDiscoveries.textContent = "尚未記錄新的發現。";
+    if (terminalQuestions) terminalQuestions.textContent = "目前沒有待追查的問題。";
     if (terminalNpcs) terminalNpcs.textContent = "目前沒有已確認的附近人物。";
     if (terminalEnvironment) terminalEnvironment.textContent = "等待位置資料……";
     return;
@@ -1516,18 +1519,56 @@ function renderExplorationTerminal(view) {
   const routes = Array.isArray(view.nearbyRoutes) ? view.nearbyRoutes : [];
   if (terminalRoutes) {
     terminalRoutes.innerHTML = routes.length
-      ? routes.map((route) => `<div class="exploration-route-card">
-          <div class="min-w-0"><strong>${escapeHtml(route.label)}</strong><br><span>${escapeHtml(route.purpose ?? "確認這條路線的狀況")}</span></div>
-          <span class="shrink-0 text-zinc-500">路線已知</span>
-        </div>`).join("")
+      ? routes.map((route) => {
+          const available = route.actionReady === true;
+          const lockedText = route.lockReason ?? "目前尚未由主線事件授權";
+          const actionText = available
+            ? (travelInFlight ? "移動中……" : `移動 · ${Number(route.timeCost) || 1} 回合`)
+            : `暫不可用 · ${lockedText}`;
+          const risk = available && route.riskLabel
+            ? `<span class="exploration-route-risk">${escapeHtml(route.riskLabel)}</span>`
+            : "";
+          return `<div class="exploration-route-card ${available ? "is-available" : "is-locked"}">
+            <div class="min-w-0 flex-1"><strong>${escapeHtml(route.label)}</strong><br><span>${escapeHtml(route.purpose ?? "確認這條路線的狀況")}</span></div>
+            <div class="exploration-route-action">
+              ${available
+                ? `<button type="button" class="exploration-route-btn" data-travel-to="${escapeHtml(route.to)}" ${travelInFlight ? "disabled" : ""}>${escapeHtml(actionText)}</button>`
+                : `<span title="${escapeHtml(lockedText)}">${escapeHtml(actionText)}</span>`}
+              ${risk}
+            </div>
+          </div>`;
+        }).join("")
       : `<div class="rounded border hairline-border border-dashed p-2.5 text-[11px] text-zinc-500">目前沒有可確認的相鄰路線。</div>`;
+    terminalRoutes.querySelectorAll("[data-travel-to]").forEach((button) => {
+      button.addEventListener("click", () => travelToLocation(button.dataset.travelTo));
+    });
   }
 
   const discoveries = Array.isArray(view.recentDiscoveries) ? view.recentDiscoveries : [];
   if (terminalDiscoveries) {
     terminalDiscoveries.innerHTML = discoveries.length
-      ? discoveries.map((item) => `<div>· ${escapeHtml(typeof item === "string" ? item : item.text ?? item.label ?? "已記錄發現")}</div>`).join("")
+      ? discoveries.map((item) => {
+          const title = typeof item === "string" ? "已記錄發現" : item.title ?? item.label ?? "已記錄發現";
+          const text = typeof item === "string" ? item : item.text ?? "已記錄發現";
+          return `<div class="mb-1 last:mb-0"><strong class="text-zinc-200">${escapeHtml(title)}</strong><br><span>· ${escapeHtml(text)}</span></div>`;
+        }).join("")
       : "尚未記錄新的發現。";
+  }
+
+  const questions = Array.isArray(view.unresolvedQuestions) ? view.unresolvedQuestions : [];
+  if (terminalQuestions) {
+    terminalQuestions.innerHTML = questions.length
+      ? questions.map((question) => {
+          const status = question.status ?? "open";
+          const answer = status === "answered" && question.answer
+            ? `<div class="mt-1 text-emerald-200/90">${escapeHtml(question.answer)}</div>`
+            : "";
+          const evidence = Array.isArray(question.evidence) && question.evidence.length
+            ? `<div class="mt-1 text-zinc-500">已有 ${question.evidence.length} 項相關線索</div>`
+            : "";
+          return `<div class="exploration-question is-${escapeHtml(status)} mb-1 last:mb-0"><div>${escapeHtml(question.text ?? "待追查問題")}</div><div class="exploration-question-status">${escapeHtml(question.statusLabel ?? "未解")}</div>${evidence}${answer}</div>`;
+        }).join("")
+      : "目前沒有待追查的問題。";
   }
 
   const nearbyNpcs = Array.isArray(view.nearbyNpcs) ? view.nearbyNpcs : [];
@@ -1545,6 +1586,50 @@ function renderExplorationTerminal(view) {
     if (features.length) lines.push(`<div><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
     if (hazards.length) lines.push(`<div><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
     terminalEnvironment.innerHTML = lines.length ? lines.join("") : "目前沒有額外的環境狀態記錄。";
+  }
+}
+
+async function travelToLocation(destinationId) {
+  if (!destinationId || !currentSessionId || turnInFlight || travelInFlight) return;
+  travelInFlight = true;
+  setTurnInputLocked(true);
+  renderExplorationTerminal(lastExplorationView);
+  try {
+    const httpResponse = await fetch("/api/travel", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionId: currentSessionId, to: destinationId }),
+    });
+    const response = await httpResponse.json().catch(() => ({ ok: false, error: "伺服器回傳不是合法 JSON" }));
+    if (!httpResponse.ok || !response.ok) {
+      appendFeedEvent("fault", "移動未獲准", escapeHtml(response.error ?? `移動失敗（HTTP ${httpResponse.status}）`));
+      if (response.scenario) updateScenarioHud(response.scenario);
+      return;
+    }
+
+    appendFeedEvent("action", "探索移動", escapeHtml(`前往${response.travel?.label ?? destinationId}`));
+    if (response.narration) appendNarrationBlock(response.narration);
+    const risk = response.travel?.risk;
+    if (risk?.label) {
+      appendFeedEvent(
+        "world",
+        "環境回饋",
+        escapeHtml(risk.label),
+        { tone: Number(risk.threatDelta) > 0 ? "bad" : "neutral" }
+      );
+    }
+    if (response.character) adoptCharacter(response.character);
+    renderOptions(response.options || []);
+    if (response.turnCount) document.getElementById("turn-counter").textContent = response.turnCount;
+    if (response.scenario) updateScenarioHud(response.scenario);
+    refreshJournalIfOpen();
+  } catch (err) {
+    console.error("[TRAVEL_FAILURE] /api/travel 呼叫失敗", err);
+    appendFeedEvent("fault", "移動連線失敗", escapeHtml(`無法完成移動：${err.message}`));
+  } finally {
+    travelInFlight = false;
+    setTurnInputLocked(false);
+    renderExplorationTerminal(lastExplorationView);
   }
 }
 

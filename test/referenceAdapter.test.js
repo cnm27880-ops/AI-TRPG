@@ -14,6 +14,10 @@ import {
   validateThreatAssessment,
   referenceStateForResponse,
 } from "../content/scenario/referenceAdapter.js";
+import {
+  resolveTravelAction,
+  applyTravelAction,
+} from "../content/scenario/explorationState.js";
 
 test("reference adapter builds opening approaches and matches a chosen option", () => {
   const character = emptyCharacter("測試者");
@@ -248,7 +252,7 @@ test("exploration response exposes current location and known adjacent routes on
   assert.deepEqual(response.exploration.nearbyRoutes.map((route) => route.to), [
     "loc_deck_a", "loc_service_corridor",
   ]);
-  assert.equal(response.exploration.nearbyRoutes[0].actionReady, false);
+  assert.equal(response.exploration.nearbyRoutes[0].actionReady, true);
   assert.equal(response.exploration.knownLocations.some((location) => location.id === "loc_science"), false);
   assert.equal(JSON.stringify(response).includes("privateGoals"), false);
   assert.equal(JSON.stringify(response).includes("生化人"), false);
@@ -277,4 +281,86 @@ test("reference state shape remains independent from the generic threat track", 
   assert.equal(state.threatStage, undefined);
   assert.equal(state.currentLocation, "loc_cryo");
   assert.deepEqual(state.visitedLocations, ["loc_cryo"]);
+});
+
+
+test("reference results create public discoveries and unresolved questions without leaking GM truth", () => {
+  const character = emptyCharacter("測試者");
+  const state = createReferenceState(reference);
+  assert.deepEqual(state.unresolvedQuestions.map((question) => question.id), ["q_player_manifest"]);
+  assert.deepEqual(state.recentDiscoveries, []);
+
+  const reconOption = buildReferenceOptions(reference, state).find(
+    (option) => option.reference.approachId === "app_cryo_recon"
+  );
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: reconOption, character });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "成功" });
+  const exploration = referenceStateForResponse(reference, applied.state).exploration;
+
+  assert.ok(exploration.recentDiscoveries.some((item) => item.kind === "event_result"));
+  assert.ok(exploration.recentDiscoveries.some((item) => item.id === "clue:clue_alien_trace"));
+  assert.equal(exploration.unresolvedQuestions.find((item) => item.id === "q_alien_route")?.status, "updated");
+  assert.equal(JSON.stringify(exploration).includes("fixedTruths"), false);
+  assert.equal(JSON.stringify(exploration).includes("privateGoals"), false);
+});
+
+test("Ash question resolves only after the reference flag confirms the identity", () => {
+  const character = emptyCharacter("測試者");
+  const state = {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_luyuan_met"],
+    npcStatuses: { ...createReferenceState(reference).npcStatuses, npc_luyuan: "met", npc_ash: "alive" },
+    unresolvedQuestions: [{ id: "q_player_manifest", text: "為什麼休眠名冊裡沒有我的名字？", status: "open", evidence: [] }, {
+      id: "q_ash_identity",
+      text: "Ash 為什麼能在這艘船上保持不尋常的權限？",
+      status: "open",
+      evidence: [],
+    }],
+  };
+  const option = buildReferenceOptions(reference, state).find(
+    (item) => item.reference.approachId === "app_ash_observe_abnormal"
+  );
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "大成功" });
+  const question = applied.state.unresolvedQuestions.find((item) => item.id === "q_ash_identity");
+  assert.equal(applied.state.flags.includes("flag_ash_synthetic_known"), true);
+  assert.equal(question.status, "answered");
+  assert.equal(question.answer.includes("普通人類"), true);
+});
+
+test("travel resolver only authorizes adjacent forward routes with fixed gates", () => {
+  const initial = createReferenceState(reference);
+  const toDeck = resolveTravelAction(reference, initial, "loc_deck_a");
+  assert.equal(toDeck.ok, true);
+  assert.equal(toDeck.timeCost, 1);
+  const noisy = resolveTravelAction(reference, { ...initial, flags: ["flag_noise_made"] }, "loc_deck_a");
+  assert.equal(noisy.risk.threatDelta, 1);
+  assert.equal(noisy.risk.level, "elevated");
+
+  const deckReady = {
+    ...initial,
+    flags: ["flag_cryo_left"],
+  };
+  const deck = applyTravelAction(reference, deckReady, toDeck);
+  assert.equal(deck.state.currentLocation, "loc_deck_a");
+  assert.equal(deck.state.currentSceneId, "evt_deck_a_recon");
+  assert.ok(deck.state.visitedLocations.includes("loc_deck_a"));
+
+  const bypass = resolveTravelAction(reference, deck.state, "loc_science");
+  assert.equal(bypass.ok, false);
+  assert.equal(bypass.code, "TRAVEL_LOCKED");
+
+  const met = { ...deck.state, flags: [...deck.state.flags, "flag_luyuan_met"] };
+  const toScience = resolveTravelAction(reference, met, "loc_science");
+  assert.equal(toScience.ok, true);
+  const science = applyTravelAction(reference, met, toScience);
+  assert.equal(science.state.currentSceneId, "evt_meet_ash");
+  assert.equal(science.state.currentLocation, "loc_science");
+  assert.equal(science.state.unresolvedQuestions.some((question) => question.id === "q_ash_identity"), true);
+
+  const nonAdjacent = resolveTravelAction(reference, science.state, "loc_narcissus");
+  assert.equal(nonAdjacent.ok, false);
+  assert.equal(nonAdjacent.code, "NOT_ADJACENT");
 });

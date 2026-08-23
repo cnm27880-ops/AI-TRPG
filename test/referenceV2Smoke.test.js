@@ -4,6 +4,8 @@ import { createServer } from "node:http";
 import { emptyCharacter } from "../core/schema.js";
 import { onRequestPost as createSession, onRequestGet as getSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
+import { onRequestPost as travel } from "../functions/api/travel.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 
 function jsonRequest(url, body) {
   return new Request(url, {
@@ -105,6 +107,7 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(opening.body.ok, true);
   assert.match(opening.body.narration, /休眠室/);
   assert.equal(opening.body.options.some((option) => option.reference?.approachId === "app_cryo_recon"), true);
+  assert.deepEqual(opening.body.scenario.reference.exploration.unresolvedQuestions.map((question) => question.id), ["q_player_manifest"]);
   assert.deepEqual(opening.body.scenario.reference.npcs, [], "尚未接觸人物前不應公開整份 NPC roster");
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("privateGoals"), false);
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("生化人"), false);
@@ -265,4 +268,134 @@ test("V2 reference free input accepts bounded threatAssessment and keeps referen
   assert.match(freeInputPrompt, /引擎本回合的判定分級/);
   assert.match(freeInputPrompt, /門已打開／鎖死/);
   assert.match(freeInputPrompt, /只能寫成這次嘗試的可觀察成功部分/);
+});
+
+
+test("V2 travel endpoint is server-authoritative and does not call the LLM", async () => {
+  const mock = await startMockLlm();
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  try {
+    const created = await readJson(await createSession({
+      request: jsonRequest("https://test.local/api/session", {
+        character: emptyCharacter("travel 測試者"),
+        scenarioId: "scenario.nostromo-01-v2",
+      }),
+      env,
+    }));
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    const sessionId = created.body.session.id;
+
+    const opening = await readJson(await playTurn({
+      request: jsonRequest("https://test.local/api/turn", { sessionId }),
+      env,
+    }));
+    const afterLeave = await readJson(await travel({
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }),
+      env,
+    }));
+    assert.equal(afterLeave.status, 200, JSON.stringify(afterLeave.body));
+    assert.equal(afterLeave.body.travel.from, "loc_cryo");
+    assert.equal(afterLeave.body.travel.to, "loc_deck_a");
+    assert.equal(afterLeave.body.scenario.reference.eventId, "evt_deck_a_recon");
+    assert.equal(mock.prompts.length, 0, "初始 route travel 不應呼叫 LLM");
+
+    const luyuan = afterLeave.body.options.find((option) => option.reference?.approachId === "app_deck_luyuan_contact");
+    const afterLuyuan = await readJson(await playTurn({
+      request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: luyuan }),
+      env,
+    }));
+    assert.equal(afterLuyuan.status, 200, JSON.stringify(afterLuyuan.body));
+    const scienceRoute = afterLuyuan.body.scenario.reference.exploration.nearbyRoutes.find(
+      (route) => route.to === "loc_science"
+    );
+    assert.equal(scienceRoute.actionReady, true);
+    assert.equal(scienceRoute.timeCost, 1);
+
+    const beforeLlmCalls = mock.prompts.length;
+    const moved = await readJson(await travel({
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_science" }),
+      env,
+    }));
+    assert.equal(moved.status, 200, JSON.stringify(moved.body));
+    assert.equal(moved.body.ok, true);
+    assert.equal(moved.body.travel.from, "loc_deck_a");
+    assert.equal(moved.body.travel.to, "loc_science");
+    assert.equal(moved.body.travel.timeCost, 1);
+    assert.equal(moved.body.travel.timeBudget.spentRounds, 3);
+    assert.equal(moved.body.scenario.reference.location, "loc_science");
+    assert.equal(moved.body.scenario.reference.eventId, "evt_meet_ash");
+    assert.equal(moved.body.scenario.reference.exploration.unresolvedQuestions.some((question) => question.id === "q_ash_identity"), true);
+    assert.equal(mock.prompts.length, beforeLlmCalls, "travel 不應呼叫 LLM");
+
+    const rejected = await readJson(await travel({
+      request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_narcissus" }),
+      env,
+    }));
+    assert.equal(rejected.status, 409);
+    assert.equal(rejected.body.code, "NOT_ADJACENT");
+  } finally {
+    await new Promise((resolve) => mock.server.close(resolve));
+  }
+});
+
+
+test("V2 travel endpoint refuses pending combat, pending turn, and expired time", async () => {
+  const env = {};
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("travel guard 測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const sessionId = created.body.session.id;
+  const store = resolveSessionStore(env);
+  const saved = await store.get(sessionId);
+  const originalLocation = saved.scenario.referenceState.currentLocation;
+
+  saved.scenario.progress = {
+    ...saved.scenario.progress,
+    pendingCombat: true,
+  };
+  await store.put(saved);
+  const combatBlocked = await readJson(await travel({
+    request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }),
+    env,
+  }));
+  assert.equal(combatBlocked.status, 409);
+  assert.equal(combatBlocked.body.code, "COMBAT_REQUIRED");
+  assert.equal((await store.get(sessionId)).scenario.referenceState.currentLocation, originalLocation);
+
+  const pending = await store.get(sessionId);
+  pending.scenario.progress = { ...pending.scenario.progress, pendingCombat: false };
+  pending.pendingTurn = { requestId: "turn:pending", chosenOption: null, playerAction: "等待" };
+  await store.put(pending);
+  const turnBlocked = await readJson(await travel({
+    request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }),
+    env,
+  }));
+  assert.equal(turnBlocked.status, 409);
+  assert.equal(turnBlocked.body.code, "PENDING_TURN");
+
+  const expired = await store.get(sessionId);
+  expired.pendingTurn = null;
+  expired.scenario.progress = {
+    ...expired.scenario.progress,
+    timeBudget: { ...expired.scenario.progress.timeBudget, spentRounds: expired.scenario.progress.timeBudget.totalRounds },
+  };
+  await store.put(expired);
+  const timeBlocked = await readJson(await travel({
+    request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_deck_a" }),
+    env,
+  }));
+  assert.equal(timeBlocked.status, 409);
+  assert.equal(timeBlocked.body.code, "TIME_EXPIRED");
+  assert.equal((await store.get(sessionId)).scenario.referenceState.currentLocation, originalLocation);
 });

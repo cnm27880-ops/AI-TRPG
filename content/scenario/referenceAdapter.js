@@ -11,6 +11,13 @@
 
 import { difficultyToDc, validateOption } from "../turnOptions.js";
 import { applyDamage } from "../../core/health.js";
+import {
+  synchronizeExplorationState,
+  recordReferenceDiscoveries,
+  publicExplorationDiscoveries,
+  publicUnresolvedQuestions,
+  resolveTravelAction,
+} from "./explorationState.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -156,7 +163,7 @@ function initialNpcStatuses(reference) {
 
 export function createReferenceState(reference, { initialInventory = [] } = {}) {
   const scene = firstScene(reference);
-  return {
+  const initialState = {
     version: 1,
     referenceId: reference?.sourcePackId ?? null,
     currentSceneId: scene?.id ?? null,
@@ -172,6 +179,8 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     ),
     damagedItems: [],
     clues: [],
+    recentDiscoveries: [],
+    unresolvedQuestions: [],
     npcStatuses: initialNpcStatuses(reference),
     npcTrust: {},
     injuries: [],
@@ -186,13 +195,14 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     actionHistory: [],
     endingId: null,
   };
+  return synchronizeExplorationState(reference, initialState);
 }
 
 /** 舊存檔沒有 referenceState，或 reference 換版時，補成可用形狀；只補欄位，不重置已有狀態。 */
 export function normalizeReferenceState(reference, rawState) {
   const fresh = createReferenceState(reference);
   if (!rawState || typeof rawState !== "object" || rawState.referenceId !== fresh.referenceId) return fresh;
-  return {
+  const normalized = {
     ...fresh,
     ...rawState,
     referenceId: fresh.referenceId,
@@ -207,6 +217,8 @@ export function normalizeReferenceState(reference, rawState) {
     inventory: unique(rawState.inventory),
     damagedItems: unique(rawState.damagedItems),
     clues: unique(rawState.clues),
+    recentDiscoveries: Array.isArray(rawState.recentDiscoveries) ? rawState.recentDiscoveries.slice(-24) : [],
+    unresolvedQuestions: Array.isArray(rawState.unresolvedQuestions) ? rawState.unresolvedQuestions.slice(-24) : [],
     npcStatuses: cloneObject(rawState.npcStatuses, fresh.npcStatuses),
     npcTrust: cloneObject(rawState.npcTrust, {}),
     injuries: unique(rawState.injuries),
@@ -215,6 +227,7 @@ export function normalizeReferenceState(reference, rawState) {
       : 0,
     actionHistory: Array.isArray(rawState.actionHistory) ? rawState.actionHistory.slice(-24) : [],
   };
+  return synchronizeExplorationState(reference, normalized);
 }
 
 function flagSet(state) {
@@ -467,6 +480,8 @@ function applyBasicEffects(state, effects = {}) {
     inventory: [...state.inventory],
     damagedItems: [...state.damagedItems],
     clues: [...state.clues],
+    recentDiscoveries: [...(state.recentDiscoveries ?? [])],
+    unresolvedQuestions: [...(state.unresolvedQuestions ?? [])],
     injuries: [...state.injuries],
     npcStatuses: { ...state.npcStatuses },
     npcTrust: { ...state.npcTrust },
@@ -623,8 +638,16 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     return { applied: false, state, error: `事件「${resolution.approach.id}」沒有結果「${outcomeTier}」的文字或後果資料` };
   }
 
+  const conditionalEffects = conditionalEffectsFor(selected.result, state);
   let nextState = applyBasicEffects(state, selected.result.effects ?? {});
-  for (const effects of conditionalEffectsFor(selected.result, nextState)) nextState = applyBasicEffects(nextState, effects);
+  for (const effects of conditionalEffects) nextState = applyBasicEffects(nextState, effects);
+  const discoveryEffects = {
+    ...(selected.result.effects ?? {}),
+    cluesAdd: unique([
+      ...(selected.result.effects?.cluesAdd ?? []),
+      ...conditionalEffects.flatMap((effects) => effects.cluesAdd ?? []),
+    ]),
+  };
 
   const derivedEndingId = deriveEndingId(reference, nextState);
   if (derivedEndingId) nextState.endingId = derivedEndingId;
@@ -664,6 +687,12 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     lastResultText: selected.result.text ?? null,
     actionHistory: [...(nextState.actionHistory ?? []), actionEntry].slice(-24),
   };
+  nextState = recordReferenceDiscoveries(reference, nextState, {
+    scene: resolution.scene,
+    approach: resolution.approach,
+    result: selected.result,
+    effects: discoveryEffects,
+  });
 
   const nextNode = nextScene?.nodeId ?? null;
   const nodeComplete =
@@ -722,6 +751,8 @@ export function buildReferencePromptBlock({
     `玩家目前可知：${(scene.entryKnowledge ?? []).join("；") || "依故事歷史"}`,
     `本事件節拍：${(scene.beats ?? []).join(" → ") || "依玩家行動推進"}`,
     ...(applied && currentScene?.id !== scene.id ? [`下一事件：${currentScene?.id ?? "依狀態決定"}`] : []),
+    `玩家最近確認的探索紀錄：${publicExplorationDiscoveries(state).map((item) => `${item.title}：${item.text}`).join("；") || "尚無"}`,
+    `玩家未解問題：${publicUnresolvedQuestions(state).filter((item) => item.status !== "answered").map((item) => item.text).join("；") || "尚無"}`,
     "",
     "可供玩家參考的 approach（不是限制；合理的其他行動可以由 adapter 以最接近的方法裁定）：",
   ];
@@ -871,12 +902,17 @@ export function buildExplorationView(reference, state) {
   const knownLocations = knownIds.map((id) => publicLocation(reference, id, visited, current)).filter(Boolean);
   const nearbyRoutes = nearbyIds.map((id) => {
     const location = publicLocation(reference, id, visited, current);
+    const travel = resolveTravelAction(reference, state, id);
     return {
       to: id,
       label: location?.name ?? id,
       purpose: location?.purpose ?? "確認這條路線的狀況",
-      status: "route_known",
-      actionReady: false,
+      status: travel.ok ? "available" : "locked",
+      actionReady: travel.ok,
+      timeCost: travel.ok ? travel.timeCost : null,
+      riskLevel: travel.ok ? travel.risk.level : null,
+      riskLabel: travel.ok ? travel.risk.labels.join("、") : null,
+      lockReason: travel.ok ? null : travel.error,
     };
   });
 
@@ -897,8 +933,8 @@ export function buildExplorationView(reference, state) {
       }[npc.id];
       return sceneIds?.includes(state?.currentSceneId) || state?.npcStatuses?.[npc.id] !== "alive";
     }),
-    recentDiscoveries: [],
-    unresolvedQuestions: [],
+    recentDiscoveries: publicExplorationDiscoveries(state),
+    unresolvedQuestions: publicUnresolvedQuestions(state),
     environmentState: {
       featureSummary: currentMap?.features?.slice(0, 3) ?? [],
       hazardSummary: visited.includes(current) ? (currentMap?.hazards?.slice(0, 2) ?? []) : [],
@@ -954,14 +990,14 @@ export function applyReferenceFinaleVictory(reference, state) {
     playerLocation: "loc_narcissus",
   });
   const returnScene = findScene(reference, "evt_hypersleep_return");
-  return {
+  return synchronizeExplorationState(reference, {
     ...next,
     currentSceneId: returnScene?.id ?? next.currentSceneId,
     currentLocation: returnScene?.location ?? next.currentLocation,
     lastApproachId: "combat.n4",
     lastOutcomeTier: "戰鬥勝利",
     completedSceneIds: unique([...next.completedSceneIds, "evt_narcissus_shadow_wake", "evt_narcissus_final_purge"]),
-  };
+  });
 }
 
 export function divergenceTierForReferenceOutcome(outcomeTier) {

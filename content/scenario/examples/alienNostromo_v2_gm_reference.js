@@ -279,6 +279,138 @@ export default {
       ]
     }
   ],
+  "travelTransitions": [
+    {
+      "id": "travel_cryo_deck_a",
+      "from": "loc_cryo",
+      "to": "loc_deck_a",
+      "entryEventId": "evt_deck_a_recon",
+      "effects": {
+        "flagsAdd": [
+          "flag_cryo_cleared",
+          "flag_cryo_left"
+        ],
+        "cluesAdd": [
+          "clue_alien_trace"
+        ]
+      }
+    },
+    {
+      "id": "travel_deck_a_science",
+      "from": "loc_deck_a",
+      "to": "loc_science",
+      "required": {
+        "flags": [
+          "flag_luyuan_met"
+        ]
+      },
+      "entryEventId": "evt_meet_ash",
+      "effects": {
+        "flagsAdd": [
+          "flag_deck_science_route"
+        ]
+      }
+    },
+    {
+      "id": "travel_science_mother_core",
+      "from": "loc_science",
+      "to": "loc_mother_core",
+      "required": {
+        "flags": [
+          "flag_937_path_known"
+        ]
+      },
+      "entryEventId": "evt_order_937_reveal"
+    },
+    {
+      "id": "travel_mother_core_engine",
+      "from": "loc_mother_core",
+      "to": "loc_engine",
+      "required": {
+        "flags": [
+          "flag_order_937_revealed"
+        ]
+      },
+      "entryEventId": "evt_trigger_overload"
+    },
+    {
+      "id": "travel_service_corridor_lower_deck",
+      "from": "loc_service_corridor",
+      "to": "loc_lower_deck",
+      "required": {
+        "flags": [
+          "flag_overload_active"
+        ]
+      },
+      "entryEventId": "evt_vent_ambush_escape"
+    },
+    {
+      "id": "travel_cargo_lower_deck",
+      "from": "loc_cargo",
+      "to": "loc_lower_deck",
+      "required": {
+        "flags": [
+          "flag_overload_active"
+        ]
+      },
+      "entryEventId": "evt_vent_ambush_escape"
+    },
+    {
+      "id": "travel_engine_lower_deck",
+      "from": "loc_engine",
+      "to": "loc_lower_deck",
+      "required": {
+        "flags": [
+          "flag_overload_active"
+        ]
+      },
+      "entryEventId": "evt_vent_ambush_escape"
+    },
+    {
+      "id": "travel_cargo_airlock",
+      "from": "loc_cargo",
+      "to": "loc_narcissus_airlock",
+      "required": {
+        "flags": [
+          "flag_narcissus_route_unlocked"
+        ]
+      },
+      "entryEventId": "evt_narcissus_final_purge"
+    },
+    {
+      "id": "travel_engine_airlock",
+      "from": "loc_engine",
+      "to": "loc_narcissus_airlock",
+      "required": {
+        "flags": [
+          "flag_narcissus_route_unlocked"
+        ]
+      },
+      "entryEventId": "evt_narcissus_final_purge"
+    },
+    {
+      "id": "travel_lower_deck_airlock",
+      "from": "loc_lower_deck",
+      "to": "loc_narcissus_airlock",
+      "required": {
+        "flags": [
+          "flag_narcissus_route_unlocked"
+        ]
+      },
+      "entryEventId": "evt_narcissus_final_purge"
+    },
+    {
+      "id": "travel_airlock_narcissus",
+      "from": "loc_narcissus_airlock",
+      "to": "loc_narcissus",
+      "required": {
+        "flags": [
+          "flag_escaped_to_narcissus"
+        ]
+      },
+      "entryEventId": "evt_narcissus_shadow_wake"
+    }
+  ],
   "npcs": [
     {
       "id": "npc_luyuan",
@@ -461,6 +593,84 @@ export default {
       "id": "clue_narcissus_prep",
       "name": "水仙號處置資料",
       "reveals": "氣閘、推進器、安全繩與低溫休眠艙的操作條件"
+    }
+  ],
+  "unresolvedQuestions": [
+    {
+      "id": "q_player_manifest",
+      "text": "為什麼休眠名冊裡沒有我的名字？",
+      "openOnStart": true,
+      "evidenceClues": [
+        "clue_ship_map"
+      ]
+    },
+    {
+      "id": "q_alien_route",
+      "text": "異形是沿哪條路線移動？",
+      "openWhen": {
+        "allClues": [
+          "clue_alien_trace"
+        ]
+      },
+      "evidenceClues": [
+        "clue_alien_trace",
+        "clue_motion_route"
+      ],
+      "answerWhen": {
+        "allClues": [
+          "clue_alien_trace",
+          "clue_motion_route"
+        ]
+      },
+      "answer": "目前可確認牠曾沿通風管與維修走廊活動，動作偵測器的訊號在科學區附近中斷。"
+    },
+    {
+      "id": "q_ash_identity",
+      "text": "Ash 為什麼能在這艘船上保持不尋常的權限？",
+      "openWhen": {
+        "scenes": [
+          "evt_meet_ash"
+        ]
+      },
+      "evidenceClues": [
+        "clue_ash_synthetic"
+      ],
+      "answerWhenFlags": [
+        "flag_ash_synthetic_known"
+      ],
+      "answer": "你已確認 Ash 不是普通人類；他的生化人身分可以解釋部分異常權限與行為。"
+    },
+    {
+      "id": "q_order_937",
+      "text": "誰把船員生命放在特別指令 937 之後？",
+      "openWhen": {
+        "allClues": [
+          "clue_order_937"
+        ]
+      },
+      "evidenceClues": [
+        "clue_order_937"
+      ],
+      "answerWhenFlags": [
+        "flag_order_937_revealed"
+      ],
+      "answer": "文件內容顯示，維蘭德-尤坦尼公司的特別指令把樣本優先於船員生命。"
+    },
+    {
+      "id": "q_narcissus_safety",
+      "text": "水仙號是否已經成為另一個無法安全撤離的陷阱？",
+      "openWhen": {
+        "allClues": [
+          "clue_narcissus_prep"
+        ]
+      },
+      "evidenceClues": [
+        "clue_narcissus_prep"
+      ],
+      "answerWhenFlags": [
+        "flag_xenomorph_killed"
+      ],
+      "answer": "逃生路線的安全性取決於氣閘、推進器與是否處理追入水仙號的異形。"
     }
   ],
   "stateSchema": {
