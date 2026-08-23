@@ -358,7 +358,7 @@
           "flag_937_path_known"
         ]
       },
-      "entryEventId": "evt_order_937_reveal"
+      "entryEventId": "evt_mother_chamber_infiltrate"
     },
     {
       "id": "travel_mother_core_engine",
@@ -369,7 +369,7 @@
           "flag_order_937_revealed"
         ]
       },
-      "entryEventId": "evt_trigger_overload"
+      "entryEventId": "evt_engine_coolant_prep"
     },
     {
       "id": "travel_service_corridor_lower_deck",
@@ -687,6 +687,12 @@
       "id": "item_biomedical_injector",
       "name": "高階生化製劑",
       "kind": "medical",
+      "carryOver": false
+    },
+    {
+      "id": "item_wrench_tool",
+      "name": "重型維修扳手",
+      "kind": "tool",
       "carryOver": false
     }
   ],
@@ -2369,7 +2375,8 @@
               "text": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
               "effects": {
                 "itemsAdd": [
-                  "item_blowtorch"
+                  "item_blowtorch",
+                  "item_wrench_tool"
                 ],
                 "worldFlagsAdd": [
                   "flag_cargo_tool_smash_attempted",
@@ -2384,7 +2391,8 @@
               "text": "鐵鎖應聲斷裂，櫃門大開。你拿到了焊槍，但金屬撞擊聲在貨艙內回盪不休。",
               "effects": {
                 "itemsAdd": [
-                  "item_blowtorch"
+                  "item_blowtorch",
+                  "item_wrench_tool"
                 ],
                 "worldFlagsAdd": [
                   "flag_cargo_tool_smash_attempted",
@@ -2399,7 +2407,8 @@
               "text": "你砸開了鎖，但反震力震裂了虎口，且巨大的響聲引來了遠處通風管內的劇烈刮擦。",
               "effects": {
                 "itemsAdd": [
-                  "item_blowtorch"
+                  "item_blowtorch",
+                  "item_wrench_tool"
                 ],
                 "injuriesAdd": [
                   "impact_hand_minor"
@@ -2589,7 +2598,10 @@
                   "flag_cargo_tool_abandoned"
                 ],
                 "timeCost": 1,
-                "threatDelta": 0
+                "threatDelta": 0,
+                "itemsAdd": [
+                  "item_wrench_tool"
+                ]
               }
             }
           }
@@ -3408,11 +3420,327 @@
           "loc_cargo"
         ],
         "nextByLocation": {
-          "loc_mother_core": "evt_order_937_reveal",
+          "loc_mother_core": "evt_mother_chamber_infiltrate",
           "loc_cargo": "evt_cargo_stalk"
         },
         "canReturn": false,
         "completeNode": "n1"
+      }
+    },
+    {
+      "id": "evt_mother_chamber_infiltrate",
+      "nodeId": "n2",
+      "location": "loc_mother_core",
+      "phase": "infiltration",
+      "defaultTransition": "stay",
+      "purpose": "破解主機核心房外圍的氣密門，讓玩家在真正查詢 937 前先取得進入權。",
+      "entryKnowledge": [
+        "玩家已從 Ash 或其他公開線索取得主機核心路徑",
+        "玩家知道這裡不是普通船員通道",
+        "玩家尚不知道 937 的完整內容"
+      ],
+      "gmTruth": [
+        "核心房受多重氣密門保護",
+        "門鎖可由技術、權限卡或焊槍處理",
+        "開門本身不等於已讀取主機內的 937 指令"
+      ],
+      "entryNarration": "這是一條純白色的環形加壓走廊，與船上其他地方的油污昏暗截然不同。盡頭是一扇厚重的圓形金屬門，門邊的鍵盤燈整齊地閃爍著微光。空氣安靜得可怕，連自己的心跳聲都清晰可聞。",
+      "narrativeSource": {
+        "eventId": "evt_mother_chamber_infiltrate",
+        "sourceFile": "異形(三).md",
+        "sourceLocation": "loc_mother",
+        "mappingNote": "原稿的 loc_mother 對應 V2 runtime map 的 loc_mother_core；原文只負責進入過場與結果演出，門禁與 scene transition 仍由 reference effects 裁定。",
+        "entryText": "這是一條純白色的環形加壓走廊，與船上其他地方的油污昏暗截然不同。盡頭是一扇厚重的圓形金屬門，門邊的鍵盤燈整齊地閃爍著微光。空氣安靜得可怕，連自己的心跳聲都清晰可聞。",
+        "sourceEvents": [
+          "evt_mother_chamber_infiltrate"
+        ],
+        "outcomes": {
+          "app_mother_door_hack": {
+            "大成功": "鍵盤上的紅燈轉綠，圓形金屬門伴隨著低沉的氣壓釋放聲緩緩旋轉開啟。",
+            "成功": "鍵盤上的紅燈轉綠，圓形金屬門伴隨著低沉的氣壓釋放聲緩緩旋轉開啟。",
+            "驚險成功": "你成功破譯了大門，但在最後一步觸發了登錄日誌記錄，母神系統記錄下了一次未授權物理存取。",
+            "失敗": "連續輸入錯誤三次，鍵盤鎖定五分鐘。"
+          },
+          "app_mother_door_card": {
+            "自動": "刷卡槽發出清脆的認證音，母神核心房的大門順暢打開，未觸發任何內部警報。"
+          },
+          "app_mother_door_torch": {
+            "大成功": "焊槍噴射出耀眼的藍白火舌，鎖舌熔斷脫落。門被推開，但門框留下了大片焦黑熔渣。",
+            "成功": "焊槍噴射出耀眼的藍白火舌，鎖舌熔斷脫落。門被推開，但門框留下了大片焦黑熔渣。",
+            "驚險成功": "門被切開，但高溫煙霧觸發了走廊的氣溶膠滅火系統，視線受到嚴重阻礙。",
+            "慘烈失敗": "焊槍火星引燃了加壓管線內的液壓油，引發小型回火爆炸，焊槍噴嘴損毀，你的雙手被燒傷。"
+          }
+        }
+      },
+      "beats": [
+        "穿過純白加壓走廊",
+        "辨識門禁動態金鑰與權限風險",
+        "選擇技術、權限或物理破拆",
+        "在成功開門後進入 937 查詢 scene"
+      ],
+      "approaches": [
+        {
+          "id": "app_mother_door_hack",
+          "label": "運用高階電子技術破譯門禁動態金鑰",
+          "intent": "無損破解進入主機核心",
+          "requiresCheck": true,
+          "attribute": "智力",
+          "skill": "技藝",
+          "difficulty": "困難",
+          "required": {
+            "locations": [
+              "loc_mother_core"
+            ],
+            "flagsAbsent": [
+              "flag_mother_door_open",
+              "flag_mother_hack_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "鍵盤上的紅燈轉綠，圓形金屬門伴隨著低沉的氣壓釋放聲緩緩旋轉開啟。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_door_open"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "鍵盤上的紅燈轉綠，圓形金屬門伴隨著低沉的氣壓釋放聲緩緩旋轉開啟。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_door_open"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "你成功破譯了大門，但在最後一步觸發了登錄日誌記錄，母神系統記錄下了一次未授權物理存取。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_door_open",
+                  "flag_mother_access_logged"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "動態金鑰在最後一段失效，門鎖沒有打開；你仍保留了部分錯誤碼，必須改用其他方法。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_access_logged"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "連續輸入錯誤三次，鍵盤鎖定五分鐘。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_core_locked"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "慘烈失敗": {
+              "text": "門禁拒絕了你的最後一組輸入，氣密走廊的警示燈轉紅；你及時拔離終端，但主機已記下未授權存取。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_hack_attempted",
+                  "flag_mother_alarm"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            }
+          }
+        },
+        {
+          "id": "app_mother_door_card",
+          "label": "使用從 Ripley 或 Ash 處獲取的權限副卡",
+          "intent": "憑藉正規憑證刷卡開門",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "items": [
+              "item_access_card"
+            ],
+            "locations": [
+              "loc_mother_core"
+            ],
+            "flagsAbsent": [
+              "flag_mother_door_open"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "刷卡槽發出清脆的認證音，母神核心房的大門順暢打開，未觸發任何內部警報。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_door_open",
+                  "flag_mother_card_used"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_mother_door_torch",
+          "label": "使用工程焊槍物理切割門鎖插銷",
+          "intent": "強行破拆氣密門",
+          "requiresCheck": true,
+          "attribute": "力量",
+          "skill": "體魄",
+          "difficulty": "普通",
+          "required": {
+            "items": [
+              "item_blowtorch"
+            ],
+            "locations": [
+              "loc_mother_core"
+            ],
+            "flagsAbsent": [
+              "flag_mother_door_open",
+              "flag_mother_torch_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "焊槍噴射出耀眼的藍白火舌，鎖舌熔斷脫落。門被推開，但門框留下了大片焦黑熔渣。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_door_open"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "焊槍噴射出耀眼的藍白火舌，鎖舌熔斷脫落。門被推開，但門框留下了大片焦黑熔渣。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_door_open"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "門被切開，但高溫煙霧觸發了走廊的氣溶膠滅火系統，視線受到嚴重阻礙。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_door_open",
+                  "flag_mother_smoke"
+                ],
+                "sceneTransition": "advance",
+                "nextEvent": "evt_order_937_reveal",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "門鎖外殼被切出一道裂口，卻沒有真正脫落；焊槍的燃料與你的時間都在消耗。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_access_logged"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "切割線偏離鎖舌，氣密門仍然閉合；高溫留下的焦痕讓這條通道更容易被追蹤。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_access_logged"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "焊槍火星引燃了加壓管線內的液壓油，引發小型回火爆炸，焊槍噴嘴損毀，你的雙手被燒傷。",
+              "effects": {
+                "itemsDamage": [
+                  "item_blowtorch"
+                ],
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_mother_torch_attempted",
+                  "flag_mother_alarm"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_mother_hold_corridor",
+          "label": "讓陸遠在走廊外圍建立防禦掩體",
+          "intent": "先固定退路並觀察門外動靜",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_mother_core"
+            ],
+            "flagsAbsent": [
+              "flag_mother_cover_set"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "陸遠把可移動的金屬箱拖到走廊轉角，留下能看見氣密門與退路的交叉火力位置；門鎖仍未解除。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_mother_cover_set"
+                ],
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "canReturn": false
       }
     },
     {
@@ -3485,7 +3813,7 @@
                 ],
                 "timeCost": 1,
                 "threatDelta": 1,
-                "nextEvent": "evt_trigger_overload"
+                "nextEvent": "evt_engine_coolant_prep"
               }
             },
             "成功": {
@@ -3619,7 +3947,7 @@
                 ],
                 "timeCost": 1,
                 "threatDelta": 2,
-                "nextEvent": "evt_trigger_overload"
+                "nextEvent": "evt_engine_coolant_prep"
               }
             },
             "失敗": {
@@ -3655,7 +3983,7 @@
           "loc_science"
         ],
         "nextByLocation": {
-          "loc_engine": "evt_trigger_overload",
+          "loc_engine": "evt_engine_coolant_prep",
           "loc_deck_a": "evt_trigger_overload",
           "loc_science": "evt_ash_ambush"
         },
@@ -3696,14 +4024,6 @@
           "evt_order_937_reveal"
         ],
         "fragments": [
-          {
-            "eventId": "evt_mother_chamber_infiltrate",
-            "title": "事件 10：潛入主機核心房",
-            "sourceFile": "異形(三).md",
-            "entryText": "這是一條純白色的環形加壓走廊，與船上其他地方的油污昏暗截然不同。盡頭是一扇厚重的圓形金屬門，門邊的鍵盤燈整齊地閃爍著微光。空氣安靜得可怕，連自己的心跳聲都清晰可聞。",
-            "outcomes": {},
-            "mappingNote": "V2 將事件 10 與事件 11 合併；此 fragment 保留原始主機核心潛入段落，實際規則仍由 evt_order_937_reveal 掌控。"
-          },
           {
             "eventId": "evt_order_937_reveal",
             "title": "事件 11：特別指令 937 的暴露",
@@ -3951,6 +4271,428 @@
         },
         "canReturn": false,
         "completeNode": "n2"
+      }
+    },
+    {
+      "id": "evt_engine_coolant_prep",
+      "nodeId": "n3",
+      "location": "loc_engine",
+      "phase": "pre_countdown",
+      "defaultTransition": "stay",
+      "purpose": "排查過載閥門、取得工程協助或設置蒸氣防線，讓自毀倒數在已知代價下開始。",
+      "entryKnowledge": [
+        "玩家已在主機核心得知 937 或已取得工程路線",
+        "工程區高溫高壓且不適合久留",
+        "玩家知道焊槍或扳手能改變可用選項"
+      ],
+      "gmTruth": [
+        "反應爐冷卻由四根機械閥門控制",
+        "Parker 是工程協助的公開候選人，但不提前公開其私下目標",
+        "工程準備完成不等於自毀已啟動，仍需明確進入事件 14"
+      ],
+      "entryNarration": "踏入工程區，刺骨的冷氣瞬間被滾燙的機油熱浪取代。巨大的引擎轟鳴震耳欲聾，白色高壓蒸氣自管壁縫隙不斷噴出。四座粗大的冷卻導管直通反應爐底座，手動過載閥門上覆蓋著厚厚的油垢。",
+      "narrativeSource": {
+        "eventId": "evt_engine_coolant_prep",
+        "sourceFile": "異形(三).md",
+        "entryText": "踏入工程區，刺骨的冷氣瞬間被滾燙的機油熱浪取代。巨大的引擎轟鳴震耳欲聾，白色高壓蒸氣自管壁縫隙不斷噴出。四座粗大的冷卻導管直通反應爐底座，手動過載閥門上覆蓋著厚厚的油垢。",
+        "sourceEvents": [
+          "evt_engine_coolant_prep"
+        ],
+        "outcomes": {
+          "app_engine_prep_valves": {
+            "大成功": "四根閥門的鎖死螺栓被全部鬆開，隨時可以手動拉下啟動超載。工程效率大幅提升。",
+            "成功": "四根閥門的鎖死螺栓被全部鬆開，隨時可以手動拉下啟動超載。工程效率大幅提升。",
+            "驚險成功": "螺栓被鬆開，但生鏽的鐵屑崩入了你的眼睛，造成短暫的視力模糊。",
+            "慘烈失敗": "扳手用力過猛砸斷了高壓蒸氣管，熾熱的白色蒸氣直接噴在你的胸口，造成二級燙傷。"
+          },
+          "app_engine_prep_parker": {
+            "大成功": "Parker 拿著噴火器從暗處走出，得知 937 指令後暴跳如雷，主動承擔了兩根閥門的過載操作。",
+            "成功": "Parker 拿著噴火器從暗處走出，得知 937 指令後暴跳如雷，主動承擔了兩根閥門的過載操作。"
+          },
+          "app_engine_prep_steam_shield": {
+            "大成功": "你調節了排氣閥，在通風管下方形成了一道高溫蒸氣幕簾，異形無法從此處直接撲下。",
+            "成功": "你調節了排氣閥，在通風管下方形成了一道高溫蒸氣幕簾，異形無法從此處直接撲下。"
+          }
+        }
+      },
+      "beats": [
+        "確認四根冷卻閥門與高壓蒸氣",
+        "選擇工具操作、Parker 協助或環境防線",
+        "保存準備結果與受傷／威脅代價",
+        "明確啟動事件 14 的自毀倒數"
+      ],
+      "approaches": [
+        {
+          "id": "app_engine_prep_valves",
+          "label": "使用重型扳手預先疏通生鏽卡死的閥門螺栓",
+          "intent": "確保拉動自毀閥門時不發生卡頓",
+          "requiresCheck": true,
+          "attribute": "力量",
+          "skill": "技藝",
+          "difficulty": "普通",
+          "required": {
+            "items": [
+              "item_wrench_tool"
+            ],
+            "locations": [
+              "loc_engine"
+            ],
+            "flagsAbsent": [
+              "flag_engine_valves_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "四根閥門的鎖死螺栓被全部鬆開，隨時可以手動拉下啟動超載。工程效率大幅提升。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_valves_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "四根閥門的鎖死螺栓被全部鬆開，隨時可以手動拉下啟動超載。工程效率大幅提升。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_valves_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "螺栓被鬆開，但生鏽的鐵屑崩入了你的眼睛，造成短暫的視力模糊。",
+              "effects": {
+                "injuriesAdd": [
+                  "impact_hand_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_valves_ready",
+                  "flag_engine_vision_blurred"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你只鬆開一根閥門的外側螺栓，剩下的卡死結構仍需要其他準備或更高風險的施力。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "扳手在油垢上打滑，閥門沒有鬆開；高壓蒸氣的震動卻使工程區的地面開始顫動。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_noise"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "扳手用力過猛砸斷了高壓蒸氣管，熾熱的白色蒸氣直接噴在你的胸口，造成二級燙傷。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_engine_valves_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_steam_leak"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_engine_prep_parker",
+          "label": "尋找工程師 Parker 協助調配冷卻劑配比",
+          "intent": "獲得專業 NPC 協助以加快過載進程",
+          "requiresCheck": true,
+          "attribute": "意志",
+          "skill": "交涉",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_engine"
+            ],
+            "flagsAbsent": [
+              "flag_engine_parker_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "Parker 拿著噴火器從暗處走出，得知 937 指令後暴跳如雷，主動承擔了兩根閥門的過載操作。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_parker": 2
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done",
+                  "flag_parker_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "Parker 拿著噴火器從暗處走出，得知 937 指令後暴跳如雷，主動承擔了兩根閥門的過載操作。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_parker": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done",
+                  "flag_parker_assisted"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "Parker 願意靠近控制區，但只替你確認了一根閥門；他要求你先處理蒸氣與退路。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "met"
+                },
+                "npcTrustDelta": {
+                  "npc_parker": 1
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你在蒸氣聲中找到 Parker，卻沒有說服他立刻接手；他只指出一個可用的維修標記。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "Parker 沒有接受你的說法，退回管線陰影後方；工程區仍缺少他的協助。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "你的喊聲讓 Parker 以為你要把他推出去承受高溫；他關閉了附近的維修閥，工程區的蒸氣壓力短暫上升。",
+              "effects": {
+                "npcStatusChanges": {
+                  "npc_parker": "suspicious"
+                },
+                "worldFlagsAdd": [
+                  "flag_engine_parker_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_steam_leak"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_engine_prep_steam_shield",
+          "label": "利用高壓蒸氣閥門設置防禦屏障",
+          "intent": "防範異形從管道上方突襲",
+          "requiresCheck": true,
+          "attribute": "智力",
+          "skill": "求生",
+          "difficulty": "普通",
+          "required": {
+            "locations": [
+              "loc_engine"
+            ],
+            "flagsAbsent": [
+              "flag_engine_steam_attempted"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你調節了排氣閥，在通風管下方形成了一道高溫蒸氣幕簾，異形無法從此處直接撲下。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done",
+                  "flag_steam_shield_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "你調節了排氣閥，在通風管下方形成了一道高溫蒸氣幕簾，異形無法從此處直接撲下。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done",
+                  "flag_steam_shield_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "蒸氣幕簾形成了，但壓力表指針已經貼近紅線；防線能用一次，不能視為穩定工程。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done",
+                  "flag_steam_shield_ready"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你找到了排氣閥，卻沒有讓蒸氣形成連續屏障；控制區上方仍然留有盲點。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "失敗": {
+              "text": "排氣閥在手中卡死，蒸氣沒有被導向預定位置；工程區的熱浪變得更難預測。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_noise"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "你錯開了壓力釋放順序，管壁發出裂響；白色蒸氣短暫噴向控制台，逼得所有人退開。",
+              "effects": {
+                "injuriesAdd": [
+                  "burn_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_engine_steam_attempted",
+                  "flag_engine_prep_done",
+                  "flag_engine_steam_leak"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "app_engine_hold_entrance",
+          "label": "站在下層入口持槍警戒",
+          "intent": "先觀察管道與退路，不立刻動閥門",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_engine"
+            ],
+            "flagsAbsent": [
+              "flag_engine_guard_done"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "你站在工程區入口，讓控制台、蒸氣管與退路都留在視線內；閥門尚未被處理。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_engine_guard_done"
+                ],
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
+          }
+        },
+        {
+          "id": "app_engine_start_overload",
+          "label": "確認準備狀態後進入自毀倒數操作",
+          "intent": "把已完成的工程準備交給事件 14 的實際拉閥判定",
+          "requiresCheck": false,
+          "attribute": null,
+          "skill": null,
+          "difficulty": null,
+          "required": {
+            "locations": [
+              "loc_engine"
+            ],
+            "flags": [
+              "flag_engine_prep_done"
+            ],
+            "flagsAbsent": [
+              "flag_overload_active"
+            ]
+          },
+          "outcomes": {
+            "自動": {
+              "text": "工程準備已保存。你把手伸向反應爐控制區，接下來是否能拉下過載閥門，仍要由下一個事件的判定決定。",
+              "effects": {
+                "sceneTransition": "advance",
+                "nextEvent": "evt_trigger_overload",
+                "timeCost": 0,
+                "threatDelta": 0
+              }
+            }
+          }
+        }
+      ],
+      "sceneExit": {
+        "canReturn": false
       }
     },
     {
@@ -4248,16 +4990,6 @@
         ],
         "sourceEvents": [
           "evt_trigger_overload"
-        ],
-        "fragments": [
-          {
-            "eventId": "evt_engine_coolant_prep",
-            "title": "事件 13：工程區冷卻系統探查",
-            "sourceFile": "異形(三).md",
-            "entryText": "踏入工程區，刺骨的冷氣瞬間被滾燙的機油熱浪取代。巨大的引擎轟鳴震耳欲聾，白色高壓蒸氣自管壁縫隙不斷噴出。四座粗大的冷卻導管直通反應爐底座，手動過載閥門上覆蓋著厚厚的油垢。",
-            "outcomes": {},
-            "mappingNote": "V2 將事件 13 的整備節拍併入工程區 scene；原始片段保留為前置／協同演出來源。"
-          }
         ]
       }
     },

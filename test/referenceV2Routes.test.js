@@ -10,6 +10,10 @@ import {
   deriveEndingId,
   resolveReferenceAction,
 } from "../content/scenario/referenceAdapter.js";
+import {
+  resolveTravelAction,
+  applyTravelAction,
+} from "../content/scenario/explorationState.js";
 
 const character = emptyCharacter("V2 路線測試者");
 
@@ -52,13 +56,21 @@ test("V2 完整成功路線：從休眠室走到水仙號休眠結算場景", ()
   assert.ok(state.flags.includes("flag_ash_talked"));
 
   state = applyApproach(state, "app_ash_terminal_peek", "成功").state;
-  assert.equal(state.currentSceneId, "evt_order_937_reveal", "完成交涉並取得 937 路徑後應進入調查場景");
-  assert.equal(state.currentLocation, "loc_mother_core", "進入 937 調查場景時位置也應切換到主機核心房");
+  assert.equal(state.currentSceneId, "evt_mother_chamber_infiltrate", "窺見 937 後應進入主機門禁 scene，而不是跳過它");
   assert.ok(state.flags.includes("flag_937_path_known"));
+  assert.equal(state.currentLocation, "loc_mother_core");
 
+  state = applyApproach(state, "app_mother_door_card", "自動").state;
+  assert.equal(state.currentSceneId, "evt_order_937_reveal", "開啟核心氣密門後才進入 937 調查場景");
   state = applyApproach(state, "app_order_copy_watch", "成功").state;
-  assert.equal(state.currentSceneId, "evt_trigger_overload", "取得 937 證據後應離開調查場景進入超載段");
+  assert.equal(state.currentSceneId, "evt_engine_coolant_prep", "取得 937 證據後應先進入工程準備段");
   assert.ok(state.flags.includes("flag_937_evidence_saved"));
+
+  state = applyApproach(state, "app_engine_prep_parker", "成功").state;
+  assert.equal(state.currentSceneId, "evt_engine_coolant_prep");
+  assert.ok(state.flags.includes("flag_engine_prep_done"));
+  state = applyApproach(state, "app_engine_start_overload", "自動").state;
+  assert.equal(state.currentSceneId, "evt_trigger_overload", "完成工程準備後才進入自毀倒數");
 
   state = applyApproach(state, "app_overload_manual", "成功").state;
   assert.equal(state.currentSceneId, "evt_vent_ambush_escape");

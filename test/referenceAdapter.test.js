@@ -430,6 +430,8 @@ test("remaining scenes preserve original event sources and safe public boundarie
     ["evt_cargo_stalk", "evt_cargo_stalk"],
     ["evt_cargo_tool_scavenge", "evt_cargo_tool_scavenge"],
     ["evt_meet_ripley", "evt_meet_ripley"],
+    ["evt_mother_chamber_infiltrate", "evt_mother_chamber_infiltrate"],
+    ["evt_engine_coolant_prep", "evt_engine_coolant_prep"],
     ["evt_order_937_reveal", "evt_order_937_reveal"],
     ["evt_trigger_overload", "evt_trigger_overload"],
     ["evt_vent_ambush_escape", "evt_vent_ambush_escape"],
@@ -445,12 +447,12 @@ test("remaining scenes preserve original event sources and safe public boundarie
   }
 
   const fragments = reference.scenes.flatMap((scene) => scene.narrativeSource?.fragments ?? []);
-  for (const eventId of ["evt_engine_coolant_prep", "evt_narcissus_undock"]) {
+  for (const eventId of ["evt_narcissus_undock"]) {
     const fragment = fragments.find((item) => item.eventId === eventId);
     assert.ok(fragment, `缺少 ${eventId} 原始 fragment`);
     assert.ok(fragment.entryText.length > 0, `${eventId} 應保留原始 entry`);
   }
-  for (const eventId of ["evt_medbay_ruins", "evt_cargo_stalk", "evt_cargo_tool_scavenge", "evt_meet_ripley"]) {
+  for (const eventId of ["evt_medbay_ruins", "evt_cargo_stalk", "evt_cargo_tool_scavenge", "evt_meet_ripley", "evt_mother_chamber_infiltrate", "evt_engine_coolant_prep"]) {
     assert.equal(fragments.some((item) => item.eventId === eventId), false, `${eventId} 不應仍只是 fragment`);
   }
 
@@ -614,4 +616,74 @@ test("travel flagsAbsent gate blocks completed medical and Ripley routes", () =>
   assert.equal(ripleyRoute.ok, false);
   assert.equal(ripleyRoute.code, "TRAVEL_LOCKED");
   assert.deepEqual(ripleyRoute.blockedFlags, ["flag_ripley_session_opened"]);
+});
+
+
+test("core infiltration is a playable predecessor before the 937 reveal", () => {
+  const base = createReferenceState(reference);
+  const state = {
+    ...base,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_cryo_left", "flag_luyuan_met", "flag_937_path_known"],
+    visitedLocations: ["loc_cryo", "loc_deck_a", "loc_science"],
+  };
+  const toCore = resolveTravelAction(reference, state, "loc_mother_core");
+  assert.equal(toCore.ok, true);
+  assert.equal(toCore.nextScene.id, "evt_mother_chamber_infiltrate");
+  const coreTravel = applyTravelAction(reference, state, toCore);
+  assert.match(coreTravel.arrivalText, /純白色的環形加壓走廊/);
+  assert.equal(coreTravel.state.currentSceneId, "evt_mother_chamber_infiltrate");
+
+  const character = emptyCharacter("主機測試者");
+  const hack = buildReferenceOptions(reference, coreTravel.state).find(
+    (item) => item.reference?.approachId === "app_mother_door_hack"
+  );
+  assert.ok(hack);
+  const resolution = resolveReferenceAction({ reference, state: coreTravel.state, chosenOption: hack, character });
+  const opened = applyReferenceResult({ reference, state: coreTravel.state, resolution, outcomeTier: "成功" });
+  assert.equal(opened.state.currentSceneId, "evt_order_937_reveal");
+  assert.equal(opened.state.currentLocation, "loc_mother_core");
+  assert.match(opened.resultText, /圓形金屬門/);
+  assert.equal(opened.effects.timeCost, 1);
+  assert.equal(opened.effects.threatDelta, 0);
+});
+
+test("engineering preparation is a playable predecessor and cannot bypass overload preparation", () => {
+  const base = createReferenceState(reference);
+  const state = {
+    ...base,
+    currentSceneId: "evt_order_937_reveal",
+    currentLocation: "loc_mother_core",
+    flags: ["flag_luyuan_met", "flag_order_937_revealed"],
+    inventory: ["item_wrench_tool"],
+    visitedLocations: ["loc_cryo", "loc_deck_a", "loc_science", "loc_mother_core"],
+  };
+  const toEngine = resolveTravelAction(reference, state, "loc_engine");
+  assert.equal(toEngine.ok, true);
+  assert.equal(toEngine.nextScene.id, "evt_engine_coolant_prep");
+  const engineState = applyTravelAction(reference, state, toEngine).state;
+  assert.match(reference.scenes.find((scene) => scene.id === engineState.currentSceneId).narrativeSource.entryText, /刺骨的冷氣/);
+
+  const character = emptyCharacter("工程測試者");
+  const valves = buildReferenceOptions(reference, engineState).find(
+    (item) => item.reference?.approachId === "app_engine_prep_valves"
+  );
+  assert.ok(valves);
+  const resolution = resolveReferenceAction({ reference, state: engineState, chosenOption: valves, character });
+  const prepared = applyReferenceResult({ reference, state: engineState, resolution, outcomeTier: "成功" });
+  assert.equal(prepared.sceneAdvanced, false);
+  assert.ok(prepared.state.flags.includes("flag_engine_prep_done"));
+  assert.ok(prepared.state.flags.includes("flag_engine_valves_ready"));
+  assert.match(prepared.resultText, /四根閥門/);
+
+  const start = buildReferenceOptions(reference, prepared.state).find(
+    (item) => item.reference?.approachId === "app_engine_start_overload"
+  );
+  assert.ok(start, "工程準備完成後才提供啟動事件 14 的 approach");
+  const startResolution = resolveReferenceAction({ reference, state: prepared.state, chosenOption: start, character });
+  const overload = applyReferenceResult({ reference, state: prepared.state, resolution: startResolution, outcomeTier: "自動" });
+  assert.equal(overload.state.currentSceneId, "evt_trigger_overload");
+  assert.equal(overload.state.currentLocation, "loc_engine");
+  assert.equal(overload.effects.timeCost, 0);
 });

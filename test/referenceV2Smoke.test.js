@@ -503,3 +503,74 @@ test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playa
   assert.equal(replayBridge.body.code, "TRAVEL_LOCKED");
   assert.equal(mock.prompts.length >= 4, true, "只有實際 turn 才應增加 LLM 呼叫");
 });
+
+
+test("V2 API smoke: core infiltration and engineering prep precede 937 and overload", async (t) => {
+  const mock = await startMockLlm();
+  t.after(() => mock.server.close());
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("V2 Phase 3 前置測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const sessionId = created.body.session.id;
+  const store = resolveSessionStore(env);
+  const saved = await store.get(sessionId);
+  saved.scenario.referenceState = {
+    ...saved.scenario.referenceState,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_luyuan_met", "flag_937_path_known"],
+    inventory: ["item_access_card", "item_wrench_tool"],
+    visitedLocations: ["loc_cryo", "loc_deck_a", "loc_science"],
+  };
+  await store.put(saved);
+
+  const toCore = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_mother_core" }), env }));
+  assert.equal(toCore.status, 200, JSON.stringify(toCore.body));
+  assert.equal(toCore.body.scenario.reference.eventId, "evt_mother_chamber_infiltrate");
+  assert.match(toCore.body.travel.arrivalText, /純白色的環形加壓走廊/);
+  assert.deepEqual(toCore.body.travel.arrivalSourceEventIds, ["evt_mother_chamber_infiltrate"]);
+  assert.equal(mock.prompts.length, 0, "進入主機前置場景的 travel 不應呼叫 LLM");
+
+  const card = toCore.body.options.find((option) => option.reference?.approachId === "app_mother_door_card");
+  assert.ok(card);
+  const afterDoor = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: card }), env }));
+  assert.equal(afterDoor.status, 200, JSON.stringify(afterDoor.body));
+  assert.equal(afterDoor.body.scenario.reference.eventId, "evt_order_937_reveal");
+  assert.match(mock.prompts.at(-1), /evt_mother_chamber_infiltrate|圓形金屬門/);
+
+  const afterDoorSession = await store.get(sessionId);
+  afterDoorSession.scenario.referenceState.flags = [...new Set([
+    ...afterDoorSession.scenario.referenceState.flags,
+    "flag_order_937_revealed",
+  ])];
+  await store.put(afterDoorSession);
+  const toEngine = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_engine" }), env }));
+  assert.equal(toEngine.status, 200, JSON.stringify(toEngine.body));
+  assert.equal(toEngine.body.scenario.reference.eventId, "evt_engine_coolant_prep");
+  assert.match(toEngine.body.travel.arrivalText, /刺骨的冷氣瞬間被滾燙的機油熱浪取代/);
+  assert.equal(mock.prompts.length, 1, "工程區 travel 仍不應呼叫 LLM");
+
+  const parker = toEngine.body.options.find((option) => option.reference?.approachId === "app_engine_prep_parker");
+  assert.ok(parker);
+  const afterPrep = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: parker }), env }));
+  assert.equal(afterPrep.status, 200, JSON.stringify(afterPrep.body));
+  assert.equal(afterPrep.body.scenario.reference.eventId, "evt_engine_coolant_prep");
+  const startOverload = afterPrep.body.options.find((option) => option.reference?.approachId === "app_engine_start_overload");
+  assert.ok(startOverload, "工程準備結果後才出現啟動超載的 approach");
+  const afterStart = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: startOverload }), env }));
+  assert.equal(afterStart.status, 200, JSON.stringify(afterStart.body));
+  assert.equal(afterStart.body.scenario.reference.eventId, "evt_trigger_overload");
+  assert.equal(afterStart.body.scenario.reference.location, "loc_engine");
+});
