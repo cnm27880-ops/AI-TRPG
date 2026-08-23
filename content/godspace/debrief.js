@@ -84,6 +84,19 @@ function authoredEndingPresentation(reference, endingId, fallback) {
   };
 }
 
+/**
+ * 回傳可公開給結算頁的結局 presentation。
+ * canonical 原文只來自 reference.endings.narrativeSource；沒有 reference 或舊存檔缺文時，
+ * 才使用本模組的安全 fallback。這個 helper 不回傳任何 reference truth 或私有欄位。
+ */
+export function publicEndingPresentation({ reference = null, endingId = null } = {}) {
+  const fallback = ENDING_PRESENTATIONS[endingId] ?? {
+    title: "未命名結局",
+    copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。",
+  };
+  return authoredEndingPresentation(reference, endingId, fallback);
+}
+
 function objectiveView(events, summary) {
   const completed = new Map(
     events
@@ -123,11 +136,7 @@ export function buildScenarioDebrief({ pack = null, reference = null, session = 
   const summary = progress?.runSummary ?? null;
   if (!summary) return null;
   const events = Array.isArray(session?.log?.events) ? session.log.events : [];
-  const fallbackEnding = ENDING_PRESENTATIONS[summary.endingId] ?? {
-    title: "未命名結局",
-    copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。",
-  };
-  const ending = authoredEndingPresentation(reference, summary.endingId, fallbackEnding);
+  const ending = publicEndingPresentation({ reference, endingId: summary.endingId });
   const referenceState = session?.scenario?.referenceState ?? null;
   const health = publicHealth(session.character);
 

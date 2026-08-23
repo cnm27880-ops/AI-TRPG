@@ -5,7 +5,10 @@ import { emptyCharacter } from "../core/schema.js";
 import { onRequestPost as createSession, onRequestGet as getSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
 import { onRequestPost as travel } from "../functions/api/travel.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
+import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
+import { getScenarioPack } from "../content/scenario/registry.js";
 
 function jsonRequest(url, body) {
   return new Request(url, {
@@ -573,4 +576,125 @@ test("V2 API smoke: core infiltration and engineering prep precede 937 and overl
   assert.equal(afterStart.status, 200, JSON.stringify(afterStart.body));
   assert.equal(afterStart.body.scenario.reference.eventId, "evt_trigger_overload");
   assert.equal(afterStart.body.scenario.reference.location, "loc_engine");
+});
+
+
+test("V2 turn settlement returns the same public canonical ending presentation as Godspace", async (t) => {
+  const mock = await startMockLlm();
+  t.after(() => mock.server.close());
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("V2 settlement contract 測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const sessionId = created.body.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  const pack = getScenarioPack("scenario.nostromo-01-v2");
+  const nodes = Object.fromEntries(pack.entries.flatMap((entry) => entry.nodes).map((node) => [
+    node.id,
+    { completed: true, divergenceTier: 0 },
+  ]));
+  session.scenario.progress = {
+    ...session.scenario.progress,
+    nodes,
+    settledAt: null,
+    runSummary: null,
+  };
+  session.scenario.referenceState = {
+    ...session.scenario.referenceState,
+    currentSceneId: "evt_hypersleep_return",
+    currentLocation: "loc_narcissus",
+    endingId: "end_solo_survivor",
+    flags: ["flag_hypersleep_entered"],
+  };
+  await store.put(session);
+
+  const settled = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, playerAction: "查看已封存紀錄" }),
+    env,
+  }));
+  assert.equal(settled.status, 200, JSON.stringify(settled.body));
+  assert.ok(settled.body.scenario.settlement, "一般回合結算必須回傳 settlement");
+  assert.equal(settled.body.scenario.settlement.endingPresentation.source, "canonical_gemini_narrative");
+  assert.match(settled.body.scenario.settlement.endingPresentation.copy, /水仙號的引擎噴口/);
+  assert.equal(JSON.stringify(settled.body.scenario.settlement).includes("gmTruth"), false);
+  assert.equal(JSON.stringify(settled.body.scenario.settlement).includes("privateGoals"), false);
+});
+
+
+test("V2 combat settlement also returns the canonical ending presentation", async () => {
+  const env = {};
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("V2 combat settlement 測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const sessionId = created.body.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  const pack = getScenarioPack("scenario.nostromo-01-v2");
+  const nodes = Object.fromEntries(pack.entries.flatMap((entry) => entry.nodes).map((node) => [
+    node.id,
+    { completed: ["n1", "n2", "n3"].includes(node.id), divergenceTier: 0 },
+  ]));
+  session.scenario.progress = {
+    ...session.scenario.progress,
+    nodes,
+    settledAt: null,
+    runSummary: null,
+  };
+  session.scenario.referenceState = {
+    ...session.scenario.referenceState,
+    currentSceneId: "evt_narcissus_final_purge",
+    currentLocation: "loc_narcissus_airlock",
+    flags: ["flag_suit_ready", "flag_tether_ready"],
+    airlockPhase: "positioned",
+    shipStatus: "overload_started",
+    endingId: "end_solo_survivor",
+  };
+  await store.put(session);
+
+  const started = await readJson(await combatStart({
+    request: jsonRequest("https://test.local/api/combat/start", { sessionId }),
+    env,
+  }));
+  assert.equal(started.status, 200, JSON.stringify(started.body));
+  const combatSession = await store.get(sessionId);
+  combatSession.combat.order = ["player", "enemy"];
+  combatSession.combat.turnIndex = 0;
+  combatSession.combat.enemy.hpState = {
+    ...combatSession.combat.enemy.hpState,
+    intact: 0,
+    B: 0,
+    L: 0,
+    A: 0,
+    dead: true,
+    unconscious: false,
+  };
+  await store.put(combatSession);
+
+  const victory = await readJson(await combatAct({
+    request: jsonRequest("https://test.local/api/combat/act", { sessionId, weaponKey: "unarmed" }),
+    env,
+  }));
+  assert.equal(victory.status, 200, JSON.stringify(victory.body));
+  assert.equal(victory.body.combatOver.winner, "player");
+  assert.equal(victory.body.scenario.settlement.endingPresentation.source, "canonical_gemini_narrative");
+  assert.match(victory.body.scenario.settlement.endingPresentation.copy, /水仙號的引擎噴口/);
+  assert.equal(JSON.stringify(victory.body.scenario.settlement).includes("gmTruth"), false);
+  assert.equal(JSON.stringify(victory.body.scenario.settlement).includes("privateGoals"), false);
 });

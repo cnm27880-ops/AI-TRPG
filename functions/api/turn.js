@@ -62,6 +62,7 @@ import {
 } from "../../content/turnOptions.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
+import { publicEndingPresentation } from "../../content/godspace/debrief.js";
 import {
   findActiveNode,
   completeNodeAndAdvance,
@@ -1288,7 +1289,15 @@ export async function onRequestPost(context) {
         scenarioWarnings.push(
           `副本通關結算：獲得 ${settlement.xp} XP，速度獎勵 ${settlement.speedBonusPoints} 點。回到主神空間，商店已開放。`
         );
-        settlementSummary = { xp: settlement.xp, speedBonusPoints: settlement.speedBonusPoints, runSummary: settlement.runSummary };
+        settlementSummary = {
+          xp: settlement.xp,
+          speedBonusPoints: settlement.speedBonusPoints,
+          runSummary: settlement.runSummary,
+          endingPresentation: publicEndingPresentation({
+            reference: scenarioReference,
+            endingId: settlement.runSummary?.endingId,
+          }),
+        };
       }
       const registeredPackage = registerChroniclePackage(session.chroniclePackages, {
         scenarioId: scenarioPack.id,

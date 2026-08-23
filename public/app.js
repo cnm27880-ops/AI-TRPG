@@ -1809,7 +1809,11 @@ function showScenarioSettlement(settlement) {
   const shell = layer?.querySelector(".settlement-shell");
   if (!summary || !layer || !shell) return;
   const evaluation = summary.evaluation ?? {};
-  const ending = SETTLEMENT_ENDINGS[summary.endingId] ?? { title: "未命名結局", copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。" };
+  // 新結算一律採用 server canonical presentation；本地短文只保留給沒有新欄位的舊存檔。
+  const ending = settlement.endingPresentation ?? summary.endingPresentation ?? SETTLEMENT_ENDINGS[summary.endingId] ?? {
+    title: "未命名結局",
+    copy: "這份輪迴紀錄已封存，但結局文字尚未登錄。",
+  };
   const nodes = [
     ["樣本", settlementValue(SETTLEMENT_STATUS_LABELS.sampleStatus, summary.sampleStatus)],
     ["感染", settlementValue(SETTLEMENT_STATUS_LABELS.infectionStatus, summary.infectionStatus)],
@@ -1949,7 +1953,10 @@ function openLastRunDebrief() {
     showToast("目前沒有可查看的已封存結算。");
     return;
   }
-  showScenarioSettlement({ runSummary: summary });
+  showScenarioSettlement({
+    runSummary: summary,
+    endingPresentation: currentGodspacePayload?.debrief?.scenario?.endingPresentation ?? null,
+  });
 }
 
 async function enterGodspaceFromSettlement(source = "settlement") {

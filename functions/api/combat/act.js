@@ -23,6 +23,7 @@ import { getScenarioPack, getScenarioReference } from "../../../content/scenario
 import { applyReferenceFinaleVictory, normalizeReferenceState } from "../../../content/scenario/referenceAdapter.js";
 import { completeNodeAndAdvance, getProgressSummary } from "../../../content/scenario/progress.js";
 import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
+import { publicEndingPresentation } from "../../../content/godspace/debrief.js";
 import { registerChroniclePackage } from "../../../content/storage/chronicle.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
@@ -281,7 +282,17 @@ export async function onRequestPost(context) {
             ? { reference: { enabled: true, eventId: session.scenario.referenceState.currentSceneId, location: session.scenario.referenceState.currentLocation } }
             : {}),
           ...(settlement.settled
-            ? { settlement: { xp: settlement.xp, speedBonusPoints: settlement.speedBonusPoints, runSummary: settlement.runSummary } }
+            ? {
+                settlement: {
+                  xp: settlement.xp,
+                  speedBonusPoints: settlement.speedBonusPoints,
+                  runSummary: settlement.runSummary,
+                  endingPresentation: publicEndingPresentation({
+                    reference,
+                    endingId: settlement.runSummary?.endingId,
+                  }),
+                },
+              }
             : {}),
         };
       }
