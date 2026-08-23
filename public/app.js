@@ -1447,6 +1447,116 @@ function renderNpcRelationships(npcs) {
   }).join("");
 }
 
+// --- 船艦探索終端：位置／路線／已知情報的單一情境面板 ---
+let lastExplorationView = null;
+
+function explorationLocationLabel(location) {
+  return location?.name ?? location?.id ?? "未知位置";
+}
+
+function renderExplorationTerminal(view) {
+  lastExplorationView = view ?? null;
+  const location = view?.currentLocation;
+  const event = view?.currentEvent;
+  const currentLocationText = document.getElementById("scenario-location-text");
+  const currentEventText = document.getElementById("scenario-event-text");
+  const sceneText = document.getElementById("current-scene-text");
+  if (currentLocationText) {
+    currentLocationText.textContent = explorationLocationLabel(location);
+    currentLocationText.title = location?.name ?? "目前位置尚未確認";
+  }
+  if (currentEventText) {
+    currentEventText.textContent = event?.label ?? "目前事件";
+    currentEventText.title = event?.id ?? "";
+  }
+  if (sceneText && location) {
+    sceneText.textContent = `位置：${explorationLocationLabel(location)}`;
+    sceneText.title = event?.label ? `${explorationLocationLabel(location)} · ${event.label}` : explorationLocationLabel(location);
+  }
+
+  const terminalSubtitle = document.getElementById("exploration-terminal-subtitle");
+  const terminalLocation = document.getElementById("exploration-current-location");
+  const terminalEvent = document.getElementById("exploration-current-event");
+  const terminalObjective = document.getElementById("exploration-current-objective");
+  const terminalMap = document.getElementById("exploration-terminal-map");
+  const terminalRoutes = document.getElementById("exploration-terminal-routes");
+  const terminalDiscoveries = document.getElementById("exploration-terminal-discoveries");
+  const terminalNpcs = document.getElementById("exploration-terminal-npcs");
+  const terminalEnvironment = document.getElementById("exploration-terminal-environment");
+  if (!terminalMap) return;
+
+  if (!view?.currentLocation) {
+    if (terminalSubtitle) terminalSubtitle.textContent = "等待副本位置資料……";
+    if (terminalLocation) terminalLocation.textContent = "—";
+    if (terminalEvent) terminalEvent.textContent = "—";
+    if (terminalObjective) terminalObjective.textContent = "—";
+    terminalMap.innerHTML = `<div class="text-[11px] text-zinc-500">目前尚未取得玩家可見的地圖資料。</div>`;
+    if (terminalRoutes) terminalRoutes.innerHTML = "";
+    if (terminalDiscoveries) terminalDiscoveries.textContent = "尚未記錄新的發現。";
+    if (terminalNpcs) terminalNpcs.textContent = "目前沒有已確認的附近人物。";
+    if (terminalEnvironment) terminalEnvironment.textContent = "等待位置資料……";
+    return;
+  }
+
+  if (terminalSubtitle) terminalSubtitle.textContent = `${view.visitedLocations?.length ?? 0} 個已探索地點 · 地圖只顯示目前已知資訊`;
+  if (terminalLocation) terminalLocation.textContent = explorationLocationLabel(location);
+  if (terminalEvent) terminalEvent.textContent = event?.label ?? "目前事件";
+  if (terminalObjective) terminalObjective.textContent = view.objective ?? "確認環境並決定下一步";
+
+  const knownLocations = Array.isArray(view.knownLocations) ? view.knownLocations : [];
+  terminalMap.innerHTML = knownLocations.length
+    ? `<div class="exploration-map-row">${knownLocations.map((item, index) => {
+        const stateClass = item.id === location.id ? "is-current" : item.status === "visited" ? "is-visited" : item.status === "known" ? "is-known" : "is-unknown";
+        const marker = item.id === location.id ? "◆" : item.status === "visited" ? "●" : "○";
+        const separator = index ? `<span class="exploration-map-link" aria-hidden="true">—</span>` : "";
+        return `${separator}<span class="exploration-map-node ${stateClass}" title="${escapeHtml(item.purpose ?? "")}"><span aria-hidden="true">${marker}</span>${escapeHtml(item.name)}</span>`;
+      }).join("")}</div>`
+    : `<div class="text-[11px] text-zinc-500">目前沒有可顯示的已知路線。</div>`;
+
+  const routes = Array.isArray(view.nearbyRoutes) ? view.nearbyRoutes : [];
+  if (terminalRoutes) {
+    terminalRoutes.innerHTML = routes.length
+      ? routes.map((route) => `<div class="exploration-route-card">
+          <div class="min-w-0"><strong>${escapeHtml(route.label)}</strong><br><span>${escapeHtml(route.purpose ?? "確認這條路線的狀況")}</span></div>
+          <span class="shrink-0 text-zinc-500">路線已知</span>
+        </div>`).join("")
+      : `<div class="rounded border hairline-border border-dashed p-2.5 text-[11px] text-zinc-500">目前沒有可確認的相鄰路線。</div>`;
+  }
+
+  const discoveries = Array.isArray(view.recentDiscoveries) ? view.recentDiscoveries : [];
+  if (terminalDiscoveries) {
+    terminalDiscoveries.innerHTML = discoveries.length
+      ? discoveries.map((item) => `<div>· ${escapeHtml(typeof item === "string" ? item : item.text ?? item.label ?? "已記錄發現")}</div>`).join("")
+      : "尚未記錄新的發現。";
+  }
+
+  const nearbyNpcs = Array.isArray(view.nearbyNpcs) ? view.nearbyNpcs : [];
+  if (terminalNpcs) {
+    terminalNpcs.innerHTML = nearbyNpcs.length
+      ? nearbyNpcs.map((npc) => `<div class="mb-1 last:mb-0"><strong class="text-zinc-200">${escapeHtml(npc.name)}</strong> <span>· ${escapeHtml(npc.role ?? "副本人物")} · ${escapeHtml(npc.trustLabel ?? "待接觸")}</span></div>`).join("")
+      : "目前沒有已確認的附近人物。";
+  }
+
+  const environment = view.environmentState ?? {};
+  const features = Array.isArray(environment.featureSummary) ? environment.featureSummary : [];
+  const hazards = Array.isArray(environment.hazardSummary) ? environment.hazardSummary : [];
+  if (terminalEnvironment) {
+    const lines = [];
+    if (features.length) lines.push(`<div><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
+    if (hazards.length) lines.push(`<div><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
+    terminalEnvironment.innerHTML = lines.length ? lines.join("") : "目前沒有額外的環境狀態記錄。";
+  }
+}
+
+function openExplorationTerminal() {
+  if (!lastExplorationView?.currentLocation) {
+    showToast("目前尚未取得副本位置資料。開始一個 V2 副本後，船艦探索終端會在這裡顯示。", { kind: "info" });
+    return;
+  }
+  renderExplorationTerminal(lastExplorationView);
+  openModal("explorationTerminal");
+}
+
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
 const TIME_STATUS_STYLE = {
   充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -1458,6 +1568,7 @@ const TIME_STATUS_STYLE = {
 function updateScenarioHud(scenario) {
   const hud = document.getElementById("scenario-hud");
   renderNpcRelationships(scenario?.reference?.npcs ?? []);
+  renderExplorationTerminal(scenario?.reference?.exploration ?? null);
   if (!hud) return;
 
   // 節點結算被引擎擋下時，玩家會看到「我明明做完了，進度條卻沒動」。
@@ -3900,6 +4011,7 @@ window.showScreen = showScreen;
 window.startNewChargen = startNewChargen;
 window.acceptMainGodInvitation = acceptMainGodInvitation;
 window.openChronicle = openChronicle;
+window.openExplorationTerminal = openExplorationTerminal;
 // 舊版外部入口相容：故事紀錄已改名為劇情回顧，但不讓舊 bookmark／debug 呼叫失效。
 window.openStoryLog = openChronicle;
 window.revealMainGodSpace = revealMainGodSpace;

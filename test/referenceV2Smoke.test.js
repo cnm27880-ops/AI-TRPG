@@ -105,11 +105,9 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(opening.body.ok, true);
   assert.match(opening.body.narration, /休眠室/);
   assert.equal(opening.body.options.some((option) => option.reference?.approachId === "app_cryo_recon"), true);
-  const openingLuyuan = opening.body.scenario.reference.npcs.find((npc) => npc.id === "npc_luyuan");
-  assert.equal(openingLuyuan.name, "陸遠");
-  assert.equal(openingLuyuan.trustLabel, "待接觸");
-  assert.equal("privateGoals" in openingLuyuan, false);
-  assert.equal("knowledge" in openingLuyuan, false);
+  assert.deepEqual(opening.body.scenario.reference.npcs, [], "尚未接觸人物前不應公開整份 NPC roster");
+  assert.equal(JSON.stringify(opening.body.scenario.reference).includes("privateGoals"), false);
+  assert.equal(JSON.stringify(opening.body.scenario.reference).includes("生化人"), false);
   assert.equal(mock.prompts.length, 0, "固定開場應該不呼叫 LLM");
 
   const recon = opening.body.options.find((option) => option.reference?.approachId === "app_cryo_recon");
@@ -123,7 +121,7 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.ok(afterRecon.body.outcome, "開場行動應該產生結果分級");
   assert.match(afterRecon.body.narration, /光束|拖痕|休眠室/);
   assert.equal(afterRecon.body.scenario.reference.eventId, "evt_cryo_clearance");
-  assert.equal(afterRecon.body.scenario.reference.npcs.length >= 5, true);
+  assert.equal(afterRecon.body.scenario.reference.npcs.length, 0, "仍在休眠室時不應提前公開未接觸人物");
   assert.equal(afterRecon.body.options.some((option) => option.reference?.sceneId === "evt_cryo_clearance"), true);
   assert.equal(afterRecon.body.options.every((option) => option.requiresCheck === false || Number.isInteger(option.dc)), true);
   assert.match(mock.prompts[0], /evt_cryo_clearance/);
@@ -140,6 +138,10 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterLeave.body.ok, true);
   assert.equal(afterLeave.body.scenario.reference.eventId, "evt_deck_a_recon");
   assert.equal(afterLeave.body.scenario.reference.location, "loc_deck_a");
+  const deckLuyuan = afterLeave.body.scenario.reference.npcs.find((npc) => npc.id === "npc_luyuan");
+  assert.equal(deckLuyuan?.name, "陸遠", "進入 A 甲板後才公開現場的陸遠");
+  assert.equal(deckLuyuan?.trustLabel, "待接觸");
+  assert.equal("privateGoals" in (deckLuyuan ?? {}), false);
   assert.equal(afterLeave.body.options.some((option) => option.reference?.approachId === "app_deck_luyuan_contact"), true);
   assert.match(mock.prompts[1], /evt_cryo_clearance/);
   assert.match(mock.prompts[1], /app_cryo_leave/);

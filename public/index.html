@@ -1143,6 +1143,33 @@
         #cg-back:hover { color: var(--ink-100) !important; border-color: rgba(222,214,200,.42) !important; }
         .modal-panel { background: rgba(27,25,21,.98) !important; border-color: rgba(222,214,200,.18) !important; border-radius: 4px; box-shadow: 0 22px 70px rgba(0,0,0,.3); }
         .modal-backdrop { background: rgba(8,7,6,.76); backdrop-filter: blur(10px) grayscale(.15); }
+
+        /* P0 探索 HUD：位置與事件是玩家的空間座標，不應只藏在故事文字裡。 */
+        .mission-location-block { min-width: 10.5rem; max-width: 15rem; padding-left: .85rem; border-left: 1px solid rgb(16 185 129 / .24); }
+        .mission-location-kicker { color: rgb(161 161 170); font: 700 .58rem/1.2 'JetBrains Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+        .mission-location-name { color: rgb(236 253 245); font: 700 .78rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mission-event-name { color: rgb(161 161 170); font: .62rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .exploration-terminal-panel { max-height: min(760px, calc(100dvh - 2rem)); }
+        .exploration-terminal-scroll { max-height: min(610px, calc(100dvh - 10rem)); overflow-y: auto; }
+        .exploration-map { background: rgb(9 9 11 / .76); border: 1px solid rgb(16 185 129 / .22); border-radius: .5rem; padding: .8rem; }
+        .exploration-map-row { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; font: .7rem/1.5 'Noto Serif TC', serif; }
+        .exploration-map-node { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid rgb(113 113 122 / .45); border-radius: .3rem; padding: .25rem .45rem; color: rgb(212 212 216); background: rgb(39 39 42 / .46); }
+        .exploration-map-node.is-current { border-color: rgb(52 211 153 / .75); color: rgb(167 243 208); background: rgb(16 185 129 / .14); box-shadow: 0 0 0 1px rgb(16 185 129 / .12); }
+        .exploration-map-node.is-visited { color: rgb(228 228 231); }
+        .exploration-map-node.is-known { color: rgb(161 161 170); border-style: dashed; }
+        .exploration-map-node.is-unknown { color: rgb(82 82 91); }
+        .exploration-map-link { color: rgb(113 113 122); font-family: 'JetBrains Mono', monospace; }
+        .exploration-route-card { display: flex; align-items: flex-start; justify-content: space-between; gap: .7rem; padding: .55rem .65rem; border: 1px solid rgb(63 63 70 / .8); border-radius: .4rem; background: rgb(24 24 27 / .62); }
+        .exploration-route-card strong { color: rgb(228 228 231); font: 700 .72rem/1.35 'Noto Serif TC', serif; }
+        .exploration-route-card span { color: rgb(161 161 170); font: .63rem/1.4 'Noto Serif TC', serif; }
+        .exploration-terminal-section-title { color: rgb(110 231 183); font: 700 .62rem/1.2 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
+        @media (max-width: 767px) {
+            .mission-location-block { min-width: 0; max-width: 9rem; padding-left: .55rem; }
+            .mission-location-name { font-size: .7rem; }
+            .mission-event-name { font-size: .58rem; }
+            .exploration-terminal-panel { max-height: calc(100dvh - 1rem); }
+            .exploration-terminal-scroll { max-height: calc(100dvh - 8rem); }
+        }
         .modal-panel .text-zinc-100, .modal-panel .text-zinc-200 { color: var(--ink-100) !important; }
         .modal-panel .text-zinc-300, .modal-panel .text-zinc-400 { color: var(--ink-400) !important; }
         .modal-panel input, .modal-panel select, .modal-panel textarea { background: rgba(32,29,25,.92) !important; border-color: rgba(222,214,200,.16) !important; color: var(--ink-100) !important; }
@@ -2782,6 +2809,11 @@
                         <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
                     </div>
                 </div>
+                <div class="mission-location-block" aria-live="polite">
+                    <div class="mission-location-kicker">目前位置</div>
+                    <div id="scenario-location-text" class="mission-location-name" title="—">—</div>
+                    <div id="scenario-event-text" class="mission-event-name" title="—">—</div>
+                </div>
                 <div class="mission-metrics">
                     <div class="mission-metric mission-progress-metric" title="目前副本的主線完成度">
                         <div class="mission-metric-header">
@@ -2881,6 +2913,9 @@
                     <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧" class="px-2.5 py-1 rounded bg-stone-500/10 border border-stone-400/35 text-stone-300 hover:bg-stone-400/15 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
                         <i class="fas fa-book-open text-[10px]"></i><span class="hidden sm:inline"> 劇情回顧</span>
                     </button>
+                    <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟船艦探索終端" aria-label="開啟船艦探索終端" class="px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-map text-[10px]"></i><span class="hidden sm:inline"> 探索終端</span>
+                    </button>
                     <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
                          主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
                     <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
@@ -2906,6 +2941,52 @@
                     <div id="briefing-caution" class="text-orange-300/90"></div>
                 </div>
             </details>
+
+            <!-- 單一船艦探索終端：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。 -->
+            <div id="explorationTerminal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
+                <div class="modal-panel exploration-terminal-panel bg-zinc-900 border hairline-border w-full max-w-2xl rounded-lg p-4 sm:p-5 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-labelledby="exploration-terminal-title" tabindex="-1">
+                    <div class="flex items-start justify-between gap-3 pb-3 hairline-b">
+                        <div class="min-w-0">
+                            <div class="text-[10px] font-mono tracking-[.22em] text-cyan-300/90 uppercase">SHIP CONSOLE / 探索終端</div>
+                            <h2 id="exploration-terminal-title" class="text-lg font-bold text-zinc-100 mt-1">諾斯托羅莫號空間情報</h2>
+                            <p id="exploration-terminal-subtitle" class="text-[11px] font-mono text-zinc-400 mt-1">等待副本位置資料……</p>
+                        </div>
+                        <button type="button" onclick="closeModal('explorationTerminal')" class="shrink-0 text-zinc-400 hover:text-red-300 transition-colors text-lg leading-none" aria-label="關閉探索終端"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="exploration-terminal-scroll pt-3 space-y-4 font-mono text-xs">
+                        <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2" aria-label="目前探索情勢">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div><div class="text-[10px] text-zinc-500">目前位置</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>
+                                <div><div class="text-[10px] text-zinc-500">目前事件</div><strong id="exploration-current-event" class="text-zinc-200">—</strong></div>
+                                <div><div class="text-[10px] text-zinc-500">行動方向</div><strong id="exploration-current-objective" class="text-emerald-200">—</strong></div>
+                            </div>
+                        </section>
+                        <section class="space-y-2">
+                            <div class="exploration-terminal-section-title">船艦路線 / KNOWN ROUTES</div>
+                            <div id="exploration-terminal-map" class="exploration-map" aria-label="玩家已知的船艦路線"></div>
+                            <div id="exploration-terminal-routes" class="space-y-1.5"></div>
+                        </section>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <section class="space-y-2">
+                                <div class="exploration-terminal-section-title">最近確認 / RECENT DISCOVERIES</div>
+                                <div id="exploration-terminal-discoveries" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">尚未記錄新的發現。</div>
+                            </section>
+                            <section class="space-y-2">
+                                <div class="exploration-terminal-section-title">附近人物 / NEARBY PERSONNEL</div>
+                                <div id="exploration-terminal-npcs" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">目前沒有已確認的附近人物。</div>
+                            </section>
+                        </div>
+                        <section class="space-y-2">
+                            <div class="exploration-terminal-section-title">環境狀態 / LOCAL CONDITIONS</div>
+                            <div id="exploration-terminal-environment" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed">等待位置資料……</div>
+                        </section>
+                    </div>
+                    <div class="flex items-center justify-between gap-3 pt-3 mt-3 hairline-t text-[10px] font-mono text-zinc-500">
+                        <span>地圖提供方向，不公開未發現的主持真相。</span>
+                        <button type="button" onclick="closeModal('explorationTerminal')" class="px-3 py-1.5 rounded border hairline-border text-zinc-300 hover:text-white hover:border-cyan-500/50 transition-colors">返回現場</button>
+                    </div>
+                </div>
+            </div>
 
             <!-- 存檔不是持久的時候的常駐警告條（見 public/app.js 的 renderPersistenceWarning）。
                  content/storage/sessionStore.js 明文要求呼叫端必須把 persistent:false 顯示出來，

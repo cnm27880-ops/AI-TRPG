@@ -164,6 +164,7 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     completedSceneIds: [],
     unlockedEventIds: [],
     flags: [],
+    visitedLocations: scene?.location ? [scene.location] : [],
     inventory: unique(
       Array.isArray(initialInventory) && initialInventory.length
         ? initialInventory
@@ -198,6 +199,11 @@ export function normalizeReferenceState(reference, rawState) {
     completedSceneIds: unique(rawState.completedSceneIds),
     unlockedEventIds: unique(rawState.unlockedEventIds),
     flags: unique(rawState.flags),
+    visitedLocations: unique([
+      ...(Array.isArray(rawState.visitedLocations) ? rawState.visitedLocations : []),
+      rawState.currentLocation,
+      fresh.currentLocation,
+    ]),
     inventory: unique(rawState.inventory),
     damagedItems: unique(rawState.damagedItems),
     clues: unique(rawState.clues),
@@ -457,6 +463,7 @@ function applyBasicEffects(state, effects = {}) {
   const next = {
     ...state,
     flags: [...state.flags],
+    visitedLocations: [...(state.visitedLocations ?? []), state.currentLocation].filter(Boolean),
     inventory: [...state.inventory],
     damagedItems: [...state.damagedItems],
     clues: [...state.clues],
@@ -484,6 +491,9 @@ function applyBasicEffects(state, effects = {}) {
     if (effects[key] !== undefined) {
       const target = key === "playerLocation" ? "currentLocation" : key;
       next[target] = effects[key];
+      if (key === "playerLocation" && effects[key]) {
+        next.visitedLocations = unique([...next.visitedLocations, effects[key]]);
+      }
     }
   }
   return next;
@@ -631,6 +641,10 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
       nextState.currentLocation = nextScene.location ?? nextState.currentLocation;
     }
   }
+  nextState.visitedLocations = unique([
+    ...(nextState.visitedLocations ?? []),
+    nextState.currentLocation,
+  ]);
 
   const actionEntry = {
     sceneId: resolution.scene.id,
@@ -737,8 +751,12 @@ export function buildReferencePromptBlock({
   return lines.join("\n");
 }
 
-function npcTrustView(value) {
-  if (!Number.isFinite(value)) return { value: null, label: "待接觸", tone: "muted" };
+function npcTrustView(value, status = "unknown") {
+  if (!Number.isFinite(value)) {
+    return status === "met"
+      ? { value: null, label: "剛建立聯繫", tone: "neutral" }
+      : { value: null, label: "待接觸", tone: "muted" };
+  }
   if (value <= -3) return { value, label: "敵對", tone: "danger" };
   if (value <= -1) return { value, label: "疏離", tone: "warn" };
   if (value === 0) return { value, label: "觀望", tone: "neutral" };
@@ -746,19 +764,54 @@ function npcTrustView(value) {
   return { value, label: "緊密", tone: "strong" };
 }
 
+function npcHasPublicContact(npc, state) {
+  const id = npc?.id;
+  const status = state?.npcStatuses?.[id] ?? npc?.initialStatus ?? "unknown";
+  if (["met", "injured", "critical", "destroyed", "dead", "survived", "suspicious"].includes(status)) return true;
+
+  const flags = flagSet(state);
+  const contactFlags = {
+    npc_luyuan: ["flag_luyuan_met"],
+    npc_ash: [
+      "flag_ash_talked", "flag_ash_suspicious", "flag_ash_synthetic_known",
+      "flag_ash_hostile_pending", "flag_ash_ambush_unlocked", "flag_ash_destroyed",
+      "flag_ash_damaged", "flag_ash_hostile", "flag_ash_delayed",
+    ],
+    npc_ripley: ["flag_ripley_met", "flag_ripley_assisted"],
+    npc_parker: ["flag_parker_assisted"],
+    npc_lambert: ["flag_lambert_met"],
+  }[id] ?? [];
+  if (contactFlags.some((flag) => flags.has(flag))) return true;
+
+  // 當前 reference scene 本身就是玩家已經抵達的接觸場景；這只公開該場景的主要人物。
+  const sceneId = state?.currentSceneId;
+  return (
+    (id === "npc_luyuan" && sceneId === "evt_deck_a_recon") ||
+    (id === "npc_ash" && ["evt_meet_ash", "evt_ash_ambush"].includes(sceneId)) ||
+    (id === "npc_parker" && sceneId === "evt_trigger_overload")
+  );
+}
+
+function publicNpcRole(npc, state) {
+  if (npc?.id !== "npc_ash") return npc?.role ?? "副本人物";
+  const flags = flagSet(state);
+  if (flags.has("flag_ash_synthetic_known")) return "科學官／生化人疑雲已確認";
+  return "科學官";
+}
+
 function publicNpcRoster(reference, state) {
   const trustMap = state?.npcTrust ?? {};
   const statusMap = state?.npcStatuses ?? {};
   return (reference?.npcs ?? [])
-    .filter((npc) => npc?.id && npc?.name)
+    .filter((npc) => npc?.id && npc?.name && npcHasPublicContact(npc, state))
     .map((npc) => {
       const rawTrust = Object.hasOwn(trustMap, npc.id) ? Number(trustMap[npc.id]) : NaN;
-      const trust = npcTrustView(rawTrust);
       const status = statusMap[npc.id] ?? npc.initialStatus ?? "unknown";
+      const trust = npcTrustView(rawTrust, status);
       return {
         id: npc.id,
         name: npc.name,
-        role: npc.role ?? "副本人物",
+        role: publicNpcRole(npc, state),
         status,
         statusLabel: NPC_STATUS_LABELS[status] ?? status,
         trust: trust.value,
@@ -768,8 +821,94 @@ function publicNpcRoster(reference, state) {
     });
 }
 
+const LOCATION_PURPOSES = Object.freeze({
+  loc_cryo: "確認甦醒現場與異形留下的痕跡",
+  loc_service_corridor: "尋找安全路線並避開管線威脅",
+  loc_deck_a: "整理船況，決定下一個調查方向",
+  loc_bridge: "查閱船員記錄與航行資料",
+  loc_science: "查詢生物資料，觀察 Ash 與實驗樣本",
+  loc_mother_core: "查明主機指令與 937 的來源",
+  loc_cargo: "搜尋工具，確認貨艙內的活動痕跡",
+  loc_engine: "處理冷卻系統並決定是否啟動超載",
+  loc_lower_deck: "在倒數與威脅下尋找通往接駁艇的路線",
+  loc_narcissus_airlock: "準備進入或操作水仙號接駁氣閘",
+  loc_narcissus: "完成脫離、處理異形並準備休眠",
+});
+
+const SCENE_LABELS = Object.freeze({
+  evt_cryo_clearance: "休眠室甦醒與現場排查",
+  evt_deck_a_recon: "A 甲板調查與陸遠接觸",
+  evt_meet_ash: "第一次與 Ash 接觸",
+  evt_order_937_reveal: "特別指令 937 的揭露",
+  evt_ash_ambush: "Ash 的背叛與突襲",
+  evt_trigger_overload: "工程區與自毀倒數",
+  evt_vent_ambush_escape: "倒數中的通風管追擊",
+  evt_narcissus_shadow_wake: "水仙號內的異形甦醒",
+  evt_narcissus_final_purge: "氣閘邊緣的最後處置",
+  evt_hypersleep_return: "休眠與主神傳送",
+});
+
+function publicLocation(reference, locationId, visited, current) {
+  const location = (reference?.map ?? []).find((entry) => entry.id === locationId);
+  if (!location) return null;
+  const isVisited = visited.includes(locationId);
+  return {
+    id: location.id,
+    name: location.name,
+    status: isVisited ? "visited" : location.connections?.includes(current) ? "known" : "unexplored",
+    description: isVisited ? (location.features ?? []).slice(0, 3).join("、") : "尚未親自確認；目前只知道這是船艦上的一個區域。",
+    purpose: LOCATION_PURPOSES[location.id] ?? "調查此區域並確認可用路線",
+  };
+}
+
+export function buildExplorationView(reference, state) {
+  const current = state?.currentLocation ?? findScene(reference, state?.currentSceneId)?.location ?? null;
+  const visited = unique([...(state?.visitedLocations ?? []), current]);
+  const currentMap = (reference?.map ?? []).find((entry) => entry.id === current);
+  const currentScene = findScene(reference, state?.currentSceneId);
+  const nearbyIds = unique(currentMap?.connections ?? []);
+  const knownIds = unique([...visited, ...nearbyIds]);
+  const knownLocations = knownIds.map((id) => publicLocation(reference, id, visited, current)).filter(Boolean);
+  const nearbyRoutes = nearbyIds.map((id) => {
+    const location = publicLocation(reference, id, visited, current);
+    return {
+      to: id,
+      label: location?.name ?? id,
+      purpose: location?.purpose ?? "確認這條路線的狀況",
+      status: "route_known",
+      actionReady: false,
+    };
+  });
+
+  return {
+    currentLocation: publicLocation(reference, current, visited, current),
+    currentEvent: currentScene
+      ? { id: currentScene.id, label: SCENE_LABELS[currentScene.id] ?? "目前事件" }
+      : null,
+    objective: LOCATION_PURPOSES[current] ?? "確認目前環境並決定下一步",
+    visitedLocations: visited,
+    knownLocations,
+    nearbyRoutes,
+    nearbyNpcs: publicNpcRoster(reference, state).filter((npc) => {
+      const sceneIds = {
+        npc_luyuan: ["evt_deck_a_recon", "evt_ash_ambush", "evt_hypersleep_return"],
+        npc_ash: ["evt_meet_ash", "evt_ash_ambush"],
+        npc_parker: ["evt_trigger_overload", "evt_vent_ambush_escape"],
+      }[npc.id];
+      return sceneIds?.includes(state?.currentSceneId) || state?.npcStatuses?.[npc.id] !== "alive";
+    }),
+    recentDiscoveries: [],
+    unresolvedQuestions: [],
+    environmentState: {
+      featureSummary: currentMap?.features?.slice(0, 3) ?? [],
+      hazardSummary: visited.includes(current) ? (currentMap?.hazards?.slice(0, 2) ?? []) : [],
+    },
+  };
+}
+
 const NPC_STATUS_LABELS = Object.freeze({
   alive: "存活",
+  met: "已接觸",
   injured: "受傷",
   critical: "危急",
   suspicious: "戒備",
@@ -792,6 +931,7 @@ export function referenceStateForResponse(reference, state) {
     lastOutcomeTier: state?.lastOutcomeTier ?? null,
     endingId: state?.endingId ?? null,
     npcs: publicNpcRoster(reference, state),
+    exploration: buildExplorationView(reference, state),
   };
 }
 

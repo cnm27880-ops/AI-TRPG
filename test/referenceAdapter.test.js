@@ -190,33 +190,68 @@ test("threatAssessment is bounded by scene policy and narrative mode follows act
   assert.match(stableWithoutReason.reason, /AI 未提供理由/);
 });
 
-test("public reference response exposes safe NPC roster and trust labels only", () => {
+test("public reference response only exposes contacted NPCs and safe relationship labels", () => {
   const state = createReferenceState(reference);
   const response = referenceStateForResponse(reference, state);
-  const luyuan = response.npcs.find((npc) => npc.id === "npc_luyuan");
 
-  assert.equal(response.npcs.length, reference.npcs.length);
+  // 初始休眠室不應把整份 NPC authoring roster 倒給玩家，也不應提前曝光 Ash 的身分。
+  assert.deepEqual(response.npcs, []);
+  assert.equal(response.exploration.nearbyNpcs.length, 0);
+
+  const metState = {
+    ...state,
+    currentSceneId: "evt_deck_a_recon",
+    currentLocation: "loc_deck_a",
+    flags: ["flag_luyuan_met"],
+    npcStatuses: { ...state.npcStatuses, npc_luyuan: "met" },
+    npcTrust: { npc_luyuan: 3 },
+  };
+  const metResponse = referenceStateForResponse(reference, metState);
+  const luyuan = metResponse.npcs.find((npc) => npc.id === "npc_luyuan");
   assert.equal(luyuan.name, "陸遠");
-  assert.equal(luyuan.status, "alive");
-  assert.equal(luyuan.statusLabel, "存活");
-  assert.equal(luyuan.trust, null);
-  assert.equal(luyuan.trustLabel, "待接觸");
-  assert.equal(luyuan.trustTone, "muted");
+  assert.equal(luyuan.status, "met");
+  assert.equal(luyuan.statusLabel, "已接觸");
+  assert.equal(luyuan.trust, 3);
+  assert.equal(luyuan.trustLabel, "緊密");
+  assert.equal(luyuan.trustTone, "strong");
   assert.deepEqual(Object.keys(luyuan).sort(), [
     "id", "name", "role", "status", "statusLabel", "trust", "trustLabel", "trustTone",
   ].sort());
   assert.equal("knowledge" in luyuan, false);
   assert.equal("privateGoals" in luyuan, false);
 
-  const trusted = referenceStateForResponse(reference, {
-    ...state,
-    npcTrust: { npc_luyuan: 3 },
-    npcStatuses: { ...state.npcStatuses, npc_luyuan: "injured" },
-  }).npcs.find((npc) => npc.id === "npc_luyuan");
-  assert.equal(trusted.statusLabel, "受傷");
-  assert.equal(trusted.trust, 3);
-  assert.equal(trusted.trustLabel, "緊密");
-  assert.equal(trusted.trustTone, "strong");
+  const ashBeforeReveal = referenceStateForResponse(reference, {
+    ...metState,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    npcStatuses: { ...metState.npcStatuses, npc_ash: "alive" },
+  }).npcs.find((npc) => npc.id === "npc_ash");
+  assert.equal(ashBeforeReveal.role, "科學官");
+  assert.equal(ashBeforeReveal.role.includes("生化人"), false);
+
+  const ashAfterReveal = referenceStateForResponse(reference, {
+    ...metState,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: [...metState.flags, "flag_ash_synthetic_known"],
+    npcStatuses: { ...metState.npcStatuses, npc_ash: "suspicious" },
+  }).npcs.find((npc) => npc.id === "npc_ash");
+  assert.equal(ashAfterReveal.role.includes("生化人疑雲已確認"), true);
+});
+
+test("exploration response exposes current location and known adjacent routes only", () => {
+  const state = createReferenceState(reference);
+  const response = referenceStateForResponse(reference, state);
+  assert.equal(response.exploration.currentLocation.id, "loc_cryo");
+  assert.equal(response.exploration.currentLocation.status, "visited");
+  assert.deepEqual(response.exploration.visitedLocations, ["loc_cryo"]);
+  assert.deepEqual(response.exploration.nearbyRoutes.map((route) => route.to), [
+    "loc_deck_a", "loc_service_corridor",
+  ]);
+  assert.equal(response.exploration.nearbyRoutes[0].actionReady, false);
+  assert.equal(response.exploration.knownLocations.some((location) => location.id === "loc_science"), false);
+  assert.equal(JSON.stringify(response).includes("privateGoals"), false);
+  assert.equal(JSON.stringify(response).includes("生化人"), false);
 });
 
 test("known reference injuries affect the existing B/L/A hp tracks", () => {
@@ -241,4 +276,5 @@ test("reference state shape remains independent from the generic threat track", 
   assert.equal(track.level, 2);
   assert.equal(state.threatStage, undefined);
   assert.equal(state.currentLocation, "loc_cryo");
+  assert.deepEqual(state.visitedLocations, ["loc_cryo"]);
 });
