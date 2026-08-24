@@ -9,7 +9,7 @@
 // content/shop/ 底下的純函式在算。這裡只負責「讀存檔 → 呼叫純函式 → 寫回存檔」，
 // 跟 /api/combat/act 同一個分工原則。角色卡一律以存檔為準，不接受前端塞角色卡進來。
 
-import { resolveSessionStore } from "../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../content/storage/sessionStore.js";
 import { allGoods, getGood } from "../../content/shop/registry.js";
 import { buildStorefront, purchase, summarizeStorefront } from "../../content/shop/catalog.js";
 import { locationOf, describeAccess } from "../../content/shop/access.js";
@@ -87,6 +87,7 @@ export async function onRequestPost(context) {
   const { sessionId, goodId, allocation } = body ?? {};
   const { error, store, session } = await loadSession(context, sessionId);
   if (error) return error;
+  const expectedRev = session.rev ?? 0;
 
   if (!goodId) return json({ ok: false, error: "body必須包含 goodId" }, 400);
   const good = getGood(goodId, session.character);
@@ -123,7 +124,16 @@ export async function onRequestPost(context) {
     },
     { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
-  await store.put(session);
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      // 買賣是直接扣錢包/改角色卡的行動，衝突時絕對不能默默重算或吞掉——
+      // 那正是「錢包被扣了兩次卻只拿到一件商品」或「反過來」的成因。
+      return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次；這筆交易尚未生效。" }, 409);
+    }
+    throw err;
+  }
 
   return json({
     ...storefrontPayload(session),

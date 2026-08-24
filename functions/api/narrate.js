@@ -31,8 +31,9 @@ import {
   countActionCharacters,
 } from "../../content/turnOptions.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
-import { callLlm } from "../../content/llm/client.js";
+import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
+import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
   composeSystemInstruction,
   DEFAULT_STYLE_ID,
@@ -137,6 +138,15 @@ export async function onRequestPost(context) {
 
   // --- 敘事層：從這裡開始才需要AI。上面算好的結果一律照原樣回傳，不受AI成敗影響。 ---
   const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
+  // [安全] 跟 /api/turn 同一套規則(見 content/llm/requestOverrides.js)：沒帶 provider
+  // 就三個覆寫欄位全部忽略；帶了但不是 custom 就不能改寫 baseUrl。這個端點是匿名/
+  // 無存檔的示範端點，比 /api/turn 更沒有身分可以追蹤，這一層防護更不能漏。
+  const llmOverrides = resolveLlmRequestOverrides({ bodyProvider, bodyApiKey, bodyBaseUrl, bodyModel });
+  if (bodyBaseUrl && bodyProvider !== "custom") {
+    console.warn("[LLM_OVERRIDE_IGNORED]", JSON.stringify({
+      where: "POST /api/narrate", reason: "baseUrl只在provider=custom時生效", bodyProvider: bodyProvider ?? null,
+    }));
+  }
   if (!provider) {
     return jsonWithCheck(
       {
@@ -184,9 +194,7 @@ export async function onRequestPost(context) {
       env,
       systemInstruction,
       prompt,
-      apiKey: bodyApiKey || undefined,
-      baseUrl: bodyBaseUrl || undefined,
-      model: bodyModel || undefined,
+      ...llmOverrides,
     });
     return new Response(
       JSON.stringify({
@@ -208,7 +216,10 @@ export async function onRequestPost(context) {
       {
         provider,
         model: err?.model ?? null,
-        error: `敘事生成失敗（${provider}）：${err.message}`,
+        // [安全][2026-08-24 second pass] 同 /api/turn：err.message 可能整段帶著第三方
+        // 供應商的原始回應本文，不能原樣送回瀏覽器。完整原因已經在上面 logLlmFailure()
+        // 寫進 server log。
+        error: `敘事生成失敗（${provider}）：${describeLlmFailure(err)}`,
         llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
       },
       { resolvedParams, checkResult, outcome },

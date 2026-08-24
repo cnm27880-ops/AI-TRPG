@@ -45,6 +45,34 @@ export class LlmError extends Error {
 const BODY_SNIPPET_LIMIT = 400;
 
 /**
+ * [安全] 把一次LLM呼叫失敗，翻成一句**不含第三方供應商原始回應內容**的簡短說明。
+ *
+ * LlmError.message 的用途是給 server log 看的，可能整段帶著供應商回應本文
+ * (例如 callOpenAiChat：`${cfg.label} 回傳錯誤(HTTP ${status})：${body}`，body是
+ * 完整原始回應，不是 bodySnippet 那個已截斷版本)——這對排查很重要，但不該原樣
+ * 出現在回傳給瀏覽器的 JSON 裡。呼叫端(functions/api/turn.js、narrate.js)的公開
+ * 錯誤訊息一律呼叫這個函式，完整原因(err.message/err.bodySnippet)只寫進 server log。
+ */
+export function describeLlmFailure(err) {
+  switch (err?.stage) {
+    case "timeout":
+      return "請求逾時，供應商未在時限內回應";
+    case "config":
+      return "供應商設定不完整";
+    case "http":
+      return `供應商回傳錯誤${Number.isFinite(err?.status) ? `(HTTP ${err.status})` : ""}`;
+    case "shape":
+      return "供應商回應格式不符預期";
+    case "binding":
+      return "Cloudflare Workers AI 呼叫失敗";
+    case "ssrf-blocked":
+      return "目標端點不被允許";
+    default:
+      return "AI服務暫時無法使用";
+  }
+}
+
+/**
  * 輸出長度上限的預設值。
  *
  * [2026-08-16 決策記錄 —— 這個常數是一個實際線上bug的修正，不是隨手填的數字]

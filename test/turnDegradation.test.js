@@ -175,7 +175,12 @@ test("LLM呼叫失敗時回502，並帶出 stage/httpStatus 讓前端決定要�
 
   assert.equal(status, 502);
   assert.equal(body.ok, false);
-  assert.match(body.error, /deprecated/);
+  // [安全][2026-08-24 second pass] body.error 不再直接帶出 LlmError.message 的原文——
+  // 那個欄位可能整段帶著第三方供應商的原始回應本文，不該原樣送回瀏覽器
+  // (見 content/llm/client.js 的 describeLlmFailure())。真正的原因寫進 server log，
+  // 前端要分辨失敗原因看的是下面的 stage/httpStatus，這也是這則測試標題講的重點。
+  assert.match(body.error, /敘事生成失敗/);
+  assert.ok(!body.error.includes("deprecated"), "供應商回應原文不能出現在公開回應裡");
   assert.equal(body.llmFailure.stage, "binding");
   assert.equal(body.model, PROVIDERS["workers-ai"].defaultModel, "要指名哪個模型壞掉");
   assert.equal(body.retryable, true, "有存檔時應保存可重試回合");

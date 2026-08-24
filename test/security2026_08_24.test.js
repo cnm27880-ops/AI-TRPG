@@ -12,6 +12,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { assertSafeOutboundUrl, UnsafeOutboundUrlError } from "../content/llm/urlSafety.js";
+import { resolveLlmRequestOverrides } from "../content/llm/requestOverrides.js";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as narratePost } from "../functions/api/narrate.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
@@ -20,6 +21,11 @@ import { onRequestPost as restPost } from "../functions/api/rest.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { onRequestGet as chronicleGet } from "../functions/api/chronicle.js";
+import { onRequestPost as formsPost } from "../functions/api/forms.js";
+import { onRequestPost as shopPost } from "../functions/api/shop.js";
+import { createWallet } from "../content/shop/wallet.js";
+import { SHOP_GOODS } from "../content/shop/registry.js";
+import { getScenarioPack } from "../content/scenario/registry.js";
 import {
   resolveSessionStore,
   memorySessionStore,
@@ -158,17 +164,40 @@ test("[安全] /api/session：偽造的 attributes/xp/derived/reviveCount 全部
   assert.deepEqual(character.abilities, [], "型錄裡不存在的道具/技能不能被憑空授予");
 });
 
-test("[安全] /api/session：合法範圍內的屬性/技能與已存在的商店道具原樣保留(不誤傷正常用例)", async () => {
+test("[安全] /api/session：合法範圍內(符合總預算)的屬性/技能原樣保留(不誤傷正常用例)", async () => {
   const env = {};
   const legit = emptyCharacter("合法角色");
-  legit.attributes = { 力量: 4, 敏捷: 3, 耐力: 3, 智力: 2, 感知: 3, 意志: 2 };
+  // 屬性花費7點(預算8)、技能花費4點(預算10)，兩者都在建卡預算之內。
+  legit.attributes = { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 2, 感知: 2, 意志: 2 };
   legit.skills.格鬥 = 3;
+  legit.skillBase = { ...legit.skills };
   legit.derived = computeDerivedStats(legit.attributes);
 
   const body = await read(await sessionPost(req(env, { character: legit })));
   assert.equal(body.ok, true);
   assert.deepEqual(body.session.character.attributes, legit.attributes);
+  assert.equal(body.session.character.skills.格鬥, 3);
   assert.equal(body.session.character.derived.hp.max, legit.derived.hp.max);
+});
+
+test("[安全] /api/session：總花費超支的角色(每項都合法、但總和超過建卡預算)要被整組重置，不能靠疊加單項合法值繞過總預算", async () => {
+  const env = {};
+  const overBudget = emptyCharacter("超支角色");
+  // 六維全部頂到單項上限5——每一項都在1~5的合法範圍內，但總花費(7*6=42)遠超過8點預算。
+  overBudget.attributes = { 力量: 5, 敏捷: 5, 耐力: 5, 智力: 5, 感知: 5, 意志: 5 };
+  for (const skill of Object.keys(overBudget.skills)) overBudget.skills[skill] = 3; // 十個技能全頂到3(單項上限)
+  overBudget.skillBase = { ...overBudget.skills };
+  overBudget.derived = computeDerivedStats(overBudget.attributes);
+
+  const body = await read(await sessionPost(req(env, { character: overBudget })));
+  assert.equal(body.ok, true);
+  const character = body.session.character;
+  for (const value of Object.values(character.attributes)) {
+    assert.equal(value, 1, "總預算超支時，屬性必須整組重置成基礎值，不能保留任何一項偽造的高值");
+  }
+  for (const value of Object.values(character.skills)) {
+    assert.equal(value, 0, "總預算超支時，技能必須整組重置成基礎值");
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -292,7 +321,8 @@ test("[冪等] /api/rest：同一個 requestId 重送不會重複恢復生命值
 test("[併發] /api/combat/act：兩個真正並行的攻擊請求同時送出，只有一個真的結算，另一個拿到明確衝突", async () => {
   const env = {};
   const character = emptyCharacter("戰鬥併發測試");
-  character.attributes = { 力量: 4, 敏捷: 3, 耐力: 3, 智力: 2, 感知: 3, 意志: 2 };
+  // 屬性花費必須在建卡8點預算內，否則 sessionPost 會把它重置成基礎值(見上面兩則測試)。
+  character.attributes = { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 2, 感知: 2, 意志: 2 };
   character.derived = computeDerivedStats(character.attributes);
   const created = await read(await sessionPost(req(env, { character })));
   const sessionId = created.session.id;
@@ -469,4 +499,293 @@ test("[安全] /api/narrate：剛好1000個Unicode字元(含中文與emoji)要�
   assert.equal(Array.from(exactly1000).length, 1000);
   const res = await narratePost(req(env, { character: emptyCharacter("剛好上限測試"), playerAction: exactly1000 }));
   assert.notEqual(res.status, 422, "剛好1000字不該被擋下");
+});
+
+// ---------------------------------------------------------------------------
+// resolveLlmRequestOverrides / /api/turn、/api/narrate 的覆寫範圍收口
+//
+// 這一批是第二輪安全稽核的修正：舊版只要body裡有baseUrl就會套用到 resolveProvider()，
+// 不管有沒有指定 provider。一個沒帶 provider、只帶 baseUrl(不帶apiKey)的請求，
+// 會讓伺服器自動選定的供應商(例如靠GEMINI_API_KEY自動選中的gemini)的端點被換成
+// 呼叫端指定的網域，而金鑰因為呼叫端沒給，退回讀伺服器自己的——等於伺服器拿著
+// 自己的正牌金鑰對一個呼叫端指定的任意公開網域發了一次請求，金鑰就外洩了。
+// SSRF黑名單擋不住這個：那個網域可以是完全合法的公開https網域，只是攻擊者自己的。
+// ---------------------------------------------------------------------------
+
+test("resolveLlmRequestOverrides：沒有指定provider時，apiKey/baseUrl/model全部忽略", () => {
+  const overrides = resolveLlmRequestOverrides({
+    bodyProvider: undefined,
+    bodyApiKey: "attacker-key",
+    bodyBaseUrl: "https://attacker.example.com/v1",
+    bodyModel: "attacker-model",
+  });
+  assert.deepEqual(overrides, { apiKey: undefined, baseUrl: undefined, model: undefined });
+});
+
+test("resolveLlmRequestOverrides：指定了非custom的provider時，baseUrl被忽略，apiKey/model仍然套用", () => {
+  const overrides = resolveLlmRequestOverrides({
+    bodyProvider: "gemini",
+    bodyApiKey: "my-own-key",
+    bodyBaseUrl: "https://attacker.example.com/v1",
+    bodyModel: "gemini-x",
+  });
+  assert.equal(overrides.baseUrl, undefined, "內建供應商的端點不能被請求改寫");
+  assert.equal(overrides.apiKey, "my-own-key");
+  assert.equal(overrides.model, "gemini-x");
+});
+
+test("resolveLlmRequestOverrides：provider=custom時，baseUrl/apiKey/model全部套用(這是BYOK功能本身)", () => {
+  const overrides = resolveLlmRequestOverrides({
+    bodyProvider: "custom",
+    bodyApiKey: "my-key",
+    bodyBaseUrl: "https://my-relay.example.com/v1",
+    bodyModel: "my-model",
+  });
+  assert.deepEqual(overrides, { apiKey: "my-key", baseUrl: "https://my-relay.example.com/v1", model: "my-model" });
+});
+
+test("[安全] /api/turn：沒有指定provider時，帶baseUrl也不會被套用——伺服器金鑰不會被送到呼叫端指定的網域", async () => {
+  const captured = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ narration: "測試敘事", options: [] }) }] } }] }),
+      text: async () => "",
+    };
+  };
+  try {
+    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰" };
+    const created = await read(await sessionPost(req(env, { character: emptyCharacter("金鑰外洩測試") })));
+    const sessionId = created.session.id;
+
+    // 攻擊者只帶 baseUrl(不帶provider、不帶apiKey)，企圖讓伺服器自動選中的
+    // gemini 被導去這個網域，同時用伺服器自己的金鑰打過去。
+    const body = await read(await turnPost(req(env, {
+      sessionId,
+      playerAction: "推開門",
+      baseUrl: "https://attacker.example.com/v1",
+    })));
+
+    assert.equal(body.ok, true, JSON.stringify(body));
+    assert.equal(captured.length, 1);
+    assert.match(captured[0].url, /generativelanguage\.googleapis\.com/, "必須打到真正的Gemini端點，不能被body的baseUrl改道");
+    assert.ok(!captured[0].url.includes("attacker.example.com"), "伺服器金鑰絕對不能被送到攻擊者指定的網域");
+    assert.equal(captured[0].options.headers["x-goog-api-key"], "伺服器自己的正牌金鑰");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("[安全] /api/turn：指定內建provider(非custom)並帶baseUrl時，baseUrl被忽略，仍打到內建端點", async () => {
+  const captured = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ narration: "測試敘事", options: [] }) }] } }] }),
+      text: async () => "",
+    };
+  };
+  try {
+    const env = {};
+    const created = await read(await sessionPost(req(env, { character: emptyCharacter("內建端點測試") })));
+    const sessionId = created.session.id;
+
+    const body = await read(await turnPost(req(env, {
+      sessionId,
+      playerAction: "推開門",
+      provider: "gemini",
+      apiKey: "my-own-gemini-key",
+      baseUrl: "https://attacker.example.com/v1",
+    })));
+
+    assert.equal(body.ok, true, JSON.stringify(body));
+    assert.equal(captured.length, 1);
+    assert.match(captured[0].url, /generativelanguage\.googleapis\.com/, "內建供應商的端點不能被body的baseUrl改寫");
+    assert.equal(captured[0].options.headers["x-goog-api-key"], "my-own-gemini-key", "呼叫端自己的金鑰仍然要生效");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+test("[安全] /api/narrate：跟/api/turn同一套規則——沒帶provider時baseUrl/apiKey全部忽略", async () => {
+  const captured = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    captured.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: "測試敘事" }] } }] }),
+      text: async () => "",
+    };
+  };
+  try {
+    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰" };
+    const body = await read(await narratePost(req(env, {
+      character: emptyCharacter("narrate金鑰外洩測試"),
+      playerAction: "推開門",
+      baseUrl: "https://attacker.example.com/v1",
+      apiKey: "attacker-key",
+    })));
+
+    assert.equal(body.ok, true, JSON.stringify(body));
+    assert.equal(captured.length, 1);
+    assert.match(captured[0].url, /generativelanguage\.googleapis\.com/);
+    assert.equal(captured[0].options.headers["x-goog-api-key"], "伺服器自己的正牌金鑰");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /api/turn：解析失敗(parse failure)的降級回應不能把模型原文洩漏出去
+//
+// 第二輪安全稽核明確要求的測試：讓模型回傳一段**含 st_thought 內容、但整體不是合法
+// JSON**的回覆(觸發 parseTurnResponse 失敗、走降級流程)，然後遞迴檢查整份回應的
+// JSON text 不包含那段內部盤算文字——不能只檢查 body.stThought 這一個欄位，
+// 因為漏洞原本藏在 body.degraded.rawSnippet 這種容易被忽略的旁支欄位裡。
+// ---------------------------------------------------------------------------
+
+test("[安全] /api/turn：解析失敗時，含st_thought的模型原文不會出現在回應JSON的任何地方", async () => {
+  const SECRET_MARKER = "只有說書人看得到的內部盤算-機密ABC123";
+  // 刻意寫成不合法JSON(缺結尾的引號/大括號)，逼 parseTurnResponse 失敗、
+  // 走降級流程——這正是先前 degraded.rawSnippet 洩漏原文的那條路徑。
+  const brokenJsonWithSecret = `{"st_thought": "${SECRET_MARKER}", "narration": "你推開門，走進一片黑`;
+  const env = {
+    AI: { run: async () => ({ response: brokenJsonWithSecret }) },
+  };
+  const DRAFT = {
+    concept: { name: "解析失敗測試", gender: "男" },
+    attributes: { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 1, 感知: 2, 意志: 2 },
+    skills: { 格鬥: 3, 射擊: 0, 體魄: 1, 潛行: 0, 求生: 0, 偵察: 2, 技藝: 0, 醫療: 0, 秘識: 0, 交涉: 0 },
+  };
+  const created = await read(await sessionPost(req(env, {
+    draft: DRAFT,
+    scenarioId: "scenario.echo-institute-01", // 沒有固定開頭，開場一樣會真的呼叫AI
+  })));
+  assert.equal(created.ok, true, JSON.stringify(created));
+  const sessionId = created.session.id;
+
+  const res = await turnPost(req(env, { sessionId }));
+  const body = await read(res);
+
+  // 先確認真的走到了降級流程(不是巧合地解析成功)，測試才有意義。
+  assert.equal(body.degraded?.parseFailed, true, "這個回覆必須是無法解析的，才能驗證洩漏修正");
+
+  const serialized = JSON.stringify(body);
+  assert.ok(!serialized.includes(SECRET_MARKER), "模型原文(含st_thought)不能出現在回應JSON的任何地方");
+  assert.equal(body.stThought, undefined);
+  assert.equal(body.degraded?.rawSnippet, undefined, "degraded.rawSnippet 這個旁支欄位也不能帶原文回來");
+});
+
+// ---------------------------------------------------------------------------
+// 第二輪安全稽核第4點：/api/combat/start、/api/forms、/api/shop 也要有衝突偵測，
+// 不能只修 turn/travel/combat-act/rest/revive。
+// ---------------------------------------------------------------------------
+
+test("[併發] /api/combat/start：兩個真正並行的開戰請求，只有一個真的開戰，另一個拿到明確衝突", async () => {
+  const env = {};
+  const character = emptyCharacter("開戰併發測試");
+  character.attributes = { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 2, 感知: 2, 意志: 2 };
+  character.derived = computeDerivedStats(character.attributes);
+  const created = await read(await sessionPost(req(env, { character })));
+  const sessionId = created.session.id;
+
+  const [resA, resB] = await Promise.all([
+    combatStart(req(env, { sessionId })),
+    combatStart(req(env, { sessionId })),
+  ]);
+  const [bodyA, bodyB] = await Promise.all([read(resA), read(resB)]);
+  const results = [bodyA, bodyB];
+  const successes = results.filter((r) => r.ok);
+  const conflicts = results.filter((r) => !r.ok && (r.code === "SESSION_CONFLICT" || /已經有進行中的戰鬥/.test(r.error ?? "")));
+
+  assert.equal(successes.length, 1, `兩個並行開戰請求只能有一個成功，實際：${JSON.stringify(results)}`);
+  assert.equal(conflicts.length, 1, "另一個必須拿到明確的衝突/已有戰鬥錯誤，不能也回成功(那會是兩場戰鬥疊在一起)");
+
+  const store = resolveSessionStore(env);
+  const finalSession = await store.get(sessionId);
+  assert.equal(finalSession.combat?.active, true, "最終只能有一場戰鬥在進行中");
+});
+
+test("[併發] /api/forms：兩個真正並行的型態啟動請求，池子只被扣一次", async () => {
+  const env = {};
+  // 劍氣/內力都是「以輪計時」，/api/forms 沒有輪數可以給(那是combat/act.js才有的
+  // context)，戰鬥外一定會被「缺少輪數」擋下——所以這裡改用「以場景計時」的
+  // 寫輪眼(洞察眼)：標準動作啟動、付1點查克拉、持續一個場景，戰鬥外啟動得起來。
+  const 寫輪眼 = SHOP_GOODS.find((g) => g.goodId === "dojutsu.寫輪眼.D");
+  const character = emptyCharacter("型態併發測試");
+  character.attributes = { 力量: 3, 敏捷: 3, 耐力: 3, 智力: 2, 感知: 3, 意志: 2 };
+  character.derived = computeDerivedStats(character.attributes);
+  character.abilities = [{ goodId: 寫輪眼.goodId, name: 寫輪眼.name, effects: 寫輪眼.effects }];
+
+  const created = await read(await sessionPost(req(env, { character: emptyCharacter("型態併發測試") })));
+  const sessionId = created.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.character = character;
+  const { openPool } = await import("../core/energyPools.js");
+  session.character.derived.energyPools = openPool({}, "查克拉", character.attributes, 寫輪眼.goodId);
+  await store.put(session, { expectedRev: session.rev });
+
+  const formId = `${寫輪眼.goodId}:洞察眼`;
+  const [resA, resB] = await Promise.all([
+    formsPost(req(env, { sessionId, formId, action: "啟動" })),
+    formsPost(req(env, { sessionId, formId, action: "啟動" })),
+  ]);
+  const [bodyA, bodyB] = await Promise.all([read(resA), read(resB)]);
+  const results = [bodyA, bodyB];
+  const successes = results.filter((r) => r.ok && r.form);
+  const conflicts = results.filter((r) => r.code === "SESSION_CONFLICT");
+
+  assert.equal(successes.length, 1, `兩個並行啟動只能有一個真的花掉池子，實際：${JSON.stringify(results)}`);
+  assert.equal(conflicts.length, 1, "另一個必須拿到明確的 SESSION_CONFLICT");
+
+  const finalSession = await store.get(sessionId);
+  const pool = finalSession.character.derived.energyPools.查克拉;
+  assert.equal(pool.current, pool.max - 1, "查克拉池只能被扣一次(付1點)，不能因為併發被扣兩次");
+});
+
+test("[併發] /api/shop：兩個真正並行的購買請求，錢包只被扣一次，商品只拿到一份", async () => {
+  const env = {};
+  const created = await read(await sessionPost(req(env, { draft: {
+    concept: { name: "購買併發測試", gender: "男" },
+    attributes: { 力量: 3, 敏捷: 2, 耐力: 2, 智力: 1, 感知: 2, 意志: 2 },
+    skills: { 格鬥: 3, 射擊: 0, 體魄: 1, 潛行: 0, 求生: 0, 偵察: 2, 技藝: 0, 醫療: 0, 秘識: 0, 交涉: 0 },
+  } })));
+  const sessionId = created.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+
+  // 把副本標記成通關 = 回到主神空間，點數商品才買得到(跟 test/shopAccess.test.js 同一招)。
+  const pack = getScenarioPack(session.scenario.packId);
+  for (const chapter of pack.entries) {
+    for (const node of chapter.nodes ?? []) session.scenario.progress.nodes[node.id] = { completed: true, divergenceTier: 2 };
+  }
+  session.scenario.progress.chapterIndex = pack.entries.length - 1;
+  session.wallet = createWallet({ tokens: { D: 5 }, points: 9999 });
+  await store.put(session, { expectedRev: session.rev });
+
+  const 物品 = SHOP_GOODS.find((g) => g.category === "物品");
+  const [resA, resB] = await Promise.all([
+    shopPost(req(env, { sessionId, goodId: 物品.goodId })),
+    shopPost(req(env, { sessionId, goodId: 物品.goodId })),
+  ]);
+  const [bodyA, bodyB] = await Promise.all([read(resA), read(resB)]);
+  const results = [bodyA, bodyB];
+  const successes = results.filter((r) => r.ok && r.receipt);
+  const conflicts = results.filter((r) => r.code === "SESSION_CONFLICT");
+
+  assert.equal(successes.length, 1, `兩個並行購買只能有一次真的成交，實際：${JSON.stringify(results)}`);
+  assert.equal(conflicts.length, 1, "另一個必須拿到明確的 SESSION_CONFLICT，不能也扣一次錢");
+
+  const finalSession = await store.get(sessionId);
+  const owned = finalSession.character.abilities.filter((a) => a.goodId === 物品.goodId);
+  assert.equal(owned.length, 1, "商品只能被買到一份，不能因為併發變成兩份");
 });
