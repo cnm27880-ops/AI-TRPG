@@ -47,6 +47,7 @@ import {
   resolveSessionStore,
   pushHistory,
   historyToPromptText,
+  SessionConflictError,
 } from "../../content/storage/sessionStore.js";
 import { appendChronicle, registerChroniclePackage, buildCompactAiContext } from "../../content/storage/chronicle.js";
 import {
@@ -61,6 +62,8 @@ import {
   buildReferenceResponseSpec,
   MAX_FREE_ACTION_CHARS,
   countActionCharacters,
+  MAX_SCENE_CONTEXT_CHARS,
+  clampTextByCodePoints,
 } from "../../content/turnOptions.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
@@ -210,7 +213,7 @@ async function persistPendingTurn({
     session.scenario = { ...session.scenario, progress: scenarioProgress };
   }
   try {
-    await store.put(session);
+    await store.put(session, { expectedRev: session.rev ?? 0 });
     return publicPendingTurn(session.pendingTurn);
   } catch (err) {
     console.error("[PENDING_TURN_SAVE_FAILURE]", err);
@@ -233,7 +236,7 @@ export async function onRequestPost(context) {
     sessionId,
     chosenOption,
     playerAction,
-    sceneContext,
+    sceneContext: rawSceneContext,
     style,
     // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
     // 跟 style 同一個層級：玩家在設定裡選，沒選就用環境變數，再沒有就用預設。
@@ -246,6 +249,9 @@ export async function onRequestPost(context) {
     turnRequestId,
     retryPending = false,
   } = body ?? {};
+  // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
+  // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
+  const sceneContext = clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS);
   const warnings = [];
 
   // 自由行動是玩家輸入的敘事指令，長度限制必須在載入 session、擲骰、呼叫 LLM
@@ -493,7 +499,14 @@ export async function onRequestPost(context) {
     });
     session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return jsonError("這份存檔剛被另一個請求更新，請重新整理後再試一次。", 409, { code: "SESSION_CONFLICT" });
+      }
+      throw err;
+    }
 
     return json({
       ok: true,
@@ -684,7 +697,18 @@ export async function onRequestPost(context) {
       progress: scenarioProgress,
       ...(scenarioReference && referenceState ? { referenceState } : {}),
     };
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      // 這是「敘事層失敗前」的世界狀態存檔點，不是這次請求的主要回應。
+      // 併發衝突時寧可跳過這次存檔(下一輪重試時世界狀態仍會是正確的)，
+      // 也不要讓一個次要的存檔點把整個請求變成500。
+      if (err instanceof SessionConflictError) {
+        console.warn("[SESSION_CONFLICT]", JSON.stringify({ where: "persistReferenceTurn", sessionId: session.id }));
+        return;
+      }
+      throw err;
+    }
   };
   const logReferenceAction = () => {
     if (!session || !referenceApplied?.applied || referenceActionLogged) return;
@@ -993,8 +1017,12 @@ export async function onRequestPost(context) {
   //
   // 這一格**不是給玩家看的**，也**不會進存檔的 history**：它是模型在動筆之前的盤算，
   // 讀起來像後台筆記（「這次是些微失敗，要關掉通風管這條路，並讓她受一道傷」），
-  // 印給玩家看等於先劇透這一回合的結局。回傳它只有一個用途：開發時能看出
-  // 「模型到底有沒有照著判定結果想事情」，那是調這一層唯一有效的線索。
+  // 印給玩家看等於先劇透這一回合的結局。
+  //
+  // [安全][2026-08-24] 這裡以前會把它整段放進公開 API 回應（前端只是選擇不印進故事流，
+  // 但打開瀏覽器開發者工具的 Network 分頁就能看到全文，等於還是送到了玩家手上）。
+  // 現在只留在伺服器端的 log 裡：開發時要看「模型有沒有照著判定結果想事情」，
+  // 查 Cloudflare 的 log 就好，不再經過任何會回到瀏覽器的路徑。
   //
   // 它也**不是**真理來源：裡面就算寫了數字也一律不採用，判定結果永遠以 checkResult 為準。
   let stThought = null;
@@ -1005,6 +1033,8 @@ export async function onRequestPost(context) {
     if (typeof parsed.data.narration === "string") narration = parsed.data.narration;
     if (typeof parsed.data.st_thought === "string" && parsed.data.st_thought.trim()) {
       stThought = parsed.data.st_thought.trim();
+      // 只進 log，絕對不要把這個值放進任何 return 給呼叫端的 JSON（見上方說明）。
+      console.debug("[ST_THOUGHT]", JSON.stringify({ sessionId: session?.id ?? null, stThought }));
     }
     if (scenarioReference && referenceState) {
       aiThreatAssessment = parsed.data.threatAssessment ?? null;
@@ -1405,7 +1435,14 @@ export async function onRequestPost(context) {
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     // pendingTurn 只存在於「規則已算、敘事未完成」的窗口；成功寫回後不可再次重播。
     session.pendingTurn = null;
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return jsonError("這份存檔剛被另一個請求更新，請重新整理後再試一次。", 409, { code: "SESSION_CONFLICT" });
+      }
+      throw err;
+    }
   }
 
   return json({
@@ -1421,8 +1458,11 @@ export async function onRequestPost(context) {
     options,
     // 這一輪的內容來源。前端靠它顯示「保底內容」提示（見 public/app.js 的 renderTurnQuality）。
     degraded,
-    // 說書人的後台盤算（思維鏈）。**前端不可以把它印進故事流**，它只是開發用的檢視窗口。
-    stThought,
+    // [安全][2026-08-24] st_thought(說書人後台盤算/思維鏈)以前會整段放進這個公開回應，
+    // 註解寫著「前端不可以把它印進故事流」，但「前端不印」跟「玩家看不到」是兩件事——
+    // 打開瀏覽器開發者工具就能在 Network 分頁看到完整內容，等於把引擎判定結果之外的
+    // 內部盤算文字直接送到玩家手上。玩家看不到的東西不能出現在玩家看得到的 response 裡，
+    // 這裡就不再帶出這個欄位；伺服器端要除錯的話看 console 的 log，不要放回應。
     ...(scenarioReference ? { narrativeMode } : {}),
     ...(validatedThreatAssessment ? { threatAssessment: validatedThreatAssessment } : {}),
     // 角色目前的傷勢閘門狀態。每一回合都附上，前端才能持續顯示昏迷/死亡，

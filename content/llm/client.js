@@ -9,6 +9,7 @@
 // 因為玩家分不出「AI寫的」跟「程式湊的」，那會侵蝕整個遊戲的可信度。
 
 import { PROTOCOLS, resolveProvider } from "./providers.js";
+import { assertSafeOutboundUrl } from "./urlSafety.js";
 
 /**
  * LLM呼叫失敗時丟出的錯誤型別。
@@ -119,9 +120,9 @@ export async function callLlm({
 
   switch (cfg.protocol) {
     case PROTOCOLS.WORKERS_AI:
-      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit, responseSchema });
+      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit, responseSchema, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.GEMINI:
-      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn });
+      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.OPENAI_CHAT:
       return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     default:
@@ -153,6 +154,93 @@ function requestTimeoutMs(env = {}) {
   const value = Number(env.LLM_REQUEST_TIMEOUT_MS);
   if (!Number.isFinite(value) || value <= 0) return 90_000;
   return Math.max(1_000, Math.min(300_000, Math.trunc(value)));
+}
+
+const MAX_OUTBOUND_REDIRECTS = 3;
+
+/**
+ * [安全][效能] 所有出站HTTP呼叫共用的 fetch 包裝，三件事一次做完：
+ *
+ *   1. SSRF 檢查 —— 呼叫前用 urlSafety.js 驗證目標，攔掉私網/loopback/metadata endpoint。
+ *      不管是不是測試注入的假 fetchFn 都會執行；測試用的URL全是公開https網域，不會被擋。
+ *   2. Server-controlled timeout —— 用 AbortController，逾時就中止連線，不讓 worker
+ *      因為對方不回應而無限掛著（Workers 本身也有執行時間上限，但那是「被砍」，
+ *      不是「明確回報逾時原因」，兩者對排查來說天差地遠）。
+ *   3. 手動處理重定向 —— redirect:"manual" 自己接住 3xx，每一跳都重新做SSRF檢查再繼續，
+ *      不能讓「第一段URL檢查通過」變成「之後被 3xx 導去內網也照樣連過去」的漏洞。
+ *
+ * 只有真的走網路(fetchFn === fetch)時才套用第2、3點：測試注入的假fetchFn不會真的連網，
+ * 硬套用timeout/重定向機制只會要求每個測試去模擬一堆跟「這次要驗證的行為」無關的細節。
+ */
+function checkOutboundUrl(url, { provider, model }) {
+  try {
+    assertSafeOutboundUrl(url);
+  } catch (err) {
+    throw new LlmError(err.message, { provider, model, stage: "ssrf-blocked", cause: err });
+  }
+}
+
+/**
+ * @param {boolean} [enforceSsrf] 要不要對這個URL做SSRF檢查。
+ *
+ * [設計] 只有「這次請求的 body 明確指定了 baseUrl」才檢查（見 providers.js 的
+ * baseUrlOverridden 說明）。伺服器操作者自己在環境變數 LLM_BASE_URL 設一個
+ * 本機/內網位址是刻意的信任決定（本機開發、自架反向代理、整合測試起一個本機
+ * mock server 都是這個情境），不是攻擊面；請求端在 body 裡塞內網位址才是SSRF。
+ * 兩種情況的 baseUrl 可能長得一模一樣，差別只在「誰決定的」。
+ */
+async function safeFetch(fetchFn, url, options, { timeoutMs = 90_000, provider, model, enforceSsrf = false } = {}) {
+  if (enforceSsrf) checkOutboundUrl(url, { provider, model });
+
+  if (fetchFn !== fetch || typeof AbortController !== "function") {
+    return fetchFn(url, options);
+  }
+
+  let currentUrl = url;
+  for (let hop = 0; hop <= MAX_OUTBOUND_REDIRECTS; hop += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetchFn(currentUrl, { ...options, redirect: "manual", signal: controller.signal });
+    } catch (err) {
+      if (err?.name === "AbortError") {
+        throw new LlmError(`請求超過 ${timeoutMs}ms 未回應`, { provider, model, stage: "timeout", cause: err });
+      }
+      throw new LlmError(`連線失敗：${err?.message ?? err}`, { provider, model, stage: "http", cause: err });
+    } finally {
+      clearTimeout(timer);
+    }
+    const isRedirect = response.status >= 300 && response.status < 400;
+    const location = isRedirect && typeof response.headers?.get === "function" ? response.headers.get("location") : null;
+    if (!location) return response;
+    currentUrl = new URL(location, currentUrl).toString();
+    if (enforceSsrf) checkOutboundUrl(currentUrl, { provider, model });
+  }
+  throw new LlmError("重定向次數過多，已中止請求（可能的重定向迴圈或導向攻擊）", {
+    provider,
+    model,
+    stage: "http",
+  });
+}
+
+/**
+ * 幫沒有 fetch/AbortController 可用的呼叫方式（Cloudflare Workers AI 的 binding，
+ * 不走HTTP）補上 server-controlled timeout。binding 本身沒有簽章可以中止，
+ * 逾時了實際呼叫仍在背景跑，但至少不會讓這個請求無限期掛著等它。
+ */
+async function withTimeout(promiseFactory, timeoutMs, { provider, model } = {}) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new LlmError(`請求超過 ${timeoutMs}ms 未回應`, { provider, model, stage: "timeout" }));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([promiseFactory(), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function logSchemaFallback(cfg, detail) {
@@ -187,7 +275,6 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
   const useSchema = responseSchema && cfg.jsonMode === "openai-schema";
 
   const send = async (withSchema) => {
-    const controller = typeof AbortController === "function" && fetchFn === fetch ? new AbortController() : null;
     const options = {
       method: "POST",
       headers: {
@@ -195,7 +282,6 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
         authorization: `Bearer ${cfg.apiKey}`,
         ...(cfg.extraHeaders ?? {}),
       },
-      ...(controller ? { signal: controller.signal } : {}),
       body: JSON.stringify({
         model: cfg.model,
         messages,
@@ -210,24 +296,12 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
           : {}),
       }),
     };
-    const request = fetchFn(`${cfg.baseUrl}/chat/completions`, options);
-    if (!controller) return request;
-    let timer;
-    const timeout = new Promise((_, reject) => {
-      timer = setTimeout(() => {
-        controller.abort();
-        reject(new LlmError(`${cfg.label} 請求超過 ${timeoutMs}ms 未回應`, {
-          provider: cfg.id,
-          model: cfg.model,
-          stage: "timeout",
-        }));
-      }, timeoutMs);
+    return safeFetch(fetchFn, `${cfg.baseUrl}/chat/completions`, options, {
+      timeoutMs,
+      provider: cfg.id,
+      model: cfg.model,
+      enforceSsrf: cfg.baseUrlOverridden,
     });
-    try {
-      return await Promise.race([request, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
   };
 
   let response = await send(useSchema);
@@ -308,7 +382,7 @@ function withPropertyOrdering(schema) {
   return next;
 }
 
-async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch }) {
+async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
   if (!cfg.apiKey) {
     throw new LlmError(
       `${cfg.label} 需要API金鑰，但沒有讀到。請設定環境變數 ${cfg.apiKeyEnv}` +
@@ -334,11 +408,16 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
   });
 
   const send = (withSchema) =>
-    fetchFn(`${cfg.baseUrl}/models/${cfg.model}:generateContent`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
-      body: JSON.stringify(buildBody(withSchema)),
-    });
+    safeFetch(
+      fetchFn,
+      `${cfg.baseUrl}/models/${cfg.model}:generateContent`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": cfg.apiKey },
+        body: JSON.stringify(buildBody(withSchema)),
+      },
+      { timeoutMs, provider: cfg.id, model: cfg.model, enforceSsrf: cfg.baseUrlOverridden }
+    );
 
   let response = await send(useSchema);
 
@@ -387,7 +466,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
 // Cloudflare Workers AI（不走HTTP，走binding）
 // ---------------------------------------------------------------------------
 
-async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, responseSchema }) {
+async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, responseSchema, timeoutMs = 90_000 }) {
   if (!env?.AI || typeof env.AI.run !== "function") {
     throw new LlmError(
       "找不到Cloudflare Workers AI binding(env.AI)。" +
@@ -414,19 +493,27 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, r
 
   let raw;
   try {
-    raw = await env.AI.run(cfg.model, payload(useSchema));
+    raw = await withTimeout(() => env.AI.run(cfg.model, payload(useSchema)), timeoutMs, {
+      provider: cfg.id,
+      model: cfg.model,
+    });
   } catch (err) {
     // binding 沒有 HTTP 狀態碼可看，只能靠錯誤訊息判斷是不是「不吃 response_format」。
     // 判斷不準也沒關係：最壞的情況是多試一次不帶 schema 的請求，不會讓結果變差。
-    if (useSchema) {
+    // 逾時(err.stage==="timeout")不算「不吃schema」，不需要也不應該重試——
+    // 對方本來就沒回應，多打一次只是把逾時等待時間翻倍。
+    if (useSchema && err?.stage !== "timeout") {
       logSchemaFallback(cfg, String(err?.message ?? err));
       try {
-        raw = await env.AI.run(cfg.model, payload(false));
+        raw = await withTimeout(() => env.AI.run(cfg.model, payload(false)), timeoutMs, {
+          provider: cfg.id,
+          model: cfg.model,
+        });
       } catch (retryErr) {
         throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${retryErr.message}`, {
           provider: cfg.id,
           model: cfg.model,
-          stage: "binding",
+          stage: retryErr?.stage === "timeout" ? "timeout" : "binding",
           bodySnippet: snippet(String(retryErr?.message ?? retryErr)),
           cause: retryErr,
         });
@@ -435,7 +522,7 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, r
       throw new LlmError(`Workers AI 呼叫失敗（模型 ${cfg.model}）：${err.message}`, {
         provider: cfg.id,
         model: cfg.model,
-        stage: "binding",
+        stage: err?.stage === "timeout" ? "timeout" : "binding",
         bodySnippet: snippet(String(err?.message ?? err)),
         cause: err,
       });

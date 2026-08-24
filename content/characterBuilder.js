@@ -44,6 +44,7 @@ import { composeCore, getVirtue, getVice } from "./chargen/virtueVice.js";
 import { applyReshape, RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP } from "./chargen/reshape.js";
 import { composeAwakening } from "./chargen/awakening.js";
 import { computeDerivedStats, DEFAULT_SIZE } from "../core/derivedStats.js";
+import { SHOP_GOODS } from "./shop/registry.js";
 
 const ATTRIBUTE_KEYS = ATTRIBUTES.map((a) => a.key);
 const ALL_SKILLS = Object.values(SKILLS).flat();
@@ -225,11 +226,14 @@ function normalizeFeats(rawFeats) {
     if (type === "narrative") {
       feats.push({ id: raw.id ?? raw.name, name: raw.name, description: raw.description, effect: { type: "narrative" } });
     } else if (type === "skillBonus" && ALL_SKILLS.includes(raw.effect.skill) && Number.isInteger(raw.effect.amount)) {
+      // 上限跟建卡技能範圍(0~3)同一個數量級：專長是「小幅加成」，不是讓前端傳一個
+      // 999 進來把技能判定變成必過。合法內建專長目前都只有 +1，這裡留一點餘裕給 ±3。
+      const amount = Math.max(-3, Math.min(3, raw.effect.amount));
       feats.push({
         id: raw.id ?? raw.name,
         name: raw.name,
         description: raw.description,
-        effect: { type: "skillBonus", skill: raw.effect.skill, amount: raw.effect.amount },
+        effect: { type: "skillBonus", skill: raw.effect.skill, amount },
       });
     }
   }
@@ -328,4 +332,98 @@ export function buildCharacter(draft = {}) {
   character.derived = computeDerivedStats(character.attributes, { size });
 
   return { valid: true, errors: [], budgets, character };
+}
+
+/**
+ * [安全] POST /api/session 的 `character`（現成角色卡，測試/匯入用）在此之前是**直接**
+ * 存進新存檔的，沒有經過任何驗證——玩家可以把 attributes 填成 99、xp 填成天文數字、
+ * derived.hp 填成任何值，那張卡就這樣原封不動變成正式存檔的角色。
+ *
+ * 這裡不是「驗證失敗就拒絕」（那樣一份手寫的匯入卡稍微有格式差異就整個建不了角），
+ * 而是仿照 buildCharacter() 的做法：**只保留合法範圍內的敘事/風味欄位，
+ * 其餘一律由伺服器重新計算**——屬性/技能點被夾回合法範圍，derived stats 用引擎公式
+ * 從（夾好的）屬性重新算一次，xp 與復活次數一律歸零（這是「新建一個存檔」，
+ * 不能讓玩家從外部帶著已經花完的經驗值或已經復活過的次數進來）。
+ *
+ * ownerId 不在這裡處理：session 的 ownerId 從登入身分算，從來不讀 character 或
+ * body 的任何欄位，所以「偽造 ownerId」在這個入口本來就無機可乘。
+ */
+export function sanitizeProvidedCharacter(raw = {}) {
+  const rawName = typeof raw?.concept?.name === "string" ? raw.concept.name.trim() : "";
+  const name = rawName ? rawName.slice(0, 40) : "未命名輪迴者";
+  const character = emptyCharacter(name);
+
+  character.concept = {
+    name,
+    gender: typeof raw?.concept?.gender === "string" ? raw.concept.gender.slice(0, 20) : "",
+    age: Number.isFinite(Number(raw?.concept?.age))
+      ? Math.max(0, Math.min(120, Math.trunc(Number(raw.concept.age))))
+      : 24,
+    background: typeof raw?.concept?.background === "string" ? raw.concept.background.slice(0, 2000) : "",
+  };
+
+  for (const key of ATTRIBUTE_KEYS) {
+    const val = Number(raw?.attributes?.[key]);
+    character.attributes[key] = Number.isFinite(val) ? Math.min(5, Math.max(1, Math.trunc(val))) : 1;
+  }
+
+  character.skillBase = {};
+  for (const skill of ALL_SKILLS) {
+    const val = Number(raw?.skillBase?.[skill] ?? raw?.skills?.[skill]);
+    character.skillBase[skill] = Number.isFinite(val) ? Math.min(3, Math.max(0, Math.trunc(val))) : 0;
+  }
+  character.skills = { ...character.skillBase };
+
+  character.feats = normalizeFeats(raw?.feats);
+  for (const feat of character.feats) {
+    if (feat.effect?.type !== "skillBonus") continue;
+    const { skill, amount } = feat.effect;
+    if (!ALL_SKILLS.includes(skill)) continue;
+    character.skills[skill] = (character.skills[skill] ?? 0) + amount;
+  }
+
+  if (raw?.morality?.virtue && raw?.morality?.vice) {
+    character.morality = {
+      virtue: raw.morality.virtue,
+      vice: raw.morality.vice,
+      shadowVirtue: raw.morality.shadowVirtue ?? null,
+      shadowVice: raw.morality.shadowVice ?? null,
+      core: composeCore(raw.morality.virtue, raw.morality.vice),
+    };
+  }
+
+  // 核心防偽：derived stats 由引擎從（已夾好範圍的）屬性重算，xp/復活次數歸零。
+  // 這三者一旦信任前端數字，玩家就能直接偽造血量上限、判定加成或無限復活額度。
+  character.derived = computeDerivedStats(character.attributes);
+  character.xp = { earned: 0, spent: 0 };
+  character.reviveCount = 0;
+  character.specializations = {};
+
+  // abilities(已購入的型態/技能商品)：不整份信任前端——那等於讓玩家宣稱自己已經買過
+  // 任何東西。只認得「goodId 真的在商店型錄裡」的項目，而且 name/effects 一律用型錄
+  // 裡的原始資料重建，不採用前端附帶的版本（防止把 effects 換成自訂的內容）。
+  // 這條路徑本來就是給測試/匯入用的既有既有商品狀態設定用，不是給玩家憑空描述能力。
+  character.abilities = Array.isArray(raw?.abilities)
+    ? raw.abilities
+        .map((entry) => SHOP_GOODS.find((good) => good.goodId === entry?.goodId))
+        .filter(Boolean)
+        .map((good) => ({ goodId: good.goodId, name: good.name, effects: good.effects }))
+    : [];
+
+  // energyPools 一樣不整份信任：只保留形狀正確(max/current皆為有限非負數字)的池子，
+  // 並把 current 夾回 [0, max]，防止用一個超過上限的 current 值偽造出「還有很多資源」。
+  const rawPools = raw?.derived?.energyPools;
+  character.derived.energyPools = rawPools && typeof rawPools === "object"
+    ? Object.fromEntries(
+        Object.entries(rawPools)
+          .filter(([, pool]) => Number.isFinite(Number(pool?.max)) && Number(pool.max) >= 0)
+          .map(([key, pool]) => {
+            const max = Number(pool.max);
+            const current = Number.isFinite(Number(pool.current)) ? Number(pool.current) : max;
+            return [key, { ...pool, max, current: Math.max(0, Math.min(max, current)) }];
+          })
+      )
+    : {};
+
+  return character;
 }

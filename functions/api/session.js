@@ -6,7 +6,11 @@
 // **沒有設定 KV binding 時不會直接壞掉**，會退到記憶體版讓你先把流程跑起來，
 // 但回傳值裡的 persistent 會是 false，前端必須顯示警告——那個模式下存檔隨時會消失。
 
-import { buildCharacter, buildCharacterFromLifePath } from "../../content/characterBuilder.js";
+import {
+  buildCharacter,
+  buildCharacterFromLifePath,
+  sanitizeProvidedCharacter,
+} from "../../content/characterBuilder.js";
 import {
   createSession,
   resolveSessionStore,
@@ -79,7 +83,10 @@ export async function onRequestPost(context) {
     }
     character = result.character;
   } else if (providedCharacter) {
-    character = providedCharacter;
+    // [安全] 不可以把前端送來的角色卡原樣存進新存檔——attributes/xp/derived stats
+    // 都可能被偽造。sanitizeProvidedCharacter() 只留下敘事欄位，數值一律由伺服器
+    // 夾回合法範圍或重新計算（見該函式的說明）。
+    character = sanitizeProvidedCharacter(providedCharacter);
   } else {
     return json({ ok: false, error: "body必須包含 draft(建卡草稿) 或 character(現成角色卡)" }, 400);
   }

@@ -74,8 +74,25 @@ export function ensureSessionShape(session) {
   // 這裡開一個真的只在「敘事推進一輪」時 +1 的計數。舊存檔沒有這個欄位，
   // 用 history 的長度當近似值(它有上限，所以只是個下限)，總比從 0 重來合理。
   if (typeof next.turns !== "number") next.turns = next.history?.length ?? 0;
+  // [2026-08-24] 樂觀鎖定用的修訂號，見底下 put() 的 expectedRev 參數與檔案開頭的
+  // 「KV 沒有 CAS」說明。舊存檔沒有這個欄位時視為 rev 0。
+  if (typeof next.rev !== "number") next.rev = 0;
   next.version = SESSION_VERSION;
   return next;
+}
+
+/**
+ * put() 帶入 expectedRev 但實際存檔的 rev 對不上時丟出的錯誤——代表這份存檔
+ * 在讀取之後、寫回之前，已經被另一個請求改過了。呼叫端應該回應 409，
+ * 而不是安靜地用手上這份覆蓋掉別人剛寫進去的結果（那就是遺失更新，見下方說明）。
+ */
+export class SessionConflictError extends Error {
+  constructor(currentRev) {
+    super("session 已被另一個請求修改，這次寫入被拒絕以避免覆蓋掉遺失的更新");
+    this.name = "SessionConflictError";
+    this.code = "SESSION_CONFLICT";
+    this.currentRev = currentRev;
+  }
 }
 
 /** 建立一份全新的存檔內容。 */
@@ -84,6 +101,8 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
   return {
     id,
     version: SESSION_VERSION,
+    // 樂觀鎖定用的修訂號，每次成功 put() 遞增。見 put() 的 expectedRev 參數。
+    rev: 0,
     // 這份存檔屬於哪個登入帳號。null = 匿名存檔（沒登入時建立的）。
     // 匿名存檔在玩家登入時會被「認領」成他的（見 content/auth/ownership.js），
     // 這樣已經在玩的人登入之後不會覺得進度不見了。
@@ -156,7 +175,27 @@ export function kvSessionStore(kv) {
     async get(id) {
       return ensureSessionShape((await kv.get(KEY_PREFIX + id, "json")) ?? null);
     },
-    async put(session) {
+    /**
+     * @param {object} session
+     * @param {object} [opts]
+     * @param {number} [opts.expectedRev] 呼叫端讀到這份存檔時的 rev。有帶這個參數時，
+     *   寫入前會重新讀一次 KV 比對 rev；不一致就丟 SessionConflictError，不寫入。
+     *
+     * [誠實的限制] 這是**盡力而為的衝突偵測**，不是真的原子 CAS——Cloudflare KV
+     * 沒有 compare-and-swap 原語，這裡的「先讀一次比對、再寫入」中間仍然有一個
+     * 極短的競態窗口：兩個請求都可能在對方寫入前完成這次比對而同時通過檢查。
+     * 對單人回合制遊戲來說，那個窗口小到可以接受；但**不要**把這個機制當成
+     * 「已經解決併發寫入」的保證。真的需要嚴格原子性的話，Cloudflare 上對應的
+     * 工具是 Durable Objects（單一 instance 序列化所有請求），這裡沒有改用它，
+     * 是因為那需要換掉整個存檔層，不是這次修正的範圍。
+     */
+    async put(session, { expectedRev } = {}) {
+      if (expectedRev !== undefined) {
+        const current = await kv.get(KEY_PREFIX + session.id, "json");
+        const currentRev = typeof current?.rev === "number" ? current.rev : 0;
+        if (currentRev !== expectedRev) throw new SessionConflictError(currentRev);
+      }
+      session.rev = (typeof session.rev === "number" ? session.rev : (expectedRev ?? 0)) + 1;
       session.updatedAt = new Date().toISOString();
       await kv.put(KEY_PREFIX + session.id, JSON.stringify(session));
       return session;
@@ -197,7 +236,15 @@ export function memorySessionStore(initial = new Map()) {
       const v = map.get(id);
       return v ? ensureSessionShape(JSON.parse(JSON.stringify(v))) : null;
     },
-    async put(session) {
+    // 同一套 expectedRev 語意，見 kvSessionStore.put() 的說明；記憶體版一樣只做
+    // 「讀取時比對」，不是真的鎖，維持跟 KV 版本一致的行為讓測試能驗證同一套邏輯。
+    async put(session, { expectedRev } = {}) {
+      if (expectedRev !== undefined) {
+        const current = map.get(session.id);
+        const currentRev = typeof current?.rev === "number" ? current.rev : 0;
+        if (currentRev !== expectedRev) throw new SessionConflictError(currentRev);
+      }
+      session.rev = (typeof session.rev === "number" ? session.rev : (expectedRev ?? 0)) + 1;
       session.updatedAt = new Date().toISOString();
       map.set(session.id, JSON.parse(JSON.stringify(session)));
       return session;

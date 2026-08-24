@@ -24,6 +24,12 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { buildTurnPrompt, SYSTEM_INSTRUCTION } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import {
+  MAX_SCENE_CONTEXT_CHARS,
+  clampTextByCodePoints,
+  MAX_FREE_ACTION_CHARS,
+  countActionCharacters,
+} from "../../content/turnOptions.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { callLlm } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
@@ -65,7 +71,7 @@ export async function onRequestPost(context) {
     character,
     checkParams,
     playerAction,
-    sceneContext,
+    sceneContext: rawSceneContext,
     recentEvents,
     style,
     persona,
@@ -77,6 +83,24 @@ export async function onRequestPost(context) {
   if (!character || !playerAction) {
     return jsonError("body必須包含 character(人物卡物件) 與 playerAction(玩家行動描述)", 400);
   }
+
+  // 跟 /api/turn 同一條規則：長度限制要在引擎/LLM之前擋下，按 Unicode code point 計算。
+  const actualCharacters = countActionCharacters(playerAction);
+  if (actualCharacters > MAX_FREE_ACTION_CHARS) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: `自由行動不能超過 ${MAX_FREE_ACTION_CHARS} 字，目前有 ${actualCharacters} 字。`,
+        code: "PLAYER_ACTION_TOO_LONG",
+        maxCharacters: MAX_FREE_ACTION_CHARS,
+        actualCharacters,
+      }),
+      { status: 422, headers: { "content-type": "application/json; charset=utf-8" } }
+    );
+  }
+  // sceneContext 一樣是可控文字、會被塞進prompt，安全截斷而不是報錯(這裡沒有存檔可寫，
+  // 主要風險是prompt大小/成本，不是「持久化偽造狀態」)。
+  const sceneContext = clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS);
 
   // 供應商覆寫與半設定狀態的攔截 —— 跟 /api/turn 同一套規則。
   // (2026-08-16：這個端點先前完全不接受前端覆寫，跟 turn.js 已經開始長不一樣了)
@@ -139,7 +163,19 @@ export async function onRequestPost(context) {
     return jsonError(`文筆設定檔錯誤：${err.message}`, 400);
   }
 
-  const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents });
+  // recentEvents 在這個端點是呼叫端直接提供的(跟 /api/turn 不同——那邊是伺服器從
+  // event log 算出來的，呼叫端碰不到)，一樣要設應用層上限，否則一個超大陣列/超長
+  // summary 會被整段塞進prompt，拉高成本也拉高單次請求的處理時間。
+  const MAX_RECENT_EVENTS = 20;
+  const MAX_EVENT_SUMMARY_CHARS = 200;
+  const boundedRecentEvents = Array.isArray(recentEvents)
+    ? recentEvents.slice(-MAX_RECENT_EVENTS).map((e) => ({
+        ...e,
+        summary: clampTextByCodePoints(typeof e?.summary === "string" ? e.summary : "", MAX_EVENT_SUMMARY_CHARS),
+      }))
+    : [];
+
+  const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents: boundedRecentEvents });
 
 
   try {

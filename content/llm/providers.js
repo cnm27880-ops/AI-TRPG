@@ -223,7 +223,20 @@ export function resolveProvider(providerId, env = {}, overrides = {}) {
   const baseUrl = trimTrailingSlash(overrides.baseUrl ?? env.LLM_BASE_URL ?? provider.baseUrl);
   const apiKey = overrides.apiKey ?? readApiKey(provider, env) ?? env.LLM_API_KEY;
 
-  return { id: providerId, ...provider, model, baseUrl, apiKey, jsonMode: resolveJsonMode(provider, env) };
+  return {
+    id: providerId,
+    ...provider,
+    model,
+    baseUrl,
+    apiKey,
+    jsonMode: resolveJsonMode(provider, env),
+    // [安全] baseUrl 是不是由**這次請求**(而不是伺服器的環境變數/內建預設值)指定的。
+    // 伺服器操作者自己在 LLM_BASE_URL 設一個本機/內網位址（本機開發、自架反向代理）
+    // 是刻意的信任決定；請求端(玩家瀏覽器)在 body 裡塞一個內網位址則是SSRF——
+    // 兩者長得一樣(都是「baseUrl 指向內網」)，差別只在「誰決定的」，這個欄位
+    // 就是用來讓 content/llm/client.js 分辨要不要對這個 baseUrl 做SSRF檢查。
+    baseUrlOverridden: Boolean(overrides.baseUrl),
+  };
 }
 
 /**

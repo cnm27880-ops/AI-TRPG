@@ -15,6 +15,27 @@ import {
   normalizeChronicleEntries,
 } from "../../content/storage/chronicle.js";
 
+// [效能] entries 分頁的預設/上限。長局玩很久之後 chronicle 陣列會一直長大——
+// 沒有上限的話，這個「按需載入」的端點本身也會變成一次回傳整份小說的無界回應。
+// 預設值刻意抓得夠大(多數campaign的完整回合數還進不去這個範圍)，維持現有前端
+// 「打開書就看到全部」的體驗；真的長到需要分頁時，呼叫端可以帶 limit/cursor 分批拿。
+const DEFAULT_CHRONICLE_LIMIT = 300;
+const MAX_CHRONICLE_LIMIT = 500;
+
+/** 非法或超大的 limit 一律安全退回一個合理值，不讓呼叫端用它撐爆一次回應。 */
+function clampChronicleLimit(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_CHRONICLE_LIMIT;
+  return Math.min(MAX_CHRONICLE_LIMIT, Math.floor(n));
+}
+
+/** 非法的 cursor(負數、非數字、超出範圍)一律安全退回 0，不報錯——這是分頁的起點，不是身分憑證。 */
+function clampChronicleCursor(raw, total) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(Math.floor(n), total);
+}
+
 export async function onRequestGet(context) {
   const store = resolveSessionStore(context.env ?? {});
   const url = new URL(context.request.url);
@@ -58,6 +79,10 @@ export async function onRequestGet(context) {
         ? []
         : entries;
 
+  // 完整劇情包(aiPackage/currentPackage)刻意繼續用完整的 selectedEntries 組——
+  // 玩家打開「劇情回顧」本來就是主動要求看/匯出完整故事，不分頁。
+  // entries 這個陣列(給書頁UI逐段渲染用)才做分頁，避免單一 response 隨著campaign
+  // 玩很久之後無界變大。
   const aiPackage = requestedScenarioId || entries.length
     ? buildStoryPackage(session, {
         scenarioId: requestedScenarioId,
@@ -69,13 +94,22 @@ export async function onRequestGet(context) {
       })
     : null;
 
+  const fullEntries = explicitScenarioId ? selectedEntries : entries;
+  const limit = clampChronicleLimit(url.searchParams.get("limit"));
+  const cursor = clampChronicleCursor(url.searchParams.get("cursor"), fullEntries.length);
+  const pageEntries = fullEntries.slice(cursor, cursor + limit);
+  const nextCursor = cursor + pageEntries.length < fullEntries.length ? cursor + pageEntries.length : null;
+
   return json({
     ok: true,
     persistent: store.persistent,
     currentScenarioId,
     selectedScenarioId: requestedScenarioId,
-    total: explicitScenarioId ? selectedEntries.length : entries.length,
-    entries: explicitScenarioId ? selectedEntries : entries,
+    total: fullEntries.length,
+    cursor,
+    limit,
+    nextCursor,
+    entries: pageEntries,
     packages: packageIndex,
     currentPackage: aiPackage,
     // 前端不必重新拼接文字；這個欄位也讓日後下載／複製功能沿用同一個 deterministic 結果。

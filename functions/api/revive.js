@@ -10,7 +10,7 @@
 // 規則一律由 core/deathAndRevival.js 決定，這個檔案不自己判斷任何條件：
 // 能不能復活、要多少錢、是不是真死，全部照那個模組的回傳值走。
 
-import { resolveSessionStore } from "../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../content/storage/sessionStore.js";
 import { getDownState, revivalQuote, reviveCharacter } from "../../content/downState.js";
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
@@ -46,14 +46,21 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { sessionId } = body ?? {};
+  const { sessionId, requestId: rawRequestId } = body ?? {};
   if (!sessionId) return json({ ok: false, error: "body必須包含 sessionId" }, 400);
+  const requestId = typeof rawRequestId === "string" ? rawRequestId.trim().slice(0, 160) : "";
 
   const session = await store.get(sessionId);
   if (!session) return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
     return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   }
+  // response 遺失時前端會用同一 requestId 重送；回放已保存的結果，不能再扣一次
+  // 復活費用或再消耗一次復活次數(見 core/deathAndRevival.js 的 MAX_REVIVALS)。
+  if (requestId && session.reviveReplay?.requestId === requestId) {
+    return json({ ...session.reviveReplay.response, replayed: true });
+  }
+  const expectedRev = session.rev ?? 0;
 
   const result = reviveCharacter(session.character);
   if (!result.ok) {
@@ -95,9 +102,7 @@ export async function onRequestPost(context) {
     session.combat.forms = endScene(session.combat.forms, "復活").formsState;
   }
 
-  await store.put(session);
-
-  return json({
+  const responseBody = {
     ok: true,
     persistent: store.persistent,
     cost: result.cost,
@@ -105,7 +110,25 @@ export async function onRequestPost(context) {
     character: session.character,
     downState: getDownState(session.character),
     revival: revivalQuote(session.character),
-  });
+  };
+  if (requestId) {
+    session.reviveReplay = { requestId, response: responseBody, savedAt: new Date().toISOString() };
+  }
+
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return json({
+        ok: false,
+        code: "SESSION_CONFLICT",
+        error: "這份存檔剛被另一個請求更新，請重新整理後再試一次；復活尚未生效，沒有扣費。",
+      }, 409);
+    }
+    throw err;
+  }
+
+  return json(responseBody);
 }
 
 function json(payload, status = 200) {
