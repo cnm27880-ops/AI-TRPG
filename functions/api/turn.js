@@ -33,6 +33,7 @@ import {
 } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
+import { startingSpecialtyNarrationDirective } from "../../content/chargen/startingSpecialties.js";
 import { narrativeFeatHints, moralityHints } from "../../content/characterBuilder.js";
 import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
@@ -793,6 +794,14 @@ async function executeTurn(context, streamHooks = null) {
     referenceApplied?.applied ? { effects: referenceApplied.effects } : null,
     { freeAction: freeAction || referenceFreeInputPending, actionText }
   );
+  // 專長只在 server 已完成實際 skill check 且 outcome 為成功／大成功時觸發；
+  // 不把角色所有 skillBonus 或專長描述無條件塞進 persona，避免模型在失敗／無關行動時誤演。
+  const specialtyNarrationDirective = checkResult && outcome && checkParams?.skill
+    ? startingSpecialtyNarrationDirective(character, {
+        skill: checkParams.skill,
+        outcomeTier: outcome.tier,
+      })
+    : null;
   // token 預算依敘事規模，而不是依 50 回合總數：微型動作仍短，揭露與戰鬥才使用較大上限。
   // Gemini 思考 token 也會佔用 max_tokens；過低會讓 JSON 在 narration 中途被截斷，進而退回保底選項。
   const narrativeTokenLimits = { micro: 768, normal: 1536, major: 2304, reveal: 3072, combat: 2560 };
@@ -901,6 +910,7 @@ async function executeTurn(context, streamHooks = null) {
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
+    specialtyNarrationDirective,
     freeActionContractPrompt: freeActionContract ? buildFreeActionContractPrompt(freeActionContract) : null,
     referenceBlock: scenarioReference && referenceState
       ? buildReferencePromptBlock({
@@ -1544,6 +1554,7 @@ function buildPrompt({
   freeActionContractPrompt = null,
   threatDirective,
   retreadDirective,
+  specialtyNarrationDirective = null,
 }) {
   const optionsSpec = referenceMode ? buildReferenceResponseSpec() : buildOptionsSpec(character);
   const threatBlock = threatDirective ? `\n\n${threatDirective}` : "";
@@ -1608,6 +1619,7 @@ function buildPrompt({
     recentNarration,
     completedChronicles,
     ...(personaKey ? { personaKey } : {}),
+    specialtyNarrationDirective,
   });
 
   // [修改] 把狀態表格接在後面

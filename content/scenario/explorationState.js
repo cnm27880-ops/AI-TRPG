@@ -4,6 +4,8 @@
 // server 已確認的 effects 轉成可公開的探索紀錄，並驗證相鄰路線與環境風險。
 // 不把 NPC privateGoals、gmTruth、question catalog 的未達成答案送到前端。
 
+import { narrativeTransitionText } from "./narrativePackageAdapter.js";
+
 const QUESTION_STATUS_LABELS = Object.freeze({
   open: "未解",
   updated: "有新線索",
@@ -305,10 +307,13 @@ export function resolveTravelAction(reference, state, targetLocationId) {
 
 export function applyTravelAction(reference, state, resolution) {
   if (!resolution?.ok) return { applied: false, state, error: resolution?.error ?? "移動查驗失敗" };
+  const locationVisitCounts = { ...(state?.locationVisitCounts ?? {}) };
+  locationVisitCounts[resolution.to] = Number(locationVisitCounts[resolution.to] ?? 0) + 1;
   let next = synchronizeExplorationState(reference, {
     ...state,
     currentLocation: resolution.to,
     visitedLocations: unique([...(state?.visitedLocations ?? []), resolution.to]),
+    locationVisitCounts,
     flags: unique([...(state?.flags ?? []), ...(resolution.routeEffects?.flagsAdd ?? [])]),
     clues: unique([...(state?.clues ?? []), ...(resolution.routeEffects?.cluesAdd ?? [])]),
     currentSceneId: resolution.nextScene?.id ?? state.currentSceneId,
@@ -325,7 +330,8 @@ export function applyTravelAction(reference, state, resolution) {
   const nextSceneText = narrativeText(
     resolution.nextScene?.narrativeSource?.entryText ?? resolution.nextScene?.entryNarration ?? null
   );
-  const arrivalText = [narrativeText(transitionFragment?.entryText), nextSceneText]
+  const packageTransition = narrativeTransitionText(reference, next, resolution.transitionId);
+  const arrivalText = [packageTransition?.text, narrativeText(transitionFragment?.entryText), nextSceneText]
     .filter(Boolean)
     .join("\n\n") || null;
   return {

@@ -1,9 +1,10 @@
 // [設計] 建卡問答 —— 玩家回答五個關於「被抓進主神空間之前那個晚上」的問題，
-// 引擎在後台把答案換算成一個美德、一個惡德、一個特性，以及全部的屬性與技能。
+// 引擎在後台把答案換算成一個美德、一個惡德，以及全部的屬性與技能；起始專長另由玩家在答題後選擇。
 // 玩家從頭到尾看不到、也不需要碰任何數字。
 //
 // ---------------------------------------------------------------------------
-// [2026-08-18 改版] 六道生平問答（職業/成長環境/秘密/瀕死/風評/直覺）換成現在這五題。
+// [2026-08-18 改版] 六道生平問答（職業/成長環境/秘密/瀕死/風評/直覺）換成現在這五題；
+// 答完後的起始專長不再由題目偷偷產生，而是交給玩家從十項技能方向中選三項。
 //
 // 使用者的要求(逐字)：
 //   「請協助我將建卡問題替換成七美德/七惡德/角色特性的決定，並根據選項自動分配大部分基礎點」
@@ -18,7 +19,8 @@
 // 新版「你怎麼麻醉自己」只能給出比較間接的傾向。三個地方在補這件事：
 //   1. 每個選項照樣帶 attributes/skills 權重（見下方每一筆的 weights）
 //   2. allocate.js 的 seedBreadth（保底四個技能≥1）變得比以前更關鍵，絕對不能動
-//   3. 醒來那一幕主神會再給 5 點自由屬性，讓玩家自己補洞（見 content/chargen/reshape.js）
+//   3. 答完五題後玩家選三項起始專長，讓自動配點之外的可靠能力由玩家自己決定
+//   4. 醒來那一幕主神會再給 5 點自由屬性，讓玩家自己補洞（見 content/chargen/reshape.js）
 //
 // 美德/惡德**不是一題對一個**，是五題總分制，理由與計分規則寫在
 // content/chargen/virtueVice.js 的檔頭，改權重之前請先讀那一段。
@@ -55,8 +57,6 @@ import { resolveMorality } from "./virtueVice.js";
  * @property {Record<string, number>} vices 七惡德加分表
  * @property {object} weights { attributes: {屬性:權重}, skills: {技能:權重} }
  *   權重只是**相對傾向**，不是點數。實際配點由 content/chargen/allocate.js 依預算換算。
- * @property {{name: string, description: string}} [trait] 選填。純敘事型性格特質，
- *   不影響任何數值，只餵給AI當「這個角色容易對什麼有反應」的提示。
  */
 
 export const LIFE_PATH_QUESTIONS = [
@@ -110,8 +110,8 @@ export const LIFE_PATH_QUESTIONS = [
 
   {
     id: "gaze",
-    title: "你滑著手機，螢幕裡的人過得比你順利。你第一個念頭是什麼？",
-    subtitle: "你盯著別人的生活，也在看自己缺了什麼。",
+    title: "你看見一個不熟的人，突然過上了你想要的生活。你第一個念頭是什麼？",
+    subtitle: "你看著別人的生活，也在看自己缺了什麼。",
     options: [
       {
         id: "deserve",
@@ -158,8 +158,8 @@ export const LIFE_PATH_QUESTIONS = [
 
   {
     id: "held",
-    title: "你曾經把自己推到極限。最後拉住你的，是什麼？",
-    subtitle: "那個念頭每次都在最後一刻出現。",
+    title: "你已經很久沒有好好休息了。每次快撐不下去時，最後拉住你的，是什麼？",
+    subtitle: "那個念頭總在最後一刻出現。",
     options: [
       {
         id: "grit",
@@ -206,15 +206,15 @@ export const LIFE_PATH_QUESTIONS = [
 
   {
     id: "stranger",
-    title: "如果明天就是世界末日，身旁有個陌生人快撐不住了，你會怎麼做？",
-    subtitle: "你怎麼對待陌生人，會留下你的底色。",
+    title: "城市的警報響了一整晚。你手上的東西只夠自己撐過明天，這時身旁有個陌生人快撐不住了，你會怎麼做？",
+    subtitle: "你怎麼對待一個與自己無關的人，會留下你的底色。",
     options: [
       {
         id: "share",
         label: "分出僅剩的一點東西給他",
         detail: "先讓他撐過今天，再想明天",
-        echo: "末日面前，你把手上僅剩的東西分給一個陌生人。",
-        story: "如果明天就是末日，而旁邊有個快放棄的陌生人，你會把手上僅剩的東西分他一半。先讓他撐過今天，其他事之後再想。",
+        echo: "警報響了一整晚，你把手上僅剩的東西分給一個陌生人。",
+        story: "城市的警報響了一整晚。你手上只剩夠自己撐過明天的東西，卻還是把其中一半分給那個陌生人。先讓他撐過今天，其他事之後再想。",
         virtues: { 慈愛: 3, 希望: 1 },
         vices: { 縱欲: 1, 色欲: 1 },
         weights: { attributes: { 意志: 2, 感知: 1 }, skills: { 醫療: 3, 交涉: 2 } },
@@ -223,8 +223,8 @@ export const LIFE_PATH_QUESTIONS = [
         id: "light",
         label: "拉著他一起找出口",
         detail: "先走一步，之後的路邊走邊看",
-        echo: "末日面前，你拉著陌生人一起找出口。",
-        story: "如果明天就是末日，你會走過去跟那個人說話。你叫他先跟你走，兩個人一起找出口，走到哪裡再決定下一步。",
+        echo: "警報響了一整晚，你拉著陌生人一起找出口。",
+        story: "城市的警報響了一整晚。你走過去跟那個人說話，叫他先跟你走。兩個人一起找出口，走到哪裡再決定下一步。",
         virtues: { 希望: 3, 信念: 1 },
         vices: { 懶惰: 1, 驕傲: 1 },
         weights: { attributes: { 意志: 2, 智力: 1 }, skills: { 交涉: 3, 求生: 2 } },
@@ -233,18 +233,28 @@ export const LIFE_PATH_QUESTIONS = [
         id: "avenge",
         label: "先去找那個把他逼到絕境的人",
         detail: "先把事情的源頭找出來",
-        echo: "末日面前，你先去找那個把人逼到絕境的人。",
-        story: "如果明天就是末日，而那個人是被誰逼到這一步的，你會先去找源頭。事情要有個交代，之後才輪到安慰誰。",
+        echo: "警報響了一整晚，你先去找那個把人逼到絕境的人。",
+        story: "城市的警報響了一整晚。你看著那個快放棄的陌生人，卻先去找把他逼到這一步的源頭。事情要有個交代，之後才輪到安慰誰。",
         virtues: { 正義: 3, 剛毅: 1 },
         vices: { 憤怒: 2 },
         weights: { attributes: { 力量: 2, 敏捷: 1 }, skills: { 格鬥: 3, 射擊: 2 } },
+      },
+      {
+        id: "preserve",
+        label: "假裝沒有看見，先保住自己",
+        detail: "你沒有多餘的力氣，也不相信幫了他就會有好結果",
+        echo: "警報響了一整晚，你看見了那個陌生人，卻先保住自己。",
+        story: "城市的警報響了一整晚。你看見了那個快放棄的陌生人，卻沒有停下來。你先確認手上的東西夠不夠自己撐過明天，因為你不相信幫了他就會有好結果。",
+        virtues: { 節制: 2, 穩重: 1 },
+        vices: { 憤怒: 2, 懶惰: 1 },
+        weights: { attributes: { 意志: 2, 感知: 1 }, skills: { 求生: 3, 潛行: 2 } },
       },
     ],
   },
 
   {
     id: "confirm",
-    title: "電腦螢幕突然變黑，跳出一個無法關閉的視窗：【想明白生命的意義嗎？想真正的……活著嗎？】游標停在 [YES] 上，你會怎麼做？",
+    title: "電腦螢幕突然變黑。\n一個無法關閉的視窗出現在正中央：【想明白生命的意義嗎？想真正的……活著嗎？】\n游標停在 [YES] 上。你會怎麼做？",
     subtitle: "你還在自己的房間裡。這是你作為普通人的最後一個選擇。",
     options: [
       {
@@ -255,10 +265,6 @@ export const LIFE_PATH_QUESTIONS = [
         story: "螢幕黑掉的那一刻，你沒有立刻動。你把視窗看了一遍，查它從哪裡出現，再決定要不要按下去。",
         virtues: { 穩重: 2, 信念: 1 },
         vices: { 嫉妒: 1, 貪欲: 1 },
-        trait: {
-          name: "多疑的智者",
-          description: "凡事先找破綻，對「太順利」的狀況特別警覺，但也容易錯過該當機立斷的時機",
-        },
         weights: { attributes: { 智力: 2, 感知: 2 }, skills: { 偵察: 2, 秘識: 2 } },
       },
       {
@@ -269,10 +275,6 @@ export const LIFE_PATH_QUESTIONS = [
         story: "你抬手按下左鍵，力氣大得整張桌子都響了一聲。這種日子你早就受夠了，眼前出現什麼都比它好。",
         virtues: { 剛毅: 2, 正義: 1, 希望: 1 },
         vices: { 憤怒: 1, 色欲: 1, 縱欲: 1 },
-        trait: {
-          name: "亡命之徒",
-          description: "沒有什麼可以失去，因此願意承受別人不敢承受的風險，也不太考慮後果",
-        },
         weights: { attributes: { 力量: 2, 敏捷: 2 }, skills: { 格鬥: 2, 體魄: 2 } },
       },
       {
@@ -283,11 +285,17 @@ export const LIFE_PATH_QUESTIONS = [
         story: "你看了一眼冷掉的咖啡，喝完它，擦了擦嘴，才按下去。",
         virtues: { 節制: 2, 信念: 1 },
         vices: { 懶惰: 1, 縱欲: 1 },
-        trait: {
-          name: "泰山崩於前",
-          description: "情緒起伏極小，在混亂中反而更清楚，但也容易讓人覺得你不在乎",
-        },
         weights: { attributes: { 意志: 2, 耐力: 2 }, skills: { 求生: 2, 醫療: 2 } },
+      },
+      {
+        id: "reach_out",
+        label: "把畫面拍下來，傳給一個你信得過的人",
+        detail: "你想先確認這不是只有自己看見的錯覺",
+        echo: "你把那個視窗拍下來，試著傳給一個你信得過的人。",
+        story: "你拿起手機，把畫面拍下來，傳給一個你信得過的人。訊息沒有送出去，畫面上仍然只剩那個游標。你盯著 [YES] 看了一會兒，最後還是按了下去。",
+        virtues: { 慈愛: 2, 希望: 1 },
+        vices: { 色欲: 1, 嫉妒: 1 },
+        weights: { attributes: { 感知: 2, 意志: 2 }, skills: { 交涉: 2, 偵察: 2 } },
       },
     ],
   },
@@ -359,18 +367,6 @@ export function composeBackground(options) {
 /** 主神掃描要唸的那幾句（見 content/chargen/awakening.js）。 */
 export function collectEchoes(options) {
   return options.map((o) => o.echo).filter(Boolean);
-}
-
-/** 取出這些選項帶的性格特質，轉成 content/characterBuilder.js 認得的純敘事型專長形狀。 */
-export function collectTraits(options) {
-  return options
-    .filter((o) => o.trait)
-    .map((o) => ({
-      id: `lifepath-${o.questionId}-${o.id}`,
-      name: o.trait.name,
-      description: o.trait.description,
-      effect: { type: "narrative" },
-    }));
 }
 
 /**

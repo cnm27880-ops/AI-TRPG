@@ -139,6 +139,20 @@ test("buildTurnPrompt：各段落用XML標籤隔開，歷史紀錄明講自己�
   assert.ok(prompt.lastIndexOf("<Engine_Result>") > prompt.lastIndexOf("<Player_Action>"));
 });
 
+test("buildTurnPrompt：專長成功演出指令只以獨立區塊注入，且禁止直說名稱", () => {
+  const prompt = buildTurnPrompt({
+    playerAction: "我在紅燈與震動中舉槍瞄準",
+    outcome: classifyOutcome({ margin: 2 }),
+    specialtyNarrationDirective: "這次射擊檢定已由引擎裁定為「成功」。請在成功敘事中自然融入具體的呼吸與肌肉記憶，不要直接提到專長名稱。",
+  });
+  assert.match(prompt, /<Engine_Result>/);
+  assert.match(prompt, /<Starting_Specialty_Expression>/);
+  assert.match(prompt, /一到兩句/);
+  assert.match(prompt, /不要直說專長名稱/);
+  assert.ok(prompt.indexOf("<Starting_Specialty_Expression>") > prompt.indexOf("<Engine_Result>"));
+  assert.doesNotMatch(prompt, /因為玩家有街頭鬥狠|因為玩家有軍械直覺/);
+});
+
 test("buildTurnPrompt：帶 personaKey 時把面具原文注入，且宣告面具不能蓋掉引擎結果", () => {
   const outcome = classifyOutcome({ margin: 3 });
   const prompt = buildTurnPrompt({

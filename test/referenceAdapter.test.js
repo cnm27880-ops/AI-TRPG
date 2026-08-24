@@ -13,11 +13,75 @@ import {
   narrativeModeForScene,
   validateThreatAssessment,
   referenceStateForResponse,
+  buildReferencePromptBlock,
 } from "../content/scenario/referenceAdapter.js";
 import {
   resolveTravelAction,
   applyTravelAction,
 } from "../content/scenario/explorationState.js";
+import contentPackage from "../content/scenario/examples/alienNostromo_v2_contentPackage.js";
+import {
+  narrativeLocationView,
+  narrativeTransitionText,
+  buildNarrativeNpcPromptBlock,
+  narrativePackageCoverage,
+} from "../content/scenario/narrativePackageAdapter.js";
+
+test("《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping", () => {
+  assert.equal(contentPackage.sourcePackId, reference.sourcePackId);
+  assert.equal(contentPackage.locations.length, 12);
+  assert.equal(contentPackage.transitions.length, 17);
+  assert.equal(contentPackage.npcs.length, 5);
+  const coverage = narrativePackageCoverage(reference);
+  assert.deepEqual(coverage, {
+    locations: 12,
+    transitions: 17,
+    npcs: 5,
+    mappedLocations: 9,
+    mappedTransitions: 3,
+  });
+  assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.sourcePlayerVisibleDescription?.includes("八具白色低溫休眠艙"), true);
+  assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.playerVisibleDescription?.includes("數具白色低溫休眠艙"), true);
+  assert.equal(contentPackage.transitions.find((item) => item.id === "travel_cryo_to_deck_a")?.highThreat?.includes("壓低身形"), true);
+  assert.equal(contentPackage.npcs.find((item) => item.id === "npc_ash")?.title, "科學官：Ash");
+});
+
+test("內容包的地點、轉場與 NPC 素材只在明確 mapping／接觸條件成立時進入 runtime", () => {
+  const initial = createReferenceState(reference);
+  const cryo = narrativeLocationView(reference, initial, "loc_cryo", { visited: true });
+  assert.match(cryo.description, /數具白色低溫休眠艙/);
+  assert.match(cryo.atmosphere, /機油與消毒劑/);
+  assert.equal(narrativeLocationView(reference, initial, "loc_science", { visited: false }), null);
+  assert.equal(narrativeTransitionText(reference, initial, "travel_deck_a_science"), null);
+
+  const resolution = resolveTravelAction(reference, initial, "loc_deck_a");
+  const applied = applyTravelAction(reference, initial, resolution);
+  assert.match(applied.arrivalText, /穿過一段燈光昏暗的白色走廊/);
+  assert.equal(applied.state.locationVisitCounts.loc_deck_a, 1);
+  const luyuanPrompt = buildNarrativeNpcPromptBlock(reference, applied.state);
+  assert.match(luyuanPrompt, /npc_luyuan/);
+  assert.doesNotMatch(luyuanPrompt, /privateGoals/);
+});
+
+test("Ash 的內容包 Voice Bible 在身分旗標前後維持分層公開", () => {
+  const base = createReferenceState(reference);
+  const unconfirmed = {
+    ...base,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_luyuan_met"],
+  };
+  const hiddenPrompt = buildNarrativeNpcPromptBlock(reference, unconfirmed);
+  assert.match(hiddenPrompt, /科學官：Ash/);
+  assert.doesNotMatch(hiddenPrompt, /瞳孔大小|沒有正常的人體生理反應|沒有任何人類特有/);
+
+  const confirmedPrompt = buildNarrativeNpcPromptBlock(reference, {
+    ...unconfirmed,
+    flags: [...unconfirmed.flags, "flag_ash_synthetic_known"],
+  });
+  assert.match(confirmedPrompt, /瞳孔大小|沒有正常的人體生理反應/);
+  assert.doesNotMatch(confirmedPrompt, /privateGoals/);
+});
 
 test("reference public response exposes bounded DM hints without internal rule data", () => {
   const state = createReferenceState(reference);

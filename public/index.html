@@ -2643,7 +2643,7 @@
         </div>
     </div>
 
-    <!-- 建卡完成後的黑幕：session 已由 server 建立，opening turn 會在此過場結束後才開始。 -->
+            <!-- 建卡完成後的黑幕：session 已由 server 建立，opening turn 會在此過場結束後才開始。 -->
     <div id="chargen-release-overlay" class="chargen-release-overlay" style="display:none" aria-hidden="true">
         <div id="chargen-release-message" class="chargen-release-message" role="status" aria-live="polite" tabindex="-1"></div>
     </div>
@@ -2694,10 +2694,27 @@
             <!-- 第 1~N 步：建卡問答（由 app.js 依 /api/character 回傳的題目渲染） -->
             <section id="cg-step-question" style="display:none" class="space-y-3">
                 <div class="space-y-1">
-                    <div id="cg-question-title" class="text-sm font-bold text-zinc-100"></div>
+                    <div id="cg-question-title" class="text-sm font-bold text-zinc-100 whitespace-pre-line"></div>
                     <div id="cg-question-subtitle" class="text-[11px] font-mono text-zinc-400"></div>
                 </div>
                 <div id="cg-question-options" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+            </section>
+
+            <!-- 五題之後的起始專長：所有人都是普通人，不提供原始規則的戰鬥專長；
+                 玩家只從十項生活經驗中選三項，效果由 server 依白名單重建。 -->
+            <section id="cg-step-specialties" style="display:none" class="space-y-4 anim-fade-up">
+                <div class="space-y-1">
+                    <div class="text-sm font-bold text-zinc-100">這一次，你想把什麼帶進去？</div>
+                    <div class="text-[11px] font-mono text-zinc-400 leading-relaxed">
+                        你仍然是普通人，但有些經驗比別人多一點。選擇三項起始專長；每項都會讓對應技能的相關檢定多一顆骰子。
+                        這不是職業，也不是高階戰鬥能力，只是你在原本世界留下的痕跡。
+                    </div>
+                </div>
+                <div class="flex items-center justify-between rounded border border-emerald-500/25 bg-emerald-500/[0.06] px-3 py-2">
+                    <span class="text-[11px] font-mono text-zinc-300">起始專長</span>
+                    <span id="cg-specialty-count" class="text-[11px] font-mono font-bold text-emerald-300" aria-live="polite">已選 0 / 3</span>
+                </div>
+                <div id="cg-specialty-options" class="grid grid-cols-1 sm:grid-cols-2 gap-2" role="group" aria-label="起始專長選擇"></div>
             </section>
 
             <!-- 最後一步：甦醒（見 content/chargen/awakening.js）
@@ -2876,7 +2893,7 @@
             <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b" role="tablist" aria-label="角色資訊分頁">
                 <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" role="tab" aria-selected="true" aria-controls="sidebar-tab-attr" class="folder-tab active">屬性</button>
                 <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" role="tab" aria-selected="false" aria-controls="sidebar-tab-skills" class="folder-tab">技能</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">特質</button>
+                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">專長</button>
                 <button onclick="switchSidebarTab('npcs')" id="tab-btn-npcs" role="tab" aria-selected="false" aria-controls="sidebar-tab-npcs" class="folder-tab">人物<span id="npc-tab-count" class="npc-tab-count" hidden></span></button>
                 <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
             </div>
@@ -2890,11 +2907,11 @@
                 </div>
                 <div id="sidebar-tab-traits" role="tabpanel" aria-labelledby="tab-btn-traits" class="hidden space-y-2">
                     <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5">
-                        <span>特質 / 資源</span>
+                        <span>起始專長 / 資源</span>
                         <span>滾輪 / 點擊切換 ↻</span>
                     </div>
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
-                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已裝配特質或資源</div>
+                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
                 </div>
                 <div id="sidebar-tab-npcs" role="tabpanel" aria-labelledby="tab-btn-npcs" class="hidden space-y-2">
                     <div class="flex items-center justify-between gap-2 px-0.5">
@@ -4074,6 +4091,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260824-r16"></script>
+    <script src="./app.js?v=20260824-r17"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ import {
   publicUnresolvedQuestions,
   resolveTravelAction,
 } from "./explorationState.js";
+import { narrativeLocationView, buildNarrativeNpcPromptBlock } from "./narrativePackageAdapter.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -181,6 +182,7 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     unlockedEventIds: [],
     flags: [],
     visitedLocations: scene?.location ? [scene.location] : [],
+    locationVisitCounts: scene?.location ? { [scene.location]: 1 } : {},
     inventory: unique(
       Array.isArray(initialInventory) && initialInventory.length
         ? initialInventory
@@ -223,6 +225,10 @@ export function normalizeReferenceState(reference, rawState) {
       rawState.currentLocation,
       fresh.currentLocation,
     ]),
+    locationVisitCounts: {
+      ...fresh.locationVisitCounts,
+      ...normalizeLocationVisitCounts(rawState.locationVisitCounts),
+    },
     inventory: unique(rawState.inventory),
     damagedItems: unique(rawState.damagedItems),
     clues: unique(rawState.clues),
@@ -241,6 +247,15 @@ export function normalizeReferenceState(reference, rawState) {
 
 function flagSet(state) {
   return new Set(state?.flags ?? []);
+}
+
+function normalizeLocationVisitCounts(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([locationId, count]) => typeof locationId === "string" && Number.isInteger(count) && count >= 0)
+      .slice(-24)
+  );
 }
 
 function hasRequiredItems(state, required = {}) {
@@ -826,6 +841,23 @@ export function buildReferencePromptBlock({
     lines.push("可以寫：工具施力時的阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應，以及引擎已明示的判定分級。必須保留操作尚未完成的空間，讓玩家仍能決定下一步。");
     lines.push("禁止寫成既定事實：門已開或已鎖死、通道已打通或已封死、玩家已取得或遺失物品、NPC已執行未列在 reference 的特殊指令、異形已直接接觸／衝出、路徑已經確定可通，以及任何未由 reference 或 engine effect 授權的傷害、旗標、位置、數字或精確距離。");
   }
+  const locationView = narrativeLocationView(reference, state, state?.currentLocation, { visited: true });
+  if (locationView) {
+    lines.push(
+      "",
+      "<Exploration_Environment>",
+      "【玩家已探索區域的公開環境素材】",
+      `空間：${locationView.description}`,
+      ...(locationView.atmosphere ? [`氣氛：${locationView.atmosphere}`] : []),
+      ...(locationView.landmarks?.length ? [`地標：${locationView.landmarks.map((item) => item.text ?? item).join("；")}`] : []),
+      ...(locationView.hazardHints?.length ? [`可見危險：${locationView.hazardHints.join("；")}`] : []),
+      ...(locationView.revisitVariant ? [`本次回訪變化（只可在確實回訪或狀態已成立時使用）：${locationView.revisitVariant}`] : []),
+      "這些文字只能補充畫面與感官；不能自行宣稱新增物品、傷勢、位置、旗標、威脅或事件結果。",
+      "</Exploration_Environment>",
+    );
+  }
+  const npcVoiceBlock = buildNarrativeNpcPromptBlock(reference, state);
+  if (npcVoiceBlock) lines.push("", npcVoiceBlock);
   lines.push("</Reference_Event>");
   return lines.join("\n");
 }
@@ -936,16 +968,24 @@ const SCENE_LABELS = Object.freeze({
   evt_hypersleep_return: "休眠與主神傳送",
 });
 
-function publicLocation(reference, locationId, visited, current) {
+function publicLocation(reference, locationId, visited, current, state) {
   const location = (reference?.map ?? []).find((entry) => entry.id === locationId);
   if (!location) return null;
   const isVisited = visited.includes(locationId);
+  const packageView = narrativeLocationView(reference, state, locationId, { visited: isVisited });
   return {
     id: location.id,
     name: location.name,
     status: isVisited ? "visited" : location.connections?.includes(current) ? "known" : "unexplored",
-    description: isVisited ? (location.features ?? []).slice(0, 3).join("、") : "尚未親自確認；目前只知道這是船艦上的一個區域。",
-    purpose: LOCATION_PURPOSES[location.id] ?? "調查此區域並確認可用路線",
+    description: packageView?.description ?? (isVisited ? (location.features ?? []).slice(0, 3).join("、") : "尚未親自確認；目前只知道這是船艦上的一個區域。"),
+    purpose: packageView?.purpose ?? LOCATION_PURPOSES[location.id] ?? "調查此區域並確認可用路線",
+    ...(packageView?.atmosphere ? { atmosphere: packageView.atmosphere } : {}),
+    ...(packageView?.landmarks?.length ? { landmarks: packageView.landmarks } : {}),
+    ...(packageView?.hazardHints?.length ? { hazardHints: packageView.hazardHints } : {}),
+    ...(packageView?.revisitVariant ? {
+      revisitVariant: packageView.revisitVariant,
+      revisitVariantLabel: packageView.revisitVariantLabel,
+    } : {}),
   };
 }
 
@@ -956,9 +996,9 @@ export function buildExplorationView(reference, state) {
   const currentScene = findScene(reference, state?.currentSceneId);
   const nearbyIds = unique(currentMap?.connections ?? []);
   const knownIds = unique([...visited, ...nearbyIds]);
-  const knownLocations = knownIds.map((id) => publicLocation(reference, id, visited, current)).filter(Boolean);
+  const knownLocations = knownIds.map((id) => publicLocation(reference, id, visited, current, state)).filter(Boolean);
   const nearbyRoutes = nearbyIds.map((id) => {
-    const location = publicLocation(reference, id, visited, current);
+    const location = publicLocation(reference, id, visited, current, state);
     const travel = resolveTravelAction(reference, state, id);
     return {
       to: id,
@@ -974,7 +1014,7 @@ export function buildExplorationView(reference, state) {
   });
 
   return {
-    currentLocation: publicLocation(reference, current, visited, current),
+    currentLocation: publicLocation(reference, current, visited, current, state),
     currentEvent: currentScene
       ? { id: currentScene.id, label: SCENE_LABELS[currentScene.id] ?? "目前事件" }
       : null,
@@ -997,6 +1037,7 @@ export function buildExplorationView(reference, state) {
     environmentState: {
       featureSummary: currentMap?.features?.slice(0, 3) ?? [],
       hazardSummary: visited.includes(current) ? (currentMap?.hazards?.slice(0, 2) ?? []) : [],
+      ...(narrativeLocationView(reference, state, current, { visited: true }) ?? {}),
     },
   };
 }

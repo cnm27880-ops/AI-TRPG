@@ -64,6 +64,17 @@ test("V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容�
   assert.match(app, /Array\.from\(input\?\.value \?\? \"\"\)\.length/);
 });
 
+test("探索終端顯示內容包的空間、感官、地標、危險與回訪變化", () => {
+  assert.match(app, /environment\.description/);
+  assert.match(app, /environment\.atmosphere/);
+  assert.match(app, /environment\.landmarks/);
+  assert.match(app, /environment\.hazardHints/);
+  assert.match(app, /environment\.revisitVariant/);
+  assert.match(app, /可見地標/);
+  assert.match(app, /可見危險/);
+  assert.match(app, /回訪變化/);
+});
+
 test("回合輸出使用安全 NDJSON lifecycle 與 narration fallback", () => {
   assert.match(turnApi, /function wantsTurnStream\(/);
   assert.match(turnApi, /function streamTurnResponse\(/);
@@ -77,6 +88,19 @@ test("回合輸出使用安全 NDJSON lifecycle 與 narration fallback", () => {
   assert.match(app, /Accept.*application\/x-ndjson/s);
   assert.match(app, /stream: true/);
   assert.doesNotMatch(turnApi, /stThought,\s*\/\//);
+});
+
+test("建卡以十選三起始專長取代純敘事特性", () => {
+  assert.match(index, /id="cg-step-specialties"/);
+  assert.match(index, /id="cg-specialty-options"/);
+  assert.match(index, /每項都會讓對應技能的相關檢定多一顆骰子/);
+  assert.match(app, /function renderStartingSpecialties\(/);
+  assert.match(app, /function toggleStartingSpecialty\(/);
+  assert.match(app, /startingSpecialties: chargenStartingSpecialties/);
+  assert.match(app, /a\.system\.startingSpecialties/);
+  assert.doesNotMatch(app, /a\.system\.traits/);
+  assert.match(sessionApi, /requireStartingSpecialties: true/);
+  assert.match(index, /起始專長 \/ 資源/);
 });
 
 test("portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全黑祝福過場", () => {
@@ -127,6 +151,6 @@ test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260824-r16/);
+  assert.match(index, /app\.js\?v=20260824-r17/);
   assert.match(sw, /CACHE_VERSION = "v6"/);
 });

@@ -98,14 +98,14 @@ function miniMeterHtml(value, max, bonusFloor) {
 
 // --- 建卡初始化 ---
 // ===========================================================================
-// 建卡 —— 五題問答 + 甦醒（見 content/chargen/lifePath.js 與 awakening.js）
+// 建卡 —— 五題問答 + 三選起始專長 + 甦醒（見 content/chargen/lifePath.js、startingSpecialties.js 與 awakening.js）
 //
-// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答，最後多一幕「甦醒」。
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德問答；之後選三項起始專長，再進入「甦醒」。
 // 使用者的要求(逐字)：
 //   「請協助我將建卡問題替換成七美德/七惡德/角色特性的決定，並根據選項自動分配大部分基礎點」
 //   「所以應該是用五道題目綜合判斷七美德/七惡德，有點類似心理測驗」
 //
-// 流程：姓名 -> 五題 -> 甦醒（主神掃描 + 5點自由屬性）-> 進入副本。
+// 流程：姓名 -> 五題 -> 十選三起始專長 -> 甦醒（主神掃描 + 5點自由屬性）-> 進入副本。
 // 一次只顯示一題是刻意的：五題全部攤在同一頁會變成一張問卷，玩家會用掃的；
 // 一次一題他才會真的讀完每個選項，那些選項就是這個角色。
 //
@@ -113,10 +113,12 @@ function miniMeterHtml(value, max, bonusFloor) {
 // 看得到分表的玩家可以直接反推出想要的結果，主神掃描那一幕就沒有意義了。
 // ===========================================================================
 
-/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 甦醒。 */
+/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 起始專長，N+2 = 甦醒。 */
 let chargenStep = 0;
 /** 玩家的答案 { 題目id: 選項id }。 */
 let chargenAnswers = {};
+/** 玩家選取的三個 server 白名單起始專長 ID。 */
+let chargenStartingSpecialties = [];
 /** 甦醒那一幕從後端拿回來的完整結果（過場、掃描、小傳、角色卡）。 */
 let chargenAwakening = null;
 /** 玩家在肉體重塑分掉的點 { 屬性: 加幾級 }。 */
@@ -126,8 +128,16 @@ function lifePathQuestions() {
   return chargenRules?.lifePath ?? [];
 }
 
-function awakeningStepIndex() {
+function startingSpecialtyStepIndex() {
   return lifePathQuestions().length + 1;
+}
+
+function awakeningStepIndex() {
+  return startingSpecialtyStepIndex() + 1;
+}
+
+function startingSpecialtyRules() {
+  return chargenRules?.startingSpecialties ?? { count: 3, options: [] };
 }
 
 let portalMode = "invitation";
@@ -228,6 +238,7 @@ async function startNewChargen() {
 
   chargenStep = 0;
   chargenAnswers = {};
+  chargenStartingSpecialties = [];
   chargenAwakening = null;
   chargenReshape = {};
   renderChargenStep();
@@ -235,18 +246,26 @@ async function startNewChargen() {
 
 function renderChargenStep() {
   const questions = lifePathQuestions();
-  const total = questions.length + 1; // 基本資料 + 五題（甦醒那一步不算進度）
+  const total = questions.length + 2; // 基本資料 + 五題 + 起始專長（甦醒顯示為完成）
   const basic = document.getElementById("cg-step-basic");
   const question = document.getElementById("cg-step-question");
+  const specialty = document.getElementById("cg-step-specialties");
   const awakening = document.getElementById("cg-step-awakening");
   const back = document.getElementById("cg-back");
   const submit = document.getElementById("cg-submit");
 
   basic.style.display = chargenStep === 0 ? "" : "none";
   question.style.display = chargenStep >= 1 && chargenStep <= questions.length ? "" : "none";
+  specialty.style.display = chargenStep === startingSpecialtyStepIndex() ? "" : "none";
   awakening.style.display = chargenStep === awakeningStepIndex() ? "" : "none";
   back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
-  const activeStep = chargenStep === 0 ? basic : chargenStep <= questions.length ? question : awakening;
+  const activeStep = chargenStep === 0
+    ? basic
+    : chargenStep <= questions.length
+      ? question
+      : chargenStep === startingSpecialtyStepIndex()
+        ? specialty
+        : awakening;
   // 題目內容是連續閱讀流程，不要在每次回答後重播整個 section 的進場動畫；
   // 那會讓題目、選項與背景一起閃一下。基本資料與甦醒仍保留一次性的進場過場。
   if (activeStep !== question) replayEnterAnim(activeStep);
@@ -271,6 +290,15 @@ function renderChargenStep() {
     // 選項本身就是下一步；題目頁不再顯示沒有作用的底部按鈕。
     submit.style.display = "none";
     submit.textContent = "";
+  } else if (chargenStep === startingSpecialtyStepIndex()) {
+    const rules = startingSpecialtyRules();
+    const count = Number(rules.count) || 3;
+    const selected = chargenStartingSpecialties.length;
+    submit.style.display = "";
+    document.getElementById("cg-step-label").textContent = "起始專長";
+    document.getElementById("cg-step-count").textContent = `選 ${selected} / ${count}`;
+    submit.textContent = selected === count ? "確認起始專長" : `還需選 ${count - selected} 項`;
+    renderStartingSpecialties();
   } else {
     submit.style.display = "";
     document.getElementById("cg-step-label").textContent = "甦醒";
@@ -278,8 +306,10 @@ function renderChargenStep() {
     submit.textContent = "解除防護罩";
   }
 
-  submit.disabled = false;
-  submit.classList.remove("opacity-40");
+  const specialtyIncomplete = chargenStep === startingSpecialtyStepIndex()
+    && chargenStartingSpecialties.length !== (Number(startingSpecialtyRules().count) || 3);
+  submit.disabled = specialtyIncomplete;
+  submit.classList.toggle("opacity-40", specialtyIncomplete);
   if (chargenStep === 0) submit.style.display = "";
 }
 
@@ -307,6 +337,63 @@ function renderQuestionOptions(question) {
 }
 
 /** 選一個答案就直接往下一題走——多按一次「下一步」只是多餘的一次點擊。 */
+function renderStartingSpecialties() {
+  const container = document.getElementById("cg-specialty-options");
+  const countLabel = document.getElementById("cg-specialty-count");
+  if (!container) return;
+
+  const rules = startingSpecialtyRules();
+  const options = Array.isArray(rules.options) ? rules.options : [];
+  const required = Number(rules.count) || 3;
+  const selected = new Set(chargenStartingSpecialties);
+  if (countLabel) countLabel.textContent = `已選 ${selected.size} / ${required}`;
+
+  container.innerHTML = options.map((specialty) => {
+    const isSelected = selected.has(specialty.id);
+    const isLocked = !isSelected && selected.size >= required;
+    return `
+      <button type="button" data-starting-specialty="${escapeHtml(specialty.id)}"
+        aria-pressed="${isSelected ? "true" : "false"}" ${isLocked ? "disabled" : ""}
+        class="starting-specialty-card text-left p-3 rounded border transition-all ${
+          isSelected
+            ? "border-emerald-500 bg-emerald-500/10"
+            : isLocked
+              ? "hairline-border bg-zinc-950 opacity-40 cursor-not-allowed"
+              : "hairline-border bg-zinc-950 hover:border-emerald-500/50 hover:-translate-y-px"
+        }">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-xs font-bold ${isSelected ? "text-emerald-200" : "text-zinc-100"}">${escapeHtml(specialty.name)}</span>
+          <span class="shrink-0 text-[10px] font-mono ${isSelected ? "text-emerald-300" : "text-zinc-500"}">${escapeHtml(specialty.skill)} · ${escapeHtml(specialty.bonusText || "+1 顆相關檢定骰")}</span>
+        </div>
+        <div class="text-[11px] font-mono text-zinc-400 mt-1 leading-snug">${escapeHtml(specialty.description)}</div>
+      </button>`;
+  }).join("");
+}
+
+function toggleStartingSpecialty(specialtyId) {
+  const rules = startingSpecialtyRules();
+  const options = Array.isArray(rules.options) ? rules.options : [];
+  if (!options.some((specialty) => specialty.id === specialtyId)) return;
+
+  const required = Number(rules.count) || 3;
+  const selected = new Set(chargenStartingSpecialties);
+  if (selected.has(specialtyId)) {
+    selected.delete(specialtyId);
+  } else {
+    if (selected.size >= required) return;
+    selected.add(specialtyId);
+  }
+  chargenStartingSpecialties = [...selected];
+  renderStartingSpecialties();
+  const submit = document.getElementById("cg-submit");
+  const complete = chargenStartingSpecialties.length === required;
+  if (submit) {
+    submit.disabled = !complete;
+    submit.classList.toggle("opacity-40", !complete);
+    submit.textContent = complete ? "確認起始專長" : `還需選 ${required - chargenStartingSpecialties.length} 項`;
+  }
+}
+
 function chooseLifePathOption(optionId) {
   const questions = lifePathQuestions();
   const q = questions[chargenStep - 1];
@@ -354,7 +441,18 @@ async function advanceChargen() {
     }
     chargenStep += 1;
     renderChargenStep();
-    if (chargenStep === awakeningStepIndex()) await loadAwakening();
+    return;
+  }
+
+  if (chargenStep === startingSpecialtyStepIndex()) {
+    const required = Number(startingSpecialtyRules().count) || 3;
+    if (chargenStartingSpecialties.length !== required) {
+      showChargenError(`請選滿 ${required} 項起始專長。`);
+      return;
+    }
+    chargenStep += 1;
+    renderChargenStep();
+    await loadAwakening();
     return;
   }
 
@@ -386,7 +484,13 @@ async function loadAwakening() {
     const res = await (await fetch("/api/character", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lifePath: { concept: readChargenConcept(), answers: chargenAnswers } }),
+      body: JSON.stringify({
+        lifePath: {
+          concept: readChargenConcept(),
+          answers: chargenAnswers,
+          startingSpecialties: chargenStartingSpecialties,
+        },
+      }),
     })).json();
 
     if (!res.valid || !res.awakening) {
@@ -439,7 +543,14 @@ function renderAwakening(res) {
   const cards = [];
   if (a.system.virtue) cards.push(scanCardHtml("美德", a.system.virtue.key, a.system.virtue.description, "virtue"));
   if (a.system.vice) cards.push(scanCardHtml("惡德", a.system.vice.key, a.system.vice.description, "vice"));
-  for (const t of a.system.traits) cards.push(scanCardHtml("特性", t.name, t.description, "trait"));
+  for (const specialty of a.system.startingSpecialties ?? []) {
+    cards.push(scanCardHtml(
+      "起始專長",
+      specialty.name,
+      `${specialty.description}（${specialty.skill} +${specialty.bonus} 顆相關檢定骰）`,
+      "specialty",
+    ));
+  }
   document.getElementById("cg-scan-result").innerHTML = cards.join("");
 
   document.getElementById("cg-scan-core").innerHTML = a.system.core
@@ -465,6 +576,7 @@ const SCAN_CARD_STYLES = {
   virtue: { box: "border-emerald-500/30", tag: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", name: "text-emerald-200" },
   vice: { box: "border-rose-500/30", tag: "border-rose-500/40 bg-rose-500/10 text-rose-300", name: "text-rose-200" },
   trait: { box: "border-violet-500/30", tag: "border-violet-500/40 bg-violet-500/10 text-violet-300", name: "text-violet-200" },
+  specialty: { box: "border-emerald-500/30", tag: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", name: "text-emerald-200" },
 };
 
 function scanCardHtml(tag, name, description, kind) {
@@ -661,7 +773,12 @@ async function submitChargen() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lifePath: { concept: readChargenConcept(), answers: chargenAnswers, reshape: chargenReshape },
+        lifePath: {
+          concept: readChargenConcept(),
+          answers: chargenAnswers,
+          startingSpecialties: chargenStartingSpecialties,
+          reshape: chargenReshape,
+        },
         sceneContext: "",
       }),
     })).json();
@@ -892,24 +1009,27 @@ function refreshJournalIfOpen() {
   if (journalTabIsOpen()) loadJournal();
 }
 
-// --- 特質 / 資源卡 3D 堆疊抽屜 ---
+// --- 起始專長 / 資源卡 3D 堆疊抽屜 ---
 let currentTraits = [];
 let traitIndex = 0;
 
 function renderTraitCards(charData) {
-  currentTraits = Array.isArray(charData.traits) ? charData.traits : [];
+  const feats = Array.isArray(charData.feats) ? charData.feats : [];
+  currentTraits = feats
+    .filter((feat) => feat?.effect?.type === "skillBonus")
+    .map((feat) => ({
+      ...feat,
+      category: "起始專長",
+      description: `${feat.description}（${feat.effect.skill} +${feat.effect.amount} 顆相關檢定骰）`,
+    }));
   traitIndex = 0;
   renderTraitStage();
 }
 
 /**
- * 特質卡上的說明文字。
- *
- * [2026-08-18 修正] 這裡以前直接寫 `t.desc`，但建卡產生的特質物件是
- * `{ id, name, description, effect }`（見 content/chargen/lifePath.js 的 collectTraits），
- * 根本沒有 desc 這個欄位——所以特質分頁的說明**永遠是空字串**，
- * 玩家看到的一直是「[資源] + 一個名字」，那張卡等於只有一半。
- * 兩個名字都收下：日後從商店買進來的資源如果用的是 desc，也不會再壞一次。
+ * 專長／資源卡上的說明文字。
+ * 舊存檔仍可能帶有 desc 欄位，所以保留相容讀取；新建角色只會由 server
+ * 產生 skillBonus 起始專長，不再生成 lifePath 純敘事特質。
  */
 function traitDescription(trait) {
   return trait?.description ?? trait?.desc ?? "";
@@ -1780,10 +1900,20 @@ function renderExplorationTerminal(view) {
   const environment = view.environmentState ?? {};
   const features = Array.isArray(environment.featureSummary) ? environment.featureSummary : [];
   const hazards = Array.isArray(environment.hazardSummary) ? environment.hazardSummary : [];
+  const landmarks = Array.isArray(environment.landmarks) ? environment.landmarks : [];
+  const hazardHints = Array.isArray(environment.hazardHints) ? environment.hazardHints : [];
   if (terminalEnvironment) {
     const lines = [];
-    if (features.length) lines.push(`<div><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
-    if (hazards.length) lines.push(`<div><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
+    if (environment.description) lines.push(`<div class="mb-2 text-zinc-200 leading-relaxed">${escapeHtml(environment.description)}</div>`);
+    if (environment.atmosphere) lines.push(`<div class="mb-1"><span class="text-zinc-500">感官基調：</span>${escapeHtml(environment.atmosphere)}</div>`);
+    if (landmarks.length) {
+      const landmarkText = landmarks.map((item) => typeof item === "string" ? item : `${item.id ? `${item.id}：` : ""}${item.text ?? ""}`).join("；");
+      lines.push(`<div class="mb-1"><span class="text-zinc-500">可見地標：</span>${escapeHtml(landmarkText)}</div>`);
+    }
+    if (features.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
+    if (hazardHints.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">可見危險：</span>${hazardHints.map(escapeHtml).join("；")}</div>`);
+    if (hazards.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
+    if (environment.revisitVariant) lines.push(`<div class="mt-2 border-l-2 border-amber-500/40 pl-2 text-amber-100/90"><span class="text-amber-400/70">${escapeHtml(environment.revisitVariantLabel ?? "回訪變化")}：</span>${escapeHtml(environment.revisitVariant)}</div>`);
     terminalEnvironment.innerHTML = lines.length ? lines.join("") : "目前沒有額外的環境狀態記錄。";
   }
 }
@@ -3833,6 +3963,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("cg-question-options")?.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-lifepath-option]");
     if (btn) chooseLifePathOption(btn.dataset.lifepathOption);
+  });
+  document.getElementById("cg-specialty-options")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-starting-specialty]");
+    if (btn && !btn.disabled) toggleStartingSpecialty(btn.dataset.startingSpecialty);
   });
   // 肉體重塑的加減點。同樣用委派——整格會在每次加減之後重畫。
   document.getElementById("cg-reshape-grid")?.addEventListener("click", (e) => {

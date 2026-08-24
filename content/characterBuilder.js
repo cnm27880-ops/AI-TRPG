@@ -20,13 +20,13 @@
 // 兩者走的是同一條驗證，不會出現「預覽跟實際不一樣」。
 //
 // 現在只剩兩層：
-//   buildCharacterFromLifePath()  玩家實際走的入口：六個答案 -> 權重 -> 自動配點 -> 下面這層
+//   buildCharacterFromLifePath()  玩家實際走的入口：五個答案 + 三項起始專長 -> 權重/效果 -> 下面這層
 //   buildCharacter()              低階入口：拿一份現成的 attributes/skills 草稿驗證並組卡
 //                                 （自動配點、測試、之後的匯入功能共用同一份驗證）
 //
-// 專長(feats)分兩型，跟改版前一樣：
-//   narrative  —— 不影響任何數值，只餵給AI當性格傾向提示（生平問答給的都是這型）
-//   skillBonus —— 實際加技能等級，在配點驗證**通過之後**才疊加，所以最終值可能超過配點上限3。
+// 新建角色的起始專長只有 skillBonus 型：每項對一個技能提供 +1，效果在配點驗證**通過之後**才疊加，
+// 所以最終值可能超過配點上限3。normalizeFeats() 仍保留 narrative 型的讀取相容性，供既有舊存檔／匯入資料
+// 不至於在載入時消失；lifePath 建卡已不再生成這種純敘事特性。
 //                 為了讓前端顯示「2 (+1專長)」，兩個值分開存：
 //                   character.skillBase.格鬥 = 配點的原始值
 //                   character.skills.格鬥     = 疊加後的最終值（判定用這個）
@@ -38,7 +38,14 @@ import {
   attributeCost,
   skillCost,
 } from "./chargen/pointCosts.js";
-import { collectLifePath, composeBackground, collectTraits, questionsForClient } from "./chargen/lifePath.js";
+import { collectLifePath, composeBackground, questionsForClient } from "./chargen/lifePath.js";
+import {
+  STARTING_SPECIALTY_COUNT,
+  resolveStartingSpecialties,
+  startingSpecialtiesForClient,
+  startingSpecialtyFeats,
+  publicStartingSpecialties,
+} from "./chargen/startingSpecialties.js";
 import { allocateFromWeights, describeCharacterTendency } from "./chargen/allocate.js";
 import { composeCore, getVirtue, getVice, VIRTUE_KEYS, VICE_KEYS } from "./chargen/virtueVice.js";
 import { applyReshape, RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP } from "./chargen/reshape.js";
@@ -71,6 +78,10 @@ export {
 export function chargenRules() {
   return {
     lifePath: questionsForClient(),
+    startingSpecialties: {
+      count: STARTING_SPECIALTY_COUNT,
+      options: startingSpecialtiesForClient(),
+    },
     attributes: {
       keys: ATTRIBUTE_KEYS,
       startValue: 1,
@@ -95,27 +106,43 @@ export function chargenRules() {
  * 生平問答建卡的入口（見 content/chargen/lifePath.js）。
  *
  * 這是**目前前端唯一在走的建卡路徑**。它不是另一套建卡規則，只是換一個入口：
- * 把玩家的六個答案換算成 attributes/skills（content/chargen/allocate.js），
+ * 把玩家的五個答案換算成 attributes/skills（content/chargen/allocate.js），
  * 再交給下面同一個 buildCharacter() 做驗證與組裝。所有點數上限、預算、
  * 衍生數值的計算完全共用，不會出現「兩條路徑算出不同角色卡」這種事。
  *
- * @param {object} input { concept: {name, gender, age}, answers: {題目id: 選項id} }
- * @returns buildCharacter() 的回傳值，外加 lifePath（小傳與傾向描述，給前端顯示用）
+ * @param {object} input { concept: {name, gender, age}, answers: {題目id: 選項id}, startingSpecialties: string[] }
+ * @returns buildCharacter() 的回傳值，外加 lifePath（小傳、傾向與起始專長，給前端顯示用）
  */
 export function buildCharacterFromLifePath(input = {}) {
-  const { concept = {}, answers = {}, reshape, arrivalNarration } = input;
+  const {
+    concept = {},
+    answers = {},
+    startingSpecialties,
+    requireStartingSpecialties = false,
+    reshape,
+    arrivalNarration,
+  } = input;
   const { weights, options, morality, errors: pathErrors } = collectLifePath(answers);
+  const specialtyResult = resolveStartingSpecialties(startingSpecialties, {
+    required: requireStartingSpecialties,
+  });
 
   // 問答還沒答完就先回報，不要往下算——半套答案配出來的點數對玩家沒有意義，
   // 而且會讓建卡畫面顯示一個他還沒決定的角色。美德/惡德是五題總分制，
   // 答到一半算出來的贏家更是純粹的誤導（見 content/chargen/virtueVice.js）。
-  if (pathErrors.length > 0) {
-    return { valid: false, errors: pathErrors, budgets: null, lifePath: null, awakening: null };
+  if (pathErrors.length > 0 || !specialtyResult.valid) {
+    return {
+      valid: false,
+      errors: [...pathErrors, ...specialtyResult.errors],
+      budgets: null,
+      lifePath: null,
+      awakening: null,
+    };
   }
 
   const allocated = allocateFromWeights(weights);
   const background = composeBackground(options);
-  const traits = collectTraits(options);
+  const specialtyFeats = startingSpecialtyFeats(specialtyResult.specialties);
 
   // 肉體重塑：主神在甦醒那一幕給的 5 點自由屬性。
   // 沒帶 reshape 就是**預覽**（玩家還沒配），屬性停在自動配點的結果；
@@ -135,12 +162,12 @@ export function buildCharacterFromLifePath(input = {}) {
     concept: { ...concept, background },
     attributes,
     skills: allocated.skills,
-    feats: traits,
+    feats: specialtyFeats,
     morality,
     // 重塑的點數不吃 ATTRIBUTE_BUDGET，是另一個池——不加這一筆的話，
     // 玩家配完 5 點之後會被自己的角色卡判定成「屬性點數超支」。
     extraAttributePoints,
-    // 生平問答自己就是背景故事，不再走身分模板那一套(archetypeId/backstoryChoiceId)。
+    // 生平問答自己就是背景故事；起始專長另由 server 白名單核發，不走身分模板那一套(archetypeId/backstoryChoiceId)。
     backgroundText: background,
   });
 
@@ -152,6 +179,7 @@ export function buildCharacterFromLifePath(input = {}) {
       background,
       tendency: describeCharacterTendency(attributes, allocated.skills),
       answers: options.map((o) => ({ questionId: o.questionId, optionId: o.id, label: o.label })),
+      startingSpecialties: publicStartingSpecialties(specialtyResult.specialties),
     },
     // 甦醒那一幕的完整內容。重塑已經送出的話就不用再演一次，回 null。
     awakening:
@@ -160,14 +188,14 @@ export function buildCharacterFromLifePath(input = {}) {
         : composeAwakening({
             options,
             morality,
-            traits,
+            startingSpecialties: specialtyResult.specialties,
             attributes: allocated.attributes,
             arrivalNarration,
           }),
   };
 }
 
-/** 取出角色身上純敘事型專長的描述文字，給 prompt 組裝層當「性格提示」用。 */
+/** 取出既有舊存檔裡的純敘事型專長描述；新建角色不再生成這類資料。 */
 export function narrativeFeatHints(character) {
   const feats = character?.feats;
   if (!Array.isArray(feats)) return [];
@@ -211,7 +239,7 @@ export function moralityHints(character) {
 /**
  * 查驗一份外部傳進來的專長清單。
  *
- * 生平問答給的特質是引擎自己組的（content/chargen/lifePath.js 的 collectTraits），
+ * 起始專長由 buildCharacterFromLifePath() 依 server 白名單自己組，
  * 但這個函式一樣要驗——buildCharacter() 是公開入口，之後接匯入/工坊功能時，
  * 傳進來的東西就不再是自己人組的了。skillBonus 指向不存在的技能會讓後面的疊加
  * 靜靜地寫進一個規則書沒有的技能欄位，那種錯不會報錯，只會讓角色卡多一個怪欄位。

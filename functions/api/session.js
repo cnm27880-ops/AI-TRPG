@@ -72,7 +72,10 @@ export async function onRequestPost(context) {
         400
       );
     }
-    const result = buildCharacterFromLifePath(lifePath);
+    const result = buildCharacterFromLifePath({
+      ...lifePath,
+      requireStartingSpecialties: true,
+    });
     if (!result.valid) {
       return json({ ok: false, error: "建卡驗證失敗", errors: result.errors }, 400);
     }

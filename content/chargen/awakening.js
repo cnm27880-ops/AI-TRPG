@@ -62,7 +62,7 @@ export const SHIELD_SECONDS = 30;
  * @param {object} input
  * @param {Array}  input.options    collectLifePath() 選中的選項（要有 echo）
  * @param {object} input.morality   resolveMorality() 的結果
- * @param {Array}  input.traits     collectTraits() 的結果（純敘事型特質）
+ * @param {Array}  input.startingSpecialties 伺服器已驗證的起始專長物件
  * @param {object} input.attributes 自動配點後的屬性（重塑要疊在這上面）
  * @param {string} [input.arrivalNarration] 副本自己的房間描述
  * @returns {object} 給前端直接渲染用的資料（不含任何權重與分數）
@@ -70,7 +70,7 @@ export const SHIELD_SECONDS = 30;
 export function composeAwakening({
   options = [],
   morality,
-  traits = [],
+  startingSpecialties = [],
   attributes = {},
   arrivalNarration,
 } = {}) {
@@ -90,10 +90,16 @@ export function composeAwakening({
       echoes: collectEchoes(options),
       virtue: virtue ? { key: virtue.key, description: virtue.description } : null,
       vice: vice ? { key: vice.key, description: vice.description } : null,
-      traits: traits.map((t) => ({ name: t.name, description: t.description })),
+      startingSpecialties: startingSpecialties.map((specialty) => ({
+        id: specialty.id,
+        name: specialty.name,
+        skill: specialty.skill,
+        description: specialty.description,
+        bonus: 1,
+      })),
       core,
       footer:
-        `入場記錄完成。防護罩將在 ${SHIELD_SECONDS} 秒後解除。` +
+        `入場記錄完成。已登錄 ${startingSpecialties.length} 項起始專長。` +
         `剩餘 ${RESHAPE_POINTS} 點自由屬性，請完成最後的肉體重塑。`,
     },
     reshape: {
