@@ -3888,7 +3888,7 @@ async function openChronicle(scenarioId = null) {
   if (book) book.innerHTML = `<div class="chronicle-loading"><i class="fas fa-feather-pointed fa-bounce"></i> 正在翻閱存檔……</div>`;
   try {
     const suffix = scenarioId ? `&scenarioId=${encodeURIComponent(scenarioId)}` : "";
-    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}${suffix}`)).json();
+    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}&includePackage=1${suffix}`)).json();
     if (!res.ok) throw new Error(res.error || "劇情回顧載入失敗");
     chronicleState = res;
     renderChronicle();

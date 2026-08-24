@@ -144,7 +144,7 @@ test("/api/combat/start：敵人樣板壞掉時回400並說明，不是沒有內
 
 test("/api/narrate：選了供應商卻沒帶金鑰時要擋下，不可以偷偷改用伺服器的金鑰", async () => {
   let called = false;
-  const env = { GEMINI_API_KEY: "伺服器自己的金鑰", AI: { run: async () => { called = true; return { response: "x" }; } } };
+  const env = { GEMINI_API_KEY: "伺服器自己的金鑰", NARRATE_ALLOW_SERVER_LLM: "true", AI: { run: async () => { called = true; return { response: "x" }; } } };
   const { status, body } = await read(
     await narratePost(req(env, {
       character: emptyCharacter("測試"),
@@ -191,7 +191,7 @@ test("/api/narrate：前端指定的供應商要真的生效(先前這個端點�
 });
 
 test("/api/narrate：LLM失敗時要帶出 stage/httpStatus，跟 /api/turn 同一個形狀", async () => {
-  const env = { AI: { run: async () => { throw new Error("模型被下架"); } } };
+  const env = { NARRATE_ALLOW_SERVER_LLM: "true", AI: { run: async () => { throw new Error("模型被下架"); } } };
   const { status, body } = await read(
     await narratePost(req(env, { character: emptyCharacter("測試"), playerAction: "推開門" }))
   );

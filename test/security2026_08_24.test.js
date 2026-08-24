@@ -200,6 +200,20 @@ test("[安全] /api/session：總花費超支的角色(每項都合法、但總�
   }
 });
 
+test("[安全] /api/session：公開 providedCharacter 不得授予 catalog abilities 或注入 energyPools", async () => {
+  const env = {};
+  const malicious = emptyCharacter("能力資源偽造");
+  malicious.abilities = [{ goodId: "dojutsu.寫輪眼.D" }];
+  malicious.derived.energyPools = {
+    偽造池: { max: 999999, current: 999999, sources: ["attacker"], reopens: 999 },
+  };
+
+  const body = await read(await sessionPost(req(env, { character: malicious })));
+  assert.equal(body.ok, true);
+  assert.deepEqual(body.session.character.abilities, [], "知道合法 goodId 也不能在新存檔直接取得商品能力");
+  assert.deepEqual(body.session.character.derived.energyPools, {}, "energyPools 必須由 server-owned ability effect 建立");
+});
+
 // ---------------------------------------------------------------------------
 // sessionStore：樂觀鎖定(rev / expectedRev / SessionConflictError)
 // ---------------------------------------------------------------------------
@@ -482,6 +496,14 @@ test("[效能] /api/turn：沒有提供 sceneContext 時，仍然沿用上一輪
   assert.equal(after.scene.context, "先前存好的場景描述", "沒帶sceneContext不能把已存的場景背景清空");
 });
 
+test("[安全] /api/narrate：未明確開放時，不可匿名消耗 server-managed LLM", async () => {
+  const env = { AI: { run: async () => { throw new Error("不應被呼叫"); } } };
+  const res = await narratePost(req(env, { character: emptyCharacter("匿名額度測試"), playerAction: "推開門" }));
+  assert.equal(res.status, 403);
+  const body = await read(res);
+  assert.match(body.error, /未開放伺服器 LLM/);
+});
+
 test("[安全] /api/narrate：playerAction 超過1000字要回422，且不會產生任何LLM呼叫", async () => {
   const env = {};
   const overLong = "行".repeat(1001);
@@ -557,7 +579,7 @@ test("[安全] /api/turn：沒有指定provider時，帶baseUrl也不會被套�
     };
   };
   try {
-    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰" };
+    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰", NARRATE_ALLOW_SERVER_LLM: "true" };
     const created = await read(await sessionPost(req(env, { character: emptyCharacter("金鑰外洩測試") })));
     const sessionId = created.session.id;
 
@@ -626,7 +648,7 @@ test("[安全] /api/narrate：跟/api/turn同一套規則——沒帶provider時
     };
   };
   try {
-    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰" };
+    const env = { GEMINI_API_KEY: "伺服器自己的正牌金鑰", NARRATE_ALLOW_SERVER_LLM: "true" };
     const body = await read(await narratePost(req(env, {
       character: emptyCharacter("narrate金鑰外洩測試"),
       playerAction: "推開門",

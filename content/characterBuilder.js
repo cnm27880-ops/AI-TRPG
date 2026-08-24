@@ -44,7 +44,6 @@ import { composeCore, getVirtue, getVice, VIRTUE_KEYS, VICE_KEYS } from "./charg
 import { applyReshape, RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP } from "./chargen/reshape.js";
 import { composeAwakening } from "./chargen/awakening.js";
 import { computeDerivedStats, DEFAULT_SIZE } from "../core/derivedStats.js";
-import { SHOP_GOODS } from "./shop/registry.js";
 
 const ATTRIBUTE_KEYS = ATTRIBUTES.map((a) => a.key);
 const ALL_SKILLS = Object.values(SKILLS).flat();
@@ -337,8 +336,6 @@ export function buildCharacter(draft = {}) {
 /** providedCharacter 匯入路徑允許的專長數量與文字長度上限（見 sanitizeProvidedCharacter）。 */
 const MAX_PROVIDED_FEATS = 10;
 const PROVIDED_FEAT_TEXT_MAX = 80;
-/** 允許宣稱擁有的商店道具數量上限，純粹避免一次丟一個超大陣列進來耗運算。 */
-const MAX_PROVIDED_ABILITIES = 50;
 
 /**
  * 驗證 morality：只接受規則書權威清單裡真的存在的 virtue/vice key，其餘一律當作沒填。
@@ -439,32 +436,17 @@ export function sanitizeProvidedCharacter(raw = {}) {
   character.reviveCount = 0;
   character.specializations = {};
 
-  // abilities(已購入的型態/技能商品)：不整份信任前端——那等於讓玩家宣稱自己已經買過
-  // 任何東西。只認得「goodId 真的在商店型錄裡」的項目，而且 name/effects 一律用型錄
-  // 裡的原始資料重建，不採用前端附帶的版本（防止把 effects 換成自訂的內容）。
-  // 這條路徑本來就是給測試/匯入用的既有商品狀態設定用，不是給玩家憑空描述能力。
-  character.abilities = Array.isArray(raw?.abilities)
-    ? raw.abilities
-        .slice(0, MAX_PROVIDED_ABILITIES)
-        .map((entry) => SHOP_GOODS.find((good) => good.goodId === entry?.goodId))
-        .filter(Boolean)
-        .map((good) => ({ goodId: good.goodId, name: good.name, effects: good.effects }))
-    : [];
+  // 這個 endpoint 是公開的「新建／匯入基礎角色」入口，不是商店交易或存檔還原入口。
+  // 因此不能因為 goodId 存在於型錄，就相信呼叫端真的買過該商品；否則任何人只要知道
+  // 一個合法 goodId，就能在建立 session 時直接取得型態、技能或其他能力。
+  // abilities 必須由 server-owned /api/shop 購買流程產生，匯入路徑一律清空。
+  character.abilities = [];
 
-  // energyPools 一樣不整份信任：只保留形狀正確(max/current皆為有限非負數字)的池子，
-  // 並把 current 夾回 [0, max]，防止用一個超過上限的 current 值偽造出「還有很多資源」。
-  const rawPools = raw?.derived?.energyPools;
-  character.derived.energyPools = rawPools && typeof rawPools === "object"
-    ? Object.fromEntries(
-        Object.entries(rawPools)
-          .filter(([, pool]) => Number.isFinite(Number(pool?.max)) && Number(pool.max) >= 0)
-          .map(([key, pool]) => {
-            const max = Number(pool.max);
-            const current = Number.isFinite(Number(pool.current)) ? Number(pool.current) : max;
-            return [key, { ...pool, max, current: Math.max(0, Math.min(max, current)) }];
-          })
-      )
-    : {};
+  // energyPools 也不能由 request 直接注入。current<=max 只能防止「超過自填上限」，
+  // 不能證明池子真的存在，更不能證明來源、重開次數或上限合法；後續 spendEnergy、
+  // rest 與型態系統會把任何 key 當成可用規則資源。合法池子必須由已授權 ability 的
+  // server-owned effect 呼叫 openPool() 建立，所以新建／匯入基礎角色從空池開始。
+  character.derived.energyPools = {};
 
   return character;
 }
