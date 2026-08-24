@@ -1196,11 +1196,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
 
     renderTurnWarnings(res.warnings);
 
-    // 說書人的後台盤算（思維鏈）。**刻意只進 console，不進故事流**：它是模型動筆前的
-    // 筆記（「這次是些微失敗，要關掉通風管這條路」），印給玩家看等於先劇透這一回合的結局。
-    // 留在 console 是為了讓開發時看得出「模型到底有沒有照著判定結果想事情」——
-    // 那是調這一層唯一有效的線索，回傳了卻沒有任何地方讀它才是這個專案要避免的模式。
-    if (res.stThought) console.debug("[ST_THOUGHT]", res.stThought);
+    // [安全][2026-08-24] 說書人的後台盤算(st_thought)已經不會出現在 API 回應裡了
+    // (見 functions/api/turn.js 的說明：只印伺服器 log，不進任何會回到瀏覽器的欄位)，
+    // 這裡也就沒有東西可讀。以前這裡讀 res.stThought 印到 console，等於還是讓
+    // 打開開發者工具的玩家看得到這段本來設計成「玩家看不到」的文字。
 
     if (res.narration) {
       appendNarrationBlock(res.narration);
@@ -3889,7 +3888,7 @@ async function openChronicle(scenarioId = null) {
   if (book) book.innerHTML = `<div class="chronicle-loading"><i class="fas fa-feather-pointed fa-bounce"></i> 正在翻閱存檔……</div>`;
   try {
     const suffix = scenarioId ? `&scenarioId=${encodeURIComponent(scenarioId)}` : "";
-    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}${suffix}`)).json();
+    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}&includePackage=1${suffix}`)).json();
     if (!res.ok) throw new Error(res.error || "劇情回顧載入失敗");
     chronicleState = res;
     renderChronicle();

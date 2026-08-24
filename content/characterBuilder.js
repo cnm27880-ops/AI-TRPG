@@ -40,7 +40,7 @@ import {
 } from "./chargen/pointCosts.js";
 import { collectLifePath, composeBackground, collectTraits, questionsForClient } from "./chargen/lifePath.js";
 import { allocateFromWeights, describeCharacterTendency } from "./chargen/allocate.js";
-import { composeCore, getVirtue, getVice } from "./chargen/virtueVice.js";
+import { composeCore, getVirtue, getVice, VIRTUE_KEYS, VICE_KEYS } from "./chargen/virtueVice.js";
 import { applyReshape, RESHAPE_POINTS, RESHAPE_ATTRIBUTE_CAP } from "./chargen/reshape.js";
 import { composeAwakening } from "./chargen/awakening.js";
 import { computeDerivedStats, DEFAULT_SIZE } from "../core/derivedStats.js";
@@ -225,11 +225,14 @@ function normalizeFeats(rawFeats) {
     if (type === "narrative") {
       feats.push({ id: raw.id ?? raw.name, name: raw.name, description: raw.description, effect: { type: "narrative" } });
     } else if (type === "skillBonus" && ALL_SKILLS.includes(raw.effect.skill) && Number.isInteger(raw.effect.amount)) {
+      // 上限跟建卡技能範圍(0~3)同一個數量級：專長是「小幅加成」，不是讓前端傳一個
+      // 999 進來把技能判定變成必過。合法內建專長目前都只有 +1，這裡留一點餘裕給 ±3。
+      const amount = Math.max(-3, Math.min(3, raw.effect.amount));
       feats.push({
         id: raw.id ?? raw.name,
         name: raw.name,
         description: raw.description,
-        effect: { type: "skillBonus", skill: raw.effect.skill, amount: raw.effect.amount },
+        effect: { type: "skillBonus", skill: raw.effect.skill, amount },
       });
     }
   }
@@ -328,4 +331,122 @@ export function buildCharacter(draft = {}) {
   character.derived = computeDerivedStats(character.attributes, { size });
 
   return { valid: true, errors: [], budgets, character };
+}
+
+/** providedCharacter 匯入路徑允許的專長數量與文字長度上限（見 sanitizeProvidedCharacter）。 */
+const MAX_PROVIDED_FEATS = 10;
+const PROVIDED_FEAT_TEXT_MAX = 80;
+
+/**
+ * 驗證 morality：只接受規則書權威清單裡真的存在的 virtue/vice key，其餘一律當作沒填。
+ *
+ * buildCharacter() 本身只檢查「virtue 跟 vice 兩個欄位是不是 truthy」，不檢查它們是不是
+ * 七美德/七惡德裡的合法值——那是因為它原本的呼叫端(buildCharacterFromLifePath)一定是
+ * resolveMorality() 算出來的合法值。這個函式面對的是任意外部輸入，所以要在交給
+ * buildCharacter() 之前先過濾，不能假設「有值就是合法值」。
+ */
+function sanitizeMorality(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const virtue = VIRTUE_KEYS.includes(raw.virtue) ? raw.virtue : null;
+  const vice = VICE_KEYS.includes(raw.vice) ? raw.vice : null;
+  if (!virtue || !vice) return null;
+  return {
+    virtue,
+    vice,
+    shadowVirtue: VIRTUE_KEYS.includes(raw.shadowVirtue) ? raw.shadowVirtue : null,
+    shadowVice: VICE_KEYS.includes(raw.shadowVice) ? raw.shadowVice : null,
+  };
+}
+
+/**
+ * [安全] POST /api/session 的 `character`（現成角色卡，測試/匯入用）在此之前是**直接**
+ * 存進新存檔的，沒有經過任何驗證——玩家可以把 attributes 填成 99、xp 填成天文數字、
+ * derived.hp 填成任何值，那張卡就這樣原封不動變成正式存檔的角色。
+ *
+ * [2026-08-24 second pass 修正] 第一版只對每個欄位個別夾範圍(屬性夾在1~5、技能夾在
+ * 0~3)，**沒有檢查總預算**——六維全部頂到5、十個技能全部頂到3，個別看都合法，
+ * 但總花費遠遠超過建卡的 8 點屬性預算與 10 點技能預算。這種「逐項合法、整體超支」
+ * 的角色一樣是偽造。
+ *
+ * 修法是直接**重用** buildCharacter()：那才是「單項範圍 + 總預算 + 欄位白名單」的
+ * 唯一權威實作，這裡不能自己重寫一份看起來很像但少算了總預算的版本。
+ * 驗證失敗(單項超界或總預算超支)時不嘗試「盡量保留還算合法的部分」去猜測玩家原本
+ * 想要什麼——那本身就是另一種可以被利用的模糊地帶——直接退回一張屬性/技能全部
+ * 歸零的安全預設卡，只留下跟數值無關的敘事欄位。
+ *
+ * ownerId 不在這裡處理：session 的 ownerId 從登入身分算，從來不讀 character 或
+ * body 的任何欄位，所以「偽造 ownerId」在這個入口本來就無機可乘。
+ */
+export function sanitizeProvidedCharacter(raw = {}) {
+  const rawName = typeof raw?.concept?.name === "string" ? raw.concept.name.trim() : "";
+  const name = rawName ? rawName.slice(0, 40) : "未命名輪迴者";
+  const concept = {
+    name,
+    gender: typeof raw?.concept?.gender === "string" ? raw.concept.gender.slice(0, 20) : "未知",
+    age: Number.isFinite(Number(raw?.concept?.age))
+      ? Math.max(0, Math.min(120, Math.trunc(Number(raw.concept.age))))
+      : 24,
+    background: typeof raw?.concept?.background === "string" ? raw.concept.background.slice(0, 2000) : "",
+  };
+
+  // 這裡只做「型別是數字」這一層過濾；範圍與**總預算**一律交給 buildCharacter() 判斷，
+  // 不個別夾範圍——個別夾範圍正是上一版漏掉總預算檢查的原因。
+  const attributes = {};
+  for (const key of ATTRIBUTE_KEYS) {
+    const val = Number(raw?.attributes?.[key]);
+    attributes[key] = Number.isFinite(val) ? Math.trunc(val) : 1;
+  }
+  const skills = {};
+  for (const skill of ALL_SKILLS) {
+    const val = Number(raw?.skillBase?.[skill] ?? raw?.skills?.[skill]);
+    skills[skill] = Number.isFinite(val) ? Math.trunc(val) : 0;
+  }
+
+  // 專長：這個匯入路徑只接受**敘事型**——數值型(skillBonus)一律不信任。skillBonus
+  // 本來就該只來自「已經通過建卡驗證/型錄授權」的效果；如果只靠單一專長夾在±3，
+  // 玩家送 100 個自造專長一樣能疊出 +300，所以乾脆完全不讓這條路徑核發數值效果。
+  // 另外限制專長的數量與文字長度，避免一次塞一個超大陣列/超長字串進來。
+  const feats = Array.isArray(raw?.feats)
+    ? raw.feats
+        .filter((f) => f && typeof f.name === "string" && typeof f.description === "string" && f.effect?.type === "narrative")
+        .slice(0, MAX_PROVIDED_FEATS)
+        .map((f) => ({
+          name: f.name.slice(0, PROVIDED_FEAT_TEXT_MAX),
+          description: f.description.slice(0, PROVIDED_FEAT_TEXT_MAX),
+          effect: { type: "narrative" },
+        }))
+    : [];
+
+  const morality = sanitizeMorality(raw?.morality);
+
+  const result = buildCharacter({ concept, attributes, skills, feats, morality: morality ?? undefined });
+  const character = result.valid ? result.character : emptyCharacter(name);
+  if (!result.valid) {
+    // 數值超界/超支：整份數值都不可信，退回全歸零的安全預設卡，但敘事欄位
+    // (跟預算無關)仍然保留，不用連名字/背景故事一起丟掉。
+    character.concept = concept;
+    character.feats = normalizeFeats(feats);
+    if (morality) character.morality = { ...morality, core: composeCore(morality.virtue, morality.vice) };
+  }
+
+  // 核心防偽：xp/復活次數一律歸零——這是「新建一個存檔」，不能讓玩家從外部帶著
+  // 已經花完的經驗值或已經復活過的次數進來。derived 已經由 buildCharacter()(或
+  // 上面的安全預設卡)從驗證過的屬性重新算好，不採用前端附帶的版本。
+  character.xp = { earned: 0, spent: 0 };
+  character.reviveCount = 0;
+  character.specializations = {};
+
+  // 這個 endpoint 是公開的「新建／匯入基礎角色」入口，不是商店交易或存檔還原入口。
+  // 因此不能因為 goodId 存在於型錄，就相信呼叫端真的買過該商品；否則任何人只要知道
+  // 一個合法 goodId，就能在建立 session 時直接取得型態、技能或其他能力。
+  // abilities 必須由 server-owned /api/shop 購買流程產生，匯入路徑一律清空。
+  character.abilities = [];
+
+  // energyPools 也不能由 request 直接注入。current<=max 只能防止「超過自填上限」，
+  // 不能證明池子真的存在，更不能證明來源、重開次數或上限合法；後續 spendEnergy、
+  // rest 與型態系統會把任何 key 當成可用規則資源。合法池子必須由已授權 ability 的
+  // server-owned effect 呼叫 openPool() 建立，所以新建／匯入基礎角色從空池開始。
+  character.derived.energyPools = {};
+
+  return character;
 }

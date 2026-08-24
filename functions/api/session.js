@@ -6,11 +6,16 @@
 // **沒有設定 KV binding 時不會直接壞掉**，會退到記憶體版讓你先把流程跑起來，
 // 但回傳值裡的 persistent 會是 false，前端必須顯示警告——那個模式下存檔隨時會消失。
 
-import { buildCharacter, buildCharacterFromLifePath } from "../../content/characterBuilder.js";
+import {
+  buildCharacter,
+  buildCharacterFromLifePath,
+  sanitizeProvidedCharacter,
+} from "../../content/characterBuilder.js";
 import {
   createSession,
   resolveSessionStore,
   newSessionId,
+  SessionConflictError,
 } from "../../content/storage/sessionStore.js";
 import {
   getScenarioPack,
@@ -79,7 +84,10 @@ export async function onRequestPost(context) {
     }
     character = result.character;
   } else if (providedCharacter) {
-    character = providedCharacter;
+    // [安全] 不可以把前端送來的角色卡原樣存進新存檔——attributes/xp/derived stats
+    // 都可能被偽造。sanitizeProvidedCharacter() 只留下敘事欄位，數值一律由伺服器
+    // 夾回合法範圍或重新計算（見該函式的說明）。
+    character = sanitizeProvidedCharacter(providedCharacter);
   } else {
     return json({ ok: false, error: "body必須包含 draft(建卡草稿) 或 character(現成角色卡)" }, 400);
   }
@@ -228,11 +236,21 @@ export async function onRequestGet(context) {
 
   // 登入者手上拿著一份匿名存檔時，順手認領成他的。
   // 這是使用者選定的行為：已經在玩的人登入之後，進度不會不見。
+  //
+  // [併發][2026-08-24 second pass] 這也是一個會寫回存檔的 GET。跟 forms.js 的到期
+  // 寫回同一個道理：認領本身是幂等的(認領後 session.ownerId 不再是空，下一次自然
+  // 就不會再嘗試)，衝突時沒有必要讓整個 GET 失敗——略過這次寫入，讓下一次讀取
+  // (或玩家的下一個動作)重新嘗試認領即可，不會遺失任何資源或造成重複扣費。
   if (user?.sub && !session.ownerId) {
     const claim = claimSession(session, user);
     if (claim.claimed) {
-      await store.put(session);
-      await indexSessionForOwner(store, user.sub, session.id);
+      try {
+        await store.put(session, { expectedRev: session.rev ?? 0 });
+        await indexSessionForOwner(store, user.sub, session.id);
+      } catch (err) {
+        if (!(err instanceof SessionConflictError)) throw err;
+        console.warn("[SESSION_CONFLICT]", JSON.stringify({ where: "GET /api/session(claim)", sessionId: session.id }));
+      }
     }
   }
   const lifecycle = scenarioLifecycle({

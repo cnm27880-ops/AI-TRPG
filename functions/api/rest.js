@@ -13,7 +13,7 @@
 //
 // 這一層一樣很薄：恢復多少、扣多少時間，全部是 core/rest.js 與 timeBudget.js 的純函式在算。
 
-import { resolveSessionStore } from "../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../content/storage/sessionStore.js";
 import { fullRecovery, meditate, describeRest, IN_MOVIE_REST_ROUNDS } from "../../core/rest.js";
 import { locationOf } from "../../content/shop/access.js";
 import { spendTime, isExpired, timeStatus } from "../../content/scenario/timeBudget.js";
@@ -41,14 +41,20 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: "請求body必須是合法JSON" }, 400);
   }
 
-  const { sessionId } = body ?? {};
+  const { sessionId, requestId: rawRequestId } = body ?? {};
   if (!sessionId) return json({ ok: false, error: "body必須包含 sessionId" }, 400);
+  const requestId = typeof rawRequestId === "string" ? rawRequestId.trim().slice(0, 160) : "";
 
   const session = await store.get(sessionId);
   if (!session) return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
     return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   }
+  // 同一 requestId 重送就回放上次的結果，不能再恢復一次生命/能量池或再扣一次時間預算。
+  if (requestId && session.restReplay?.requestId === requestId) {
+    return json({ ...session.restReplay.response, replayed: true });
+  }
+  const expectedRev = session.rev ?? 0;
 
   const downState = getDownState(session.character);
   if (downState.dead) {
@@ -78,8 +84,7 @@ export async function onRequestPost(context) {
       { kind: "完全恢復", location: access.location, summary: describeRest(result.recovered) },
       { timestamp: new Date().toISOString() }
     );
-    await store.put(session);
-    return json({
+    const responseBody = {
       ok: true,
       location: access.location,
       recovered: result.recovered,
@@ -90,7 +95,17 @@ export async function onRequestPost(context) {
         pack: session.scenario ? getScenarioPack(session.scenario.packId) : null,
         persistent: store.persistent,
       }),
-    });
+    };
+    if (requestId) session.restReplay = { requestId, response: responseBody, savedAt: new Date().toISOString() };
+    try {
+      await store.put(session, { expectedRev });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+      }
+      throw err;
+    }
+    return json(responseBody);
   }
 
   // 副本中：先確認時間預算付得起，再打坐。付不起就整筆不成立——
@@ -141,9 +156,7 @@ export async function onRequestPost(context) {
     { amount: IN_MOVIE_REST_ROUNDS, activity: "打坐休息" },
     { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
-  await store.put(session);
-
-  return json({
+  const responseBody = {
     ok: true,
     location: access.location,
     recovered: result.recovered,
@@ -155,5 +168,15 @@ export async function onRequestPost(context) {
       status: timeStatus(nextBudget),
       expired: isExpired(nextBudget),
     },
-  });
+  };
+  if (requestId) session.restReplay = { requestId, response: responseBody, savedAt: new Date().toISOString() };
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+    }
+    throw err;
+  }
+  return json(responseBody);
 }

@@ -7,7 +7,7 @@
 //
 // 角色卡一律以存檔為準（跟 /api/turn 同一個原則），不接受前端直接塞一張角色卡進來開戰。
 
-import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../../content/storage/sessionStore.js";
 import { createEncounter, resolveLeadingEnemyTurns, combatOptions } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { getScenarioPack } from "../../../content/scenario/registry.js";
@@ -44,6 +44,8 @@ export async function onRequestPost(context) {
   if (!canAccessSession(session, await getCurrentUser(context.request, context.env ?? {}))) {
     return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   }
+
+  const expectedRev = session.rev ?? 0;
 
   if (session.combat?.active) {
     return json({ ok: false, error: "這場存檔已經有進行中的戰鬥，請先結束才能開始新的" }, 409);
@@ -123,7 +125,14 @@ export async function onRequestPost(context) {
   if (session.scenario) {
     session.scenario = { ...session.scenario, progress: dischargeThreatOnEncounter(session.scenario.progress) };
   }
-  await store.put(session);
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+    }
+    throw err;
+  }
 
   return json({
     ok: true,

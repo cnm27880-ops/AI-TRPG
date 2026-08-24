@@ -18,7 +18,7 @@
 // 這一層跟 /api/shop 同樣刻意很薄：能不能啟動、要扣多少意志力與能量池、什麼時候到期，
 // 全部是 content/shop/forms.js 的純函式在算，這裡只負責「讀存檔 → 呼叫純函式 → 寫回存檔」。
 
-import { resolveSessionStore } from "../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../content/storage/sessionStore.js";
 import { sceneKeyOf } from "../../content/shop/access.js";
 import {
   formsOf,
@@ -90,10 +90,25 @@ export async function onRequestGet(context) {
   const url = new URL(context.request.url);
   const { error, store, session } = await loadSession(context, url.searchParams.get("sessionId"));
   if (error) return error;
+  const expectedRev = session.rev ?? 0;
   const payload = formsPayload(session);
   // 到期是一個狀態改變，不是只在這次計算裡當作沒看到——要寫回去，
   // 否則下一次讀取又會把同一批型態「再到期一次」。
-  if (payload.expired.length > 0) await store.put(session);
+  //
+  // [併發][2026-08-24 second pass] 這是一個「讀取」端點卻會寫回存檔的例子——GET
+  // 照理該是安全、可重複的，這裡的寫入只是把「型態到期」這個已經發生的事實記下來，
+  // 不是玩家主動觸發的行動，沒有資源/回合會被重複消耗，所以衝突時**不用**讓整個
+  // GET 失敗：略過這次存檔、把算好的payload照樣回傳即可，下一次讀取重新判斷到期
+  // 一樣會得到正確結果(到期判斷本身是幂等的)。真正會扣資源的是下面 POST 的兩個
+  // 分支，那邊衝突就要老實回 409，不能默默重算。
+  if (payload.expired.length > 0) {
+    try {
+      await store.put(session, { expectedRev });
+    } catch (err) {
+      if (!(err instanceof SessionConflictError)) throw err;
+      console.warn("[SESSION_CONFLICT]", JSON.stringify({ where: "GET /api/forms", sessionId: session.id }));
+    }
+  }
   return json(payload);
 }
 
@@ -108,6 +123,7 @@ export async function onRequestPost(context) {
   const { sessionId, formId, action = "啟動", amount = null, mode = null } = body ?? {};
   const { error, store, session } = await loadSession(context, sessionId);
   if (error) return error;
+  const expectedRev = session.rev ?? 0;
   if (!formId) return json({ ok: false, error: "body必須包含 formId" }, 400);
   if (!["啟動", "收功"].includes(action)) {
     return json({ ok: false, error: `action 只能是「啟動」或「收功」，收到「${action}」` }, 400);
@@ -142,7 +158,14 @@ export async function onRequestPost(context) {
         { event: "收功", formId, label: result.ended[0].label },
         { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
       );
-      await store.put(session);
+      try {
+        await store.put(session, { expectedRev });
+      } catch (err) {
+        if (err instanceof SessionConflictError) {
+          return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+        }
+        throw err;
+      }
     }
     return json({ ...formsPayload(session), ended: result.ended.map((f) => f.label) });
   }
@@ -174,7 +197,14 @@ export async function onRequestPost(context) {
     },
     { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
   );
-  await store.put(session);
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+    }
+    throw err;
+  }
 
   return json({ ...formsPayload(session), form: result.form, character: session.character });
 }

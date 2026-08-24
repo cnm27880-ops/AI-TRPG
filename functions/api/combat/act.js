@@ -9,7 +9,7 @@
 // 玩家受到的傷害（combat.player.hpState）打完這次行動後會同步回
 // session.character.derived.hp，讓角色面板跟戰鬥面板看到的血量隨時一致。
 
-import { resolveSessionStore } from "../../../content/storage/sessionStore.js";
+import { resolveSessionStore, SessionConflictError } from "../../../content/storage/sessionStore.js";
 import {
   resolvePlayerAttack,
   resolveEnemyAttack,
@@ -61,6 +61,7 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: `找不到存檔 ${sessionId}` }, 404);
   }
 
+  const expectedRev = session.rev ?? 0;
   const combat = session.combat;
   if (!combat?.active) {
     return json({ ok: false, error: "這場存檔目前沒有進行中的戰鬥，請先呼叫 /api/combat/start" }, 409);
@@ -94,7 +95,14 @@ export async function onRequestPost(context) {
       },
       { timestamp: new Date().toISOString(), scenarioId: session.scenario?.packId ?? null, turn: (session.turns ?? 0) + 1 }
     );
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+      }
+      throw err;
+    }
     return json({
       ok: true,
       persistent: store.persistent,
@@ -308,7 +316,14 @@ export async function onRequestPost(context) {
   // (戰鬥外沒有輪可以數)，剩下的是以「場景」計時的——打一場架不會改變你站在哪裡，
   // 所以它們要繼續有效，直到玩家離開這個地點。沒有這一行，戰鬥中變的身會在收兵時消失。
   if (!combat.active) session.forms = combat.forms;
-  await store.put(session);
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return json({ ok: false, code: "SESSION_CONFLICT", error: "這份存檔剛被另一個請求更新，請重新整理後再試一次。" }, 409);
+    }
+    throw err;
+  }
 
   return json({
     ok: true,
