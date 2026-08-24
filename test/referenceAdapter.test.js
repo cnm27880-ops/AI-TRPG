@@ -23,7 +23,8 @@ test("reference public response exposes bounded DM hints without internal rule d
   const state = createReferenceState(reference);
   const response = referenceStateForResponse(reference, state);
   assert.equal(response.dmPrompt.mode, "free_action");
-  assert.equal(response.dmPrompt.question, "你打算怎麼做？");
+  assert.equal(response.dmPrompt.question, null, "泛用 DM 問句由 narration 提供，safe view 不應再提供第二個問句");
+  assert.match(response.dmPrompt.hint, /行動方向/);
   assert.match(response.dmPrompt.hint, /不是限制/);
   assert.ok(Array.isArray(response.dmPrompt.referenceHints));
   assert.ok(response.dmPrompt.referenceHints.length <= 3);

@@ -2216,10 +2216,9 @@ function setDecisionContext(text) {
  */
 function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
   const panel = document.getElementById("dm-action-guidance");
-  const question = document.getElementById("dm-action-question");
   const hint = document.getElementById("dm-action-hint");
   const hints = document.getElementById("dm-action-hints");
-  if (!panel || !question || !hint || !hints) return;
+  if (!panel || !hint || !hints) return;
 
   panel.hidden = !visible;
   if (!visible) {
@@ -2228,12 +2227,9 @@ function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
   }
 
   const data = dmPrompt && typeof dmPrompt === "object" ? dmPrompt : {};
-  question.textContent = typeof data.question === "string" && data.question.trim()
-    ? data.question.trim()
-    : "你打算怎麼做？";
   hint.textContent = typeof data.hint === "string" && data.hint.trim()
     ? data.hint.trim()
-    : "你可以描述任何合理行動；提示只是方向，不是限制。";
+    : "可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。";
   const safeHints = Array.isArray(data.referenceHints)
     ? data.referenceHints.filter((value) => typeof value === "string" && value.trim()).slice(0, 3)
     : [];
@@ -2244,6 +2240,8 @@ function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
 
 function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt = null } = {}) {
   const grid = document.getElementById("option-grid");
+  const decisionKicker = document.getElementById("decision-kicker");
+  const decisionTitle = document.getElementById("decision-title");
   const safeOptions = Array.isArray(options) ? options : [];
   currentReferenceMode = Boolean(referenceMode);
   if (currentReferenceMode) {
@@ -2252,12 +2250,16 @@ function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt
       grid.hidden = true;
       grid.innerHTML = "";
     }
+    if (decisionKicker) decisionKicker.textContent = "行動方向";
+    if (decisionTitle) decisionTitle.textContent = "可參考的情境線索";
     setDecisionContext("自由行動 · 不使用預設選項");
     renderDmPrompt(dmPrompt, { visible: true });
     return;
   }
 
   currentOptions = safeOptions;
+  if (decisionKicker) decisionKicker.textContent = "下一步";
+  if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
   if (grid) grid.hidden = false;
   renderDmPrompt(null, { visible: false });
   if (!safeOptions.length) {

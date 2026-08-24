@@ -3107,20 +3107,19 @@
             <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
                 <div class="decision-panel-heading">
                     <div>
-                        <div class="decision-kicker">下一步</div>
-                        <div class="decision-title">你現在要怎麼做？</div>
+                        <div id="decision-kicker" class="decision-kicker">行動方向</div>
+                        <div id="decision-title" class="decision-title">可參考的情境線索</div>
                     </div>
                     <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
                 </div>
                 <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
-                    <div id="dm-action-question" class="dm-action-question">你打算怎麼做？</div>
-                    <div id="dm-action-hint" class="dm-action-hint">你可以描述任何合理行動；提示只是方向，不是限制。</div>
+                                        <div id="dm-action-hint" class="dm-action-hint">可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。</div>
                     <div id="dm-action-hints" class="dm-action-hints"></div>
                 </div>
                 <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
                 <div class="flex gap-2 items-end">
                     <div class="relative flex-1">
-                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-question dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
+                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                         <div id="action-input-counter" data-action-count class="mt-1 text-right text-[10px] font-mono text-zinc-500" aria-live="polite">0 / 1000</div>
                     </div>

@@ -341,8 +341,10 @@ export function buildReferenceHints(reference, state, { limit = 3 } = {}) {
 export function buildDmPrompt(reference, state) {
   return {
     mode: "free_action",
-    question: "你打算怎麼做？",
-    hint: "你可以描述任何合理行動；下面只是當前局勢的少量方向提示，不是限制。",
+    // 保留欄位形狀供舊 client 相容，但不再提供第二個泛用 DM 問句。
+    // 正式問句應由 narration 自然收束產生；前端只顯示下方的行動方向提示。
+    question: null,
+    hint: "可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。",
     referenceHints: buildReferenceHints(reference, state),
   };
 }

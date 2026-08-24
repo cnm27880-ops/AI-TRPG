@@ -601,9 +601,16 @@ export async function onRequestPost(context) {
       freeAction = referenceResolution.freeAction;
       checkParams = referenceResolution.checkParams;
     } else {
-      checkParams = inferCheckParams(actionText, { character });
-      if (!checkParams.matched) {
-        warnings.push("自訂行動沒有命中任何關鍵字，已退回純感知檢定");
+      const inferred = inferCheckParams(actionText, { character });
+      if (inferred.requiresCheck === false) {
+        // 低風險的詢問、搭話與環顧周遭不應被迫擲骰；只有明確的高風險意圖才進入判定。
+        freeAction = true;
+        checkParams = null;
+      } else {
+        checkParams = inferred;
+        if (!checkParams.matched) {
+          warnings.push("自訂行動沒有命中任何關鍵字，已退回純感知檢定");
+        }
       }
     }
   }
