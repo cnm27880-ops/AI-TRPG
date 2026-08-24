@@ -133,7 +133,7 @@ function awakeningStepIndex() {
 let portalMode = "invitation";
 let portalTransitionTimer = null;
 let chargenAdvanceTimer = null;
-const GODSPACE_FIRST_STORY_KEY = "ai-trpg-godspace-first-story-v1";
+let chargenReleaseRun = 0;
 
 function resetPortalInvitation() {
   window.clearTimeout(portalTransitionTimer);
@@ -180,11 +180,8 @@ function finishPortalReveal(reason = "new") {
   main.classList.add("is-visible");
   main.setAttribute("aria-hidden", "false");
 
-  const firstStorySeen = localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1";
-  if (!firstStorySeen) {
-    window.setTimeout(() => showFirstGodspaceStory(), reason === "new" ? 520 : 160);
-  } else if (reason === "new") {
-    window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 600);
+  if (reason === "new") {
+    window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 1200);
   }
 }
 
@@ -213,32 +210,6 @@ function revealMainGodSpace(reason = "new") {
 
 function acceptMainGodInvitation() {
   revealMainGodSpace("new");
-}
-
-function showFirstGodspaceStory() {
-  const layer = document.getElementById("portal-first-story");
-  const panel = layer?.querySelector(".godspace-first-story-panel");
-  if (!layer || !panel || localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1") return;
-  document.getElementById("godspace-first-story-title").textContent = "白色平台沒有盡頭。";
-  document.getElementById("godspace-first-story-copy").textContent =
-    "你原本以為自己只是打開了一個網站。\n\n" +
-    "那只是門。\n\n" +
-    "白色沒有牆，也沒有天花板；遠處只有一個無法測量距離的光源。你的身體已經被主神系統重新確認，原本的生活則被留在門的另一側。\n\n" +
-    "看不見的聲音說：『輪迴者，歡迎來到主神空間。下一場恐怖片開始以前，你可以先決定自己要帶什麼進去。』";
-  document.getElementById("godspace-first-story-foot").textContent =
-    "這段記錄只會播放一次。主神空間正在等待你的第一個決定。";
-  layer.style.display = "flex";
-  layer.removeAttribute("aria-hidden");
-  requestAnimationFrame(() => panel.focus());
-}
-
-function continueFirstGodspaceStory() {
-  const layer = document.getElementById("portal-first-story");
-  if (!layer) return;
-  localStorage.setItem(GODSPACE_FIRST_STORY_KEY, "1");
-  layer.style.display = "none";
-  layer.setAttribute("aria-hidden", "true");
-  document.querySelector("#portal-main-content .action-tile.primary")?.focus();
 }
 
 async function startNewChargen() {
@@ -618,6 +589,56 @@ function adjustReshape(key, delta) {
   renderReshape();
 }
 
+function sleepForTransition(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function cancelChargenReleaseTransition() {
+  chargenReleaseRun += 1;
+  const overlay = document.getElementById("chargen-release-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("is-visible", "is-leaving");
+  overlay.style.display = "none";
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function playChargenReleaseTransition() {
+  const overlay = document.getElementById("chargen-release-overlay");
+  const message = document.getElementById("chargen-release-message");
+  if (!overlay || !message) return;
+
+  const run = ++chargenReleaseRun;
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const lines = ["防護罩解除。", "你的名字，已經不再屬於原本的世界。", "那麼，祝你好運。"];
+  overlay.style.display = "flex";
+  overlay.classList.remove("is-leaving");
+  overlay.classList.add("is-visible");
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.setAttribute("aria-busy", "true");
+  message.textContent = "";
+  message.focus();
+
+  try {
+    for (const line of lines) {
+      if (run !== chargenReleaseRun) return;
+      message.textContent = line;
+      await sleepForTransition(reducedMotion ? 120 : 680);
+    }
+    if (run !== chargenReleaseRun) return;
+    await sleepForTransition(reducedMotion ? 80 : 900);
+    if (run !== chargenReleaseRun) return;
+    overlay.classList.add("is-leaving");
+    await sleepForTransition(reducedMotion ? 0 : 720);
+  } finally {
+    if (run === chargenReleaseRun) {
+      overlay.classList.remove("is-visible", "is-leaving");
+      overlay.style.display = "none";
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.removeAttribute("aria-busy");
+    }
+  }
+}
+
 async function submitChargen() {
   const state = reshapeState();
   if (!state) {
@@ -657,7 +678,9 @@ async function submitChargen() {
     adoptCharacter(res.session.character);
     recentStoryEntries = [];
     pendingStoryEntry = null;
+    activeNarrationStream = null;
     renderRecentStoryWindow({ forceBottom: true });
+    await playChargenReleaseTransition();
     showScreen("game");
     renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
@@ -1108,6 +1131,139 @@ function setTurnInputLocked(locked, pressedIndex) {
   }
 }
 
+function updateNarratorPendingHint(text) {
+  const hint = document.querySelector("#narrator-pending [data-pending-hint]");
+  if (hint && text) hint.textContent = text;
+}
+
+function beginNarrationStream() {
+  hideNarratorPending();
+  clearPreviousFinalQuestions();
+  const entry = appendFeedEvent(
+    "narration",
+    `書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
+    "",
+    { note: `<span data-stream-state>說書人正在把這一回合寫進現場……</span>` }
+  );
+  activeNarrationStream = { id: entry?.dataset.recentStoryId ?? null, text: "" };
+  return activeNarrationStream;
+}
+
+function updateNarrationStream(delta) {
+  if (!activeNarrationStream || typeof delta !== "string") return;
+  activeNarrationStream.text += delta;
+  if (!activeNarrationStream.id) return;
+  recentStoryEntries = recentStoryEntries.map((entry) =>
+    entry.id === activeNarrationStream.id
+      ? { ...entry, content: renderNarrationHtml(activeNarrationStream.text), opts: {} }
+      : entry
+  );
+  renderRecentStoryWindow({ forceBottom: true });
+}
+
+function endNarrationStream() {
+  if (activeNarrationStream) activeNarrationStream.ended = true;
+}
+
+function finalizeNarrationStream(finalText) {
+  if (!activeNarrationStream) return false;
+  const id = activeNarrationStream.id;
+  const text = String(finalText ?? activeNarrationStream.text ?? "");
+  recentStoryEntries = recentStoryEntries.map((entry) =>
+    entry.id === id
+      ? { ...entry, label: "", content: renderNarrationHtml(text), opts: {} }
+      : entry
+  );
+  activeNarrationStream = null;
+  renderRecentStoryWindow({ forceBottom: true });
+  return true;
+}
+
+function cancelNarrationStream() {
+  if (!activeNarrationStream) return;
+  const id = activeNarrationStream.id;
+  recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
+  activeNarrationStream = null;
+  renderRecentStoryWindow({ forceBottom: true });
+}
+
+/**
+ * 讀取 server 的 NDJSON transport。只有 complete event 的 payload 會進入既有
+ * 回合處理；narration_delta 是 server 已完成 guard／canonical 敘事後的展示副本，
+ * 前端不解析、不信任任何 provider 原始 token。
+ */
+async function readTurnResponse(httpRes) {
+  const contentType = httpRes.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/x-ndjson")) {
+    try {
+      return { payload: await httpRes.json(), status: httpRes.status };
+    } catch {
+      throw new Error(`伺服器回應不是JSON（HTTP ${httpRes.status}）`);
+    }
+  }
+  if (!httpRes.body || typeof httpRes.body.getReader !== "function") {
+    throw new Error("瀏覽器不支援文字串流，請重新整理後再試一次");
+  }
+
+  const reader = httpRes.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let complete = null;
+  let narrationStreamed = false;
+  const consumeLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let event;
+    try {
+      event = JSON.parse(trimmed);
+    } catch {
+      throw new Error("串流資料格式錯誤，請稍後重試");
+    }
+    switch (event.type) {
+      case "accepted":
+        updateNarratorPendingHint("已收到行動，正在確認這一回合的現場規則……");
+        break;
+      case "rules_resolved":
+        updateNarratorPendingHint("現場規則已確認，說書人正在接手……");
+        break;
+      case "narrator_writing":
+        updateNarratorPendingHint("說書人正在組織這一回合的敘事……");
+        break;
+      case "narration_start":
+        beginNarrationStream();
+        break;
+      case "narration_delta":
+        updateNarrationStream(event.delta);
+        break;
+      case "narration_end":
+        endNarrationStream();
+        break;
+      case "complete":
+        narrationStreamed = finalizeNarrationStream(event.payload?.narration) || narrationStreamed;
+        complete = { payload: event.payload, status: Number(event.status) || httpRes.status };
+        break;
+      case "error":
+        throw new Error(typeof event.message === "string" ? event.message : "串流回合失敗，請稍後重試");
+      default:
+        // 未知事件不改變回合 state，保留向後相容性。
+        break;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(consumeLine);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) consumeLine(buffer);
+  if (!complete?.payload) throw new Error("串流在回合完成前中斷，請稍後重試");
+  return { ...complete, narrationStreamed };
+}
+
 async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retryPending = false, turnRequestId } = {}) {
   if (turnInFlight) return;
 
@@ -1136,7 +1292,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
   try {
     const httpRes = await fetch("/api/turn", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/x-ndjson, application/json",
+      },
       body: JSON.stringify({
         sessionId: currentSessionId,
         chosenOption,
@@ -1147,14 +1306,23 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
         ...overrides.payload,
         turnRequestId: stableRequestId,
         retryPending,
+        // server 會以 NDJSON 先送安全狀態事件，再送完整 canonical response；
+        // 不支援串流的舊部署仍會因 Accept fallback 回傳普通 JSON。
+        stream: true,
       })
     });
 
     let res;
+    let responseStatus = httpRes.status;
+    let narrationStreamed = false;
     try {
-      res = await httpRes.json();
-    } catch {
-      throw new Error(`伺服器回應不是JSON（HTTP ${httpRes.status}）`);
+      const streamed = await readTurnResponse(httpRes);
+      res = streamed.payload;
+      responseStatus = streamed.status;
+      narrationStreamed = Boolean(streamed.narrationStreamed);
+    } catch (err) {
+      cancelNarrationStream();
+      throw err;
     }
 
     // [2026-08-16 修正] 這裡以前完全沒有檢查 res.ok。後端敘事失敗時回的是
@@ -1171,7 +1339,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
       renderTurnWarnings(res.warnings);
       if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
-      if (httpRes.status === 409 && res.downState) {
+      if (responseStatus === 409 && res.downState) {
         appendFeedEvent("harm", "身體拒絕行動", escapeHtml(res.error));
       } else {
         const pending = res.pendingTurn;
@@ -1187,7 +1355,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
           };
         }
         keepTurnLocked = Boolean(res.retryable || res.pendingTurn);
-        appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
+        appendTurnError(res.error || `回合失敗（HTTP ${responseStatus}）`, res);
       }
       return;
     }
@@ -1201,7 +1369,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     // 這裡也就沒有東西可讀。以前這裡讀 res.stThought 印到 console，等於還是讓
     // 打開開發者工具的玩家看得到這段本來設計成「玩家看不到」的文字。
 
-    if (res.narration) {
+    if (res.narration && !narrationStreamed) {
       appendNarrationBlock(res.narration);
     }
 
@@ -1225,6 +1393,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     // 日誌分頁開著的時候要跟著這一回合更新，不然玩家會看到一份停在上一回合的日誌。
     refreshJournalIfOpen();
   } catch (err) {
+    cancelNarrationStream();
     console.error("[TURN_FAILURE] /api/turn 呼叫失敗", err);
     // 網路層沒有拿到伺服器回應，無法安全判斷是否已保存 pendingTurn；重試卡會
     // 用明確 retryPending 讓伺服器自行驗證，有 pending 就回放，沒有就回 409，不會盲目重骰。
@@ -2497,6 +2666,7 @@ function buildFeedEvent(kind, label, content, opts = {}) {
 const RECENT_STORY_LIMIT = 5;
 let recentStoryEntries = [];
 let pendingStoryEntry = null;
+let activeNarrationStream = null;
 let storyEntrySequence = 0;
 let recentStoryChronicleTotal = 0;
 
@@ -4252,7 +4422,7 @@ window.openExplorationTerminal = openExplorationTerminal;
 window.openStoryLog = openChronicle;
 window.revealMainGodSpace = revealMainGodSpace;
 window.resetPortalInvitation = resetPortalInvitation;
-window.continueFirstGodspaceStory = continueFirstGodspaceStory;
+window.cancelChargenReleaseTransition = cancelChargenReleaseTransition;
 window.returnToMainGodSpace = returnToMainGodSpace;
 window.loadGodspace = loadGodspace;
 window.openLastRunDebrief = openLastRunDebrief;

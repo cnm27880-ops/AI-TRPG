@@ -223,6 +223,13 @@ async function persistPendingTurn({
 }
 
 export async function onRequestPost(context) {
+  if (wantsTurnStream(context.request)) {
+    return streamTurnResponse(context);
+  }
+  return executeTurn(context);
+}
+
+async function executeTurn(context, streamHooks = null) {
   const env = context.env ?? {};
   const store = resolveSessionStore(env);
 
@@ -917,10 +924,15 @@ export async function onRequestPost(context) {
       : null,
   });
 
+  // 只送出不含規則內容的 lifecycle 事件；真正的 narration 仍要等完整 JSON、
+  // canonical adapter 與安全重寫完成後才會進入 stream。
+  await streamHooks?.emit({ type: "rules_resolved" });
+
   let text;
   let model;
   let finishReason = null;
   try {
+    await streamHooks?.emit({ type: "narrator_writing" });
     const res = await callLlm({
       provider,
       env,
@@ -1476,7 +1488,7 @@ export async function onRequestPost(context) {
     }
   }
 
-  return json({
+  const finalPayload = {
     ok: true,
     provider,
     model,
@@ -1505,7 +1517,8 @@ export async function onRequestPost(context) {
     warnings,
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,
-  });
+  };
+  return json(finalPayload);
 }
 
 /**
@@ -1622,6 +1635,83 @@ function annotateRetread(options, progress) {
       effectiveDc: (opt.dc ?? 0) + preview.dcPenalty,
     };
   });
+}
+
+function wantsTurnStream(request) {
+  if (!(request instanceof Request)) return false;
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("application/x-ndjson") || accept.includes("text/event-stream");
+}
+
+/**
+ * NDJSON 只做 transport，不改變既有回合的裁定與持久化順序。
+ * 先傳安全的狀態事件；完整 JSON response 產生後，才按安全的 final narration
+ * 分段送出。這樣即使 free action 觸發 guard/rewrite/fallback，也不會把未驗證
+ * 的 provider token 或 stThought 洩漏到瀏覽器。
+ */
+function streamTurnResponse(context) {
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  let closed = false;
+
+  const writeEvent = async (event) => {
+    if (closed) return;
+    await writer.write(encoder.encode(`${JSON.stringify(event)}\n`));
+  };
+
+  (async () => {
+    try {
+      await writeEvent({ type: "accepted" });
+      const response = await executeTurn(context, { emit: writeEvent });
+      const responseText = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        await writeEvent({ type: "error", message: "伺服器回應格式錯誤，請稍後重試。" });
+        return;
+      }
+      if (payload?.ok && typeof payload.narration === "string" && payload.narration.trim()) {
+        await writeEvent({ type: "narration_start" });
+        for (const chunk of chunkByCodePoints(payload.narration, 18)) {
+          await writeEvent({ type: "narration_delta", delta: chunk });
+          // 讓 browser 有機會在短文字回合中感知逐步輸出，不阻塞完整回合的 server commit。
+          await new Promise((resolve) => setTimeout(resolve, 12));
+        }
+        await writeEvent({ type: "narration_end" });
+      }
+      await writeEvent({ type: "complete", status: response.status, payload });
+    } catch (err) {
+      console.error("[TURN_STREAM_FAILURE]", JSON.stringify({ message: err?.message ?? String(err) }));
+      try {
+        await writeEvent({ type: "error", message: "串流回合失敗，請稍後重試。" });
+      } catch {
+        // client disconnect / closed writer
+      }
+    } finally {
+      closed = true;
+      try { await writer.close(); } catch { /* client may have disconnected */ }
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}
+
+function chunkByCodePoints(text, size) {
+  const codePoints = Array.from(String(text));
+  const chunks = [];
+  for (let index = 0; index < codePoints.length; index += size) {
+    chunks.push(codePoints.slice(index, index + size).join(""));
+  }
+  return chunks;
 }
 
 function json(payload, status = 200) {

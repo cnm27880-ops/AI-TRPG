@@ -64,6 +64,34 @@ test("V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容�
   assert.match(app, /Array\.from\(input\?\.value \?\? \"\"\)\.length/);
 });
 
+test("回合輸出使用安全 NDJSON lifecycle 與 narration fallback", () => {
+  assert.match(turnApi, /function wantsTurnStream\(/);
+  assert.match(turnApi, /function streamTurnResponse\(/);
+  assert.match(turnApi, /type: "rules_resolved"/);
+  assert.match(turnApi, /type: "narrator_writing"/);
+  assert.match(turnApi, /type: "narration_delta"/);
+  assert.match(turnApi, /type: "complete"/);
+  assert.match(app, /async function readTurnResponse\(/);
+  assert.match(app, /application\/x-ndjson/);
+  assert.match(app, /narrationStreamed/);
+  assert.match(app, /Accept.*application\/x-ndjson/s);
+  assert.match(app, /stream: true/);
+  assert.doesNotMatch(turnApi, /stThought,\s*\/\//);
+});
+
+test("portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全黑祝福過場", () => {
+  assert.doesNotMatch(index, /id="portal-first-story"|godspace-first-story/);
+  assert.doesNotMatch(app, /GODSPACE_FIRST_STORY_KEY|showFirstGodspaceStory|continueFirstGodspaceStory/);
+  assert.match(index, /html\[data-stage="godspace"\] #portal-screen/);
+  assert.match(index, /portalMainReveal 1\.15s/);
+  assert.match(index, /filter: brightness\(\.42\)/);
+  assert.match(index, /id="chargen-release-overlay"/);
+  assert.match(index, /\.chargen-release-overlay\.is-leaving/);
+  assert.match(app, /async function playChargenReleaseTransition\(/);
+  assert.match(app, /那麼，祝你好運。/);
+  assert.match(app, /await playChargenReleaseTransition\(\);/);
+});
+
 test("設定 modal 的 light theme 會覆蓋原生表單 dark appearance", () => {
   assert.match(index, /html\[data-theme="light"\] \.modal-panel :is\(input, select, textarea\)/);
   assert.match(index, /color-scheme: light/);
@@ -99,6 +127,6 @@ test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260824-r15/);
+  assert.match(index, /app\.js\?v=20260824-r16/);
   assert.match(sw, /CACHE_VERSION = "v6"/);
 });

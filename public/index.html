@@ -861,7 +861,7 @@
         .takeover-line { width: min(13rem, 35vw); height: 1px; background: #e4e1da; transform: scaleX(0); transform-origin: center; animation: takeoverLineIn 1.05s .42s cubic-bezier(.2,.8,.2,1) forwards; }
         .takeover-caption { color: #c1beb6; font: .85rem/1.5 'Noto Serif TC', 'Songti TC', serif; letter-spacing: .16em; opacity: 0; animation: takeoverCaptionIn .8s .8s ease forwards; }
         .portal-main-content { display: none; width: min(100%, 52rem); padding: 1rem .75rem; flex-direction: column; align-items: center; gap: 1.75rem; opacity: 0; }
-        .portal-main-content.is-visible { display: flex; animation: portalMainReveal 1.65s cubic-bezier(.2,.8,.2,1) both; }
+        .portal-main-content.is-visible { display: flex; animation: portalMainReveal 1.15s cubic-bezier(.23,1,.32,1) both; }
         .portal-main-content.is-visible .menu-banner { animation-delay: .15s; }
         .portal-main-content.is-visible > * { animation: portalChildReveal .9s cubic-bezier(.2,.8,.2,1) both; }
         .portal-main-content.is-visible > *:nth-child(2) { animation-delay: .14s; }
@@ -878,7 +878,7 @@
         @keyframes takeoverDarken { 0% { opacity: 0; } 25% { opacity: .12; } 100% { opacity: 1; } }
         @keyframes takeoverLineIn { to { transform: scaleX(1); } }
         @keyframes takeoverCaptionIn { to { opacity: 1; } }
-        @keyframes portalMainReveal { 0% { opacity: 0; transform: translateY(16px); filter: blur(5px); } 45% { opacity: .35; } 100% { opacity: 1; transform: translateY(0); filter: blur(0); } }
+        @keyframes portalMainReveal { 0% { opacity: 0; transform: translateY(10px); filter: brightness(.42) blur(4px); } 48% { opacity: .32; filter: brightness(.62) blur(2px); } 100% { opacity: 1; transform: translateY(0); filter: brightness(1) blur(0); } }
         @keyframes portalChildReveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @media (max-width: 767px) {
             .portal-invitation-view { min-height: 100%; padding: 1rem .4rem; }
@@ -1355,22 +1355,21 @@
         .platform-horizon { animation: horizonDrift 24s linear infinite; }
         @keyframes horizonDrift { from { background-position: 0 0, 0 0; } to { background-position: 4.8rem 0, 0 3.4rem; } }
 
-        /* ================= 白色平台 Hub／輪迴者手錶 HUD =================
+        /* ================= 主神空間 Hub／輪迴者手錶 HUD =================
            這一層只負責視覺與排版，不讀取、不改寫規則資料。
            擲骰子覆蓋層 #dice-roll-overlay 完全不在這組選擇器範圍內。 */
-        /* 第三幕的底：過曝的白。中心接近純白、往外只掉一階暖灰，
-           讓「站在一個沒有邊界的白色空間裡」這件事靠亮度講，而不是靠一塊米色的底。 */
+        /* 第三幕：保留主神空間的功能 hub，但不再切到過曝白色平台。
+           黑幕接管後只讓低亮度的金屬／終端介面慢慢浮現，避免白閃與眼睛疲勞。 */
         html[data-stage="godspace"] #portal-screen {
             background:
-                radial-gradient(ellipse 78% 66% at 50% 0%, #ffffff, rgba(255,255,255,0) 70%),
-                linear-gradient(180deg, #fbfaf8 0%, #f2f0ea 100%);
+                radial-gradient(ellipse 78% 66% at 50% 0%, rgba(62, 76, 78, .2), transparent 70%),
+                linear-gradient(180deg, #101518 0%, #080b0d 100%);
             color: var(--ink-100);
         }
-        /* 標題上那層黑色 drop-shadow 是給深色底用的；打在白底上只會變成字緣的一圈髒污。 */
         html[data-stage="godspace"] #portal-title { filter: none; }
 
         .portal-platform { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 58rem); min-height: 100%; padding: 1.4rem .8rem 2rem; gap: 1.1rem; color: var(--ink-100); }
-        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.55) 58%, rgba(233,229,221,.5)); }
+        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(14, 20, 22, .98), rgba(7, 10, 12, .98)); }
         /* 紙纖維與印刷網點。這一層是「質感」真正的來源——它不加任何顏色，
            只讓大片白不再是一塊死掉的色塊。 */
         .platform-backdrop::before { content: ''; position: absolute; inset: 0; opacity: .3; background-image: radial-gradient(rgba(72,67,59,.12) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 1px, transparent 1px 5px); background-size: 8px 8px, 100% 5px; mix-blend-mode: multiply; }
@@ -1410,6 +1409,28 @@
         .portal-platform #portal-resume-box button { border-color: rgb(var(--c-accent-base) / .6); background: rgb(var(--c-accent-base) / .12); color: var(--accent); }
         .portal-platform #portal-resume-box button:hover { background: rgb(var(--c-accent-base) / .2); }
         @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .78; } 50% { transform: translateX(-50%) scale(1.04); opacity: .95; } }
+
+        /* 暗色主神空間覆寫：功能與資料不變，只把原本的白平台材質降為低亮度終端。 */
+        html[data-stage="godspace"] .portal-platform { color: #e4e7e4; }
+        html[data-stage="godspace"] .platform-backdrop { background: radial-gradient(circle at 50% 4%, rgba(86, 111, 111, .18), transparent 42%), linear-gradient(180deg, rgba(14, 20, 22, .98), rgba(7, 10, 12, .98)); }
+        html[data-stage="godspace"] .platform-backdrop::before { opacity: .16; background-image: radial-gradient(rgba(148, 163, 163, .16) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(167, 185, 182, .06) 0 1px, transparent 1px 5px); mix-blend-mode: screen; }
+        html[data-stage="godspace"] .platform-orb { background: radial-gradient(circle at 50% 48%, rgba(171, 205, 195, .18) 0 10%, rgba(95, 142, 132, .13) 24%, transparent 70%); box-shadow: 0 0 90px rgba(83, 153, 139, .12), 0 0 170px rgba(56, 189, 171, .08); opacity: .58; }
+        html[data-stage="godspace"] .platform-orb::after { border-color: rgba(167, 243, 208, .18); box-shadow: inset 0 0 35px rgba(52, 211, 153, .12); }
+        html[data-stage="godspace"] .platform-horizon { border-top-color: rgba(110, 231, 183, .16); opacity: .28; }
+        html[data-stage="godspace"] .platform-arrival-mark { color: #7b918e; }
+        html[data-stage="godspace"] .platform-arrival-line { background: rgba(110, 231, 183, .34); }
+        html[data-stage="godspace"] .platform-heading { border-color: rgba(148, 163, 163, .22); background: rgba(12, 17, 19, .82); box-shadow: 0 20px 55px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(167, 243, 208, .04); }
+        html[data-stage="godspace"] .portal-platform #portal-title { color: #e4e7e4; text-shadow: 0 0 24px rgba(110, 231, 183, .12); }
+        html[data-stage="godspace"] .portal-platform #portal-subtitle { color: #9aa9a6; }
+        html[data-stage="godspace"] .portal-platform .hub-object { border-color: rgba(148, 163, 163, .2); background: rgba(14, 21, 23, .88); box-shadow: 0 9px 24px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(167, 243, 208, .035); color: #e4e7e4; }
+        html[data-stage="godspace"] .portal-platform .hub-object:hover, html[data-stage="godspace"] .portal-platform .hub-object:focus-visible { border-color: rgba(110, 231, 183, .45); background: rgba(22, 34, 34, .96); box-shadow: 0 16px 32px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(167, 243, 208, .1); }
+        html[data-stage="godspace"] .portal-platform .hub-object .action-tile-label { color: #e4e7e4; }
+        html[data-stage="godspace"] .portal-platform .hub-object .action-tile-sub { color: #82938f; }
+        html[data-stage="godspace"] .portal-platform .hub-object-mission { border-color: rgba(110, 231, 183, .42); background: linear-gradient(145deg, rgba(21, 43, 40, .92), rgba(29, 78, 67, .26)); }
+        html[data-stage="godspace"] .portal-platform .platform-status { color: #9fd2c1; border-color: rgba(110, 231, 183, .22); background: rgba(16, 185, 129, .08); }
+        html[data-stage="godspace"] .portal-platform .platform-footnote { color: #71807d; }
+        html[data-stage="godspace"] .portal-platform #portal-resume-box { border-color: rgba(110, 231, 183, .28); background: rgba(10, 25, 24, .72); box-shadow: 0 14px 32px rgba(0, 0, 0, .3); }
+        html[data-stage="godspace"] .portal-platform #portal-resume-box button { border-color: rgba(110, 231, 183, .52); background: rgba(16, 185, 129, .1); color: #a7f3d0; }
 
         /* ---- 輪迴者手錶 HUD ----
            [2026-08-21] 這一整組原本寫死成紙白（rgba(250,249,246,.96) 之類），
@@ -2391,20 +2412,17 @@
         .settlement-reward-line { display: flex; gap: .55rem; align-items: center; margin-top: .65rem; color: rgba(161, 161, 170, .68); font: .67rem/1.4 "JetBrains Mono", monospace; }
         .settlement-reward-line i { width: 1rem; color: #6ee7b7; text-align: center; }
         .settlement-footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: 1.4rem; padding-top: 1rem; border-top: 1px solid rgba(52, 211, 153, .18); }
-        .settlement-return-btn, .godspace-first-story-btn { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; padding: .8rem 1.1rem; border: 1px solid rgba(52, 211, 153, .62); background: rgba(16, 185, 129, .12); color: #a7f3d0; font: 700 .72rem/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; transition: transform .16s ease-out, background-color .16s ease-out, box-shadow .16s ease-out; }
-        .settlement-return-btn:hover, .godspace-first-story-btn:hover { transform: translateY(-1px); background: rgba(16, 185, 129, .22); box-shadow: 0 0 1.5rem rgba(52, 211, 153, .15); }
-        .settlement-return-btn:active, .godspace-first-story-btn:active { transform: scale(.97); }
-        .godspace-first-story { position: fixed; inset: 0; z-index: 65; display: flex; align-items: center; justify-content: center; padding: 1.2rem; background: radial-gradient(circle at 50% 48%, rgba(255,255,255,.96), rgba(226, 232, 240, .88) 40%, rgba(148, 163, 184, .7)); backdrop-filter: blur(8px); }
-        .godspace-first-story-panel { width: min(100%, 36rem); padding: clamp(1.5rem, 5vw, 3.2rem); border: 1px solid rgba(15, 23, 42, .18); background: rgba(255,255,255,.88); box-shadow: 0 2rem 6rem rgba(15, 23, 42, .25); color: #0f172a; }
-        .godspace-first-story-kicker { color: rgba(15, 23, 42, .5); font: 700 .62rem/1.2 "JetBrains Mono", monospace; letter-spacing: .24em; }
-        .godspace-first-story-signal { display: flex; gap: .35rem; margin-top: 1.6rem; }
-        .godspace-first-story-signal span { width: .35rem; height: .35rem; border-radius: 50%; background: #0f172a; opacity: .22; }
-        .godspace-first-story-signal span:first-child { opacity: .9; background: #10b981; box-shadow: 0 0 .8rem rgba(16, 185, 129, .7); }
-        .godspace-first-story-panel h2 { margin: 1.8rem 0 .9rem; font: 700 clamp(1.55rem, 5vw, 2.6rem)/1.15 "Noto Serif TC", serif; letter-spacing: -.04em; }
-        .godspace-first-story-copy { color: rgba(15, 23, 42, .73); font: 600 .92rem/2 "Noto Serif TC", serif; white-space: pre-line; }
-        .godspace-first-story-foot { margin-top: 1.6rem; padding-top: .9rem; border-top: 1px solid rgba(15, 23, 42, .12); color: rgba(15, 23, 42, .48); font: .63rem/1.5 "JetBrains Mono", monospace; }
-        .godspace-first-story-btn { margin-top: 1.4rem; border-color: rgba(15, 23, 42, .35); background: rgba(15, 23, 42, .06); color: #0f172a; }
-        .godspace-first-story-btn:hover { background: rgba(15, 23, 42, .12); box-shadow: 0 0 1.5rem rgba(15, 23, 42, .1); }
+        .settlement-return-btn { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; padding: .8rem 1.1rem; border: 1px solid rgba(52, 211, 153, .62); background: rgba(16, 185, 129, .12); color: #a7f3d0; font: 700 .72rem/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; transition: transform .16s ease-out, background-color .16s ease-out, box-shadow .16s ease-out; }
+        .settlement-return-btn:hover { transform: translateY(-1px); background: rgba(16, 185, 129, .22); box-shadow: 0 0 1.5rem rgba(52, 211, 153, .15); }
+        .settlement-return-btn:active { transform: scale(.97); }
+        .chargen-release-overlay { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 1.5rem; background: #000; color: #d7dfdc; opacity: 0; pointer-events: none; text-align: center; }
+        .chargen-release-overlay.is-visible { display: flex; opacity: 1; pointer-events: auto; }
+        .chargen-release-overlay.is-leaving { opacity: 0; transition: opacity .72s cubic-bezier(.23, 1, .32, 1); }
+        .chargen-release-message { max-width: 30rem; color: #d7dfdc; font: 600 clamp(1rem, 3vw, 1.45rem)/2 "Noto Serif TC", serif; letter-spacing: .16em; text-shadow: 0 0 22px rgba(167, 243, 208, .12); outline: none; }
+        .chargen-release-message::after { content: ''; display: block; width: 2.4rem; height: 1px; margin: 1.35rem auto 0; background: rgba(167, 243, 208, .5); box-shadow: 0 0 14px rgba(110, 231, 183, .22); }
+        @media (prefers-reduced-motion: reduce) {
+            .chargen-release-overlay.is-leaving { transition: none; }
+        }
         @media (max-width: 640px) {
             .settlement-hero { align-items: start; flex-direction: column; gap: 1.8rem; }
             .settlement-grade-wrap { display: flex; align-items: end; gap: 1rem; text-align: left; }
@@ -2416,7 +2434,7 @@
             .settlement-return-btn { width: 100%; }
         }
         @media (prefers-reduced-motion: reduce) {
-            .settlement-return-btn, .godspace-first-story-btn, .settlement-meter span { transition: none; }
+            .settlement-return-btn, .settlement-meter span { transition: none; }
         }
     </style>
 </head>
@@ -2510,14 +2528,14 @@
         <!-- 第二階段：主神空間。延續既有功能，但在邀請完成後才緩慢顯現。 -->
         <div id="portal-main-content" class="portal-main-content portal-platform" aria-hidden="true">
 
-        <!-- 白色平台 hub：純視覺層，不新增規則狀態。 -->
+        <!-- 暗色 hub 視覺層：純視覺，不新增規則狀態。 -->
         <div class="platform-backdrop" aria-hidden="true">
             <div class="platform-orb"></div>
             <div class="platform-horizon"></div>
         </div>
         <div class="platform-arrival-mark" aria-hidden="true">
             <span class="platform-arrival-line"></span>
-            <span>主神空間 / 白色平台</span>
+                <span>主神空間 / 暗幕接入</span>
             <span class="platform-arrival-line"></span>
         </div>
 
@@ -2528,7 +2546,7 @@
         </div>
 
         <p id="portal-subtitle" class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
-            白色平台沒有出口。下一場恐怖片開始前，你還有一段時間可以準備。
+            暗幕沒有出口。下一場恐怖片開始前，你還有一段時間可以準備。
         </p>
 
         <!-- 剛登入回來時的一句話（見 app.js 的 consumeLoginRedirect） -->
@@ -2625,18 +2643,9 @@
         </div>
     </div>
 
-    <!-- 首次進入主神空間的固定劇情：不呼叫 LLM，只播放一次，避免第一次體驗被 API 延遲或格式失敗打斷。 -->
-    <div id="portal-first-story" class="godspace-first-story" style="display:none" aria-hidden="true">
-        <div class="godspace-first-story-panel" role="dialog" aria-modal="true" aria-labelledby="godspace-first-story-title" tabindex="-1">
-            <div class="godspace-first-story-kicker">MAIN GOD // FIRST CONTACT</div>
-            <div class="godspace-first-story-signal"><span></span><span></span><span></span></div>
-            <h2 id="godspace-first-story-title">白色平台沒有盡頭。</h2>
-            <div id="godspace-first-story-copy" class="godspace-first-story-copy"></div>
-            <div id="godspace-first-story-foot" class="godspace-first-story-foot">主神空間正在等待你的第一個決定。</div>
-            <button type="button" onclick="continueFirstGodspaceStory()" class="godspace-first-story-btn">
-                <span>接受這個空間</span><i class="fas fa-arrow-right" aria-hidden="true"></i>
-            </button>
-        </div>
+    <!-- 建卡完成後的黑幕：session 已由 server 建立，opening turn 會在此過場結束後才開始。 -->
+    <div id="chargen-release-overlay" class="chargen-release-overlay" style="display:none" aria-hidden="true">
+        <div id="chargen-release-message" class="chargen-release-message" role="status" aria-live="polite" tabindex="-1"></div>
     </div>
 
     <!-- 2. 建卡畫面 (Chargen Screen) -->
@@ -3564,6 +3573,9 @@
             el.classList.add('screen-enter');
         }
         function showScreen(screen) {
+            if (screen !== 'chargen' && typeof window.cancelChargenReleaseTransition === 'function') {
+                window.cancelChargenReleaseTransition();
+            }
             const portal = document.getElementById('portal-screen');
             const chargen = document.getElementById('chargen-screen');
             const game = document.getElementById('app-viewport');
@@ -4062,6 +4074,6 @@
             });
         }
     </script>
-    <script src="./app.js?v=20260824-r15"></script>
+    <script src="./app.js?v=20260824-r16"></script>
 </body>
 </html>
