@@ -37,8 +37,10 @@ test("《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping
     locations: 12,
     transitions: 17,
     npcs: 5,
-    mappedLocations: 9,
-    mappedTransitions: 3,
+    mappedLocations: 12,
+    mappedTransitions: 17,
+    approvedLocations: 3,
+    approvedTransitions: 14,
   });
   assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.sourcePlayerVisibleDescription?.includes("八具白色低溫休眠艙"), true);
   assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.playerVisibleDescription?.includes("數具白色低溫休眠艙"), true);
@@ -52,15 +54,63 @@ test("內容包的地點、轉場與 NPC 素材只在明確 mapping／接觸條�
   assert.match(cryo.description, /數具白色低溫休眠艙/);
   assert.match(cryo.atmosphere, /機油與消毒劑/);
   assert.equal(narrativeLocationView(reference, initial, "loc_science", { visited: false }), null);
-  assert.equal(narrativeTransitionText(reference, initial, "travel_deck_a_science"), null);
+  assert.match(narrativeLocationView(reference, initial, "loc_bridge", { visited: true }).description, /艦橋/);
+  assert.match(narrativeLocationView(reference, initial, "loc_service_corridor", { visited: true }).description, /維修夾道/);
+  assert.match(narrativeLocationView(reference, initial, "loc_lower_deck", { visited: true }).description, /下層主幹道/);
+  assert.match(narrativeTransitionText(reference, initial, "travel_deck_a_science").text, /生化符號/);
 
   const resolution = resolveTravelAction(reference, initial, "loc_deck_a");
   const applied = applyTravelAction(reference, initial, resolution);
   assert.match(applied.arrivalText, /穿過一段燈光昏暗的白色走廊/);
   assert.equal(applied.state.locationVisitCounts.loc_deck_a, 1);
+  assert.equal(narrativeTransitionText(reference, { flags: ["flag_noise_made"] }, "travel_deck_a_science").state, "highThreat");
+  assert.equal(narrativeTransitionText(reference, { flags: ["flag_alarm_active"] }, "travel_deck_a_science").state, "alarm");
   const luyuanPrompt = buildNarrativeNpcPromptBlock(reference, applied.state);
   assert.match(luyuanPrompt, /npc_luyuan/);
   assert.doesNotMatch(luyuanPrompt, /privateGoals/);
+});
+
+test("補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端點", () => {
+  assert.equal(contentPackage.approvedExplorationGap.transitions.find((item) => item.routeId === "travel_cargo_airlock").to, "loc_narcissus_airlock");
+  assert.equal(contentPackage.approvedExplorationGap.transitions.find((item) => item.routeId === "travel_lower_deck_airlock").to, "loc_narcissus_airlock");
+  assert.equal(contentPackage.canonicalRouteMap.travel_cargo_airlock.status, "direct");
+  assert.equal(contentPackage.canonicalRouteMap.travel_lower_deck_airlock.status, "direct");
+});
+
+test("補充二未核准的 clue 與 major variants 不會進入 approved runtime lookup", () => {
+  assert.equal(contentPackage.approvedExplorationGap.omitted.cluePresentation, "pending_canonical_clue_question_mapping");
+  assert.equal(contentPackage.approvedExplorationGap.omitted.majorSceneVariants, "pending_exact_result_and_outcome_audit");
+  assert.equal(contentPackage.canonicalLocationMap.loc_bridge.status, "direct");
+  assert.equal(contentPackage.canonicalLocationMap.loc_service_corridor.status, "direct");
+  assert.equal(contentPackage.canonicalLocationMap.loc_lower_deck.status, "direct");
+});
+
+test("補充二的 approved exploration gap 會提供所有 14 條 canonical route 與地點回訪素材", () => {
+  const standardState = { flags: [], locationVisitCounts: { loc_bridge: 2, loc_service_corridor: 2, loc_lower_deck: 2 } };
+  for (const routeId of [
+    "travel_deck_a_science",
+    "travel_deck_a_cargo",
+    "travel_science_mother_core",
+    "travel_mother_core_engine",
+    "travel_service_corridor_lower_deck",
+    "travel_cargo_lower_deck",
+    "travel_engine_lower_deck",
+    "travel_cargo_airlock",
+    "travel_lower_deck_airlock",
+    "travel_deck_a_medbay",
+    "travel_medbay_deck_a",
+    "travel_deck_a_bridge",
+    "travel_bridge_deck_a",
+    "travel_cargo_deck_a",
+  ]) {
+    const transition = narrativeTransitionText(reference, standardState, routeId);
+    assert.equal(transition.state, "standard", `${routeId} 應使用標準轉場`);
+    assert.ok(transition.text.length > 20, `${routeId} 缺少轉場文字`);
+  }
+  for (const locationId of ["loc_bridge", "loc_service_corridor", "loc_lower_deck"]) {
+    const view = narrativeLocationView(reference, standardState, locationId, { visited: true });
+    assert.ok(view?.revisitVariant, `${locationId} 應能在第二次造訪時產生回訪變體`);
+  }
 });
 
 test("Ash 的內容包 Voice Bible 在身分旗標前後維持分層公開", () => {

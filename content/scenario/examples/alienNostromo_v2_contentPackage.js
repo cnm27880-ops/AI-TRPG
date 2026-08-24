@@ -1,9 +1,9 @@
-// Converted from the user-provided 包.txt; content only, not a source of engine truth.
+// Converted from the user-provided 包.txt and approved supplement material; content only, not a source of engine truth.
 export default {
   "sourceFile": "包.txt",
   "sourceTitle": "《異形：生化深淵》V2 空間資料、移動轉場與 NPC 語氣庫（P0 核心內容包）",
   "sourcePackId": "scenario.nostromo-01-v2",
-  "conversionStatus": "content_only_pending_canonical_mapping",
+  "conversionStatus": "content_only_with_approved_exploration_gap",
   "safetyNote": "本資料只提供玩家可見敘事、轉場旁白與已接觸 NPC 的語氣素材；不授權新增位置、物品、傷勢、旗標、威脅、結局或秘密。",
   "canonicalLocationMap": {
     "loc_cryo": {
@@ -45,19 +45,19 @@ export default {
       "note": "包內 loc_dock_narcissus 對應 canonical loc_narcissus_airlock"
     },
     "loc_bridge": {
-      "packageId": "loc_deck_a",
-      "status": "shared_source_pending_split",
-      "note": "包內 A 甲板內容合併橋樓與主走廊，暫只作可見素材，不改地圖"
+      "packageId": "loc_bridge",
+      "status": "direct",
+      "note": "補充二提供與 loc_deck_a 分離的艦橋主控艙描述。"
     },
     "loc_service_corridor": {
-      "packageId": null,
-      "status": "needs_authoring",
-      "note": "包內沒有與 canonical 服務維修走廊完全相同的空間描述"
+      "packageId": "loc_service_corridor",
+      "status": "direct",
+      "note": "補充二提供中層維修服務通道描述。"
     },
     "loc_lower_deck": {
-      "packageId": null,
-      "status": "needs_authoring",
-      "note": "包內工程區／通風管／維修豎井不能直接等同下層維修甲板"
+      "packageId": "loc_lower_deck",
+      "status": "direct",
+      "note": "補充二提供下層甲板走廊描述。"
     }
   },
   "canonicalRouteMap": {
@@ -74,61 +74,74 @@ export default {
       "status": "direct"
     },
     "travel_deck_a_science": {
-      "packageId": null,
-      "status": "needs_authoring",
-      "note": "包內沒有完全相同的 A 甲板至科學區轉場"
+      "packageId": "travel_deck_a_science",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_deck_a_cargo": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_deck_a_cargo",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_science_mother_core": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_science_mother_core",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_mother_core_engine": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_mother_core_engine",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_service_corridor_lower_deck": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_service_corridor_lower_deck",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_cargo_lower_deck": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_cargo_lower_deck",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_engine_lower_deck": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_engine_lower_deck",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_cargo_airlock": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_cargo_airlock",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_lower_deck_airlock": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_lower_deck_airlock",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_deck_a_medbay": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_deck_a_medbay",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_medbay_deck_a": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_medbay_deck_a",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_deck_a_bridge": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_deck_a_bridge",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_bridge_deck_a": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_bridge_deck_a",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     },
     "travel_cargo_deck_a": {
-      "packageId": null,
-      "status": "needs_authoring"
+      "packageId": "travel_cargo_deck_a",
+      "status": "direct",
+      "note": "補充二已完成 canonical route 對照與公開轉場審核。"
     }
   },
   "locations": [
@@ -837,5 +850,615 @@ export default {
         "*看見水仙號預熱成功*：眼中爆發出極度渴望的求生光芒，跌跌撞撞地主動跟在隊伍中央。"
       ]
     }
-  ]
+  ],
+  "sourceSupplement": "異形補充二.md",
+  "approvedExplorationGap": {
+    "id": "exploration-gap-1",
+    "sourceFile": "異形補充二.md",
+    "sourceScope": "public_narrative_only",
+    "status": "approved_location_and_travel_only",
+    "safetyNote": "線索 question mapping 與 major scene variants 尚未核准，不得由本區塊自行新增 runtime state 或 result。",
+    "locations": [
+      {
+        "locationId": "loc_bridge",
+        "title": "A 甲板 / 艦橋主控艙",
+        "playerVisibleDescription": "這裡與主走廊的昏暗不同，寬闊的艦橋被大面積的前向防爆觀測窗包圍。半環形的主駕駛與導航控制台在黑暗中散發著幽綠色的微光，多數航行儀表處於離線自檢狀態。通訊終端前散落著被扯斷的耳麥線，地面散落著數頁被踩踏過的星圖打印紙。",
+        "atmosphere": "空間開闊而死寂，空氣乾燥微冷，帶著高壓電子元件過熱後的輕微焦味。偶爾能聽見控制台深處繼電器切換的清脆卡嗒聲。",
+        "knownLandmarks": [
+          {
+            "id": "bridge_helm_console",
+            "text": "半環形主駕駛台，主螢幕反覆刷新著脫離軌道警告。"
+          },
+          {
+            "id": "bridge_flight_recorder",
+            "text": "黑盒子日誌終端，指示燈以固定頻率黃色閃爍。"
+          },
+          {
+            "id": "bridge_observation_window",
+            "text": "大型前向防爆觀測窗，能看見外側深邃冰冷的星海。"
+          }
+        ],
+        "playerPurpose": "調閱黑盒子航行記錄以查明船員失蹤原委，嘗試使用長程通訊陣列發送信號，或尋找主控權限卡。",
+        "visibleHazardHints": [
+          "頂部維修天花板有數塊垂落，露出的管線斷口參差不齊。",
+          "控制台下方的暗處存在視野死角，無法僅憑門口光線確認深處動靜。"
+        ],
+        "revisitVariants": [
+          {
+            "state": "standard_revisit",
+            "label": "常規回訪",
+            "text": "艦橋依然維持著空蕩的死寂，前向觀測窗外的星光沒有絲毫變化，終端的錯誤代碼仍在無聲滾動。"
+          },
+          {
+            "state": "high_threat",
+            "label": "高威脅回訪",
+            "text": "觀測窗厚重的強化玻璃表面多出數道放射狀的刮擦痕跡，空氣中多了一股不易察覺的酸性腥味，天花板垂落的線纜在微弱氣流中輕輕晃動。"
+          },
+          {
+            "state": "alarm",
+            "label": "警報／自毀回訪",
+            "text": "整座艦橋被旋轉的紅色應急燈完全照亮，主螢幕被血紅色的自毀倒數代碼覆蓋，揚聲器裡的刺耳警笛在開闊的艙室內激起陣陣回音。"
+          }
+        ],
+        "allowedFacts": [
+          "currentLocation",
+          "visitedLocations",
+          "lighting",
+          "threatStage",
+          "alarmState"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "嚴格將 loc_bridge 限制於指揮駕駛艙內部，避免與 loc_deck_a 主走廊混淆，不包含任何具體物品拾取判定。"
+      },
+      {
+        "locationId": "loc_service_corridor",
+        "title": "中層維修服務通道",
+        "playerVisibleDescription": "這是一條狹長、未經內裝修飾的工程維修夾道。兩側牆壁與天花板被密密麻麻的冷卻水管、粗大電纜和氣動閥門完全填滿，僅容兩人並排側身通行。金屬格柵地板下方隱約可見跳火的接地線與冷凝積水。",
+        "atmosphere": "空間逼仄壓抑，空氣溫熱潮濕，充斥著刺鼻的絕緣膠皮與機油氣味。管道內部不斷傳來液體流動的咕嚕聲與金屬受熱膨脹的微響。",
+        "knownLandmarks": [
+          {
+            "id": "service_cable_bundles",
+            "text": "兩側裸露懸掛的大型主配電纜束，部分外皮已老化。"
+          },
+          {
+            "id": "service_pressure_valve",
+            "text": "牆壁上的手動冷卻管減壓閥，指針停留在黃色警戒區。"
+          },
+          {
+            "id": "service_grate_floor",
+            "text": "鏤空金屬格柵地板，能看見下層管線與微弱的反光積水。"
+          }
+        ],
+        "playerPurpose": "避開主走廊的開闊視野，尋找通向下層工程區或貨艙的隱蔽捷徑，或排查管線受損狀況。",
+        "visibleHazardHints": [
+          "通道寬度極窄，缺乏掩體，一旦遭遇突發狀況難以迅速轉身逃跑。",
+          "部分低垂的電纜接頭有微弱電弧閃爍，地面積水可能存在導電風險。"
+        ],
+        "revisitVariants": [
+          {
+            "state": "standard_revisit",
+            "label": "常規回訪",
+            "text": "狹窄的夾道依舊悶熱，管線內的液體流動聲節奏未變，格柵下方的冷凝水緩慢滴落。"
+          },
+          {
+            "state": "high_threat",
+            "label": "高威脅回訪",
+            "text": "頭頂兩側的幾根絕緣電纜被撕開了巨大的缺口，黑色黏液順著管壁緩緩拉絲滴落，空氣中的酸腐氣味明顯加重。"
+          },
+          {
+            "state": "alarm",
+            "label": "警報／自毀回訪",
+            "text": "高壓蒸汽自兩側減壓閥的縫隙中狂暴噴出，白霧瞬間填滿了狹窄通道，金屬管壁在高溫中劇烈震顫。"
+          }
+        ],
+        "allowedFacts": [
+          "currentLocation",
+          "visitedLocations",
+          "lighting",
+          "threatStage",
+          "alarmState"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "將其定義為結構固定的實體狹窄維修走廊，不賦予其通風管網絡的任意穿梭功能。"
+      },
+      {
+        "locationId": "loc_lower_deck",
+        "title": "下層甲板走廊",
+        "playerVisibleDescription": "這裡是連接工程區、中央貨艙與逃生氣閘的下層主幹道。天花板挑高較低，粗大的鋼樑支架呈現出厚重的工業結構。地面由重型防滑鋼板鋪設，兩側設有通往接駁艇區的醒目黃黑導引線與大型防水隔艙門。",
+        "atmosphere": "空氣沉悶而厚重，帶著深層船艙特有的柴油味與冷凝鐵鏽氣息。底層引擎的低頻震動透過鋼板直接傳遞到腳底。",
+        "knownLandmarks": [
+          {
+            "id": "lower_deck_guideline",
+            "text": "地面塗刷的黃黑斑馬導引線，標註著通往接駁艇的方向。"
+          },
+          {
+            "id": "lower_deck_bulkhead",
+            "text": "重型下沉式防火隔艙門，配備手動緊急液壓拉桿。"
+          },
+          {
+            "id": "lower_deck_status_board",
+            "text": "壁掛式工程分區狀態面板，多數分區指示燈已熄滅。"
+          }
+        ],
+        "playerPurpose": "穿過下層幹道前往接駁艇氣閘完成撤離，或在反應爐超載後快速抵達登艇區域。",
+        "visibleHazardHints": [
+          "隔艙門上方的液壓連桿處於受壓狀態，可能在電力中斷時突然下落封死道路。",
+          "長走廊缺乏橫向遮蔽物，視線容易被遠處的昏暗陰影阻隔。"
+        ],
+        "revisitVariants": [
+          {
+            "state": "standard_revisit",
+            "label": "常規回訪",
+            "text": "下層走廊的金屬結構在引擎震動中發出低微的共鳴，地面的導引線在昏暗的壁燈下依然清晰可辨。"
+          },
+          {
+            "state": "high_threat",
+            "label": "高威脅回訪",
+            "text": "走廊中段的天花板鋼樑出現了明顯的外力扭曲，原本固定的照明燈罩碎裂一地，陰影在閃爍的殘光中不斷拉長。"
+          },
+          {
+            "state": "alarm",
+            "label": "警報／自毀回訪",
+            "text": "刺眼的紅色警報燈交替狂閃，隔艙門的鎖定蜂鳴震耳欲聾，濃煙正順著走廊頂部快速蔓延，地面震動急劇加劇。"
+          }
+        ],
+        "allowedFacts": [
+          "currentLocation",
+          "visitedLocations",
+          "lighting",
+          "threatStage",
+          "alarmState"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "對齊現行下層幹道與逃生路線的空間設定，嚴格避免混入通風管道特徵。"
+      }
+    ],
+    "transitions": [
+      {
+        "routeId": "travel_deck_a_science",
+        "from": "loc_deck_a",
+        "to": "loc_science",
+        "standard": "離開主走廊的昏暗燈光，穿過一道標有生化符號的氣密過渡艙，冷白色的實驗室照明隨即自前方門縫映出。",
+        "highThreat": "你貼著牆邊陰影快步穿過過渡通道，耳邊只有自己壓低的呼吸聲，直到指尖觸碰到科學實驗區冰冷的氣密門把手。",
+        "alarm": "在刺眼的紅光與警報聲中，你頂著通道兩側噴洩的除污白霧快步前衝，迅速推開科學實驗區的厚重大門。",
+        "arrivalBoundary": "僅描繪從主走廊移至實驗區門前的過渡過程，不宣告實驗室內部的具體互動結果。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常，未包含任何超前裁定。",
+        "sourceFrom": "loc_deck_a",
+        "sourceTo": "loc_science",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_deck_a_cargo",
+        "from": "loc_deck_a",
+        "to": "loc_cargo",
+        "standard": "沿著主甲板下行階梯前進，穿過重型防爆門後，四周空間驟然開闊，潮濕陰冷的空氣宣告著已抵達中央貨艙上方步道。",
+        "highThreat": "你握緊隨身裝備，放輕腳步沿著金屬樓梯緩慢下行，四周的金屬回音被你刻意壓制，直到踏上貨艙底層潮濕的地面。",
+        "alarm": "樓梯通道內的應急燈瘋狂閃爍，你扶著劇烈震顫的鋼扶手疾步躍下，一頭撞進貨艙底部泛著紅光的巨大陰影中。",
+        "arrivalBoundary": "僅描寫階梯下行與空間開闊感，不宣告貨艙內部具體物件或敵對狀態。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_deck_a",
+        "sourceTo": "loc_cargo",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_science_mother_core",
+        "from": "loc_science",
+        "to": "loc_mother_core",
+        "standard": "離開科研區後踏入環形加壓長廊，四周的機油雜味逐漸被乾燥微熱的空氣取代，盡頭便是安靜肅穆的主機核心大門。",
+        "highThreat": "走廊的燈光以不規則的頻率微弱跳動，你盡可能不發出任何腳步聲，迅速穿過無人的加壓艙段抵達核心室門前。",
+        "alarm": "長廊的換氣扇發出尖銳的呼嘯，金色穹頂大門邊緣的指示燈已被強制切換為警報橙色，你在氣流中快步趕至門前。",
+        "arrivalBoundary": "描述抵達核心室大門外圍的感官變化，不提前判定核心室終端的查詢權限。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_science",
+        "sourceTo": "loc_mother_core",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_mother_core_engine",
+        "from": "loc_mother_core",
+        "to": "loc_engine",
+        "standard": "推開主機房沉重的氣密門，沿著垂直維修梯下行，四周溫度迅速升高，引擎低沉的轟鳴聲在耳邊逐漸放大。",
+        "highThreat": "你藉著管線陰影的掩護沿著梯道快速向下轉移，避開了沿途幾處空敞的通風口，鑽入充滿熱浪的工程控制區邊界。",
+        "alarm": "梯道兩側的蒸汽管發出刺耳的尖叫，高溫氣浪迎面撲來，你頂著劇烈晃動的扶手迅速降落至工程區地面。",
+        "arrivalBoundary": "描寫由極端安靜進入極端嘈雜的過渡，不判定工程區冷卻閥的狀態。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_mother_core",
+        "sourceTo": "loc_engine",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_service_corridor_lower_deck",
+        "from": "loc_service_corridor",
+        "to": "loc_lower_deck",
+        "standard": "穿過管線密布的狹窄夾道，推開盡頭的減壓小門，眼前重新出現鋪設著黃黑斑馬導引線的下層寬闊幹道。",
+        "highThreat": "你小心避開夾道低垂的斷裂電線，躬身從狹縫中快速穿出，謹慎地確認四周無動靜後邁上下層甲板鋼板。",
+        "alarm": "夾道兩側的管道劇烈噴吐著白霧，你在灼熱的視線盲區中摸索前進，猛力撞開小門跌入閃爍著紅光的下層幹道。",
+        "arrivalBoundary": "描寫穿過狹縫抵達下層幹道，不宣告下層甲板的敵對遭遇。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_service_corridor",
+        "sourceTo": "loc_lower_deck",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_cargo_lower_deck",
+        "from": "loc_cargo",
+        "to": "loc_lower_deck",
+        "standard": "踩過貨艙底層冰冷的積水，穿過大型貨物轉運閘口，轉入結構厚重、標識明確的下層甲板主通道。",
+        "highThreat": "你在集裝箱陰影與積水間無聲穿行，時刻注意頭頂懸掛鏈條的動靜，快速穿過閘口滑入下層走廊掩體後。",
+        "alarm": "貨艙上方的吊鉤在警報中劇烈碰撞，你在不斷湧出的冷卻水中拔足狂奔，衝過正在緩慢下落的下層閘門。",
+        "arrivalBoundary": "描寫離開貨艙積水進入下層走廊，不宣告逃生路線是否暢通。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_cargo",
+        "sourceTo": "loc_lower_deck",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_engine_lower_deck",
+        "from": "loc_engine",
+        "to": "loc_lower_deck",
+        "standard": "推開工程區沉重的防爆隔門，滾燙的機油熱浪在身後被漸漸隔絕，下層甲板略顯清涼的空氣迎面而來。",
+        "highThreat": "你藉著工程區噴出的蒸汽掩護迅速閃出大門，背靠下層走廊的支柱短暫停頓，確認前方通道安全。",
+        "alarm": "身後反應爐的轟鳴已轉為毀滅性的震顫，你頂著身後湧出的滾滾熱風狂奔而出，衝向下層甲板逃生路徑。",
+        "arrivalBoundary": "描寫脫離工程區高溫環境，不判定自毀倒數的剩餘時間。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_engine",
+        "sourceTo": "loc_lower_deck",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_cargo_airlock",
+        "from": "loc_cargo",
+        "to": "loc_narcissus_airlock",
+        "standard": "繞過貨艙最深處的重型集裝箱，穿過標有黃色逃生標誌的傾斜通道，接駁艇氣閘對接口出現在眼前。",
+        "highThreat": "你貼著貨櫃死角無聲推進，在空曠貨艙的陰影邊緣快速切換掩體，迅速抵達接駁艇專用氣閘門前。",
+        "alarm": "貨艙頂部不斷有鋼架碎屑砸落，你頂著滿地晃動的積水全速衝刺，一頭撞進亮著綠色待命燈的接駁艇對接口。",
+        "arrivalBoundary": "描寫抵達登艇區域外圍，不宣告接駁艇是否已解鎖。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_cargo",
+        "sourceTo": "loc_dock_narcissus",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_lower_deck_airlock",
+        "from": "loc_lower_deck",
+        "to": "loc_narcissus_airlock",
+        "standard": "順著下層甲板地面的黃黑導引線一路前行，穿過最後一道傾斜加壓閘門，抵達水仙號的登艇準備區。",
+        "highThreat": "走廊天花板不時傳來微弱的異響，你雙手持握武器維持警戒姿態，快步推進至接駁艇氣閘防爆門前。",
+        "alarm": "全船的倒數廣播在走廊內狂暴迴盪，你頂著劇烈晃動的地面與刺鼻煙霧向前飛奔，撲向接駁艇登艇艙口。",
+        "arrivalBoundary": "描寫前往接駁艇氣閘的衝刺過程，不宣告是否成功進入艇內。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_lower_deck",
+        "sourceTo": "loc_dock_narcissus",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_deck_a_medbay",
+        "from": "loc_deck_a",
+        "to": "loc_medbay",
+        "standard": "離開主走廊轉角，推開標有急救十字標誌的滑動門，撲鼻而來的消毒水與化學藥劑氣味標誌著已抵達醫療區。",
+        "highThreat": "你放輕腳步貼著門框滑入醫療過道，謹慎避開地面乾涸的血跡，無聲進入半掩著門的醫療艙室。",
+        "alarm": "走廊的應急照明忽明忽暗，你頂著排氣系統倒灌的怪味快步衝過過道，閃身進入醫療區金屬門內。",
+        "arrivalBoundary": "描寫進入醫療區門口，不宣告藥品搜刮或手術台調查結果。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_deck_a",
+        "sourceTo": "loc_medbay",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_medbay_deck_a",
+        "from": "loc_medbay",
+        "to": "loc_deck_a",
+        "standard": "跨過醫療區門口的密封門檻，穿過短過道回到 A 甲板主走廊，昏暗但穩定的壁燈重新出現在眼前。",
+        "highThreat": "你謹慎地探頭確認走廊無動靜，隨後迅速邁出醫療區，貼著主走廊的管線凹槽無聲移動。",
+        "alarm": "醫療區身後的線路爆出電火花，你頂著刺耳的警笛快步衝出過道，回到紅光籠罩的主甲板幹道上。",
+        "arrivalBoundary": "描寫回到主走廊，不宣告主走廊是否安全。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_medbay",
+        "sourceTo": "loc_deck_a",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_deck_a_bridge",
+        "from": "loc_deck_a",
+        "to": "loc_bridge",
+        "standard": "沿著主走廊走到盡頭，通過一道厚重的感應雙開門，眼前豁然開朗，被星光與儀表微光包圍的艦橋展現在前方。",
+        "highThreat": "你保持著武器警戒姿態，迅速穿過空無一人的前向通道，閃身進入艦橋控制台後方的陰影中。",
+        "alarm": "主走廊的防火閘門正在緩緩下落，你低頭疾步穿過最後一道門檻，衝入被全屏紅光籠罩的艦橋主控艙。",
+        "arrivalBoundary": "描寫進入艦橋艙室，不判定黑盒子或通訊設備的使用狀態。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_deck_a",
+        "sourceTo": "loc_bridge",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_bridge_deck_a",
+        "from": "loc_bridge",
+        "to": "loc_deck_a",
+        "standard": "離開開闊的艦橋大廳，厚重的感應門在身後關閉，重新回到管線交錯、光線偏暗的 A 甲板主幹道。",
+        "highThreat": "你謹慎地拉開艦橋側門，確認走廊陰影中無異常動靜後，迅速滑出門外並靠牆隱蔽。",
+        "alarm": "艦橋主螢幕的倒數映照在身後，你頂著刺耳的警笛衝出大門，奔入滿是紅光與煙霧的主走廊。",
+        "arrivalBoundary": "描寫返回主走廊，不宣告後續遭遇。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_bridge",
+        "sourceTo": "loc_deck_a",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      },
+      {
+        "routeId": "travel_cargo_deck_a",
+        "from": "loc_cargo",
+        "to": "loc_deck_a",
+        "standard": "順著貨艙側邊的鋼製檢修樓梯逐級而上，推開頂部的防火重門，重新回到光線相對穩定的 A 甲板主走廊。",
+        "highThreat": "你盡量將腳步放至最輕，藉著金屬扶手的支撐快速攀登樓梯，在不發出聲響的情況下鑽回主甲板通道。",
+        "alarm": "貨艙底層的水汽與煙霧在身後升騰，你抓著劇烈震動的鐵欄杆三步並作兩步衝上樓梯，撞開頂部大門回到主走廊。",
+        "arrivalBoundary": "描寫自下層貨艙返回上層主甲板，不宣告上層當前威脅狀態。",
+        "allowedFacts": [
+          "from",
+          "to",
+          "routeAuthorized",
+          "threatStage",
+          "alarmState",
+          "lighting"
+        ],
+        "forbiddenClaims": [
+          "newItem",
+          "newInjury",
+          "npcDeath",
+          "alienLocation",
+          "doorOutcomeUnlessEngineAuthorized",
+          "newFlag",
+          "ending"
+        ],
+        "reviewNotes": "路線銜接正常。",
+        "sourceFrom": "loc_cargo",
+        "sourceTo": "loc_deck_a",
+        "reviewStatus": "approved_after_canonical_route_audit"
+      }
+    ],
+    "omitted": {
+      "cluePresentation": "pending_canonical_clue_question_mapping",
+      "majorSceneVariants": "pending_exact_result_and_outcome_audit"
+    }
+  }
 };

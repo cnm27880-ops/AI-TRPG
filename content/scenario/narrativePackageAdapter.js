@@ -42,11 +42,17 @@ function sourceMatches(reference) {
 }
 
 function packageLocationById(packageId) {
-  return contentPackage.locations.find((item) => item?.id === packageId) ?? null;
+  const approved = contentPackage.approvedExplorationGap?.locations ?? [];
+  return approved.find((item) => item?.locationId === packageId || item?.id === packageId)
+    ?? contentPackage.locations.find((item) => item?.id === packageId)
+    ?? null;
 }
 
 function packageTransitionById(packageId) {
-  return contentPackage.transitions.find((item) => item?.id === packageId) ?? null;
+  const approved = contentPackage.approvedExplorationGap?.transitions ?? [];
+  return approved.find((item) => item?.routeId === packageId || item?.id === packageId)
+    ?? contentPackage.transitions.find((item) => item?.id === packageId)
+    ?? null;
 }
 
 function packageNpcById(npcId) {
@@ -74,6 +80,7 @@ export function narrativeTransitionFor(reference, canonicalTransitionId) {
 function locationVariant(location, state) {
   const variants = Array.isArray(location?.revisitVariants) ? location.revisitVariants : [];
   if (!variants.length) return null;
+  const locationId = location?.locationId ?? location?.id;
   const flags = flagsOf(state);
   const ashDestroyed = state?.npcStatuses?.npc_ash === "destroyed" || flags.has("flag_ash_destroyed");
   const orderRevealed = flags.has("flag_order_937_revealed");
@@ -87,7 +94,7 @@ function locationVariant(location, state) {
 
   const matched = variants.find((variant) => activeLabels.some((label) => variant.label.includes(label)));
   if (matched) return matched;
-  if (state?.locationVisitCounts && Number(state.locationVisitCounts[location.id]) > 1) {
+  if (locationId && state?.locationVisitCounts && Number(state.locationVisitCounts[locationId]) > 1) {
     return variants.find((variant) => variant.label.includes("常規回訪")) ?? variants[0];
   }
   return null;
@@ -208,5 +215,7 @@ export function narrativePackageCoverage(reference) {
     npcs: pack.npcs.length,
     mappedLocations: Object.values(pack.canonicalLocationMap).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
     mappedTransitions: Object.values(pack.canonicalRouteMap).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
+    approvedLocations: pack.approvedExplorationGap?.locations?.length ?? 0,
+    approvedTransitions: pack.approvedExplorationGap?.transitions?.length ?? 0,
   };
 }
