@@ -319,6 +319,34 @@ function approachHint(approach) {
   return String(approach?.intent ?? approach?.label ?? "想推進目前局面").slice(0, 24);
 }
 
+/**
+ * V2 DM 模式的公開方向提示。這裡只取目前可用 approach 的 intent/label，
+ * 不公開 approach id、屬性、技能、DC、effects 或任何未達公開條件的資料。
+ * 提示不是限制，前端也不應把它畫成必須點選的決策卡。
+ */
+export function buildReferenceHints(reference, state, { limit = 3 } = {}) {
+  const { entries } = currentApproaches(reference, state);
+  const seen = new Set();
+  const hints = [];
+  for (const { approach } of entries) {
+    const hint = approachHint(approach).trim();
+    if (!hint || seen.has(hint)) continue;
+    seen.add(hint);
+    hints.push(hint);
+    if (hints.length >= Math.max(0, Math.min(3, limit))) break;
+  }
+  return hints;
+}
+
+export function buildDmPrompt(reference, state) {
+  return {
+    mode: "free_action",
+    question: "你打算怎麼做？",
+    hint: "你可以描述任何合理行動；下面只是當前局勢的少量方向提示，不是限制。",
+    referenceHints: buildReferenceHints(reference, state),
+  };
+}
+
 function publicReferenceOption(approach, sceneId, phaseId) {
   return {
     label: approach.label,
@@ -995,6 +1023,7 @@ export function referenceStateForResponse(reference, state) {
     lastApproachId: state?.lastApproachId ?? null,
     lastOutcomeTier: state?.lastOutcomeTier ?? null,
     endingId: state?.endingId ?? null,
+    dmPrompt: buildDmPrompt(reference, state),
     npcs: publicNpcRoster(reference, state),
     exploration: buildExplorationView(reference, state),
   };

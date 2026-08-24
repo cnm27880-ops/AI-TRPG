@@ -18,7 +18,11 @@ import {
   validateOptions,
   optionToCheckParams,
   MAX_FREE_OPTIONS,
+  MAX_FREE_ACTION_CHARS,
+  countActionCharacters,
   TURN_RESPONSE_SCHEMA,
+  REFERENCE_TURN_RESPONSE_SCHEMA,
+  buildReferenceResponseSpec,
 } from "../content/turnOptions.js";
 import { emptyCharacter, SKILLS } from "../core/schema.js";
 import { performCheck } from "../core/check.js";
@@ -487,6 +491,17 @@ test("buildOptionsSpec：明確告訴AI可以給1~2個 requiresCheck:false 的�
   assert.match(spec, /requiresCheck/);
   assert.match(spec, /純探索、對話、無風險/);
   assert.match(spec, /"requiresCheck": false/);
+});
+
+test("V2 reference prompt 以 DM 開放問句取代編號選項，且 schema 不要求 options", () => {
+  const spec = buildReferenceResponseSpec();
+  assert.match(spec, /不是卡片遊戲/);
+  assert.match(spec, /開放且不預設答案/);
+  assert.match(spec, /不要在 narration 中列出 1\/2\/3 選項/);
+  assert.equal("options" in REFERENCE_TURN_RESPONSE_SCHEMA.properties, false);
+  assert.equal(MAX_FREE_ACTION_CHARS, 1000);
+  assert.equal(countActionCharacters("中文😀"), 3);
+  assert.equal(countActionCharacters("a".repeat(1001)), 1001);
 });
 
 test("TURN_RESPONSE_SCHEMA：requiresCheck 是必填布林值，attribute/difficulty 改為選填", () => {

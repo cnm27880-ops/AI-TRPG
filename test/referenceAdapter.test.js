@@ -19,6 +19,19 @@ import {
   applyTravelAction,
 } from "../content/scenario/explorationState.js";
 
+test("reference public response exposes bounded DM hints without internal rule data", () => {
+  const state = createReferenceState(reference);
+  const response = referenceStateForResponse(reference, state);
+  assert.equal(response.dmPrompt.mode, "free_action");
+  assert.equal(response.dmPrompt.question, "你打算怎麼做？");
+  assert.match(response.dmPrompt.hint, /不是限制/);
+  assert.ok(Array.isArray(response.dmPrompt.referenceHints));
+  assert.ok(response.dmPrompt.referenceHints.length <= 3);
+  assert.ok(response.dmPrompt.referenceHints.every((hint) => typeof hint === "string" && hint.length <= 24));
+  const serializedPrompt = JSON.stringify(response.dmPrompt);
+  assert.doesNotMatch(serializedPrompt, /gmTruth|privateGoals|knowledge|difficulty|attribute|skill|effects/);
+});
+
 test("reference adapter builds opening approaches and matches a chosen option", () => {
   const character = emptyCharacter("測試者");
   const state = createReferenceState(reference);

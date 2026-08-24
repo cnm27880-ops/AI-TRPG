@@ -112,6 +112,9 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(opening.body.options.some((option) => option.reference?.approachId === "app_cryo_recon"), true);
   assert.deepEqual(opening.body.scenario.reference.exploration.unresolvedQuestions.map((question) => question.id), ["q_player_manifest"]);
   assert.deepEqual(opening.body.scenario.reference.npcs, [], "尚未接觸人物前不應公開整份 NPC roster");
+  assert.equal(opening.body.scenario.reference.dmPrompt.mode, "free_action");
+  assert.equal(opening.body.scenario.reference.dmPrompt.question, "你打算怎麼做？");
+  assert.ok(opening.body.scenario.reference.dmPrompt.referenceHints.length <= 3);
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("privateGoals"), false);
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("生化人"), false);
   assert.equal(mock.prompts.length, 0, "固定開場應該不呼叫 LLM");
@@ -261,11 +264,58 @@ test("V2 reference free input accepts bounded threatAssessment and keeps referen
   assert.equal(free.body.scenario.threatAssessment.accepted, true);
   assert.equal(free.body.scenario.threatAssessment.level, "rise_2");
   assert.equal(free.body.options.every((option) => option.source === "reference"), true);
+  assert.equal(free.body.scenario.reference.dmPrompt.mode, "free_action");
+  assert.ok(free.body.scenario.reference.dmPrompt.referenceHints.length <= 3);
+  assert.equal(JSON.stringify(free.body.scenario.reference.dmPrompt).includes("privateGoals"), false);
   const freeInputPrompt = mock.prompts.at(-1);
   assert.match(freeInputPrompt, /未命中任何 approach 的自由行動/);
   assert.match(freeInputPrompt, /引擎本回合的判定分級/);
   assert.match(freeInputPrompt, /門已打開／鎖死/);
   assert.match(freeInputPrompt, /只能寫成這次嘗試的可觀察成功部分/);
+});
+
+
+test("V2 free action accepts exactly 1000 Unicode characters and rejects 1001 before mutation", async (t) => {
+  const mock = await startMockLlm();
+  t.after(() => mock.server.close());
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("自由行動字數測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.status, 200);
+  const sessionId = created.body.session.id;
+  await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId }), env }));
+  const store = resolveSessionStore(env);
+  const before = await store.get(sessionId);
+  const tooLong = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, playerAction: "甲".repeat(1001) }),
+    env,
+  }));
+  assert.equal(tooLong.status, 422, JSON.stringify(tooLong.body));
+  assert.equal(tooLong.body.ok, false);
+  assert.equal(tooLong.body.code, "PLAYER_ACTION_TOO_LONG");
+  assert.equal(tooLong.body.maxCharacters, 1000);
+  assert.equal(tooLong.body.actualCharacters, 1001);
+  assert.deepEqual(await store.get(sessionId), before, "超長輸入不得先寫入 session 或推進回合");
+  assert.equal(mock.prompts.length, 0, "固定開場後超長輸入不應呼叫 LLM");
+
+  const exactlyMax = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", { sessionId, playerAction: "觀察" + "甲".repeat(998) }),
+    env,
+  }));
+  assert.equal(exactlyMax.status, 200, JSON.stringify(exactlyMax.body));
+  assert.equal(exactlyMax.body.ok, true);
+  assert.equal(mock.prompts.length, 1, "1000 字輸入應正常進入一次敘事呼叫");
 });
 
 

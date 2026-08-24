@@ -59,6 +59,8 @@ import {
   TURN_RESPONSE_SCHEMA,
   REFERENCE_TURN_RESPONSE_SCHEMA,
   buildReferenceResponseSpec,
+  MAX_FREE_ACTION_CHARS,
+  countActionCharacters,
 } from "../../content/turnOptions.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
@@ -245,6 +247,25 @@ export async function onRequestPost(context) {
     retryPending = false,
   } = body ?? {};
   const warnings = [];
+
+  // 自由行動是玩家輸入的敘事指令，長度限制必須在載入 session、擲骰、呼叫 LLM
+  // 與任何存檔 mutation 之前執行。按 Unicode code point 計算，中文不會因 UTF-8 bytes
+  // 被誤算成三倍；直接 API 呼叫也不能繞過前端 maxlength。
+  if (playerAction !== undefined && playerAction !== null) {
+    const actualCharacters = countActionCharacters(playerAction);
+    if (actualCharacters > MAX_FREE_ACTION_CHARS) {
+      return jsonError(
+        `自由行動不能超過 ${MAX_FREE_ACTION_CHARS} 字，目前有 ${actualCharacters} 字。`,
+        422,
+        {
+          code: "PLAYER_ACTION_TOO_LONG",
+          maxCharacters: MAX_FREE_ACTION_CHARS,
+          actualCharacters,
+        }
+      );
+    }
+  }
+
   const requestId = makeTurnRequestId({ turnRequestId, chosenOption, playerAction });
 
   if (persona && !PERSONA_KEYS.includes(persona)) {
@@ -1567,8 +1588,8 @@ async function jsonPartial(
   );
 }
 
-function jsonError(message, status) {
-  return json({ ok: false, error: message }, status);
+function jsonError(message, status, details = {}) {
+  return json({ ok: false, error: message, ...details }, status);
 }
 
 /**

@@ -36,8 +36,15 @@
 
 import { ATTRIBUTES, SKILLS } from "../core/schema.js";
 
-/** 每回合要提供幾個 AI 產生的選項（第五個「自訂行動」是前端固定提供的，不由 AI 產生）。 */
+/** Generic/legacy 回合仍使用的 AI 選項數量；V2 reference 不依賴前端顯示這些 options。 */
 export const OPTION_COUNT = 4;
+
+/** V2 正常遊玩的自由行動上限，按 Unicode code point 計算，不按 UTF-8 bytes 計算。 */
+export const MAX_FREE_ACTION_CHARS = 1000;
+
+export function countActionCharacters(value) {
+  return Array.from(String(value ?? "")).length;
+}
 
 export const DIFFICULTY_TIERS = [
   { id: "容易", dc: 1, hint: "有充分的條件或工具輔助，正常情況下應該做得到" },
@@ -271,7 +278,9 @@ narrativeMode 是敘事規模提示，不是世界狀態；以場景與行動規
 
 敘事邊界：只把 <Reference_Event> 與 <Engine_Result> 已提供的事實寫成玩家感官可知的畫面。不要創造資料中沒有的時間、距離、數量、條款編號、精確位置、傷害或其他數字；沒有明確數字時使用「很近」「片刻後」「幾座」等非數值表達。不要把參考 approach 改寫成「玩家只有這幾個選擇」，仍要保留玩家可以提出其他合理行動的空間。不要替玩家完成未宣告的行動，也不要把 threatAssessment 的提議當成已發生的世界事實。
 
-若 <Reference_Event> 標示「未命中任何 approach 的自由行動」：這回合只有一次嘗試與引擎判定，不等於已獲得任何新的 effect。除非資料明確列出並由 engine effect 套用，禁止把門已打開／鎖死、通道已打通／封死、物品已取得／遺失、NPC已執行特殊指令、異形已直接接觸／衝出、路徑已確定可通、位置或傷勢已改變寫成完成事實。可以描寫施力、阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應與不確定的危險；請以「試圖」「似乎」「尚未」「被阻住」「無法確認」等語氣保留玩家下一步的裁量。即使引擎分級為成功，也只能寫成這次嘗試的可觀察成功部分，不得自行兌現未授權的持久世界改變。`;
+若 <Reference_Event> 標示「未命中任何 approach 的自由行動」：這回合只有一次嘗試與引擎判定，不等於已獲得任何新的 effect。除非資料明確列出並由 engine effect 套用，禁止把門已打開／鎖死、通道已打通／封死、物品已取得／遺失、NPC已執行特殊指令、異形已直接接觸／衝出、路徑已確定可通、位置或傷勢已改變寫成完成事實。可以描寫施力、阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應與不確定的危險；請以「試圖」「似乎」「尚未」「被阻住」「無法確認」等語氣保留玩家下一步的裁量。即使引擎分級為成功，也只能寫成這次嘗試的可觀察成功部分，不得自行兌現未授權的持久世界改變。
+
+敘事出口：reference 模式不是卡片遊戲。請讓 narration 在自然收束後，以一句簡短、開放且不預設答案的 DM 式問句把決定權交還玩家，例如「你打算怎麼做？」或依當前處境提出一個不含編號清單的問題。不要在 narration 中列出 1/2/3 選項，不要把伺服器提供的 approach 寫成玩家只能選的路線；玩家可以輸入任何合理行動。`;
 }
 
 export function parseTurnResponse(text) {

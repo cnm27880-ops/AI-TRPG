@@ -46,6 +46,20 @@ test("玩家行動、命運判定與說書人 pending 使用不同視覺層級",
   assert.match(index, /typingBlink/);
 });
 
+test("V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容資料流", () => {
+  assert.match(index, /id="dm-action-guidance"/);
+  assert.match(index, /id="dm-action-question"/);
+  assert.match(index, /id="dm-action-hint"/);
+  assert.match(index, /id="dm-action-hints"/);
+  assert.match(index, /data-action-input[^>]*maxlength="1000"/);
+  assert.match(index, /data-action-count/);
+  assert.match(app, /function renderDmPrompt\(/);
+  assert.match(app, /currentOptions = \[\];/);
+  assert.match(app, /自由行動 · 不使用預設選項/);
+  assert.match(app, /referenceMode: Boolean\(res\.scenario\?\.reference\?\.enabled\)/);
+  assert.match(app, /Array\.from\(input\?\.value \?\? \"\"\)\.length/);
+});
+
 test("設定 modal 的 light theme 會覆蓋原生表單 dark appearance", () => {
   assert.match(index, /html\[data-theme="light"\] \.modal-panel :is\(input, select, textarea\)/);
   assert.match(index, /color-scheme: light/);
@@ -81,6 +95,6 @@ test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260823-r14/);
+  assert.match(index, /app\.js\?v=20260824-r15/);
   assert.match(sw, /CACHE_VERSION = "v6"/);
 });

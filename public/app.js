@@ -2,6 +2,8 @@
 
 let currentCharacter = null;
 let currentOptions = [];
+let currentReferenceMode = false;
+const MAX_FREE_ACTION_CHARS = 1000;
 let turnInFlight = false;
 let travelInFlight = false;
 let currentSessionId = null;
@@ -650,6 +652,8 @@ async function submitChargen() {
     resetScenarioNoticeDedup(currentSessionId);
     localStorage.setItem(SESSION_KEY, currentSessionId);
     lastThreatStage = null;
+    currentReferenceMode = Boolean(res.scenario?.reference?.enabled || res.session?.scenario?.reference?.enabled);
+    currentOptions = [];
     adoptCharacter(res.session.character);
     recentStoryEntries = [];
     pendingStoryEntry = null;
@@ -1018,7 +1022,9 @@ const SLOW_TURN_HINT_SECONDS = 15;
 let pendingTimer = null;
 
 function showNarratorPending() {
-  setDecisionContext("說書人書寫中 · 這些選項已鎖定");
+  setDecisionContext(currentReferenceMode
+    ? "說書人書寫中 · 自由行動已鎖定"
+    : "說書人書寫中 · 這些選項已鎖定");
   hideNarratorPending();
 
   pendingStoryEntry = {
@@ -1039,7 +1045,7 @@ function showNarratorPending() {
     const hint = block?.querySelector("[data-pending-hint]");
     if (hint && seconds >= SLOW_TURN_HINT_SECONDS && !hint.textContent) {
       hint.textContent =
-        "模型正在生成這一回合的敘事與選項，較慢的模型需要 30 秒以上，畫面沒有當掉。";
+        "模型正在生成這一回合的敘事，較慢的模型需要 30 秒以上，畫面沒有當掉。";
     }
   }, 100);
 }
@@ -1060,6 +1066,16 @@ function hideNarratorPending() {
  * @param {number} [pressedIndex] 玩家按的是第幾個選項。沒傳代表這一回合不是從選項來的
  *   （自訂行動／開場／戰鬥結束後的自動回合），那就沒有特定按鈕需要標記。
  */
+function updateActionInputCount(input = document.querySelector("[data-action-input]")) {
+  const counter = document.querySelector("[data-action-count]");
+  if (!counter) return;
+  const actual = Array.from(input?.value ?? "").length;
+  counter.textContent = `${actual} / ${MAX_FREE_ACTION_CHARS}`;
+  counter.classList.toggle("text-red-400", actual > MAX_FREE_ACTION_CHARS);
+  counter.classList.toggle("text-zinc-500", actual <= MAX_FREE_ACTION_CHARS);
+  if (input) input.setCustomValidity(actual > MAX_FREE_ACTION_CHARS ? `自由行動不能超過 ${MAX_FREE_ACTION_CHARS} 字` : "");
+}
+
 function setTurnInputLocked(locked, pressedIndex) {
   const grid = document.getElementById("option-grid");
   if (grid) {
@@ -1076,7 +1092,8 @@ function setTurnInputLocked(locked, pressedIndex) {
     input.disabled = locked;
     input.placeholder = locked
       ? "> 說書人正在書寫這一回合……"
-      : "> 描述你的行動，系統將自動推導檢定屬性（例：舉槍瞄準並向後方翻滾）...";
+      : "> 描述你想做的事，DM 會依當前情勢裁定……";
+    updateActionInputCount(input);
   }
 
   const sendBtn = document.querySelector("[data-send-custom]");
@@ -1190,7 +1207,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     }
 
     renderTurnQuality(res.degraded);
-    renderOptions(res.options || []);
+    renderOptions(res.options || [], {
+      referenceMode: Boolean(res.scenario?.reference?.enabled),
+      dmPrompt: res.scenario?.reference?.dmPrompt,
+    });
     if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
     if (Number.isFinite(Number(res.recentChronicleTotal))) {
       recentStoryChronicleTotal = Number(res.recentChronicleTotal);
@@ -1649,7 +1669,10 @@ async function travelToLocation(destinationId, existingRequestId = null) {
       );
     }
     if (response.character) adoptCharacter(response.character);
-    renderOptions(response.options || []);
+    renderOptions(response.options || [], {
+      referenceMode: Boolean(response.scenario?.reference?.enabled),
+      dmPrompt: response.scenario?.reference?.dmPrompt,
+    });
     if (response.turnCount) document.getElementById("turn-counter").textContent = response.turnCount;
     if (response.scenario) updateScenarioHud(response.scenario);
     lastTravelRequest = null;
@@ -1696,6 +1719,9 @@ function appendScenarioNoticeOnce(key, append) {
 function updateScenarioHud(scenario) {
   if (scenarioNoticeSessionId !== currentSessionId) resetScenarioNoticeDedup(currentSessionId);
   const hud = document.getElementById("scenario-hud");
+  const referenceMode = Boolean(scenario?.reference?.enabled);
+  currentReferenceMode = referenceMode;
+  renderDmPrompt(scenario?.reference?.dmPrompt ?? null, { visible: referenceMode });
   renderNpcRelationships(scenario?.reference?.npcs ?? []);
   renderExplorationTerminal(scenario?.reference?.exploration ?? null);
   if (!hud) return;
@@ -2185,10 +2211,56 @@ function setDecisionContext(text) {
   if (el) el.textContent = text;
 }
 
-function renderOptions(options) {
+/**
+ * V2 的行動出口：問題與方向提示由 server/reference 的 safe view 提供，
+ * 不把 options 畫成必須點選的卡片。所有文字仍經 escapeHtml，避免任何敘事資料成為 HTML。
+ */
+function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
+  const panel = document.getElementById("dm-action-guidance");
+  const question = document.getElementById("dm-action-question");
+  const hint = document.getElementById("dm-action-hint");
+  const hints = document.getElementById("dm-action-hints");
+  if (!panel || !question || !hint || !hints) return;
+
+  panel.hidden = !visible;
+  if (!visible) {
+    hints.innerHTML = "";
+    return;
+  }
+
+  const data = dmPrompt && typeof dmPrompt === "object" ? dmPrompt : {};
+  question.textContent = typeof data.question === "string" && data.question.trim()
+    ? data.question.trim()
+    : "你打算怎麼做？";
+  hint.textContent = typeof data.hint === "string" && data.hint.trim()
+    ? data.hint.trim()
+    : "你可以描述任何合理行動；提示只是方向，不是限制。";
+  const safeHints = Array.isArray(data.referenceHints)
+    ? data.referenceHints.filter((value) => typeof value === "string" && value.trim()).slice(0, 3)
+    : [];
+  hints.innerHTML = safeHints.length
+    ? `<span class="dm-hints-label">情境提示</span>${safeHints.map((value) => `<span class="dm-hint-pill">${escapeHtml(value.trim())}</span>`).join("")}`
+    : "";
+}
+
+function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt = null } = {}) {
   const grid = document.getElementById("option-grid");
   const safeOptions = Array.isArray(options) ? options : [];
+  currentReferenceMode = Boolean(referenceMode);
+  if (currentReferenceMode) {
+    currentOptions = [];
+    if (grid) {
+      grid.hidden = true;
+      grid.innerHTML = "";
+    }
+    setDecisionContext("自由行動 · 不使用預設選項");
+    renderDmPrompt(dmPrompt, { visible: true });
+    return;
+  }
+
   currentOptions = safeOptions;
+  if (grid) grid.hidden = false;
+  renderDmPrompt(null, { visible: false });
   if (!safeOptions.length) {
     setDecisionContext("沒有預設方案 · 請描述自己的行動");
     grid.innerHTML = `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`;
@@ -2894,7 +2966,10 @@ async function resumeSession(id) {
     { total: res.session.recentChronicleTotal }
   );
 
-  renderOptions(res.session.scene?.options || []);
+  renderOptions(res.session.scene?.options || [], {
+    referenceMode: Boolean(res.scenario?.reference?.enabled),
+    dmPrompt: res.scenario?.reference?.dmPrompt,
+  });
   // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
   // 讀取存檔時就畫出來。先前這一份只有 /api/turn 的回應才有，於是重整頁面接續遊戲的人
   // 會看到一條空的頂欄，一直到他再送出一個回合為止——那正是最需要「我現在要幹嘛」的時刻。
@@ -3627,14 +3702,29 @@ document.addEventListener("DOMContentLoaded", async () => {
     combatAttack(btn.dataset.combatAttack);
   });
 
-  // 自訂行動 Enter 發送
+  function submitCustomAction(input) {
+    if (!input || turnInFlight || travelInFlight) return;
+    const actualCharacters = Array.from(input.value).length;
+    updateActionInputCount(input);
+    if (actualCharacters > MAX_FREE_ACTION_CHARS) {
+      input.reportValidity();
+      return;
+    }
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    updateActionInputCount(input);
+    runTurn({ playerAction: text });
+  }
+
+  // 自訂行動 Enter 發送；Shift+Enter 保留給需要換行的輸入習慣。
+  document.querySelector("[data-action-input]")?.addEventListener("input", (e) => {
+    updateActionInputCount(e.target);
+  });
   document.querySelector("[data-action-input]")?.addEventListener("keydown", e => {
-    if (e.key === "Enter") {
-      const text = e.target.value.trim();
-      if (text) {
-        e.target.value = "";
-        runTurn({ playerAction: text });
-      }
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      submitCustomAction(e.target);
     }
   });
 
@@ -3644,13 +3734,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("chronicle-download-btn")?.addEventListener("click", downloadChroniclePackage);
 
   document.querySelector("[data-send-custom]")?.addEventListener("click", () => {
-    const input = document.querySelector("[data-action-input]");
-    const text = input.value.trim();
-    if (text) {
-      input.value = "";
-      runTurn({ playerAction: text });
-    }
+    submitCustomAction(document.querySelector("[data-action-input]"));
   });
+  updateActionInputCount();
 
   // 數字鍵直接選選項。
   //
