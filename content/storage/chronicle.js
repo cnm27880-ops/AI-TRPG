@@ -1,12 +1,20 @@
 // 長期劇情檔案 —— 把玩家真正走過的每一回合保存成可閱讀、可交給 AI 的劇情包。
 //
 // session.history 是給「下一回合 prompt」用的短期記憶，會依 HISTORY_LIMIT 裁切；
-// chronicle 則是玩家自己的長期故事，不裁切、不參與一般回合 prompt，避免長局時把整本小說
-// 每回合重新塞進模型 context。劇情回顧頁與副本結束後的 AI-ready 匯出都從這份資料產生。
+// chronicle 則是玩家自己的長期故事，有 server-side hard limit，但不參與一般回合 prompt，
+// 避免長局時把整本小說每回合重新塞進模型 context。劇情回顧頁與副本結束後的 AI-ready
+// 匯出都從這份資料產生。
 
 import { summarizeForJournal } from "../../core/eventLog.js";
 
 export const CHRONICLE_VERSION = 1;
+/** 長期故事的 server-side 資源界線；50 回合 V2 遠低於此上限。 */
+export const MAX_CHRONICLE_ENTRIES = 2000;
+export const MAX_CHRONICLE_ACTION_CHARS = 1000;
+export const MAX_CHRONICLE_NARRATION_CHARS = 12000;
+export const MAX_CHRONICLE_PACKAGES = 100;
+export const MAX_COMPACT_PACKAGE_COUNT = 8;
+export const MAX_COMPACT_SUMMARY_CHARS = 2000;
 
 /**
  * 副本結束時登錄一次劇情包。這裡只保存索引與狀態，避免把完整 prose 在 session 裡複製兩份；
@@ -19,7 +27,7 @@ export function registerChroniclePackage(packages, {
   turnEnd = turnStart,
   createdAt = null,
 } = {}) {
-  const current = Array.isArray(packages) ? packages : [];
+  const current = (Array.isArray(packages) ? packages : []).slice(-MAX_CHRONICLE_PACKAGES);
   if (!scenarioId) return { packages: current, record: null, created: false };
   const existing = current.find((item) => item?.scenarioId === scenarioId);
   if (existing) return { packages: current, record: existing, created: false };
@@ -33,7 +41,7 @@ export function registerChroniclePackage(packages, {
     status: "ready",
     createdAt: createdAt ?? new Date().toISOString(),
   };
-  return { packages: [...current, record], record, created: true };
+  return { packages: [...current, record].slice(-MAX_CHRONICLE_PACKAGES), record, created: true };
 }
 
 /** 建立一個可保存的長期回合條目。 */
@@ -46,15 +54,16 @@ export function appendChronicle(chronicle, {
   nodeId = null,
   scenarioId = null,
 } = {}) {
-  const next = [...(Array.isArray(chronicle) ? chronicle : [])];
+  const next = [...(Array.isArray(chronicle) ? chronicle : [])].slice(-(MAX_CHRONICLE_ENTRIES - 1));
+  const fallbackTurn = Number.isFinite(Number(next.at(-1)?.turn)) ? Number(next.at(-1).turn) + 1 : next.length + 1;
   next.push({
-    turn: turn ?? next.length + 1,
-    action: action == null ? null : String(action),
-    narration: narration == null ? null : String(narration),
+    turn: turn ?? fallbackTurn,
+    action: action == null ? null : clipCodePoints(String(action), MAX_CHRONICLE_ACTION_CHARS),
+    narration: narration == null ? null : clipCodePoints(String(narration), MAX_CHRONICLE_NARRATION_CHARS),
     timestamp: timestamp ?? new Date().toISOString(),
     chapterIndex: Number.isInteger(chapterIndex) ? chapterIndex : null,
-    nodeId: nodeId == null ? null : String(nodeId),
-    scenarioId: scenarioId == null ? null : String(scenarioId),
+    nodeId: nodeId == null ? null : clipCodePoints(String(nodeId), 160),
+    scenarioId: scenarioId == null ? null : clipCodePoints(String(scenarioId), 160),
   });
   return next;
 }
@@ -77,15 +86,17 @@ export function chronicleFromHistory(history = []) {
  * 建立給前端回顧頁使用的基本資料。刻意不在這裡產生 HTML，避免把 escape 責任放進資料層。
  */
 export function normalizeChronicleEntries(chronicle = []) {
-  return (Array.isArray(chronicle) ? chronicle : []).map((entry, index) => ({
-    turn: Number.isFinite(entry?.turn) ? entry.turn : index + 1,
-    action: entry?.action ?? null,
-    narration: entry?.narration ?? null,
-    timestamp: entry?.timestamp ?? null,
-    chapterIndex: Number.isInteger(entry?.chapterIndex) ? entry.chapterIndex : null,
-    nodeId: entry?.nodeId ?? null,
-    scenarioId: entry?.scenarioId ?? null,
-  }));
+  return (Array.isArray(chronicle) ? chronicle : [])
+    .slice(-MAX_CHRONICLE_ENTRIES)
+    .map((entry, index) => ({
+      turn: Number.isFinite(entry?.turn) ? entry.turn : index + 1,
+      action: entry?.action == null ? null : clipCodePoints(String(entry.action), MAX_CHRONICLE_ACTION_CHARS),
+      narration: entry?.narration == null ? null : clipCodePoints(String(entry.narration), MAX_CHRONICLE_NARRATION_CHARS),
+      timestamp: entry?.timestamp == null ? null : clipCodePoints(String(entry.timestamp), 80),
+      chapterIndex: Number.isInteger(entry?.chapterIndex) ? entry.chapterIndex : null,
+      nodeId: entry?.nodeId == null ? null : clipCodePoints(String(entry.nodeId), 160),
+      scenarioId: entry?.scenarioId == null ? null : clipCodePoints(String(entry.scenarioId), 160),
+    }));
 }
 
 /**
@@ -93,8 +104,9 @@ export function normalizeChronicleEntries(chronicle = []) {
  * 只取最近 limit 份已封存副本，且只帶一小段 deterministic prose；完整故事永遠不進一般回合。
  */
 export function buildCompactAiContext(session, { limit = 2, charLimit = 1400 } = {}) {
-  const count = Math.max(0, Math.floor(Number(limit) || 0));
+  const count = Math.min(MAX_COMPACT_PACKAGE_COUNT, Math.max(0, Math.floor(Number(limit) || 0)));
   if (count === 0) return null;
+  const safeCharLimit = Math.min(MAX_COMPACT_SUMMARY_CHARS, Math.max(0, Math.floor(Number(charLimit) || 0)));
   const packages = (Array.isArray(session?.chroniclePackages) ? session.chroniclePackages : [])
     .filter((record) => record?.status === "ready")
     .slice(-count);
@@ -106,7 +118,7 @@ export function buildCompactAiContext(session, { limit = 2, charLimit = 1400 } =
       entry.scenarioId === record.scenarioId && withinTurnRange(entry, record.turnRange)
     );
     const prose = ownEntries.map((entry) => entry.narration).filter(Boolean).join(" ").trim();
-    const clipped = clipText(prose, charLimit);
+    const clipped = clipText(prose, safeCharLimit);
     const range = record.turnRange ? `第 ${record.turnRange.from}～${record.turnRange.to} 回` : "回合數未知";
     return `- ${record.scenarioTitle ?? record.scenarioId}（已完成，${range}）${clipped ? `\n  劇情摘要：${clipped}` : ""}`;
   });
@@ -133,6 +145,17 @@ function withinEventTurnRange(event, range) {
   const from = Number.isFinite(Number(range.from)) ? Number(range.from) : -Infinity;
   const to = Number.isFinite(Number(range.to)) ? Number(range.to) : Infinity;
   return turn >= from && turn <= to;
+}
+
+function clipCodePoints(text, limit) {
+  const chars = Array.from(String(text ?? ""));
+  const safeLimit = Math.max(0, Math.floor(Number(limit) || 0));
+  if (chars.length <= safeLimit) return String(text ?? "");
+  if (safeLimit <= 12) return chars.slice(0, safeLimit).join("");
+  const marker = "……【已截斷】";
+  const available = Math.max(0, safeLimit - Array.from(marker).length);
+  const head = Math.ceil(available * 0.7);
+  return chars.slice(0, head).join("") + marker + chars.slice(-(available - head)).join("");
 }
 
 function clipText(text, limit) {

@@ -17,8 +17,10 @@
 //   NARRATIVE_STYLE 文筆設定檔名稱（見 content/narrativeStyle.js 的 STYLE_PROFILES）
 //   NARRATOR_PERSONA 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）
 //
-// 什麼金鑰都沒設定時，會退到 Cloudflare Workers AI（免金鑰，靠 wrangler.toml 的 [ai] binding），
-// 讓你不用先申請任何東西就能把整條鏈路跑起來。細節見 LLM_PROVIDERS.md。
+// BYOK 呼叫端若明確指定 provider + 自己的設定，可以透過這個 legacy/demo 端點測試。
+// 未指定 provider 時，匿名 request 預設會被擋下；只有部署者明確設定
+// NARRATE_ALLOW_SERVER_LLM=true 才會使用 server-managed Gemini／Workers AI，避免額度被濫用。
+// 正常 V2 遊玩使用 /api/turn，不受這個 demo gate 影響。細節見 LLM_PROVIDERS.md。
 
 import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
@@ -31,6 +33,7 @@ import {
   countActionCharacters,
 } from "../../content/turnOptions.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
+import { sanitizeProvidedCharacter } from "../../content/characterBuilder.js";
 import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
@@ -101,7 +104,13 @@ export async function onRequestPost(context) {
   }
   // sceneContext 一樣是可控文字、會被塞進prompt，安全截斷而不是報錯(這裡沒有存檔可寫，
   // 主要風險是prompt大小/成本，不是「持久化偽造狀態」)。
-  const sceneContext = clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS);
+  const sceneContext = typeof rawSceneContext === "string"
+    ? clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS)
+    : undefined;
+  // narrate 是無存檔的匿名示範端點，呼叫端提供的 character 仍然是不可信輸入。
+  // 先走與 /api/session 相同的 server sanitizer，避免偽造能力、energyPools、衍生HP或
+  // 超支配點影響規則層；這條路徑只接受合法基礎角色，商品能力必須走 server session。
+  const safeCharacter = sanitizeProvidedCharacter(character);
 
   // 供應商覆寫與半設定狀態的攔截 —— 跟 /api/turn 同一套規則。
   // (2026-08-16：這個端點先前完全不接受前端覆寫，跟 turn.js 已經開始長不一樣了)
@@ -121,15 +130,24 @@ export async function onRequestPost(context) {
     }
   }
 
+  // /api/narrate 沒有 session ownership，也不是 V2 正常遊玩路徑；若它能自動選到
+  // server provider，就會變成匿名者消耗部署方金鑰／Workers AI 額度的放大器。只有明確
+  // 開啟旗標才允許 server-managed LLM；呼叫端自帶 provider + 自己的 key 仍可用於
+  // legacy/demo BYOK。正式 V2 使用 /api/turn，不受這個 demo gate 影響。
+  const serverManagedNarrate = !bodyProvider || bodyProvider === "workers-ai";
+  if (serverManagedNarrate && env.NARRATE_ALLOW_SERVER_LLM !== "true") {
+    return jsonError("匿名 narrate 示範端點未開放伺服器 LLM；請使用 V2 /api/turn，或由部署者設定 NARRATE_ALLOW_SERVER_LLM=true。", 403);
+  }
+
   // --- 規則層：先把數字算出來。這一段完全不碰AI，AI失敗也不影響它的正確性。 ---
-  const baseParams = checkParams ?? inferCheckParams(playerAction, { character });
+  const baseParams = checkParams ?? inferCheckParams(playerAction, { character: safeCharacter });
   // 商店買到的檢定加值(專長/物品)在這裡併進判定參數，不然買了等於沒買。
   // 進行中的型態吃不到，理由同 /api/check：這是無存檔的示範端點，型態活在存檔裡。
-  const { params: resolvedParams } = applyCheckModifiers(character, baseParams);
+  const { params: resolvedParams } = applyCheckModifiers(safeCharacter, baseParams);
 
   let checkResult;
   try {
-    checkResult = performCheck(character, resolvedParams);
+    checkResult = performCheck(safeCharacter, resolvedParams);
   } catch (err) {
     return jsonError(`判定計算失敗：${err.message}`, 400);
   }
@@ -180,7 +198,6 @@ export async function onRequestPost(context) {
   const MAX_EVENT_SUMMARY_CHARS = 200;
   const boundedRecentEvents = Array.isArray(recentEvents)
     ? recentEvents.slice(-MAX_RECENT_EVENTS).map((e) => ({
-        ...e,
         summary: clampTextByCodePoints(typeof e?.summary === "string" ? e.summary : "", MAX_EVENT_SUMMARY_CHARS),
       }))
     : [];

@@ -252,7 +252,9 @@ export async function onRequestPost(context) {
   } = body ?? {};
   // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
   // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
-  const sceneContext = clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS);
+  const sceneContext = typeof rawSceneContext === "string"
+    ? clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS)
+    : undefined;
   const warnings = [];
 
   // 自由行動是玩家輸入的敘事指令，長度限制必須在載入 session、擲骰、呼叫 LLM

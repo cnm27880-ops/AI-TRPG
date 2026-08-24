@@ -88,12 +88,31 @@ export function describeLlmFailure(err) {
  * 要改用環境變數 LLM_MAX_TOKENS 覆寫即可，不用改程式。
  */
 export const DEFAULT_MAX_TOKENS = 2048;
+/** 單次 LLM 輸出硬上限；request 與環境變數都不能把 Worker 成本無限放大。 */
+export const MAX_LLM_OUTPUT_TOKENS = 4096;
+/** system instruction 與 user prompt 的應用層字數上限，按 Unicode code point 計算。 */
+export const MAX_LLM_SYSTEM_CHARS = 24000;
+export const MAX_LLM_PROMPT_CHARS = 48000;
 
-/** 解析這次要用的輸出上限：呼叫端 > 環境變數 > 預設值（跟 resolveProvider 同一個優先序）。 */
+/** 解析這次要用的輸出上限：呼叫端 > 環境變數 > 預設值，最後套 server 硬上限。 */
 function resolveMaxTokens(maxTokens, env) {
   const raw = maxTokens ?? env?.LLM_MAX_TOKENS;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : DEFAULT_MAX_TOKENS;
+  if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULT_MAX_TOKENS;
+  return Math.min(MAX_LLM_OUTPUT_TOKENS, Math.max(1, Math.floor(parsed)));
+}
+
+function clampLlmInput(value, limit, label) {
+  if (typeof value !== "string") return "";
+  const chars = Array.from(value);
+  const safeLimit = Math.max(0, Math.floor(Number(limit) || 0));
+  if (chars.length <= safeLimit) return value;
+  if (safeLimit <= 12) return chars.slice(0, safeLimit).join("");
+  const marker = `\n【${label}過長，中段已省略】\n`;
+  const available = Math.max(0, safeLimit - Array.from(marker).length);
+  const head = Math.ceil(available * 0.7);
+  const tail = Math.max(0, available - head);
+  return chars.slice(0, head).join("") + marker + (tail ? chars.slice(-tail).join("") : "");
 }
 
 function snippet(text) {
@@ -132,8 +151,14 @@ export async function callLlm({
   responseSchema,
   fetchFn,
 }) {
-  if (!prompt) throw new Error("callLlm需要prompt(這次要送的使用者訊息文字)");
+  if (typeof prompt !== "string" || !prompt.trim()) {
+    throw new Error("callLlm需要prompt(這次要送的使用者訊息文字)");
+  }
 
+  const boundedPrompt = clampLlmInput(prompt, MAX_LLM_PROMPT_CHARS, "prompt");
+  const boundedSystemInstruction = typeof systemInstruction === "string"
+    ? clampLlmInput(systemInstruction, MAX_LLM_SYSTEM_CHARS, "system instruction")
+    : systemInstruction;
   const cfg = resolveProvider(provider, env, { model, baseUrl, apiKey });
   const limit = resolveMaxTokens(maxTokens, env);
 
@@ -148,11 +173,11 @@ export async function callLlm({
 
   switch (cfg.protocol) {
     case PROTOCOLS.WORKERS_AI:
-      return callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens: limit, responseSchema, timeoutMs: requestTimeoutMs(env) });
+      return callWorkersAi(cfg, { env, prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.GEMINI:
-      return callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
+      return callGeminiProtocol(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.OPENAI_CHAT:
-      return callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
+      return callOpenAiChat(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     default:
       throw new LlmError(`供應商「${cfg.id}」的線路格式「${cfg.protocol}」還沒有實作`, {
         provider: cfg.id,
