@@ -112,6 +112,7 @@ import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
 import { sceneKeyOf } from "../../content/shop/access.js";
 import { formsForScene } from "../../content/shop/forms.js";
+import { applyNpcCooperationForAction } from "../../content/scenario/npcCooperationPolicy.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -190,6 +191,7 @@ async function persistPendingTurn({
   scenarioProgress,
   threatChange,
   retread,
+  referenceState,
   warnings,
 }) {
   if (!session || !store) return null;
@@ -208,11 +210,16 @@ async function persistPendingTurn({
     scenarioProgress: scenarioProgress ?? null,
     threatChange: threatChange ?? null,
     retread: retread ?? null,
+    referenceState: referenceState ?? null,
     warnings: Array.isArray(warnings) ? [...warnings] : [],
     createdAt: new Date().toISOString(),
   };
-  if (session.scenario && scenarioProgress) {
-    session.scenario = { ...session.scenario, progress: scenarioProgress };
+  if (session.scenario && (scenarioProgress || referenceState)) {
+    session.scenario = {
+      ...session.scenario,
+      ...(scenarioProgress ? { progress: scenarioProgress } : {}),
+      ...(referenceState ? { referenceState } : {}),
+    };
   }
   try {
     await store.put(session, { expectedRev: session.rev ?? 0 });
@@ -641,6 +648,8 @@ async function executeTurn(context, streamHooks = null) {
     retread = pendingReplay.retread ?? null;
     threatChange = pendingReplay.threatChange ?? null;
     scenarioProgress = pendingReplay.scenarioProgress ?? scenarioProgress;
+    referenceState = pendingReplay.referenceState ?? referenceState;
+    if (session?.scenario && referenceState) session.scenario.referenceState = referenceState;
     for (const warning of pendingReplay.warnings ?? []) {
       if (!warnings.includes(warning)) warnings.push(warning);
     }
@@ -782,6 +791,29 @@ async function executeTurn(context, streamHooks = null) {
   }
 
   // ---------------------------------------------------------------------
+  // NPC 協作層：這是有限的 server-side 社會反應，不是新的 engine effect。
+  // ---------------------------------------------------------------------
+  // 玩家仍可自由輸入；只有可辨識的陸遠互動才會更新 bounded cooperation state。
+  // matched／unmatched 都能觸發，因為 NPC 不應只對按鈕行動有記憶。
+  // pending replay 不重新套用，避免 LLM 失敗重試時重複提高威脅或降低合作。
+  let npcCooperationDecision = null;
+  if (scenarioReference && referenceState && actionText && !pendingReplay) {
+    npcCooperationDecision = applyNpcCooperationForAction({
+      reference: scenarioReference,
+      state: referenceState,
+      actionText,
+      sceneId: referenceResolution.matched
+        ? referenceResolution.scene?.id ?? referenceState.currentSceneId
+        : referenceState.currentSceneId,
+      turnNumber: (session?.turns ?? 0) + 1,
+    });
+    if (npcCooperationDecision.changed) {
+      referenceState = npcCooperationDecision.state;
+      if (session?.scenario) session.scenario.referenceState = referenceState;
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // 第二段：敘事層。從這裡開始才需要AI。
   // ---------------------------------------------------------------------
   const referenceScene = scenarioReference && referenceState
@@ -849,7 +881,7 @@ async function executeTurn(context, streamHooks = null) {
       {
         session, checkParams, checkResult, outcome, warnings, store,
         reusedCheck: Boolean(pendingReplay),
-        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
       },
       503
     );
@@ -872,7 +904,7 @@ async function executeTurn(context, streamHooks = null) {
       {
         session, checkParams, checkResult, outcome, warnings, store,
         reusedCheck: Boolean(pendingReplay),
-        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
       },
       400
     );
@@ -920,6 +952,7 @@ async function executeTurn(context, streamHooks = null) {
           applied: referenceApplied?.applied ? referenceApplied : null,
           actionText,
           outcomeTier: outcome?.tier ?? null,
+          turnNumber: (session?.turns ?? 0) + 1,
         })
       : null,
     // 迫近度指令：這一回合的判定已經把威脅推近/拉遠了，AI必須照著那個階段寫。
@@ -975,7 +1008,7 @@ async function executeTurn(context, streamHooks = null) {
       {
         session, checkParams, checkResult, outcome, warnings, store,
         reusedCheck: Boolean(pendingReplay),
-        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange },
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
       },
       502
     );

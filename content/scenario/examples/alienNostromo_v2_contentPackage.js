@@ -1,10 +1,12 @@
 // Converted from the user-provided 包.txt and approved supplement material; content only, not a source of engine truth.
+import luyuanCooperation from "./alienNostromo_v2_luyuanCooperation.js";
+
 export default {
   "sourceFile": "包.txt",
   "sourceTitle": "《異形：生化深淵》V2 空間資料、移動轉場與 NPC 語氣庫（P0 核心內容包）",
   "sourcePackId": "scenario.nostromo-01-v2",
-  "conversionStatus": "content_only_with_approved_exploration_gap_major_variants_and_clue_presentations",
-  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白、已接觸 NPC 的語氣素材與依 canonical result 綁定的線索演出；canonical reference 與 engine effects 仍是唯一真相。重大場景與 clue overlay 必須附著在已套用的 canonical result 上，不得自行新增狀態。",
+  "conversionStatus": "content_only_with_approved_exploration_gap_major_variants_clue_presentations_and_luyuan_npc_cooperation_pilot",
+  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白、已接觸 NPC 的語氣素材、依 canonical result 綁定的線索演出，以及 server-only 的陸遠協作 overlay；canonical reference 與 engine effects 仍是唯一真相。重大場景、clue 與 NPC cooperation overlay 不得自行新增傷勢、物品、位置、門狀態、威脅、旗標、NPC 狀態、死亡、結局或獎勵。",
   "canonicalLocationMap": {
     "loc_cryo": {
       "packageId": "loc_cryo",
@@ -1959,5 +1961,8 @@ export default {
         "reviewNotes": "將 critical_failure 轉為 core 正式 tier 慘烈失敗；死亡僅由 canonical flag_player_dead_vacuum／結局推導，不在 overlay 自行創造 ending ID。"
       }
     ]
+  },
+  "approvedNpcCooperation": {
+    "npc_luyuan": luyuanCooperation
   }
 };

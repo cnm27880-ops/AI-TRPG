@@ -23,6 +23,11 @@ import {
   narrativeMajorSceneVariant,
   buildNarrativeNpcPromptBlock,
 } from "./narrativePackageAdapter.js";
+import {
+  createNpcCooperationState,
+  normalizeNpcCooperationState,
+  buildNpcCooperationPromptBlock,
+} from "./npcCooperationPolicy.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -198,6 +203,7 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     unresolvedQuestions: [],
     npcStatuses: initialNpcStatuses(reference),
     npcTrust: {},
+    npcCooperation: createNpcCooperationState(),
     injuries: [],
     infectionStatus: "unknown",
     sampleStatus: "none",
@@ -240,6 +246,7 @@ export function normalizeReferenceState(reference, rawState) {
     unresolvedQuestions: Array.isArray(rawState.unresolvedQuestions) ? rawState.unresolvedQuestions.slice(-24) : [],
     npcStatuses: cloneObject(rawState.npcStatuses, fresh.npcStatuses),
     npcTrust: cloneObject(rawState.npcTrust, {}),
+    npcCooperation: normalizeNpcCooperationState(rawState.npcCooperation),
     injuries: unique(rawState.injuries),
     sceneTurnCount: Number.isInteger(rawState.sceneTurnCount) && rawState.sceneTurnCount >= 0
       ? rawState.sceneTurnCount
@@ -797,6 +804,7 @@ export function buildReferencePromptBlock({
   applied = null,
     actionText = "",
     outcomeTier = null,
+    turnNumber = 0,
   }) {
   const currentScene = findScene(reference, state?.currentSceneId) ?? firstScene(reference);
   const scene = resolution?.matched ? resolution.scene : currentScene;
@@ -880,6 +888,12 @@ export function buildReferencePromptBlock({
   }
   const npcVoiceBlock = buildNarrativeNpcPromptBlock(reference, state);
   if (npcVoiceBlock) lines.push("", npcVoiceBlock);
+  const npcCooperationBlock = buildNpcCooperationPromptBlock(reference, state, {
+    actionText,
+    sceneId: scene?.id ?? currentScene?.id ?? null,
+    turnNumber,
+  });
+  if (npcCooperationBlock) lines.push("", npcCooperationBlock);
   lines.push("</Reference_Event>");
   return lines.join("\n");
 }
