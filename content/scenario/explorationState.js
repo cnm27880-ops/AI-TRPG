@@ -95,6 +95,7 @@ function normalizeQuestionRecord(question, raw = {}) {
     status,
     statusLabel: QUESTION_STATUS_LABELS[status],
     evidence: unique(raw.evidence),
+    ...(status !== "answered" && question.progressText ? { progressText: question.progressText } : {}),
     ...(status === "answered" && question.answer ? { answer: question.answer } : {}),
     ...(raw.updatedAt ? { updatedAt: raw.updatedAt } : {}),
   };
@@ -194,6 +195,7 @@ export function publicUnresolvedQuestions(state) {
     status: item.status,
     statusLabel: item.statusLabel ?? QUESTION_STATUS_LABELS[item.status] ?? "未解",
     evidence: unique(item.evidence),
+    ...(item.status !== "answered" && item.progressText ? { progressText: item.progressText } : {}),
     ...(item.status === "answered" && item.answer ? { answer: item.answer } : {}),
   }));
 }

@@ -70,6 +70,8 @@ test("探索終端顯示內容包的空間、感官、地標、危險與回訪�
   assert.match(app, /environment\.landmarks/);
   assert.match(app, /environment\.hazardHints/);
   assert.match(app, /environment\.revisitVariant/);
+  assert.match(app, /question\.progressText/);
+  assert.match(app, /目前解讀/);
   assert.match(app, /可見地標/);
   assert.match(app, /可見危險/);
   assert.match(app, /回訪變化/);

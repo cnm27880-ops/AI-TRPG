@@ -1882,10 +1882,13 @@ function renderExplorationTerminal(view) {
           const answer = status === "answered" && question.answer
             ? `<div class="mt-1 text-emerald-200/90">${escapeHtml(question.answer)}</div>`
             : "";
+          const progress = status !== "answered" && question.progressText
+            ? `<div class="mt-1 text-sky-200/90">目前解讀：${escapeHtml(question.progressText)}</div>`
+            : "";
           const evidence = Array.isArray(question.evidence) && question.evidence.length
             ? `<div class="mt-1 text-zinc-500">已有 ${question.evidence.length} 項相關線索</div>`
             : "";
-          return `<div class="exploration-question is-${escapeHtml(status)} mb-1 last:mb-0"><div>${escapeHtml(question.text ?? "待追查問題")}</div><div class="exploration-question-status">${escapeHtml(question.statusLabel ?? "未解")}</div>${evidence}${answer}</div>`;
+          return `<div class="exploration-question is-${escapeHtml(status)} mb-1 last:mb-0"><div>${escapeHtml(question.text ?? "待追查問題")}</div><div class="exploration-question-status">${escapeHtml(question.statusLabel ?? "未解")}</div>${evidence}${progress}${answer}</div>`;
         }).join("")
       : "目前沒有待追查的問題。";
   }

@@ -789,6 +789,7 @@
       "evidenceClues": [
         "clue_order_937"
       ],
+      "progressText": "你已確認這不是普通的救援任務：公司把外星生物的回收置於船員安全之前；完整的簽發內容仍待進一步查明。",
       "answerWhenFlags": [
         "flag_order_937_revealed"
       ],

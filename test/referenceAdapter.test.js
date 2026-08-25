@@ -508,6 +508,46 @@ test("reference results create public discoveries and unresolved questions witho
   assert.equal(JSON.stringify(exploration).includes("privateGoals"), false);
 });
 
+test("q_order_937 uses mapped progress text before the canonical reveal answer", () => {
+  const character = emptyCharacter("測試者");
+  const base = createReferenceState(reference);
+  const state = {
+    ...base,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_luyuan_met"],
+    npcStatuses: { ...base.npcStatuses, npc_luyuan: "met", npc_ash: "alive" },
+  };
+  const peekOption = buildReferenceOptions(reference, state).find(
+    (item) => item.reference.approachId === "app_ash_terminal_peek"
+  );
+  const peekResolution = resolveReferenceAction({ reference, state, chosenOption: peekOption, character });
+  const peekApplied = applyReferenceResult({ reference, state, resolution: peekResolution, outcomeTier: "成功" });
+  const pending = peekApplied.state.unresolvedQuestions.find((item) => item.id === "q_order_937");
+  assert.equal(pending.status, "updated");
+  assert.match(pending.progressText, /不是普通的救援任務/);
+  assert.equal("answer" in pending, false);
+
+  const revealState = {
+    ...peekApplied.state,
+    currentSceneId: "evt_order_937_reveal",
+    currentLocation: "loc_mother_core",
+  };
+  const queryOption = buildReferenceOptions(reference, revealState).find(
+    (item) => item.reference.approachId === "app_order_query"
+  );
+  const queryResolution = resolveReferenceAction({ reference, state: revealState, chosenOption: queryOption, character });
+  const queryApplied = applyReferenceResult({ reference, state: revealState, resolution: queryResolution, outcomeTier: "成功" });
+  const answered = queryApplied.state.unresolvedQuestions.find((item) => item.id === "q_order_937");
+  assert.equal(answered.status, "answered");
+  assert.match(answered.answer, /維蘭德-尤坦尼/);
+  assert.equal("progressText" in answered, false);
+
+  const publicPending = referenceStateForResponse(reference, peekApplied.state).exploration.unresolvedQuestions
+    .find((item) => item.id === "q_order_937");
+  assert.match(publicPending.progressText, /完整的簽發內容/);
+});
+
 test("Ash question resolves only after the reference flag confirms the identity", () => {
   const character = emptyCharacter("測試者");
   const state = {
