@@ -108,8 +108,12 @@ function targetIsLuyuan({ actionText, targetNpcId = null, sceneId }) {
   if (targetNpcId && targetNpcId !== NPC_ID) return false;
   if (targetNpcId === NPC_ID) return true;
   const text = textOf(actionText);
-  if (/陸遠|老手|持槍男人|那個男人|他/.test(text)) return true;
-  return sceneId === "evt_deck_a_recon";
+  const explicitlyLuyuan = /陸遠|老手|持槍男人|那個男人|男人的(?:手槍|武器)/.test(text);
+  const explicitlyOtherNpcTarget = /(?:問|詢問|向|對|跟|告訴|要求|攻擊|指向|靠近|撲向|聯絡|找|安撫|幫助|威脅|大吼)\s*(?:Ripley|雷普利|Parker|帕克|Lambert|蘭伯特|Ash|艾許)/.test(text);
+  if (explicitlyOtherNpcTarget && !explicitlyLuyuan) return false;
+  if (explicitlyLuyuan) return true;
+  if (sceneId !== "evt_deck_a_recon") return false;
+  return /你是誰|為什麼|怎麼回事|發生什麼|哪裡|如何|去哪|往哪|逃生|跟上|探路|殿後|我來|我可以|我們走|一起|搶|奪|撲|推|抓|壓制|威脅|恐嚇|後退|退後|退開|放下手|停手|停止攻擊|道歉|害怕|失控/.test(text);
 }
 
 function topicForQuestion(text) {

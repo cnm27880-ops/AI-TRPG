@@ -32,8 +32,8 @@ function apply(state, actionText, turnNumber, extra = {}) {
 }
 
 test("Ripley profile 有獨立的 evidence／生物安全模型，不複製陸遠威脅欄位", () => {
-  assert.equal(ripleyCooperationEntries.length, 13);
-  assert.equal(new Set(ripleyCooperationEntries.map((entry) => entry.category)).size, 4);
+  assert.equal(ripleyCooperationEntries.length, 18);
+  assert.equal(new Set(ripleyCooperationEntries.map((entry) => entry.category)).size, 5);
   const fresh = createRipleyCooperationState();
   assert.deepEqual(fresh[RIPLEY_ID], {
     state: "unmet",
@@ -43,6 +43,10 @@ test("Ripley profile 有獨立的 evidence／生物安全模型，不複製陸�
     biohazardConcern: 0,
     protocolAlignment: 0,
     boundaryIncidents: 0,
+    commandConfidence: 0,
+    crewCohesion: 1,
+    commandChallenges: 0,
+    reliableReports: 0,
     contactEstablished: false,
     tasksAccepted: 0,
     lastDecision: "assess_unidentified_survivors",
@@ -186,4 +190,68 @@ test("相同 Ripley action 在晚回合不會重播舊 directive", () => {
   assert.doesNotMatch(later, /本回合已由 server 選定的 Ripley 外在反應/);
 });
 
-assert.equal(contentPackage.approvedNpcCooperation.npc_ripley.entries.length, 13);
+test("Ripley 會以指揮信心與隊伍凝聚設定可回報的生存優先順序", () => {
+  const requested = apply(createReferenceState(reference), "請 Ripley 下令，告訴我們先做什麼", 1);
+  assert.equal(requested.classification.interactionType, "request_command");
+  assert.equal(requested.entry.entryId, "ripley_command_set_priority_01");
+  assert.equal(requested.state.npcCooperation[RIPLEY_ID].state, "commanding");
+  assert.equal(requested.state.npcCooperation[RIPLEY_ID].commandConfidence, 2);
+  assert.equal(requested.state.npcCooperation[RIPLEY_ID].crewCohesion, 2);
+  assert.equal(requested.state.npcCooperation[RIPLEY_ID].trust, 1);
+  assert.match(requested.entry.runtimeNarration, /順序|優先|回報/);
+  assert.doesNotMatch(requested.entry.runtimeNarration, /已經移動|已經關閉|已完成/);
+
+  const reported = apply(requested.state, "我向 Ripley 回報，我在通訊區看到異常，但還沒有確認原因", 2);
+  assert.equal(reported.classification.interactionType, "report_crew_status");
+  assert.equal(reported.entry.entryId, "ripley_command_report_02");
+  assert.equal(reported.state.npcCooperation[RIPLEY_ID].reliableReports, 1);
+  assert.equal(reported.state.npcCooperation[RIPLEY_ID].trust, 2);
+});
+
+test("Ripley 對指揮質疑會要求具體依據，重複無新資料才撤回指揮辯論", () => {
+  const first = apply(createReferenceState(reference), "我質疑 Ripley 的安排，憑什麼你下令", 1);
+  assert.equal(first.classification.interactionType, "challenge_command");
+  assert.equal(first.entry.entryId, "ripley_command_challenge_03");
+  assert.equal(first.state.npcCooperation[RIPLEY_ID].state, "angry");
+  assert.equal(first.state.npcCooperation[RIPLEY_ID].commandChallenges, 1);
+
+  const second = apply(first.state, "我再次質疑 Ripley 的安排，命令不對", 2);
+  assert.equal(second.classification.interactionType, "challenge_command");
+  assert.equal(second.entry.entryId, "ripley_command_challenge_04");
+  assert.equal(second.state.npcCooperation[RIPLEY_ID].state, "withdrawn");
+  assert.equal(second.state.npcCooperation[RIPLEY_ID].commandChallenges, 2);
+  assert.match(second.entry.runtimeNarration, /優先順序|新.*資料|音量/);
+});
+
+test("玩家支持 Ripley 指揮時可恢復隊伍協調，但不抹除先前的信任損失", () => {
+  const first = apply(createReferenceState(reference), "我質疑 Ripley 的安排，憑什麼你下令", 1);
+  const second = apply(first.state, "我再次質疑 Ripley 的安排，命令不對", 2);
+  const supported = apply(second.state, "我支持 Ripley 指揮，照她安排分工", 3);
+  assert.equal(supported.classification.interactionType, "command_support");
+  assert.equal(supported.entry.entryId, "ripley_command_support_05");
+  assert.equal(supported.state.npcCooperation[RIPLEY_ID].state, "functional");
+  assert.equal(supported.state.npcCooperation[RIPLEY_ID].trust, -1);
+  assert.equal(supported.state.npcCooperation[RIPLEY_ID].commandChallenges, 2);
+  assert.ok(supported.state.npcCooperation[RIPLEY_ID].crewCohesion > 0);
+});
+
+test("Ripley command directive 只在本回合命中，晚回合不重播且不暴露 raw state", () => {
+  const result = apply(createReferenceState(reference), "請 Ripley 下令，告訴我們先做什麼", 1);
+  const current = buildRipleyCooperationPromptBlock(reference, result.state, {
+    actionText: "請 Ripley 下令，告訴我們先做什麼",
+    sceneId: RIPLEY_SCENE,
+    turnNumber: 1,
+  });
+  assert.match(current, /本回合已由 server 選定的 Ripley 外在反應/);
+  assert.match(current, /指揮互動|設定優先順序/);
+  assert.doesNotMatch(current, /commandConfidence\s*[:=]|crewCohesion\s*[:=]|privateAssessment|withheldFacts/);
+
+  const later = buildRipleyCooperationPromptBlock(reference, result.state, {
+    actionText: "請 Ripley 下令，告訴我們先做什麼",
+    sceneId: RIPLEY_SCENE,
+    turnNumber: 2,
+  });
+  assert.doesNotMatch(later, /本回合已由 server 選定的 Ripley 外在反應/);
+});
+
+assert.equal(contentPackage.approvedNpcCooperation.npc_ripley.entries.length, 18);

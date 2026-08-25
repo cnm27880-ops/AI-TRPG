@@ -7,6 +7,7 @@ const STATE_IDS = Object.freeze([
   "cautious",
   "functional",
   "evidence_trust",
+  "commanding",
   "biohazard_boundary",
   "angry",
   "withdrawn",
@@ -20,6 +21,10 @@ const INITIAL_STATE = Object.freeze({
   biohazardConcern: 0,
   protocolAlignment: 0,
   boundaryIncidents: 0,
+  commandConfidence: 0,
+  crewCohesion: 1,
+  commandChallenges: 0,
+  reliableReports: 0,
   contactEstablished: false,
   tasksAccepted: 0,
   lastDecision: "assess_unidentified_survivors",
@@ -39,6 +44,9 @@ const PROFILE = {
     "verify_biological_risk",
     "prevent_uncontrolled_sample_transfer",
     "reach_escape_route",
+    "maintain_crew_cohesion_under_uncertainty",
+    "issue_clear_orders_without_overclaiming",
+    "triage_low_risk_tasks_and_reports",
   ],
   knowledgePolicy: {
     publicFacts: [
@@ -52,10 +60,16 @@ const PROFILE = {
       "未由 canonical scene／flag 授權的異形生物細節",
     ],
   },
+  commandPolicy: {
+    basis: ["可驗證回報", "船員安全", "程序服從", "可執行分工"],
+    allowedCommandExpressions: ["設定優先順序", "分派低風險任務", "要求回報", "在資訊不足時暫緩高風險決定"],
+    forbiddenCommandClaims: ["宣稱未確認的路線已完成", "把隊伍服從寫成事件結果", "替 canonical engine 宣布成功或失敗"],
+  },
   hardBoundaries: [
     "不得把未知樣本直接帶入隊伍而不說明",
     "不得以武力施壓破壞檢疫程序",
     "不得因一次順從就把玩家視為完全可信",
+    "不得把指揮意向演成隊伍已移動、門已關閉或任務已完成",
   ],
 };
 
@@ -255,6 +269,81 @@ const ENTRIES = [
     runtimeNarration: "你改用可追溯的資料說話後，Ripley 願意重新聽完，但沒有抹掉先前的威脅。她要求把證據一項項對上觀察紀錄，讓合作從程序開始，而不是從一句保證開始。",
     continuationPrompt: "你可以整理證據來源、回答核對問題、接受低風險分工，或保留其他合理行動。",
   },
+  {
+    entryId: "ripley_command_set_priority_01",
+    category: "command",
+    trigger: { interactionType: "request_command", topics: ["command_request"], states: ["unmet", "cautious", "functional", "evidence_trust", "commanding"] },
+    decision: {
+      objective: "set_survival_priority_without_claiming_execution",
+      stateAfter: "commanding",
+      allowedNpcActions: ["state_priority_order", "assign_low_risk_role", "request_status_update", "name_decision_condition"],
+      forbiddenNpcActions: ["claim_order_completed", "claim_crew_moved", "invent_route_or_door_state", "force_player_choice"],
+    },
+    facts: { allowedFacts: ["Ripley 會先處理船員安全、可驗證資訊與撤離準備的優先順序", "指揮意向不等於任務已完成"], withheldFacts: ["未由 canonical result 確認的路線與設備結果"], newFactsCreated: [] },
+    npcAction: { actionClass: "set_clear_survival_priority", publicDescription: "Ripley 以隊伍安全與可回報分工設定優先順序，讓指揮成為可追蹤的工作而非空泛命令。", requiresCanonicalAction: false, statePatch: null },
+    runtimeNarration: "Ripley 沒有把所有人推向同一個方向，而是先把事情排出順序：確認眼前風險、保留撤離選項，再處理能夠回報的設備工作。她指定你負責一項低風險確認，並要求完成後把看見的內容說清楚。",
+    continuationPrompt: "你可以接受分工、要求她說明優先級、回報觀察，或採取其他合理自由行動。",
+  },
+  {
+    entryId: "ripley_command_report_02",
+    category: "command",
+    trigger: { interactionType: "report_crew_status", topics: ["crew_status_report"], states: ["cautious", "functional", "evidence_trust", "commanding"] },
+    decision: {
+      objective: "integrate_observable_report_into_team_priority",
+      stateAfter: "commanding",
+      allowedNpcActions: ["acknowledge_report", "revise_priority_statement", "assign_follow_up", "ask_for_source"],
+      forbiddenNpcActions: ["turn_report_into_unverified_fact", "claim_npc_status", "claim_task_completed", "force_player_choice"],
+    },
+    facts: { allowedFacts: ["可追溯回報能影響 Ripley 的優先順序", "她會區分觀察、推測與尚未確認的結果"], withheldFacts: ["Ripley 尚未公開的完整風險排序"], newFactsCreated: [] },
+    npcAction: { actionClass: "integrate_crew_report", publicDescription: "Ripley 把玩家的可觀察回報納入隊伍規劃，但會要求來源與不確定性。", requiresCanonicalAction: false, statePatch: null },
+    runtimeNarration: "Ripley 先問你這項情報是親眼看見、從紀錄讀到，還是別人轉述。確認來源後，她才調整眼前的優先順序，並把下一個回報點說得足夠清楚，避免隊伍靠猜測前進。",
+    continuationPrompt: "你可以補充觀察來源、詢問新的優先順序、接受後續回報，或採取其他合理行動。",
+  },
+  {
+    entryId: "ripley_command_challenge_03",
+    category: "command",
+    trigger: { interactionType: "challenge_command", topics: ["command_challenge"], states: ["unmet", "cautious", "functional", "evidence_trust", "commanding"], riskRange: [0, 1] },
+    decision: {
+      objective: "defend_command_priority_without_escalating_into_coercion",
+      stateAfter: "angry",
+      allowedNpcActions: ["explain_priority_basis", "decline_unverified_order", "ask_for_specific_objection", "keep_limited_dialogue"],
+      forbiddenNpcActions: ["claim_authority_over_engine", "invent_crew_obedience", "create_punishment", "force_player_choice"],
+    },
+    facts: { allowedFacts: ["Ripley 會要求不同意見具體化", "程序與可驗證風險比音量更能影響她的決策"], withheldFacts: ["Ripley 的完整私下判斷"], newFactsCreated: [] },
+    npcAction: { actionClass: "defend_reasoned_command", publicDescription: "Ripley 直面對指揮的質疑，說明優先級依據，但不把玩家的不同意見寫成敵對狀態。", requiresCanonicalAction: false, statePatch: null },
+    runtimeNarration: "你質疑她的安排時，Ripley 的表情沉了下來，卻沒有用一句『我說了算』結束對話。她要求你指出哪一個風險判斷有問題；在你能提出具體依據以前，她會維持原本的優先順序。",
+    continuationPrompt: "你可以提出具體證據、詢問她的判斷依據、先依分工回報，或採取其他合理行動。",
+  },
+  {
+    entryId: "ripley_command_challenge_04",
+    category: "command",
+    trigger: { interactionType: "challenge_command", topics: ["repeated_command_challenge"], states: ["angry", "withdrawn"], riskRange: [1, 9] },
+    decision: {
+      objective: "limit_command_debate_after_repeated_unsupported_challenge",
+      stateAfter: "withdrawn",
+      allowedNpcActions: ["end_repeated_argument", "repeat_safety_priority", "limit_command_channel", "request_evidence_before_reconsideration"],
+      forbiddenNpcActions: ["claim_player_expelled", "invent_crew_movement", "create_punishment", "direct_player_kill"],
+    },
+    facts: { allowedFacts: ["反覆且沒有新依據的挑戰會壓縮指揮溝通", "新的可驗證資料仍可能重新打開討論"], withheldFacts: ["未確認的隊伍後續路線"], newFactsCreated: [] },
+    npcAction: { actionClass: "withdraw_command_debate", publicDescription: "Ripley 暫停反覆爭論，只保留安全優先順序與證據回報通道。", requiresCanonicalAction: false, statePatch: null },
+    runtimeNarration: "同一個沒有新依據的質疑再次出現後，Ripley 不再逐句反駁。她只重申目前的安全優先順序，表示新的可驗證資料可以讓她重新評估，但重複提高音量不會改變她的判斷。",
+    continuationPrompt: "你可以提供新證據、回到分工、暫停爭論，或採取其他合理自由行動。",
+  },
+  {
+    entryId: "ripley_command_support_05",
+    category: "command",
+    trigger: { interactionType: "command_support", topics: ["crew_coordination"], states: ["unmet", "cautious", "functional", "evidence_trust", "commanding", "angry", "withdrawn"] },
+    decision: {
+      objective: "convert_command_support_into_crew_coordination",
+      stateAfter: "functional",
+      allowedNpcActions: ["acknowledge_support", "assign_visible_role", "request_status_update", "share_limited_priority"],
+      forbiddenNpcActions: ["declare_total_trust", "claim_crew_followed", "claim_task_completed", "force_player_choice"],
+    },
+    facts: { allowedFacts: ["清楚分工與回報能降低隊伍混亂", "口頭支持不會直接抹除先前的衝突"], withheldFacts: ["Ripley 的長期信任判斷"], newFactsCreated: [] },
+    npcAction: { actionClass: "coordinate_supported_command", publicDescription: "Ripley 接受玩家協助指揮的意圖，將它轉成一項可見、可回報的隊伍角色。", requiresCanonicalAction: false, statePatch: null },
+    runtimeNarration: "Ripley 聽完你的支持沒有露出輕鬆表情，只把它轉成實際分工：你要讓下一個回報點保持清楚，並把任何變化立即說出來。她願意重新把你納入計畫，但仍保留對先前爭執的記憶。",
+    continuationPrompt: "你可以接受隊伍角色、詢問回報方式、提出新的證據，或採取其他合理行動。",
+  },
 ];
 
 const CATEGORY_BY_INTERACTION = Object.freeze({
@@ -263,6 +352,10 @@ const CATEGORY_BY_INTERACTION = Object.freeze({
   calm_lambert: "cooperation",
   offer_protocol: "cooperation",
   offer_task: "cooperation",
+  request_command: "command",
+  report_crew_status: "command",
+  challenge_command: "command",
+  command_support: "command",
   coercive_pressure: "boundary",
   biohazard_risk: "boundary",
   deescalate_protocol: "deescalation",
@@ -314,11 +407,23 @@ export function classifyRipleyInteraction({ actionText = "", targetNpcId = null,
   if (/(?:異形|怪物).{0,12}(?:樣本|黏液)|(?:樣本|黏液).{0,12}(?:帶入|拿進|帶給|交給|靠近|帶著)|把.{0,10}(?:樣本|黏液).{0,10}(?:帶|拿|交)/.test(text)) {
     return { interactionType: "biohazard_risk", topic: "sample_containment", targetNpcId: RIPLEY_ID, isBoundary: true };
   }
+  if (/讓 Ripley 指揮|讓雷普利指揮|由 Ripley 決定|由雷普利決定|依她的安排|聽從 Ripley|聽從雷普利|支持.*指揮/.test(text)) {
+    return { interactionType: "command_support", topic: "crew_coordination", targetNpcId: RIPLEY_ID, isBoundary: false };
+  }
   if (/黑盒子|船長.*日誌|日誌.*(?:給|交|出示)|黏液樣本|出示.*(?:證據|資料|記錄)|提供.*(?:證據|資料|記錄)|資料板/.test(text)) {
     return { interactionType: "offer_evidence", topic: "evidence", targetNpcId: RIPLEY_ID, isBoundary: false };
   }
   if (/安撫.*(?:Lambert|蘭伯特)|讓.*(?:Lambert|蘭伯特).*(?:冷靜|停止哭)|幫.*(?:Lambert|蘭伯特)|停止哭喊/.test(text)) {
     return { interactionType: "calm_lambert", topic: "crew_stabilization", targetNpcId: RIPLEY_ID, isBoundary: false };
+  }
+  if (/(?:請|要|要求|讓|叫).*(?:Ripley|雷普利|指揮官).*(?:下令|決定|安排|指揮|優先|分工)|我要她下令|請她下令/.test(text)) {
+    return { interactionType: "request_command", topic: "command_request", targetNpcId: RIPLEY_ID, isBoundary: false };
+  }
+  if (/(?:回報|報告|告訴|更新).*(?:Ripley|雷普利|指揮官)|(?:Ripley|雷普利).*(?:回報|報告|更新)/.test(text)) {
+    return { interactionType: "report_crew_status", topic: "crew_status_report", targetNpcId: RIPLEY_ID, isBoundary: false };
+  }
+  if (/(?:質疑|反對|挑戰|不接受|不服從|憑什麼|你不能|她不該).*(?:Ripley|雷普利|指揮|安排|命令|決定)|(?:Ripley|雷普利).*(?:質疑|反對|挑戰|命令不對|安排不對)/.test(text)) {
+    return { interactionType: "challenge_command", topic: "command_challenge", targetNpcId: RIPLEY_ID, isBoundary: true };
   }
   if (/檢疫|隔離|封存|按規矩|安全程序|我不帶.*樣本/.test(text)) {
     return { interactionType: "offer_protocol", topic: "quarantine_protocol", targetNpcId: RIPLEY_ID, isBoundary: false };
@@ -341,7 +446,7 @@ function currentState(state) {
   const raw = state?.npcCooperation?.[RIPLEY_ID];
   const normalized = { ...INITIAL_STATE, ...(raw && typeof raw === "object" ? raw : {}) };
   if (!STATE_IDS.includes(normalized.state)) normalized.state = INITIAL_STATE.state;
-  for (const key of ["evidenceConfidence", "crewSafetyRisk", "biohazardConcern", "protocolAlignment", "boundaryIncidents", "tasksAccepted", "lastUpdatedTurn"]) {
+  for (const key of ["evidenceConfidence", "crewSafetyRisk", "biohazardConcern", "protocolAlignment", "boundaryIncidents", "commandConfidence", "crewCohesion", "commandChallenges", "reliableReports", "tasksAccepted", "lastUpdatedTurn"]) {
     normalized[key] = clampInteger(normalized[key], 0, 9, INITIAL_STATE[key]);
   }
   normalized.trust = clampInteger(normalized.trust, -9, 9, INITIAL_STATE.trust);
@@ -371,7 +476,11 @@ function findEntry(pack, classification, state) {
     const topicMatches = !Array.isArray(entry.trigger?.topics) || entry.trigger.topics.includes(classification.topic);
     const repeatedCoercion = classification.interactionType === "coercive_pressure" &&
       state.boundaryIncidents > 0 && entry.trigger?.topics?.includes("repeated_forced_entry");
-    if (!topicMatches && !repeatedCoercion) return false;
+    const repeatedCommandChallenge = classification.interactionType === "challenge_command" &&
+      state.commandChallenges > 0 && entry.trigger?.topics?.includes("repeated_command_challenge");
+    if (classification.interactionType === "coercive_pressure" && state.boundaryIncidents > 0 && entry.trigger?.topics?.includes("forced_entry")) return false;
+    if (classification.interactionType === "challenge_command" && state.commandChallenges > 0 && entry.trigger?.topics?.includes("command_challenge")) return false;
+    if (!topicMatches && !repeatedCoercion && !repeatedCommandChallenge) return false;
     const range = entry.trigger?.riskRange;
     return !Array.isArray(range) || (state.crewSafetyRisk >= Number(range[0]) && state.crewSafetyRisk <= Number(range[1]));
   }) ?? null;
@@ -382,6 +491,31 @@ function patchState(state, classification, entry, turnNumber) {
   if (classification.interactionType === "survival_question") {
     next.contactEstablished = true;
     next.state = state.state === "unmet" ? "cautious" : state.state;
+  } else if (classification.interactionType === "request_command") {
+    next.contactEstablished = true;
+    next.commandConfidence = Math.min(9, state.commandConfidence + 2);
+    next.crewCohesion = Math.min(9, state.crewCohesion + 1);
+    next.protocolAlignment = Math.min(9, state.protocolAlignment + 1);
+    next.trust = Math.min(9, state.trust + 1);
+  } else if (classification.interactionType === "report_crew_status") {
+    next.contactEstablished = true;
+    next.reliableReports = Math.min(9, state.reliableReports + 1);
+    next.commandConfidence = Math.min(9, state.commandConfidence + 1);
+    next.crewCohesion = Math.min(9, state.crewCohesion + 1);
+    next.trust = Math.min(9, state.trust + 1);
+  } else if (classification.interactionType === "challenge_command") {
+    next.contactEstablished = true;
+    next.commandChallenges = Math.min(9, state.commandChallenges + 1);
+    next.crewSafetyRisk = Math.min(9, state.crewSafetyRisk + 1);
+    next.crewCohesion = Math.max(0, state.crewCohesion - 1);
+    next.trust = Math.max(-9, state.trust - 1);
+  } else if (classification.interactionType === "command_support") {
+    next.contactEstablished = true;
+    next.commandConfidence = Math.min(9, state.commandConfidence + 1);
+    next.crewCohesion = Math.min(9, state.crewCohesion + 2);
+    next.protocolAlignment = Math.min(9, state.protocolAlignment + 1);
+    next.crewSafetyRisk = Math.max(0, state.crewSafetyRisk - 1);
+    next.trust = Math.min(9, state.trust + 1);
   } else if (classification.interactionType === "offer_evidence") {
     next.contactEstablished = true;
     next.evidenceConfidence = Math.min(9, state.evidenceConfidence + 2);
@@ -459,10 +593,10 @@ export function buildRipleyCooperationPromptBlock(reference, state, { actionText
   const lines = [
     "<NPC_Cooperation_Contract npc=\"npc_ripley\">",
     "【Ripley 的 server-authoritative 個體合作狀態（只供本回合敘事）】",
-    "Ripley 是原船員出身的理性生存者；她以可驗證證據、船員安全與檢疫程序評估合作，而不是使用陸遠式威脅階梯。",
+    "Ripley 是原船員出身的理性生存者；她以可驗證證據、船員安全、檢疫程序與隊伍信任評估合作，也會主動設定優先順序與要求回報，而不是使用陸遠式威脅階梯。",
     `目前可演出的合作方向：${coop.currentObjective}`,
     `本回合互動類型：${classification.interactionType}`,
-    "可將她的自主性表現在核對證據、要求程序、分派低風險工作、保護隊伍或停止提供情報；不得把私下目標、內部數值或未確認的秘密說出口。",
+    "可將她的自主性表現在核對證據、設定生存優先級、整合回報、分派低風險工作、保護隊伍、要求不同意見具體化或停止提供情報；不得把私下目標、內部數值或未確認的秘密說出口。",
   ];
   if (selected) {
     lines.push(
@@ -474,6 +608,7 @@ export function buildRipleyCooperationPromptBlock(reference, state, { actionText
       `經審查的演出素材：${selected.runtimeNarration}`,
       `玩家選擇仍然保留：${selected.continuationPrompt}`,
       ...(selected.category === "briefing" ? ["這是生存提問：至少回答一項與當前處境相關的必要事實，並給出一個可執行的下一步；不可只盤問或喝斥後停住。"] : []),
+      ...(selected.category === "command" ? ["這是指揮互動：Ripley 可以設定優先順序、分派工作或要求回報，但只能描述指揮意向與協作方式，不得宣稱隊伍已移動、門已關閉、設備已完成或 canonical 事件已結算。"] : []),
     );
   }
   lines.push(

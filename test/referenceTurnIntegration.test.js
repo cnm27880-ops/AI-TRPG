@@ -134,6 +134,58 @@ test("同一回合的 Ripley／Lambert cooperation state 會依序合併而不�
   assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
 });
 
+test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPending 不重複累計", async () => {
+  const env = {};
+  const created = await createSession({
+    request: request("https://test.local/api/session", {
+      character: emptyCharacter("Parker Lambert 壓力測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  });
+  const createdBody = await created.json();
+  assert.equal(createdBody.ok, true);
+  const sessionId = createdBody.session.id;
+
+  const opening = await playTurn({
+    request: request("https://test.local/api/turn", { sessionId }),
+    env,
+  });
+  assert.equal(opening.status, 200);
+  const store = resolveSessionStore(env);
+  const seeded = await store.get(sessionId);
+  seeded.scenario.referenceState.currentSceneId = "evt_engine_coolant_prep";
+  await store.put(seeded);
+
+  const requestId = "parker-lambert-pressure-1";
+  const actionText = "我威脅 Parker 立刻拉閥，同時對 Lambert 大吼叫她閉嘴";
+  const action = await playTurn({
+    request: request("https://test.local/api/turn", { sessionId, requestId, playerAction: actionText }),
+    env,
+  });
+  assert.equal(action.status, 503);
+  const body = await action.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.pendingTurn?.referenceState, undefined);
+
+  const saved = await store.get(sessionId);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.lastEntryId, "parker_boundary_coercion_02");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_pressure_shout_01");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
+
+  const retry = await playTurn({
+    request: request("https://test.local/api/turn", { sessionId, requestId, retryPending: true, playerAction: actionText }),
+    env,
+  });
+  assert.equal(retry.status, 503);
+  const replayed = await store.get(sessionId);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
+  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
+  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
+});
+
 test("V2 reference action is persisted before an unavailable LLM response", async () => {
   const env = {};
   const character = emptyCharacter("Reference 測試者");
