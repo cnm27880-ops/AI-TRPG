@@ -10,6 +10,7 @@ import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { onRequestPost as combatResolve } from "../functions/api/combat/resolve.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { emptyCharacter } from "../core/schema.js";
 import { computeDerivedStats } from "../core/derivedStats.js";
 import { DAMAGE_SEVERITY_TAGS } from "../core/combat/resolveCombatAction.js";
@@ -26,10 +27,19 @@ function 戰鬥用角色卡() {
   return c;
 }
 
+// 戰鬥用角色卡() 的屬性總花費超過建卡的8點預算(這是刻意配出來驗證戰鬥標籤的組合，
+// 不是要測建卡驗證)。POST /api/session 現在會把超支的 providedCharacter 安全地
+// 重置成一張歸零的角色卡(見 sanitizeProvidedCharacter)，所以這裡改成先建立一份
+// 合法的 session，再直接改寫底層存檔——繞過的是 API 的公開驗證，不是引擎邏輯。
 async function newSession(env) {
-  const body = await read(await sessionPost(req(env, { character: 戰鬥用角色卡() })));
+  const body = await read(await sessionPost(req(env, { character: emptyCharacter("戰鬥實測") })));
   assert.equal(body.ok, true, JSON.stringify(body));
-  return body.session.id;
+  const sessionId = body.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.character = 戰鬥用角色卡();
+  await store.put(session);
+  return sessionId;
 }
 
 /** 先攻是擲骰決定的，而這裡問的不是先攻——直接把順位固定成玩家先手。 */

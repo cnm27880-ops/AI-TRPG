@@ -13,17 +13,208 @@ import {
   narrativeModeForScene,
   validateThreatAssessment,
   referenceStateForResponse,
+  buildReferencePromptBlock,
 } from "../content/scenario/referenceAdapter.js";
 import {
   resolveTravelAction,
   applyTravelAction,
 } from "../content/scenario/explorationState.js";
+import contentPackage from "../content/scenario/examples/alienNostromo_v2_contentPackage.js";
+import {
+  narrativeLocationView,
+  narrativeTransitionText,
+  narrativeMajorSceneVariant,
+  buildNarrativeNpcPromptBlock,
+  narrativePackageCoverage,
+} from "../content/scenario/narrativePackageAdapter.js";
+
+test("《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping", () => {
+  assert.equal(contentPackage.sourcePackId, reference.sourcePackId);
+  assert.equal(contentPackage.locations.length, 12);
+  assert.equal(contentPackage.transitions.length, 17);
+  assert.equal(contentPackage.npcs.length, 5);
+  const coverage = narrativePackageCoverage(reference);
+  assert.deepEqual(coverage, {
+    locations: 12,
+    transitions: 17,
+    npcs: 5,
+    mappedLocations: 12,
+    mappedTransitions: 17,
+    approvedLocations: 3,
+    approvedTransitions: 14,
+    approvedMajorSceneVariants: 15,
+  });
+  assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.sourcePlayerVisibleDescription?.includes("八具白色低溫休眠艙"), true);
+  assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.playerVisibleDescription?.includes("數具白色低溫休眠艙"), true);
+  assert.equal(contentPackage.transitions.find((item) => item.id === "travel_cryo_to_deck_a")?.highThreat?.includes("壓低身形"), true);
+  assert.equal(contentPackage.npcs.find((item) => item.id === "npc_ash")?.title, "科學官：Ash");
+});
+
+test("內容包的地點、轉場與 NPC 素材只在明確 mapping／接觸條件成立時進入 runtime", () => {
+  const initial = createReferenceState(reference);
+  const cryo = narrativeLocationView(reference, initial, "loc_cryo", { visited: true });
+  assert.match(cryo.description, /數具白色低溫休眠艙/);
+  assert.match(cryo.atmosphere, /機油與消毒劑/);
+  assert.equal(narrativeLocationView(reference, initial, "loc_science", { visited: false }), null);
+  assert.match(narrativeLocationView(reference, initial, "loc_bridge", { visited: true }).description, /艦橋/);
+  assert.match(narrativeLocationView(reference, initial, "loc_service_corridor", { visited: true }).description, /維修夾道/);
+  assert.match(narrativeLocationView(reference, initial, "loc_lower_deck", { visited: true }).description, /下層主幹道/);
+  assert.match(narrativeTransitionText(reference, initial, "travel_deck_a_science").text, /生化符號/);
+
+  const resolution = resolveTravelAction(reference, initial, "loc_deck_a");
+  const applied = applyTravelAction(reference, initial, resolution);
+  assert.match(applied.arrivalText, /穿過一段燈光昏暗的白色走廊/);
+  assert.equal(applied.state.locationVisitCounts.loc_deck_a, 1);
+  assert.equal(narrativeTransitionText(reference, { flags: ["flag_noise_made"] }, "travel_deck_a_science").state, "highThreat");
+  assert.equal(narrativeTransitionText(reference, { flags: ["flag_alarm_active"] }, "travel_deck_a_science").state, "alarm");
+  const luyuanPrompt = buildNarrativeNpcPromptBlock(reference, applied.state);
+  assert.match(luyuanPrompt, /npc_luyuan/);
+  assert.doesNotMatch(luyuanPrompt, /privateGoals/);
+});
+
+test("補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端點", () => {
+  assert.equal(contentPackage.approvedExplorationGap.transitions.find((item) => item.routeId === "travel_cargo_airlock").to, "loc_narcissus_airlock");
+  assert.equal(contentPackage.approvedExplorationGap.transitions.find((item) => item.routeId === "travel_lower_deck_airlock").to, "loc_narcissus_airlock");
+  assert.equal(contentPackage.canonicalRouteMap.travel_cargo_airlock.status, "direct");
+  assert.equal(contentPackage.canonicalRouteMap.travel_lower_deck_airlock.status, "direct");
+});
+
+test("補充二未核准的 clue 仍不會進入 approved runtime lookup，重大變體則已完成核准", () => {
+  assert.equal(contentPackage.approvedExplorationGap.omitted.cluePresentation, "pending_canonical_clue_question_mapping");
+  assert.equal("majorSceneVariants" in contentPackage.approvedExplorationGap.omitted, false);
+  assert.equal(contentPackage.approvedMajorSceneVariants.status, "approved_canonical_result_overlays");
+  assert.equal(contentPackage.canonicalLocationMap.loc_bridge.status, "direct");
+  assert.equal(contentPackage.canonicalLocationMap.loc_service_corridor.status, "direct");
+  assert.equal(contentPackage.canonicalLocationMap.loc_lower_deck.status, "direct");
+});
+
+test("15 個重大變體只在 canonical scene／approach／正式 tier 完全匹配時提供 overlay", () => {
+  assert.equal(contentPackage.approvedMajorSceneVariants.variants.length, 15);
+  const ash = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_ash_ambush",
+    approachId: "app_ash_shoot",
+    outcomeTier: "大成功",
+    actionText: "我瞄準 Ash 的頭部開火",
+  });
+  assert.equal(ash.id, "major_ash_shoot_success");
+  assert.match(ash.text, /仿生表層/);
+  assert.match(ash.text, /科學官權限卡從制服內袋滑落/);
+
+  const order = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "驚險成功",
+    actionText: "我檢索主機資料",
+  });
+  assert.equal(order.id, "major_937_query_narrow");
+  assert.match(order.text, /樣本優先/);
+
+  const purge = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_narcissus_final_purge",
+    approachId: "app_purge_classic",
+    outcomeTier: "慘烈失敗",
+    actionText: "我拉下氣閘拉桿",
+  });
+  assert.equal(purge.id, "major_purge_classic_critical_failure");
+  assert.match(purge.text, /安全繩/);
+
+  assert.equal(narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_mother_chamber_infiltrate",
+    approachId: "app_order_query",
+    outcomeTier: "成功",
+    actionText: "我檢索主機資料",
+  }), null, "變體不能掛在錯誤的 scene");
+  assert.equal(narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_ash_ambush",
+    approachId: "app_ash_shoot",
+    outcomeTier: "narrow_success",
+    actionText: "我開火",
+  }), null, "非正式 tier 不得觸發變體");
+});
+
+test("reference prompt 只把重大變體當成 canonical result 之上的 server overlay", () => {
+  const state = {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    flags: ["flag_ash_ambush_unlocked"],
+  };
+  const scene = reference.scenes.find((item) => item.id === "evt_ash_ambush");
+  const approach = scene.approaches.find((item) => item.id === "app_ash_shoot");
+  const resolution = { matched: true, scene, approach, mode: "reference" };
+  const applied = {
+    resultKey: "大成功",
+    resultText: "canonical result",
+    effectSummary: { itemsAdd: ["item_access_card"], npcStatusChanges: { npc_ash: "destroyed" } },
+  };
+  const prompt = buildReferencePromptBlock({
+    reference,
+    state,
+    resolution,
+    applied,
+    actionText: "我瞄準 Ash 的頭部開火",
+    outcomeTier: "大成功",
+  });
+  assert.match(prompt, /<Major_Scene_Narrative_Overlay>/);
+  assert.match(prompt, /只能補充已套用固定結果/);
+  assert.match(prompt, /item_access_card/);
+  assert.match(prompt, /major_ash_shoot_success|evt_ash_ambush／app_ash_shoot／大成功/);
+});
+
+test("補充二的 approved exploration gap 會提供所有 14 條 canonical route 與地點回訪素材", () => {
+  const standardState = { flags: [], locationVisitCounts: { loc_bridge: 2, loc_service_corridor: 2, loc_lower_deck: 2 } };
+  for (const routeId of [
+    "travel_deck_a_science",
+    "travel_deck_a_cargo",
+    "travel_science_mother_core",
+    "travel_mother_core_engine",
+    "travel_service_corridor_lower_deck",
+    "travel_cargo_lower_deck",
+    "travel_engine_lower_deck",
+    "travel_cargo_airlock",
+    "travel_lower_deck_airlock",
+    "travel_deck_a_medbay",
+    "travel_medbay_deck_a",
+    "travel_deck_a_bridge",
+    "travel_bridge_deck_a",
+    "travel_cargo_deck_a",
+  ]) {
+    const transition = narrativeTransitionText(reference, standardState, routeId);
+    assert.equal(transition.state, "standard", `${routeId} 應使用標準轉場`);
+    assert.ok(transition.text.length > 20, `${routeId} 缺少轉場文字`);
+  }
+  for (const locationId of ["loc_bridge", "loc_service_corridor", "loc_lower_deck"]) {
+    const view = narrativeLocationView(reference, standardState, locationId, { visited: true });
+    assert.ok(view?.revisitVariant, `${locationId} 應能在第二次造訪時產生回訪變體`);
+  }
+});
+
+test("Ash 的內容包 Voice Bible 在身分旗標前後維持分層公開", () => {
+  const base = createReferenceState(reference);
+  const unconfirmed = {
+    ...base,
+    currentSceneId: "evt_meet_ash",
+    currentLocation: "loc_science",
+    flags: ["flag_luyuan_met"],
+  };
+  const hiddenPrompt = buildNarrativeNpcPromptBlock(reference, unconfirmed);
+  assert.match(hiddenPrompt, /科學官：Ash/);
+  assert.doesNotMatch(hiddenPrompt, /瞳孔大小|沒有正常的人體生理反應|沒有任何人類特有/);
+
+  const confirmedPrompt = buildNarrativeNpcPromptBlock(reference, {
+    ...unconfirmed,
+    flags: [...unconfirmed.flags, "flag_ash_synthetic_known"],
+  });
+  assert.match(confirmedPrompt, /瞳孔大小|沒有正常的人體生理反應/);
+  assert.doesNotMatch(confirmedPrompt, /privateGoals/);
+});
 
 test("reference public response exposes bounded DM hints without internal rule data", () => {
   const state = createReferenceState(reference);
   const response = referenceStateForResponse(reference, state);
   assert.equal(response.dmPrompt.mode, "free_action");
-  assert.equal(response.dmPrompt.question, "你打算怎麼做？");
+  assert.equal(response.dmPrompt.question, null, "泛用 DM 問句由 narration 提供，safe view 不應再提供第二個問句");
+  assert.match(response.dmPrompt.hint, /行動方向/);
   assert.match(response.dmPrompt.hint, /不是限制/);
   assert.ok(Array.isArray(response.dmPrompt.referenceHints));
   assert.ok(response.dmPrompt.referenceHints.length <= 3);

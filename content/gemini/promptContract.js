@@ -126,6 +126,8 @@ function memoryBlocks({ recentNarration, recentEvents = [], completedChronicles 
  * @param {string} [params.personaKey] 這一回合的敘事者人格面具(見 content/narrativeStyle.js
  *   的 NARRATOR_PERSONAS)。省略就不放面具區塊——系統提示裡本來就有一份，
  *   這裡是「這一回合特別指定」用的，例如某個節點想臨時換一個聲音來講。
+ * @param {string|null} [params.specialtyNarrationDirective] server 依成功 tier、實際 skill
+ *   與已核發起始專長產生的一次性動作演出指令；空值時不得自行推測專長。
  * @returns {string} 可以直接當作 LLM API 的使用者訊息使用
  */
 export function buildTurnPrompt({
@@ -136,6 +138,7 @@ export function buildTurnPrompt({
   recentNarration,
   completedChronicles = null,
   personaKey,
+  specialtyNarrationDirective = null,
 }) {
   if (!playerAction) throw new Error("buildTurnPrompt需要playerAction(玩家這次的行動描述)");
   if (!outcome) throw new Error("buildTurnPrompt需要outcome(core/narration.js的classifyOutcome()結果)");
@@ -150,8 +153,12 @@ export function buildTurnPrompt({
   blocks.push(
     tagged("Engine_Result", `【判定結果：${outcome.tier}】${outcome.directive}`)
   );
+  if (specialtyNarrationDirective) {
+    blocks.push(tagged("Starting_Specialty_Expression", `【一次性成功演出指引】${specialtyNarrationDirective}`));
+  }
   blocks.push(
     "請依照 <Engine_Result> 的語氣指令，把這次行動寫成一段敘事。" +
+      "若有 <Starting_Specialty_Expression>，只用一到兩句具體動作、肌肉記憶或感官反應自然融入成功描寫；不要直說專長名稱。" +
       "先在 st_thought 裡寫下這一回合的盤算，再寫 narration。"
   );
 

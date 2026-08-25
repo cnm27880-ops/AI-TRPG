@@ -46,6 +46,27 @@ export function countActionCharacters(value) {
   return Array.from(String(value ?? "")).length;
 }
 
+/**
+ * [效能][安全] sceneContext(場景背景)不像 playerAction 有 422 擋一輪的價值——
+ * 它是輔助性欄位，擋掉整個請求換不到什麼保護，卻會讓一個手滑的呼叫端整輪失敗。
+ * 但它一樣是**呼叫端可控、會被塞進prompt、還會被寫進存檔持續存在**的文字，
+ * 沒有上限的話一次超大的 sceneContext 會被永久留在 session.scene.context 裡，
+ * 之後每一輪都重新送進 LLM。這裡改成安全截斷，不報錯——多出來的部分直接丟棄。
+ */
+export const MAX_SCENE_CONTEXT_CHARS = 2000;
+
+/**
+ * 按 Unicode code point(不是bytes)截斷文字到上限。
+ * 不是字串（包含 undefined/null）就原樣傳回——呼叫端常用
+ * `sceneContext ?? 上一輪的值` 這種 fallback，這裡不能把 undefined 變成 ""
+ * 而害那個 fallback 失效。
+ */
+export function clampTextByCodePoints(value, maxChars) {
+  if (typeof value !== "string") return value;
+  const chars = Array.from(value);
+  return chars.length > maxChars ? chars.slice(0, maxChars).join("") : value;
+}
+
 export const DIFFICULTY_TIERS = [
   { id: "容易", dc: 1, hint: "有充分的條件或工具輔助，正常情況下應該做得到" },
   { id: "普通", dc: 2, hint: "一般的挑戰，需要基本的訓練或運氣" },

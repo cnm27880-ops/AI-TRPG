@@ -38,6 +38,30 @@ test("createEncounter：建立雙方狀態，行動順序含兩個參戰單位",
   assert.ok(combat.enemy.hpState.max > 0);
 });
 
+test("起始專長的技能 +1 會進入徒手與手槍的 attackDP", () => {
+  function observedAttackDP(character, weaponKey) {
+    const combat = createEncounter(character);
+    combat.order = ["player", "enemy"];
+    combat.turnIndex = 0;
+    let observed;
+    resolvePlayerAttack(combat, character, weaponKey, {
+      rollFn: (dp) => {
+        observed = dp;
+        return { successes: 0, rolls: [], isFortuneDie: false, fumble: false };
+      },
+    });
+    return observed;
+  }
+
+  const base = testCharacter();
+  const withStartingSpecialty = testCharacter();
+  withStartingSpecialty.skills.格鬥 += 1;
+  withStartingSpecialty.skills.射擊 += 1;
+
+  assert.equal(observedAttackDP(withStartingSpecialty, "unarmed"), observedAttackDP(base, "unarmed") + 1);
+  assert.equal(observedAttackDP(withStartingSpecialty, "pistol"), observedAttackDP(base, "pistol") + 1);
+});
+
 test("resolvePlayerAttack：命中時扣敵人血量，未結束則輪到敵人行動", () => {
   const character = testCharacter();
   const combat = createEncounter(character);

@@ -15,6 +15,27 @@ import {
   normalizeChronicleEntries,
 } from "../../content/storage/chronicle.js";
 
+// [效能] entries 分頁的預設/上限。長局玩很久之後 chronicle 陣列會一直長大——
+// 沒有上限的話，這個「按需載入」的端點本身也會變成一次回傳整份小說的無界回應。
+// 預設值刻意抓得夠大(多數campaign的完整回合數還進不去這個範圍)，維持現有前端
+// 「打開書就看到全部」的體驗；真的長到需要分頁時，呼叫端可以帶 limit/cursor 分批拿。
+const DEFAULT_CHRONICLE_LIMIT = 300;
+const MAX_CHRONICLE_LIMIT = 500;
+
+/** 非法或超大的 limit 一律安全退回一個合理值，不讓呼叫端用它撐爆一次回應。 */
+function clampChronicleLimit(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_CHRONICLE_LIMIT;
+  return Math.min(MAX_CHRONICLE_LIMIT, Math.floor(n));
+}
+
+/** 非法的 cursor(負數、非數字、超出範圍)一律安全退回 0，不報錯——這是分頁的起點，不是身分憑證。 */
+function clampChronicleCursor(raw, total) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(Math.floor(n), total);
+}
+
 export async function onRequestGet(context) {
   const store = resolveSessionStore(context.env ?? {});
   const url = new URL(context.request.url);
@@ -58,7 +79,13 @@ export async function onRequestGet(context) {
         ? []
         : entries;
 
-  const aiPackage = requestedScenarioId || entries.length
+  // 分頁瀏覽不應因為 query 參數而順便把整本長期故事重新組裝兩次。
+  // 完整 AI-ready package 只有玩家明確要求 includePackage=1 時才建立；一般列表回應
+  // 只帶 bounded entries、package index 與 packageIncluded=false。
+  const includePackage = ["1", "true", "yes"].includes(
+    String(url.searchParams.get("includePackage") ?? "").toLowerCase()
+  );
+  const aiPackage = includePackage && (requestedScenarioId || selectedEntries.length)
     ? buildStoryPackage(session, {
         scenarioId: requestedScenarioId,
         scenarioTitle: selectedTitle,
@@ -69,17 +96,28 @@ export async function onRequestGet(context) {
       })
     : null;
 
+  const fullEntries = explicitScenarioId ? selectedEntries : entries;
+  const limit = clampChronicleLimit(url.searchParams.get("limit"));
+  const cursor = clampChronicleCursor(url.searchParams.get("cursor"), fullEntries.length);
+  const pageEntries = fullEntries.slice(cursor, cursor + limit);
+  const nextCursor = cursor + pageEntries.length < fullEntries.length ? cursor + pageEntries.length : null;
+
   return json({
     ok: true,
     persistent: store.persistent,
     currentScenarioId,
     selectedScenarioId: requestedScenarioId,
-    total: explicitScenarioId ? selectedEntries.length : entries.length,
-    entries: explicitScenarioId ? selectedEntries : entries,
+    total: fullEntries.length,
+    cursor,
+    limit,
+    nextCursor,
+    entries: pageEntries,
     packages: packageIndex,
-    currentPackage: aiPackage,
-    // 前端不必重新拼接文字；這個欄位也讓日後下載／複製功能沿用同一個 deterministic 結果。
-    aiPackage,
+    packageIncluded: includePackage,
+    currentPackage: includePackage ? aiPackage : null,
+    // 前端只有在明確要求 package 時才會收到完整 deterministic 故事包；一般分頁
+    // response 不攜帶長期 prose，避免每次瀏覽都複製整本故事。
+    aiPackage: includePackage ? aiPackage : null,
   });
 }
 

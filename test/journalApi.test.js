@@ -140,13 +140,34 @@ test("/api/chronicle：按需回傳完整長期敘事、章節索引與 AI-ready
   }).packages;
   await store.put(session);
 
-  const res = await read(await chronicleGet(getReq(env, `https://x/api/chronicle?sessionId=${sessionId}&scenarioId=scenario.audit`)));
+  const res = await read(await chronicleGet(getReq(env, `https://x/api/chronicle?sessionId=${sessionId}&scenarioId=scenario.audit&includePackage=1`)));
   assert.equal(res.ok, true, JSON.stringify(res));
   assert.equal(res.total, 1);
   assert.equal(res.entries[0].narration, "名單最後一行寫著自己的名字。");
   assert.equal(res.packages[0].status, "ready");
   assert.match(res.aiPackage.text, /無名名單/);
   assert.match(res.aiPackage.text, /自己的名字/);
+});
+
+test("/api/chronicle：一般分頁不生成完整 package，避免長期故事重複傳輸", async () => {
+  const env = {};
+  const sessionId = await newSession(env);
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.chronicle = appendChronicle(session.chronicle, {
+    turn: 1,
+    action: "一般分頁",
+    narration: "這段長期敘事不應在列表 response 重複一份。",
+    scenarioId: "scenario.audit",
+  });
+  await store.put(session);
+
+  const res = await read(await chronicleGet(getReq(env, `https://x/api/chronicle?sessionId=${sessionId}`)));
+  assert.equal(res.ok, true, JSON.stringify(res));
+  assert.equal(res.packageIncluded, false);
+  assert.equal(res.aiPackage, null);
+  assert.equal(res.currentPackage, null);
+  assert.equal(res.entries.length, 1);
 });
 
 test("/api/chronicle：指定不存在的已分章副本時不回退到其他章節", async () => {
@@ -164,7 +185,7 @@ test("/api/chronicle：指定不存在的已分章副本時不回退到其他章
 
   const res = await read(await chronicleGet(getReq(
     env,
-    `https://x/api/chronicle?sessionId=${sessionId}&scenarioId=scenario.missing`
+    `https://x/api/chronicle?sessionId=${sessionId}&scenarioId=scenario.missing&includePackage=1`
   )));
   assert.equal(res.ok, true, JSON.stringify(res));
   assert.deepEqual(res.entries, []);

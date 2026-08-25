@@ -33,9 +33,11 @@ import {
 } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
+import { startingSpecialtyNarrationDirective } from "../../content/chargen/startingSpecialties.js";
 import { narrativeFeatHints, moralityHints } from "../../content/characterBuilder.js";
-import { callLlm } from "../../content/llm/client.js";
+import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
+import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
   composeSystemInstruction,
   DEFAULT_STYLE_ID,
@@ -47,6 +49,7 @@ import {
   resolveSessionStore,
   pushHistory,
   historyToPromptText,
+  SessionConflictError,
 } from "../../content/storage/sessionStore.js";
 import { appendChronicle, registerChroniclePackage, buildCompactAiContext } from "../../content/storage/chronicle.js";
 import {
@@ -61,6 +64,8 @@ import {
   buildReferenceResponseSpec,
   MAX_FREE_ACTION_CHARS,
   countActionCharacters,
+  MAX_SCENE_CONTEXT_CHARS,
+  clampTextByCodePoints,
 } from "../../content/turnOptions.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
@@ -210,7 +215,7 @@ async function persistPendingTurn({
     session.scenario = { ...session.scenario, progress: scenarioProgress };
   }
   try {
-    await store.put(session);
+    await store.put(session, { expectedRev: session.rev ?? 0 });
     return publicPendingTurn(session.pendingTurn);
   } catch (err) {
     console.error("[PENDING_TURN_SAVE_FAILURE]", err);
@@ -219,6 +224,13 @@ async function persistPendingTurn({
 }
 
 export async function onRequestPost(context) {
+  if (wantsTurnStream(context.request)) {
+    return streamTurnResponse(context);
+  }
+  return executeTurn(context);
+}
+
+async function executeTurn(context, streamHooks = null) {
   const env = context.env ?? {};
   const store = resolveSessionStore(env);
 
@@ -233,7 +245,7 @@ export async function onRequestPost(context) {
     sessionId,
     chosenOption,
     playerAction,
-    sceneContext,
+    sceneContext: rawSceneContext,
     style,
     // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
     // 跟 style 同一個層級：玩家在設定裡選，沒選就用環境變數，再沒有就用預設。
@@ -246,6 +258,11 @@ export async function onRequestPost(context) {
     turnRequestId,
     retryPending = false,
   } = body ?? {};
+  // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
+  // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
+  const sceneContext = typeof rawSceneContext === "string"
+    ? clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS)
+    : undefined;
   const warnings = [];
 
   // 自由行動是玩家輸入的敘事指令，長度限制必須在載入 session、擲骰、呼叫 LLM
@@ -493,7 +510,14 @@ export async function onRequestPost(context) {
     });
     session.turns = (session.turns ?? 0) + 1;
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return jsonError("這份存檔剛被另一個請求更新，請重新整理後再試一次。", 409, { code: "SESSION_CONFLICT" });
+      }
+      throw err;
+    }
 
     return json({
       ok: true,
@@ -585,9 +609,16 @@ export async function onRequestPost(context) {
       freeAction = referenceResolution.freeAction;
       checkParams = referenceResolution.checkParams;
     } else {
-      checkParams = inferCheckParams(actionText, { character });
-      if (!checkParams.matched) {
-        warnings.push("自訂行動沒有命中任何關鍵字，已退回純感知檢定");
+      const inferred = inferCheckParams(actionText, { character });
+      if (inferred.requiresCheck === false) {
+        // 低風險的詢問、搭話與環顧周遭不應被迫擲骰；只有明確的高風險意圖才進入判定。
+        freeAction = true;
+        checkParams = null;
+      } else {
+        checkParams = inferred;
+        if (!checkParams.matched) {
+          warnings.push("自訂行動沒有命中任何關鍵字，已退回純感知檢定");
+        }
       }
     }
   }
@@ -684,7 +715,18 @@ export async function onRequestPost(context) {
       progress: scenarioProgress,
       ...(scenarioReference && referenceState ? { referenceState } : {}),
     };
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      // 這是「敘事層失敗前」的世界狀態存檔點，不是這次請求的主要回應。
+      // 併發衝突時寧可跳過這次存檔(下一輪重試時世界狀態仍會是正確的)，
+      // 也不要讓一個次要的存檔點把整個請求變成500。
+      if (err instanceof SessionConflictError) {
+        console.warn("[SESSION_CONFLICT]", JSON.stringify({ where: "persistReferenceTurn", sessionId: session.id }));
+        return;
+      }
+      throw err;
+    }
   };
   const logReferenceAction = () => {
     if (!session || !referenceApplied?.applied || referenceActionLogged) return;
@@ -752,6 +794,14 @@ export async function onRequestPost(context) {
     referenceApplied?.applied ? { effects: referenceApplied.effects } : null,
     { freeAction: freeAction || referenceFreeInputPending, actionText }
   );
+  // 專長只在 server 已完成實際 skill check 且 outcome 為成功／大成功時觸發；
+  // 不把角色所有 skillBonus 或專長描述無條件塞進 persona，避免模型在失敗／無關行動時誤演。
+  const specialtyNarrationDirective = checkResult && outcome && checkParams?.skill
+    ? startingSpecialtyNarrationDirective(character, {
+        skill: checkParams.skill,
+        outcomeTier: outcome.tier,
+      })
+    : null;
   // token 預算依敘事規模，而不是依 50 回合總數：微型動作仍短，揭露與戰鬥才使用較大上限。
   // Gemini 思考 token 也會佔用 max_tokens；過低會讓 JSON 在 narration 中途被截斷，進而退回保底選項。
   const narrativeTokenLimits = { micro: 768, normal: 1536, major: 2304, reveal: 3072, combat: 2560 };
@@ -773,6 +823,18 @@ export async function onRequestPost(context) {
   // 玩家在前端設定裡明確選了供應商時優先於伺服器端的猜測/預設(見 content/llm/providers.js
   // resolveProvider() 的覆寫優先序)；沒選就照舊完全交給伺服器判斷，行為不變。
   const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
+  // [安全] 這次請求實際可以套用哪些覆寫，見 content/llm/requestOverrides.js 的說明：
+  // 沒帶 provider 就三個欄位全部忽略；帶了 provider 但不是 custom 就不能改寫 baseUrl。
+  // 三處 callLlm() 呼叫(主呼叫、JSON重試、安全重寫)全部共用同一份，不能各自傳一份
+  // bodyApiKey/bodyBaseUrl/bodyModel 進去，那樣任何一處漏改都會讓漏洞繼續存在。
+  const llmOverrides = resolveLlmRequestOverrides({ bodyProvider, bodyApiKey, bodyBaseUrl, bodyModel });
+  if (bodyBaseUrl && bodyProvider !== "custom") {
+    // 不擋這次請求(baseUrl已經被忽略，請求本身是安全的)，但留一筆log——
+    // 這種請求要嘛是呼叫端搞錯了用法，要嘛是有人在探測這條覆寫路徑還通不通。
+    console.warn("[LLM_OVERRIDE_IGNORED]", JSON.stringify({
+      where: "POST /api/turn", reason: "baseUrl只在provider=custom時生效", bodyProvider: bodyProvider ?? null,
+    }));
+  }
   if (!provider) {
     logReferenceAction();
     await persistReferenceTurn();
@@ -848,6 +910,7 @@ export async function onRequestPost(context) {
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
+    specialtyNarrationDirective,
     freeActionContractPrompt: freeActionContract ? buildFreeActionContractPrompt(freeActionContract) : null,
     referenceBlock: scenarioReference && referenceState
       ? buildReferencePromptBlock({
@@ -871,18 +934,21 @@ export async function onRequestPost(context) {
       : null,
   });
 
+  // 只送出不含規則內容的 lifecycle 事件；真正的 narration 仍要等完整 JSON、
+  // canonical adapter 與安全重寫完成後才會進入 stream。
+  await streamHooks?.emit({ type: "rules_resolved" });
+
   let text;
   let model;
   let finishReason = null;
   try {
+    await streamHooks?.emit({ type: "narrator_writing" });
     const res = await callLlm({
       provider,
       env,
       systemInstruction,
       prompt,
-      apiKey: bodyApiKey || undefined,
-      baseUrl: bodyBaseUrl || undefined,
-      model: bodyModel || undefined,
+      ...llmOverrides,
       maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
       // 結構化輸出：由供應商端保證回覆格式合法，而不是祈禱模型照著prompt裡的範例寫。
       // reference 回合不要求 AI 生成會被 adapter 丟棄的四個 options。
@@ -899,7 +965,11 @@ export async function onRequestPost(context) {
       {
         provider,
         model: err?.model ?? null,
-        error: `敘事生成失敗（${provider}）：${err.message}`,
+        // [安全][2026-08-24 second pass] 不能直接把 err.message 送回瀏覽器——它可能整段
+        // 帶著第三方供應商的原始回應本文(見 content/llm/client.js 的 describeLlmFailure()
+        // 說明)。完整原因已經在上面 logLlmFailure() 寫進 server log，公開回應只留
+        // 一句不含供應商原文的簡短說明。
+        error: `敘事生成失敗（${provider}）：${describeLlmFailure(err)}`,
         llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
       },
       {
@@ -943,9 +1013,7 @@ export async function onRequestPost(context) {
         env,
         systemInstruction,
         prompt: retryPrompt,
-        apiKey: bodyApiKey || undefined,
-        baseUrl: bodyBaseUrl || undefined,
-        model: bodyModel || undefined,
+        ...llmOverrides,
         maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
         responseSchema: scenarioReference ? REFERENCE_TURN_RESPONSE_SCHEMA : TURN_RESPONSE_SCHEMA,
       });
@@ -993,8 +1061,12 @@ export async function onRequestPost(context) {
   //
   // 這一格**不是給玩家看的**，也**不會進存檔的 history**：它是模型在動筆之前的盤算，
   // 讀起來像後台筆記（「這次是些微失敗，要關掉通風管這條路，並讓她受一道傷」），
-  // 印給玩家看等於先劇透這一回合的結局。回傳它只有一個用途：開發時能看出
-  // 「模型到底有沒有照著判定結果想事情」，那是調這一層唯一有效的線索。
+  // 印給玩家看等於先劇透這一回合的結局。
+  //
+  // [安全][2026-08-24] 這裡以前會把它整段放進公開 API 回應（前端只是選擇不印進故事流，
+  // 但打開瀏覽器開發者工具的 Network 分頁就能看到全文，等於還是送到了玩家手上）。
+  // 現在只留在伺服器端的 log 裡：開發時要看「模型有沒有照著判定結果想事情」，
+  // 查 Cloudflare 的 log 就好，不再經過任何會回到瀏覽器的路徑。
   //
   // 它也**不是**真理來源：裡面就算寫了數字也一律不採用，判定結果永遠以 checkResult 為準。
   let stThought = null;
@@ -1005,6 +1077,8 @@ export async function onRequestPost(context) {
     if (typeof parsed.data.narration === "string") narration = parsed.data.narration;
     if (typeof parsed.data.st_thought === "string" && parsed.data.st_thought.trim()) {
       stThought = parsed.data.st_thought.trim();
+      // 只進 log，絕對不要把這個值放進任何 return 給呼叫端的 JSON（見上方說明）。
+      console.debug("[ST_THOUGHT]", JSON.stringify({ sessionId: session?.id ?? null, stThought }));
     }
     if (scenarioReference && referenceState) {
       aiThreatAssessment = parsed.data.threatAssessment ?? null;
@@ -1057,12 +1131,18 @@ export async function onRequestPost(context) {
             `（會思考的模型特別吃這個額度，因為思考的token也算在上限裡）`
         : `${parsed.error}（已降級為純敘事，改用通用選項墊滿本回合選項${retriedForInvalidJson ? "；已自動重試一次仍失敗" : ""}）`
     );
-    // 解析失敗時把AI原文的前段帶回前端。
-    // [2026-08-16] 這一格是被實際經驗逼出來的：先前查這個bug時，回應裡只有「解析失敗」
-    // 四個字，看不到模型到底寫了什麼，於是第一次的診斷猜錯了方向（以為是模型不會寫JSON，
-    // 實際上是輸出被截斷）。原文是判斷「截斷 vs 格式錯 vs 多包了一層說明文字」的唯一依據，
-    // 只在失敗時才出現，正常回合不會多這個欄位。
-    degraded.rawSnippet = String(text).slice(0, 300);
+    // [2026-08-16] 解析失敗時，AI原文的前段是判斷「截斷 vs 格式錯 vs 多包了一層說明文字」
+    // 的唯一依據——先前查這個bug時，回應裡只有「解析失敗」四個字，看不到模型到底寫了什麼，
+    // 於是第一次的診斷猜錯了方向。
+    // [安全][2026-08-24 second pass] 但這段原文**不可以**放進公開回應：它是模型的原始輸出，
+    // 可能包含跟這次判定無關的內容，甚至意外複誦到 prompt 的片段。改成只寫進 server log，
+    // 需要診斷時查 Cloudflare log 即可，不再經過任何會回到瀏覽器的欄位。
+    console.warn("[TURN_PARSE_FAILED]", JSON.stringify({
+      sessionId: session?.id ?? null,
+      truncated,
+      finishReason,
+      rawSnippet: String(text).slice(0, 300),
+    }));
     const validated = validateOptions(null, character);
     options = validated.options;
     validated.warnings.forEach((w) => warnings.push(w));
@@ -1114,9 +1194,7 @@ export async function onRequestPost(context) {
           env,
           systemInstruction,
           prompt: rewritePrompt,
-          apiKey: bodyApiKey || undefined,
-          baseUrl: bodyBaseUrl || undefined,
-          model: bodyModel || undefined,
+          ...llmOverrides,
           maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
           responseSchema: REFERENCE_TURN_RESPONSE_SCHEMA,
         });
@@ -1138,9 +1216,14 @@ export async function onRequestPost(context) {
           warnings.push("AI narration 含有未授權世界主張，安全重寫未通過，已改用引擎安全敘事。");
         }
       } catch (rewriteErr) {
+        // [安全][2026-08-24 second pass] 這裡以前把 rewriteErr.message 整段放進公開回應——
+        // LlmError 的 message 可能整段帶著第三方供應商的原始回應本文(見
+        // content/llm/client.js 的錯誤建構)，那不是設計成要給玩家看的診斷內容。
+        // 公開回應只留一個布林值，真正的原因寫進 server log。
+        logLlmFailure(rewriteErr, { provider, sessionId: session?.id, note: "安全重寫呼叫失敗" });
         narration = buildEngineSafeNarration(freeActionContract);
         narrationSafety.fallbackUsed = true;
-        narrationSafety.rewriteError = rewriteErr?.message ?? "安全重寫呼叫失敗";
+        narrationSafety.rewriteError = true;
         degraded.narrationSource = "engine-safe";
         warnings.push("AI narration 含有未授權世界主張，安全重寫失敗，已改用引擎安全敘事。");
       }
@@ -1405,10 +1488,17 @@ export async function onRequestPost(context) {
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     // pendingTurn 只存在於「規則已算、敘事未完成」的窗口；成功寫回後不可再次重播。
     session.pendingTurn = null;
-    await store.put(session);
+    try {
+      await store.put(session, { expectedRev: session.rev ?? 0 });
+    } catch (err) {
+      if (err instanceof SessionConflictError) {
+        return jsonError("這份存檔剛被另一個請求更新，請重新整理後再試一次。", 409, { code: "SESSION_CONFLICT" });
+      }
+      throw err;
+    }
   }
 
-  return json({
+  const finalPayload = {
     ok: true,
     provider,
     model,
@@ -1421,8 +1511,11 @@ export async function onRequestPost(context) {
     options,
     // 這一輪的內容來源。前端靠它顯示「保底內容」提示（見 public/app.js 的 renderTurnQuality）。
     degraded,
-    // 說書人的後台盤算（思維鏈）。**前端不可以把它印進故事流**，它只是開發用的檢視窗口。
-    stThought,
+    // [安全][2026-08-24] st_thought(說書人後台盤算/思維鏈)以前會整段放進這個公開回應，
+    // 註解寫著「前端不可以把它印進故事流」，但「前端不印」跟「玩家看不到」是兩件事——
+    // 打開瀏覽器開發者工具就能在 Network 分頁看到完整內容，等於把引擎判定結果之外的
+    // 內部盤算文字直接送到玩家手上。玩家看不到的東西不能出現在玩家看得到的 response 裡，
+    // 這裡就不再帶出這個欄位；伺服器端要除錯的話看 console 的 log，不要放回應。
     ...(scenarioReference ? { narrativeMode } : {}),
     ...(validatedThreatAssessment ? { threatAssessment: validatedThreatAssessment } : {}),
     // 角色目前的傷勢閘門狀態。每一回合都附上，前端才能持續顯示昏迷/死亡，
@@ -1434,7 +1527,8 @@ export async function onRequestPost(context) {
     warnings,
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,
-  });
+  };
+  return json(finalPayload);
 }
 
 /**
@@ -1460,6 +1554,7 @@ function buildPrompt({
   freeActionContractPrompt = null,
   threatDirective,
   retreadDirective,
+  specialtyNarrationDirective = null,
 }) {
   const optionsSpec = referenceMode ? buildReferenceResponseSpec() : buildOptionsSpec(character);
   const threatBlock = threatDirective ? `\n\n${threatDirective}` : "";
@@ -1524,6 +1619,7 @@ function buildPrompt({
     recentNarration,
     completedChronicles,
     ...(personaKey ? { personaKey } : {}),
+    specialtyNarrationDirective,
   });
 
   // [修改] 把狀態表格接在後面
@@ -1551,6 +1647,83 @@ function annotateRetread(options, progress) {
       effectiveDc: (opt.dc ?? 0) + preview.dcPenalty,
     };
   });
+}
+
+function wantsTurnStream(request) {
+  if (!(request instanceof Request)) return false;
+  const accept = request.headers.get("accept") ?? "";
+  return accept.includes("application/x-ndjson") || accept.includes("text/event-stream");
+}
+
+/**
+ * NDJSON 只做 transport，不改變既有回合的裁定與持久化順序。
+ * 先傳安全的狀態事件；完整 JSON response 產生後，才按安全的 final narration
+ * 分段送出。這樣即使 free action 觸發 guard/rewrite/fallback，也不會把未驗證
+ * 的 provider token 或 stThought 洩漏到瀏覽器。
+ */
+function streamTurnResponse(context) {
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  let closed = false;
+
+  const writeEvent = async (event) => {
+    if (closed) return;
+    await writer.write(encoder.encode(`${JSON.stringify(event)}\n`));
+  };
+
+  (async () => {
+    try {
+      await writeEvent({ type: "accepted" });
+      const response = await executeTurn(context, { emit: writeEvent });
+      const responseText = await response.text();
+      let payload;
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        await writeEvent({ type: "error", message: "伺服器回應格式錯誤，請稍後重試。" });
+        return;
+      }
+      if (payload?.ok && typeof payload.narration === "string" && payload.narration.trim()) {
+        await writeEvent({ type: "narration_start" });
+        for (const chunk of chunkByCodePoints(payload.narration, 18)) {
+          await writeEvent({ type: "narration_delta", delta: chunk });
+          // 讓 browser 有機會在短文字回合中感知逐步輸出，不阻塞完整回合的 server commit。
+          await new Promise((resolve) => setTimeout(resolve, 12));
+        }
+        await writeEvent({ type: "narration_end" });
+      }
+      await writeEvent({ type: "complete", status: response.status, payload });
+    } catch (err) {
+      console.error("[TURN_STREAM_FAILURE]", JSON.stringify({ message: err?.message ?? String(err) }));
+      try {
+        await writeEvent({ type: "error", message: "串流回合失敗，請稍後重試。" });
+      } catch {
+        // client disconnect / closed writer
+      }
+    } finally {
+      closed = true;
+      try { await writer.close(); } catch { /* client may have disconnected */ }
+    }
+  })();
+
+  return new Response(readable, {
+    status: 200,
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no",
+    },
+  });
+}
+
+function chunkByCodePoints(text, size) {
+  const codePoints = Array.from(String(text));
+  const chunks = [];
+  for (let index = 0; index < codePoints.length; index += size) {
+    chunks.push(codePoints.slice(index, index + size).join(""));
+  }
+  return chunks;
 }
 
 function json(payload, status = 200) {

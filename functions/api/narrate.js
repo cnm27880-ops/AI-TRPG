@@ -17,16 +17,26 @@
 //   NARRATIVE_STYLE 文筆設定檔名稱（見 content/narrativeStyle.js 的 STYLE_PROFILES）
 //   NARRATOR_PERSONA 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）
 //
-// 什麼金鑰都沒設定時，會退到 Cloudflare Workers AI（免金鑰，靠 wrangler.toml 的 [ai] binding），
-// 讓你不用先申請任何東西就能把整條鏈路跑起來。細節見 LLM_PROVIDERS.md。
+// BYOK 呼叫端若明確指定 provider + 自己的設定，可以透過這個 legacy/demo 端點測試。
+// 未指定 provider 時，匿名 request 預設會被擋下；只有部署者明確設定
+// NARRATE_ALLOW_SERVER_LLM=true 才會使用 server-managed Gemini／Workers AI，避免額度被濫用。
+// 正常 V2 遊玩使用 /api/turn，不受這個 demo gate 影響。細節見 LLM_PROVIDERS.md。
 
 import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import { buildTurnPrompt, SYSTEM_INSTRUCTION } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
+import {
+  MAX_SCENE_CONTEXT_CHARS,
+  clampTextByCodePoints,
+  MAX_FREE_ACTION_CHARS,
+  countActionCharacters,
+} from "../../content/turnOptions.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
-import { callLlm } from "../../content/llm/client.js";
+import { sanitizeProvidedCharacter } from "../../content/characterBuilder.js";
+import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
+import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
   composeSystemInstruction,
   DEFAULT_STYLE_ID,
@@ -65,7 +75,7 @@ export async function onRequestPost(context) {
     character,
     checkParams,
     playerAction,
-    sceneContext,
+    sceneContext: rawSceneContext,
     recentEvents,
     style,
     persona,
@@ -77,6 +87,30 @@ export async function onRequestPost(context) {
   if (!character || !playerAction) {
     return jsonError("body必須包含 character(人物卡物件) 與 playerAction(玩家行動描述)", 400);
   }
+
+  // 跟 /api/turn 同一條規則：長度限制要在引擎/LLM之前擋下，按 Unicode code point 計算。
+  const actualCharacters = countActionCharacters(playerAction);
+  if (actualCharacters > MAX_FREE_ACTION_CHARS) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: `自由行動不能超過 ${MAX_FREE_ACTION_CHARS} 字，目前有 ${actualCharacters} 字。`,
+        code: "PLAYER_ACTION_TOO_LONG",
+        maxCharacters: MAX_FREE_ACTION_CHARS,
+        actualCharacters,
+      }),
+      { status: 422, headers: { "content-type": "application/json; charset=utf-8" } }
+    );
+  }
+  // sceneContext 一樣是可控文字、會被塞進prompt，安全截斷而不是報錯(這裡沒有存檔可寫，
+  // 主要風險是prompt大小/成本，不是「持久化偽造狀態」)。
+  const sceneContext = typeof rawSceneContext === "string"
+    ? clampTextByCodePoints(rawSceneContext, MAX_SCENE_CONTEXT_CHARS)
+    : undefined;
+  // narrate 是無存檔的匿名示範端點，呼叫端提供的 character 仍然是不可信輸入。
+  // 先走與 /api/session 相同的 server sanitizer，避免偽造能力、energyPools、衍生HP或
+  // 超支配點影響規則層；這條路徑只接受合法基礎角色，商品能力必須走 server session。
+  const safeCharacter = sanitizeProvidedCharacter(character);
 
   // 供應商覆寫與半設定狀態的攔截 —— 跟 /api/turn 同一套規則。
   // (2026-08-16：這個端點先前完全不接受前端覆寫，跟 turn.js 已經開始長不一樣了)
@@ -96,15 +130,24 @@ export async function onRequestPost(context) {
     }
   }
 
+  // /api/narrate 沒有 session ownership，也不是 V2 正常遊玩路徑；若它能自動選到
+  // server provider，就會變成匿名者消耗部署方金鑰／Workers AI 額度的放大器。只有明確
+  // 開啟旗標才允許 server-managed LLM；呼叫端自帶 provider + 自己的 key 仍可用於
+  // legacy/demo BYOK。正式 V2 使用 /api/turn，不受這個 demo gate 影響。
+  const serverManagedNarrate = !bodyProvider || bodyProvider === "workers-ai";
+  if (serverManagedNarrate && env.NARRATE_ALLOW_SERVER_LLM !== "true") {
+    return jsonError("匿名 narrate 示範端點未開放伺服器 LLM；請使用 V2 /api/turn，或由部署者設定 NARRATE_ALLOW_SERVER_LLM=true。", 403);
+  }
+
   // --- 規則層：先把數字算出來。這一段完全不碰AI，AI失敗也不影響它的正確性。 ---
-  const baseParams = checkParams ?? inferCheckParams(playerAction, { character });
+  const baseParams = checkParams ?? inferCheckParams(playerAction, { character: safeCharacter });
   // 商店買到的檢定加值(專長/物品)在這裡併進判定參數，不然買了等於沒買。
   // 進行中的型態吃不到，理由同 /api/check：這是無存檔的示範端點，型態活在存檔裡。
-  const { params: resolvedParams } = applyCheckModifiers(character, baseParams);
+  const { params: resolvedParams } = applyCheckModifiers(safeCharacter, baseParams);
 
   let checkResult;
   try {
-    checkResult = performCheck(character, resolvedParams);
+    checkResult = performCheck(safeCharacter, resolvedParams);
   } catch (err) {
     return jsonError(`判定計算失敗：${err.message}`, 400);
   }
@@ -113,6 +156,15 @@ export async function onRequestPost(context) {
 
   // --- 敘事層：從這裡開始才需要AI。上面算好的結果一律照原樣回傳，不受AI成敗影響。 ---
   const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
+  // [安全] 跟 /api/turn 同一套規則(見 content/llm/requestOverrides.js)：沒帶 provider
+  // 就三個覆寫欄位全部忽略；帶了但不是 custom 就不能改寫 baseUrl。這個端點是匿名/
+  // 無存檔的示範端點，比 /api/turn 更沒有身分可以追蹤，這一層防護更不能漏。
+  const llmOverrides = resolveLlmRequestOverrides({ bodyProvider, bodyApiKey, bodyBaseUrl, bodyModel });
+  if (bodyBaseUrl && bodyProvider !== "custom") {
+    console.warn("[LLM_OVERRIDE_IGNORED]", JSON.stringify({
+      where: "POST /api/narrate", reason: "baseUrl只在provider=custom時生效", bodyProvider: bodyProvider ?? null,
+    }));
+  }
   if (!provider) {
     return jsonWithCheck(
       {
@@ -139,7 +191,18 @@ export async function onRequestPost(context) {
     return jsonError(`文筆設定檔錯誤：${err.message}`, 400);
   }
 
-  const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents });
+  // recentEvents 在這個端點是呼叫端直接提供的(跟 /api/turn 不同——那邊是伺服器從
+  // event log 算出來的，呼叫端碰不到)，一樣要設應用層上限，否則一個超大陣列/超長
+  // summary 會被整段塞進prompt，拉高成本也拉高單次請求的處理時間。
+  const MAX_RECENT_EVENTS = 20;
+  const MAX_EVENT_SUMMARY_CHARS = 200;
+  const boundedRecentEvents = Array.isArray(recentEvents)
+    ? recentEvents.slice(-MAX_RECENT_EVENTS).map((e) => ({
+        summary: clampTextByCodePoints(typeof e?.summary === "string" ? e.summary : "", MAX_EVENT_SUMMARY_CHARS),
+      }))
+    : [];
+
+  const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents: boundedRecentEvents });
 
 
   try {
@@ -148,9 +211,7 @@ export async function onRequestPost(context) {
       env,
       systemInstruction,
       prompt,
-      apiKey: bodyApiKey || undefined,
-      baseUrl: bodyBaseUrl || undefined,
-      model: bodyModel || undefined,
+      ...llmOverrides,
     });
     return new Response(
       JSON.stringify({
@@ -172,7 +233,10 @@ export async function onRequestPost(context) {
       {
         provider,
         model: err?.model ?? null,
-        error: `敘事生成失敗（${provider}）：${err.message}`,
+        // [安全][2026-08-24 second pass] 同 /api/turn：err.message 可能整段帶著第三方
+        // 供應商的原始回應本文，不能原樣送回瀏覽器。完整原因已經在上面 logLlmFailure()
+        // 寫進 server log。
+        error: `敘事生成失敗（${provider}）：${describeLlmFailure(err)}`,
         llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
       },
       { resolvedParams, checkResult, outcome },

@@ -1,6 +1,6 @@
 // content/characterBuilder.js 與 content/chargen/* 的測試。
 //
-// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答，建卡多出一個「甦醒」階段。
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德問答；建卡再選三項起始專長並進入「甦醒」。
 // 美德惡德本身的計分、分布與甦醒那一幕在 test/virtueVice.test.js，這裡只測建卡流程。
 //
 // 現在測四件事：
@@ -15,7 +15,6 @@ import {
   buildCharacter,
   buildCharacterFromLifePath,
   chargenRules,
-  narrativeFeatHints,
   moralityHints,
   ATTRIBUTE_BUDGET,
   SKILL_BUDGET,
@@ -46,7 +45,7 @@ function answersByIndex(n) {
   );
 }
 
-/** 走訪所有可能的答案組合（目前 4×4×4×3×3 = 576 種，跑得完）。 */
+/** 走訪所有可能的答案組合（目前 4×4×4×4×4 = 1024 種，跑得完）。 */
 function forEachCombination(fn) {
   const walk = (index, acc) => {
     if (index === LIFE_PATH_QUESTIONS.length) return fn(acc);
@@ -65,9 +64,8 @@ test("每一題都有足夠的選項，每個選項都有小傳片段、掃描�
   assert.ok(LIFE_PATH_QUESTIONS.length >= 5, "問答太短撐不起「逐步建立一個角色」");
   for (const q of LIFE_PATH_QUESTIONS) {
     assert.ok(q.title && q.subtitle, `題目「${q.id}」缺標題或說明`);
-    // 門檻是3不是4：美德那邊天然就是 4+3 的切法（七項分兩題），硬湊第四個選項
-    // 只會生出一個沒有人會選的填充選項，那比少一個選項更糟。
-    assert.ok(q.options.length >= 3, `題目「${q.id}」的選項少於3個`);
+    // 每題至少四個答案，讓玩家在每個心理情境都有完整且對等的反應光譜。
+    assert.ok(q.options.length >= 4, `題目「${q.id}」的選項少於4個`);
     for (const o of q.options) {
       assert.ok(o.label && o.detail, `${q.id}/${o.id} 缺 label 或 detail`);
       assert.ok(o.story.length > 10, `${q.id}/${o.id} 的小傳片段太短`);
@@ -149,7 +147,7 @@ test("同樣的答案一定配出同樣的角色（不可以有隨機成分）",
   assert.deepEqual(a.character.skills, b.character.skills);
 });
 
-test("所有 576 種答案組合都配得出合法角色，且不超支、不極端、保證廣度", () => {
+test("所有 1024 種答案組合都配得出合法角色，且不超支、不極端、保證廣度", () => {
   // 全走訪而不是抽樣：組合數還在跑得完的範圍內，而「某一組答案會配出壞卡」
   // 正是那種抽樣測試永遠抓不到、但玩家一定會踩到的問題。
   let count = 0;
@@ -219,15 +217,54 @@ test("玩家的答案會變成一段小傳，而且真的寫進角色卡", () =>
   assert.equal(result.character.concept.gender, "女");
 });
 
-test("性格特質會變成純敘事型專長，並且餵得進AI的性格提示", () => {
+test("三項起始專長會由 server 白名單重建成技能 +1 顆相關檢定骰", () => {
   const answers = answersByIndex(1);
-  const result = buildCharacterFromLifePath({ concept: { name: "測試" }, answers });
+  const selected = ["crisis_observer", "first_aid", "melee_reflex"];
+  const result = buildCharacterFromLifePath({
+    concept: { name: "測試" },
+    answers,
+    startingSpecialties: selected,
+  });
 
-  assert.ok(result.character.feats.length > 0, "應該至少帶到一個性格特質");
+  assert.equal(result.valid, true, result.errors.join("；"));
+  assert.equal(result.character.feats.length, 3);
+  assert.deepEqual(result.character.feats.map((feat) => feat.effect), [
+    { type: "skillBonus", skill: "偵察", amount: 1 },
+    { type: "skillBonus", skill: "醫療", amount: 1 },
+    { type: "skillBonus", skill: "格鬥", amount: 1 },
+  ]);
   for (const feat of result.character.feats) {
-    assert.equal(feat.effect.type, "narrative", "生平問答只給純敘事型特質，不偷偷加數值");
+    assert.equal(feat.effect.type, "skillBonus");
+    assert.equal(result.character.skills[feat.effect.skill], result.character.skillBase[feat.effect.skill] + 1);
   }
-  assert.equal(narrativeFeatHints(result.character).length, result.character.feats.length);
+  assert.deepEqual(result.lifePath.startingSpecialties.map((specialty) => specialty.id), selected);
+});
+
+test("正式建立角色時沒有三項起始專長也會被拒絕", () => {
+  const result = buildCharacterFromLifePath({
+    concept: { name: "測試" },
+    answers: answersByIndex(1),
+    requireStartingSpecialties: true,
+  });
+  assert.equal(result.valid, false);
+  assert.match(result.errors.join("；"), /起始專長/);
+});
+
+test("起始專長 ID 不合法、重複或數量不對時會被拒絕", () => {
+  const answers = answersByIndex(1);
+  for (const startingSpecialties of [
+    ["crisis_observer", "crisis_observer", "first_aid"],
+    ["crisis_observer", "first_aid"],
+    ["crisis_observer", "first_aid", "not_real"],
+  ]) {
+    const result = buildCharacterFromLifePath({
+      concept: { name: "測試" },
+      answers,
+      startingSpecialties,
+    });
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((error) => /起始專長/.test(error)));
+  }
 });
 
 test("沒有名字就不算完成建卡", () => {
@@ -270,6 +307,9 @@ test("chargenRules：把題目與預算一起給前端，前端不用自己抄�
   assert.equal(rules.skills.freePoints, SKILL_BUDGET);
   assert.equal(rules.attributes.cap, 5);
   assert.equal(rules.skills.cap, 3);
+  assert.equal(rules.startingSpecialties.count, 3);
+  assert.equal(rules.startingSpecialties.options.length, 10);
+  assert.deepEqual(rules.startingSpecialties.options.map((specialty) => specialty.skill).sort(), ALL_SKILLS.sort());
   assert.equal(rules.reshape.points, RESHAPE_POINTS, "前端要靠這個數字畫甦醒那一幕的配點介面");
   assert.equal(rules.reshape.cap, RESHAPE_ATTRIBUTE_CAP);
   assert.equal("archetypes" in rules, false, "身分模板已經整組拿掉了，不該還留在規則裡");

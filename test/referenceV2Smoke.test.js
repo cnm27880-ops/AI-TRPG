@@ -113,7 +113,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.deepEqual(opening.body.scenario.reference.exploration.unresolvedQuestions.map((question) => question.id), ["q_player_manifest"]);
   assert.deepEqual(opening.body.scenario.reference.npcs, [], "尚未接觸人物前不應公開整份 NPC roster");
   assert.equal(opening.body.scenario.reference.dmPrompt.mode, "free_action");
-  assert.equal(opening.body.scenario.reference.dmPrompt.question, "你打算怎麼做？");
+  assert.equal(opening.body.scenario.reference.dmPrompt.question, null);
+  assert.match(opening.body.scenario.reference.dmPrompt.hint, /行動方向/);
   assert.ok(opening.body.scenario.reference.dmPrompt.referenceHints.length <= 3);
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("privateGoals"), false);
   assert.equal(JSON.stringify(opening.body.scenario.reference).includes("生化人"), false);
@@ -272,6 +273,44 @@ test("V2 reference free input accepts bounded threatAssessment and keeps referen
   assert.match(freeInputPrompt, /引擎本回合的判定分級/);
   assert.match(freeInputPrompt, /門已打開／鎖死/);
   assert.match(freeInputPrompt, /只能寫成這次嘗試的可觀察成功部分/);
+});
+
+
+test("V2 low-risk conversation does not force a combat-style check", async (t) => {
+  const mock = await startMockLlm();
+  t.after(() => mock.server.close());
+  const env = {
+    LLM_PROVIDER: "custom",
+    LLM_API_KEY: "fixed-test-key",
+    LLM_BASE_URL: mock.url,
+    LLM_MODEL: "fixed-test-model",
+    LLM_JSON_MODE: "off",
+  };
+  const created = await readJson(await createSession({
+    request: jsonRequest("https://test.local/api/session", {
+      character: emptyCharacter("低風險對話測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  }));
+  assert.equal(created.body.ok, true);
+  const sessionId = created.body.session.id;
+  await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId }), env }));
+
+  const response = await readJson(await playTurn({
+    request: jsonRequest("https://test.local/api/turn", {
+      sessionId,
+      playerAction: "我向那個持槍男人搭話，想了解現在到底是什麼情況？",
+    }),
+    env,
+  }));
+  assert.equal(response.status, 200, JSON.stringify(response.body));
+  assert.equal(response.body.ok, true);
+  assert.equal(response.body.checkParams, null, "低風險詢問不應產生敏捷或戰鬥類檢定");
+  assert.equal(response.body.checkResult, null);
+  assert.equal(response.body.outcome, null);
+  assert.equal(response.body.scenario.reference.dmPrompt.question, null);
+  assert.match(response.body.scenario.reference.dmPrompt.hint, /行動方向/);
 });
 
 

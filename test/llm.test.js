@@ -5,7 +5,15 @@
 // 第三方中轉是不是真的相容OpenAI格式。那些只能靠實際部署後打一次來驗證，見 LLM_PROVIDERS.md。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { callLlm, LlmError, DEFAULT_MAX_TOKENS, extractWorkersAiText } from "../content/llm/client.js";
+import {
+  callLlm,
+  LlmError,
+  DEFAULT_MAX_TOKENS,
+  MAX_LLM_OUTPUT_TOKENS,
+  MAX_LLM_PROMPT_CHARS,
+  MAX_LLM_SYSTEM_CHARS,
+  extractWorkersAiText,
+} from "../content/llm/client.js";
 import { PROVIDERS, PROVIDER_IDS, resolveProvider, pickProvider } from "../content/llm/providers.js";
 
 /** 做一個假的fetch，記錄呼叫參數並回傳指定的JSON */
@@ -390,6 +398,34 @@ test("max_tokens：環境變數是垃圾值時退回預設，不可以把 NaN �
   const ff = fakeFetch(OPENAI_OK);
   await callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "很多" }, prompt: "x", fetchFn: ff });
   assert.equal(JSON.parse(ff.calls[0].options.body).max_tokens, DEFAULT_MAX_TOKENS);
+});
+
+test("max_tokens：request與環境變數都不能超過server硬上限", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k", LLM_MAX_TOKENS: "999999" },
+    prompt: "x",
+    maxTokens: 999999,
+    fetchFn: ff,
+  });
+  assert.equal(JSON.parse(ff.calls[0].options.body).max_tokens, MAX_LLM_OUTPUT_TOKENS);
+});
+
+test("prompt資源界線：system instruction與prompt超長時會按Unicode字元截斷後才送出", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  await callLlm({
+    provider: "deepseek",
+    env: { DEEPSEEK_API_KEY: "k" },
+    prompt: "玩家行動😀".repeat(MAX_LLM_PROMPT_CHARS),
+    systemInstruction: "規則契約😀".repeat(MAX_LLM_SYSTEM_CHARS),
+    fetchFn: ff,
+  });
+  const sent = JSON.parse(ff.calls[0].options.body);
+  const system = sent.messages.find((message) => message.role === "system")?.content ?? "";
+  const user = sent.messages.find((message) => message.role === "user")?.content ?? "";
+  assert.ok(Array.from(system).length <= MAX_LLM_SYSTEM_CHARS);
+  assert.ok(Array.from(user).length <= MAX_LLM_PROMPT_CHARS);
 });
 
 // ---------------------------------------------------------------------------

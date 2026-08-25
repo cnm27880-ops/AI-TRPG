@@ -98,14 +98,14 @@ function miniMeterHtml(value, max, bonusFloor) {
 
 // --- 建卡初始化 ---
 // ===========================================================================
-// 建卡 —— 五題問答 + 甦醒（見 content/chargen/lifePath.js 與 awakening.js）
+// 建卡 —— 五題問答 + 三選起始專長 + 甦醒（見 content/chargen/lifePath.js、startingSpecialties.js 與 awakening.js）
 //
-// [2026-08-18 改版] 六道生平問答換成五道美德/惡德/特性問答，最後多一幕「甦醒」。
+// [2026-08-18 改版] 六道生平問答換成五道美德/惡德問答；之後選三項起始專長，再進入「甦醒」。
 // 使用者的要求(逐字)：
 //   「請協助我將建卡問題替換成七美德/七惡德/角色特性的決定，並根據選項自動分配大部分基礎點」
 //   「所以應該是用五道題目綜合判斷七美德/七惡德，有點類似心理測驗」
 //
-// 流程：姓名 -> 五題 -> 甦醒（主神掃描 + 5點自由屬性）-> 進入副本。
+// 流程：姓名 -> 五題 -> 十選三起始專長 -> 甦醒（主神掃描 + 5點自由屬性）-> 進入副本。
 // 一次只顯示一題是刻意的：五題全部攤在同一頁會變成一張問卷，玩家會用掃的；
 // 一次一題他才會真的讀完每個選項，那些選項就是這個角色。
 //
@@ -113,10 +113,12 @@ function miniMeterHtml(value, max, bonusFloor) {
 // 看得到分表的玩家可以直接反推出想要的結果，主神掃描那一幕就沒有意義了。
 // ===========================================================================
 
-/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 甦醒。 */
+/** 目前走到第幾步。0 = 基本資料，1..N = 第幾題，N+1 = 起始專長，N+2 = 甦醒。 */
 let chargenStep = 0;
 /** 玩家的答案 { 題目id: 選項id }。 */
 let chargenAnswers = {};
+/** 玩家選取的三個 server 白名單起始專長 ID。 */
+let chargenStartingSpecialties = [];
 /** 甦醒那一幕從後端拿回來的完整結果（過場、掃描、小傳、角色卡）。 */
 let chargenAwakening = null;
 /** 玩家在肉體重塑分掉的點 { 屬性: 加幾級 }。 */
@@ -126,14 +128,22 @@ function lifePathQuestions() {
   return chargenRules?.lifePath ?? [];
 }
 
-function awakeningStepIndex() {
+function startingSpecialtyStepIndex() {
   return lifePathQuestions().length + 1;
+}
+
+function awakeningStepIndex() {
+  return startingSpecialtyStepIndex() + 1;
+}
+
+function startingSpecialtyRules() {
+  return chargenRules?.startingSpecialties ?? { count: 3, options: [] };
 }
 
 let portalMode = "invitation";
 let portalTransitionTimer = null;
 let chargenAdvanceTimer = null;
-const GODSPACE_FIRST_STORY_KEY = "ai-trpg-godspace-first-story-v1";
+let chargenReleaseRun = 0;
 
 function resetPortalInvitation() {
   window.clearTimeout(portalTransitionTimer);
@@ -180,11 +190,8 @@ function finishPortalReveal(reason = "new") {
   main.classList.add("is-visible");
   main.setAttribute("aria-hidden", "false");
 
-  const firstStorySeen = localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1";
-  if (!firstStorySeen) {
-    window.setTimeout(() => showFirstGodspaceStory(), reason === "new" ? 520 : 160);
-  } else if (reason === "new") {
-    window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 600);
+  if (reason === "new") {
+    window.setTimeout(() => document.querySelector("#portal-main-content .action-tile.primary")?.focus(), 1200);
   }
 }
 
@@ -215,32 +222,6 @@ function acceptMainGodInvitation() {
   revealMainGodSpace("new");
 }
 
-function showFirstGodspaceStory() {
-  const layer = document.getElementById("portal-first-story");
-  const panel = layer?.querySelector(".godspace-first-story-panel");
-  if (!layer || !panel || localStorage.getItem(GODSPACE_FIRST_STORY_KEY) === "1") return;
-  document.getElementById("godspace-first-story-title").textContent = "白色平台沒有盡頭。";
-  document.getElementById("godspace-first-story-copy").textContent =
-    "你原本以為自己只是打開了一個網站。\n\n" +
-    "那只是門。\n\n" +
-    "白色沒有牆，也沒有天花板；遠處只有一個無法測量距離的光源。你的身體已經被主神系統重新確認，原本的生活則被留在門的另一側。\n\n" +
-    "看不見的聲音說：『輪迴者，歡迎來到主神空間。下一場恐怖片開始以前，你可以先決定自己要帶什麼進去。』";
-  document.getElementById("godspace-first-story-foot").textContent =
-    "這段記錄只會播放一次。主神空間正在等待你的第一個決定。";
-  layer.style.display = "flex";
-  layer.removeAttribute("aria-hidden");
-  requestAnimationFrame(() => panel.focus());
-}
-
-function continueFirstGodspaceStory() {
-  const layer = document.getElementById("portal-first-story");
-  if (!layer) return;
-  localStorage.setItem(GODSPACE_FIRST_STORY_KEY, "1");
-  layer.style.display = "none";
-  layer.setAttribute("aria-hidden", "true");
-  document.querySelector("#portal-main-content .action-tile.primary")?.focus();
-}
-
 async function startNewChargen() {
   showScreen("chargen");
 
@@ -257,6 +238,7 @@ async function startNewChargen() {
 
   chargenStep = 0;
   chargenAnswers = {};
+  chargenStartingSpecialties = [];
   chargenAwakening = null;
   chargenReshape = {};
   renderChargenStep();
@@ -264,18 +246,26 @@ async function startNewChargen() {
 
 function renderChargenStep() {
   const questions = lifePathQuestions();
-  const total = questions.length + 1; // 基本資料 + 五題（甦醒那一步不算進度）
+  const total = questions.length + 2; // 基本資料 + 五題 + 起始專長（甦醒顯示為完成）
   const basic = document.getElementById("cg-step-basic");
   const question = document.getElementById("cg-step-question");
+  const specialty = document.getElementById("cg-step-specialties");
   const awakening = document.getElementById("cg-step-awakening");
   const back = document.getElementById("cg-back");
   const submit = document.getElementById("cg-submit");
 
   basic.style.display = chargenStep === 0 ? "" : "none";
   question.style.display = chargenStep >= 1 && chargenStep <= questions.length ? "" : "none";
+  specialty.style.display = chargenStep === startingSpecialtyStepIndex() ? "" : "none";
   awakening.style.display = chargenStep === awakeningStepIndex() ? "" : "none";
   back.style.visibility = chargenStep === 0 ? "hidden" : "visible";
-  const activeStep = chargenStep === 0 ? basic : chargenStep <= questions.length ? question : awakening;
+  const activeStep = chargenStep === 0
+    ? basic
+    : chargenStep <= questions.length
+      ? question
+      : chargenStep === startingSpecialtyStepIndex()
+        ? specialty
+        : awakening;
   // 題目內容是連續閱讀流程，不要在每次回答後重播整個 section 的進場動畫；
   // 那會讓題目、選項與背景一起閃一下。基本資料與甦醒仍保留一次性的進場過場。
   if (activeStep !== question) replayEnterAnim(activeStep);
@@ -300,6 +290,15 @@ function renderChargenStep() {
     // 選項本身就是下一步；題目頁不再顯示沒有作用的底部按鈕。
     submit.style.display = "none";
     submit.textContent = "";
+  } else if (chargenStep === startingSpecialtyStepIndex()) {
+    const rules = startingSpecialtyRules();
+    const count = Number(rules.count) || 3;
+    const selected = chargenStartingSpecialties.length;
+    submit.style.display = "";
+    document.getElementById("cg-step-label").textContent = "起始專長";
+    document.getElementById("cg-step-count").textContent = `選 ${selected} / ${count}`;
+    submit.textContent = selected === count ? "確認起始專長" : `還需選 ${count - selected} 項`;
+    renderStartingSpecialties();
   } else {
     submit.style.display = "";
     document.getElementById("cg-step-label").textContent = "甦醒";
@@ -307,8 +306,10 @@ function renderChargenStep() {
     submit.textContent = "解除防護罩";
   }
 
-  submit.disabled = false;
-  submit.classList.remove("opacity-40");
+  const specialtyIncomplete = chargenStep === startingSpecialtyStepIndex()
+    && chargenStartingSpecialties.length !== (Number(startingSpecialtyRules().count) || 3);
+  submit.disabled = specialtyIncomplete;
+  submit.classList.toggle("opacity-40", specialtyIncomplete);
   if (chargenStep === 0) submit.style.display = "";
 }
 
@@ -336,6 +337,63 @@ function renderQuestionOptions(question) {
 }
 
 /** 選一個答案就直接往下一題走——多按一次「下一步」只是多餘的一次點擊。 */
+function renderStartingSpecialties() {
+  const container = document.getElementById("cg-specialty-options");
+  const countLabel = document.getElementById("cg-specialty-count");
+  if (!container) return;
+
+  const rules = startingSpecialtyRules();
+  const options = Array.isArray(rules.options) ? rules.options : [];
+  const required = Number(rules.count) || 3;
+  const selected = new Set(chargenStartingSpecialties);
+  if (countLabel) countLabel.textContent = `已選 ${selected.size} / ${required}`;
+
+  container.innerHTML = options.map((specialty) => {
+    const isSelected = selected.has(specialty.id);
+    const isLocked = !isSelected && selected.size >= required;
+    return `
+      <button type="button" data-starting-specialty="${escapeHtml(specialty.id)}"
+        aria-pressed="${isSelected ? "true" : "false"}" ${isLocked ? "disabled" : ""}
+        class="starting-specialty-card text-left p-3 rounded border transition-all ${
+          isSelected
+            ? "border-emerald-500 bg-emerald-500/10"
+            : isLocked
+              ? "hairline-border bg-zinc-950 opacity-40 cursor-not-allowed"
+              : "hairline-border bg-zinc-950 hover:border-emerald-500/50 hover:-translate-y-px"
+        }">
+        <div class="flex items-start justify-between gap-2">
+          <span class="text-xs font-bold ${isSelected ? "text-emerald-200" : "text-zinc-100"}">${escapeHtml(specialty.name)}</span>
+          <span class="shrink-0 text-[10px] font-mono ${isSelected ? "text-emerald-300" : "text-zinc-500"}">${escapeHtml(specialty.skill)} · ${escapeHtml(specialty.bonusText || "+1 顆相關檢定骰")}</span>
+        </div>
+        <div class="text-[11px] font-mono text-zinc-400 mt-1 leading-snug">${escapeHtml(specialty.description)}</div>
+      </button>`;
+  }).join("");
+}
+
+function toggleStartingSpecialty(specialtyId) {
+  const rules = startingSpecialtyRules();
+  const options = Array.isArray(rules.options) ? rules.options : [];
+  if (!options.some((specialty) => specialty.id === specialtyId)) return;
+
+  const required = Number(rules.count) || 3;
+  const selected = new Set(chargenStartingSpecialties);
+  if (selected.has(specialtyId)) {
+    selected.delete(specialtyId);
+  } else {
+    if (selected.size >= required) return;
+    selected.add(specialtyId);
+  }
+  chargenStartingSpecialties = [...selected];
+  renderStartingSpecialties();
+  const submit = document.getElementById("cg-submit");
+  const complete = chargenStartingSpecialties.length === required;
+  if (submit) {
+    submit.disabled = !complete;
+    submit.classList.toggle("opacity-40", !complete);
+    submit.textContent = complete ? "確認起始專長" : `還需選 ${required - chargenStartingSpecialties.length} 項`;
+  }
+}
+
 function chooseLifePathOption(optionId) {
   const questions = lifePathQuestions();
   const q = questions[chargenStep - 1];
@@ -383,7 +441,18 @@ async function advanceChargen() {
     }
     chargenStep += 1;
     renderChargenStep();
-    if (chargenStep === awakeningStepIndex()) await loadAwakening();
+    return;
+  }
+
+  if (chargenStep === startingSpecialtyStepIndex()) {
+    const required = Number(startingSpecialtyRules().count) || 3;
+    if (chargenStartingSpecialties.length !== required) {
+      showChargenError(`請選滿 ${required} 項起始專長。`);
+      return;
+    }
+    chargenStep += 1;
+    renderChargenStep();
+    await loadAwakening();
     return;
   }
 
@@ -415,7 +484,13 @@ async function loadAwakening() {
     const res = await (await fetch("/api/character", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ lifePath: { concept: readChargenConcept(), answers: chargenAnswers } }),
+      body: JSON.stringify({
+        lifePath: {
+          concept: readChargenConcept(),
+          answers: chargenAnswers,
+          startingSpecialties: chargenStartingSpecialties,
+        },
+      }),
     })).json();
 
     if (!res.valid || !res.awakening) {
@@ -468,7 +543,14 @@ function renderAwakening(res) {
   const cards = [];
   if (a.system.virtue) cards.push(scanCardHtml("美德", a.system.virtue.key, a.system.virtue.description, "virtue"));
   if (a.system.vice) cards.push(scanCardHtml("惡德", a.system.vice.key, a.system.vice.description, "vice"));
-  for (const t of a.system.traits) cards.push(scanCardHtml("特性", t.name, t.description, "trait"));
+  for (const specialty of a.system.startingSpecialties ?? []) {
+    cards.push(scanCardHtml(
+      "起始專長",
+      specialty.name,
+      `${specialty.description}（${specialty.skill} +${specialty.bonus} 顆相關檢定骰）`,
+      "specialty",
+    ));
+  }
   document.getElementById("cg-scan-result").innerHTML = cards.join("");
 
   document.getElementById("cg-scan-core").innerHTML = a.system.core
@@ -494,6 +576,7 @@ const SCAN_CARD_STYLES = {
   virtue: { box: "border-emerald-500/30", tag: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", name: "text-emerald-200" },
   vice: { box: "border-rose-500/30", tag: "border-rose-500/40 bg-rose-500/10 text-rose-300", name: "text-rose-200" },
   trait: { box: "border-violet-500/30", tag: "border-violet-500/40 bg-violet-500/10 text-violet-300", name: "text-violet-200" },
+  specialty: { box: "border-emerald-500/30", tag: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300", name: "text-emerald-200" },
 };
 
 function scanCardHtml(tag, name, description, kind) {
@@ -618,6 +701,56 @@ function adjustReshape(key, delta) {
   renderReshape();
 }
 
+function sleepForTransition(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
+function cancelChargenReleaseTransition() {
+  chargenReleaseRun += 1;
+  const overlay = document.getElementById("chargen-release-overlay");
+  if (!overlay) return;
+  overlay.classList.remove("is-visible", "is-leaving");
+  overlay.style.display = "none";
+  overlay.setAttribute("aria-hidden", "true");
+}
+
+async function playChargenReleaseTransition() {
+  const overlay = document.getElementById("chargen-release-overlay");
+  const message = document.getElementById("chargen-release-message");
+  if (!overlay || !message) return;
+
+  const run = ++chargenReleaseRun;
+  const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const lines = ["防護罩解除。", "你的名字，已經不再屬於原本的世界。", "那麼，祝你好運。"];
+  overlay.style.display = "flex";
+  overlay.classList.remove("is-leaving");
+  overlay.classList.add("is-visible");
+  overlay.setAttribute("aria-hidden", "false");
+  overlay.setAttribute("aria-busy", "true");
+  message.textContent = "";
+  message.focus();
+
+  try {
+    for (const line of lines) {
+      if (run !== chargenReleaseRun) return;
+      message.textContent = line;
+      await sleepForTransition(reducedMotion ? 120 : 680);
+    }
+    if (run !== chargenReleaseRun) return;
+    await sleepForTransition(reducedMotion ? 80 : 900);
+    if (run !== chargenReleaseRun) return;
+    overlay.classList.add("is-leaving");
+    await sleepForTransition(reducedMotion ? 0 : 720);
+  } finally {
+    if (run === chargenReleaseRun) {
+      overlay.classList.remove("is-visible", "is-leaving");
+      overlay.style.display = "none";
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.removeAttribute("aria-busy");
+    }
+  }
+}
+
 async function submitChargen() {
   const state = reshapeState();
   if (!state) {
@@ -640,7 +773,12 @@ async function submitChargen() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        lifePath: { concept: readChargenConcept(), answers: chargenAnswers, reshape: chargenReshape },
+        lifePath: {
+          concept: readChargenConcept(),
+          answers: chargenAnswers,
+          startingSpecialties: chargenStartingSpecialties,
+          reshape: chargenReshape,
+        },
         sceneContext: "",
       }),
     })).json();
@@ -657,7 +795,9 @@ async function submitChargen() {
     adoptCharacter(res.session.character);
     recentStoryEntries = [];
     pendingStoryEntry = null;
+    activeNarrationStream = null;
     renderRecentStoryWindow({ forceBottom: true });
+    await playChargenReleaseTransition();
     showScreen("game");
     renderPersistenceWarning(res.persistent);
     await runTurn({ opening: true });
@@ -869,24 +1009,27 @@ function refreshJournalIfOpen() {
   if (journalTabIsOpen()) loadJournal();
 }
 
-// --- 特質 / 資源卡 3D 堆疊抽屜 ---
+// --- 起始專長 / 資源卡 3D 堆疊抽屜 ---
 let currentTraits = [];
 let traitIndex = 0;
 
 function renderTraitCards(charData) {
-  currentTraits = Array.isArray(charData.traits) ? charData.traits : [];
+  const feats = Array.isArray(charData.feats) ? charData.feats : [];
+  currentTraits = feats
+    .filter((feat) => feat?.effect?.type === "skillBonus")
+    .map((feat) => ({
+      ...feat,
+      category: "起始專長",
+      description: `${feat.description}（${feat.effect.skill} +${feat.effect.amount} 顆相關檢定骰）`,
+    }));
   traitIndex = 0;
   renderTraitStage();
 }
 
 /**
- * 特質卡上的說明文字。
- *
- * [2026-08-18 修正] 這裡以前直接寫 `t.desc`，但建卡產生的特質物件是
- * `{ id, name, description, effect }`（見 content/chargen/lifePath.js 的 collectTraits），
- * 根本沒有 desc 這個欄位——所以特質分頁的說明**永遠是空字串**，
- * 玩家看到的一直是「[資源] + 一個名字」，那張卡等於只有一半。
- * 兩個名字都收下：日後從商店買進來的資源如果用的是 desc，也不會再壞一次。
+ * 專長／資源卡上的說明文字。
+ * 舊存檔仍可能帶有 desc 欄位，所以保留相容讀取；新建角色只會由 server
+ * 產生 skillBonus 起始專長，不再生成 lifePath 純敘事特質。
  */
 function traitDescription(trait) {
   return trait?.description ?? trait?.desc ?? "";
@@ -1108,6 +1251,139 @@ function setTurnInputLocked(locked, pressedIndex) {
   }
 }
 
+function updateNarratorPendingHint(text) {
+  const hint = document.querySelector("#narrator-pending [data-pending-hint]");
+  if (hint && text) hint.textContent = text;
+}
+
+function beginNarrationStream() {
+  hideNarratorPending();
+  clearPreviousFinalQuestions();
+  const entry = appendFeedEvent(
+    "narration",
+    `書寫中<span class="typing-dots"><span></span><span></span><span></span></span>`,
+    "",
+    { note: `<span data-stream-state>說書人正在把這一回合寫進現場……</span>` }
+  );
+  activeNarrationStream = { id: entry?.dataset.recentStoryId ?? null, text: "" };
+  return activeNarrationStream;
+}
+
+function updateNarrationStream(delta) {
+  if (!activeNarrationStream || typeof delta !== "string") return;
+  activeNarrationStream.text += delta;
+  if (!activeNarrationStream.id) return;
+  recentStoryEntries = recentStoryEntries.map((entry) =>
+    entry.id === activeNarrationStream.id
+      ? { ...entry, content: renderNarrationHtml(activeNarrationStream.text), opts: {} }
+      : entry
+  );
+  renderRecentStoryWindow({ forceBottom: true });
+}
+
+function endNarrationStream() {
+  if (activeNarrationStream) activeNarrationStream.ended = true;
+}
+
+function finalizeNarrationStream(finalText) {
+  if (!activeNarrationStream) return false;
+  const id = activeNarrationStream.id;
+  const text = String(finalText ?? activeNarrationStream.text ?? "");
+  recentStoryEntries = recentStoryEntries.map((entry) =>
+    entry.id === id
+      ? { ...entry, label: "", content: renderNarrationHtml(text), opts: {} }
+      : entry
+  );
+  activeNarrationStream = null;
+  renderRecentStoryWindow({ forceBottom: true });
+  return true;
+}
+
+function cancelNarrationStream() {
+  if (!activeNarrationStream) return;
+  const id = activeNarrationStream.id;
+  recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
+  activeNarrationStream = null;
+  renderRecentStoryWindow({ forceBottom: true });
+}
+
+/**
+ * 讀取 server 的 NDJSON transport。只有 complete event 的 payload 會進入既有
+ * 回合處理；narration_delta 是 server 已完成 guard／canonical 敘事後的展示副本，
+ * 前端不解析、不信任任何 provider 原始 token。
+ */
+async function readTurnResponse(httpRes) {
+  const contentType = httpRes.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/x-ndjson")) {
+    try {
+      return { payload: await httpRes.json(), status: httpRes.status };
+    } catch {
+      throw new Error(`伺服器回應不是JSON（HTTP ${httpRes.status}）`);
+    }
+  }
+  if (!httpRes.body || typeof httpRes.body.getReader !== "function") {
+    throw new Error("瀏覽器不支援文字串流，請重新整理後再試一次");
+  }
+
+  const reader = httpRes.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let complete = null;
+  let narrationStreamed = false;
+  const consumeLine = (line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    let event;
+    try {
+      event = JSON.parse(trimmed);
+    } catch {
+      throw new Error("串流資料格式錯誤，請稍後重試");
+    }
+    switch (event.type) {
+      case "accepted":
+        updateNarratorPendingHint("已收到行動，正在確認這一回合的現場規則……");
+        break;
+      case "rules_resolved":
+        updateNarratorPendingHint("現場規則已確認，說書人正在接手……");
+        break;
+      case "narrator_writing":
+        updateNarratorPendingHint("說書人正在組織這一回合的敘事……");
+        break;
+      case "narration_start":
+        beginNarrationStream();
+        break;
+      case "narration_delta":
+        updateNarrationStream(event.delta);
+        break;
+      case "narration_end":
+        endNarrationStream();
+        break;
+      case "complete":
+        narrationStreamed = finalizeNarrationStream(event.payload?.narration) || narrationStreamed;
+        complete = { payload: event.payload, status: Number(event.status) || httpRes.status };
+        break;
+      case "error":
+        throw new Error(typeof event.message === "string" ? event.message : "串流回合失敗，請稍後重試");
+      default:
+        // 未知事件不改變回合 state，保留向後相容性。
+        break;
+    }
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(consumeLine);
+  }
+  buffer += decoder.decode();
+  if (buffer.trim()) consumeLine(buffer);
+  if (!complete?.payload) throw new Error("串流在回合完成前中斷，請稍後重試");
+  return { ...complete, narrationStreamed };
+}
+
 async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retryPending = false, turnRequestId } = {}) {
   if (turnInFlight) return;
 
@@ -1136,7 +1412,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
   try {
     const httpRes = await fetch("/api/turn", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/x-ndjson, application/json",
+      },
       body: JSON.stringify({
         sessionId: currentSessionId,
         chosenOption,
@@ -1147,14 +1426,23 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
         ...overrides.payload,
         turnRequestId: stableRequestId,
         retryPending,
+        // server 會以 NDJSON 先送安全狀態事件，再送完整 canonical response；
+        // 不支援串流的舊部署仍會因 Accept fallback 回傳普通 JSON。
+        stream: true,
       })
     });
 
     let res;
+    let responseStatus = httpRes.status;
+    let narrationStreamed = false;
     try {
-      res = await httpRes.json();
-    } catch {
-      throw new Error(`伺服器回應不是JSON（HTTP ${httpRes.status}）`);
+      const streamed = await readTurnResponse(httpRes);
+      res = streamed.payload;
+      responseStatus = streamed.status;
+      narrationStreamed = Boolean(streamed.narrationStreamed);
+    } catch (err) {
+      cancelNarrationStream();
+      throw err;
     }
 
     // [2026-08-16 修正] 這裡以前完全沒有檢查 res.ok。後端敘事失敗時回的是
@@ -1171,7 +1459,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
       renderTurnWarnings(res.warnings);
       if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
-      if (httpRes.status === 409 && res.downState) {
+      if (responseStatus === 409 && res.downState) {
         appendFeedEvent("harm", "身體拒絕行動", escapeHtml(res.error));
       } else {
         const pending = res.pendingTurn;
@@ -1187,7 +1475,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
           };
         }
         keepTurnLocked = Boolean(res.retryable || res.pendingTurn);
-        appendTurnError(res.error || `回合失敗（HTTP ${httpRes.status}）`, res);
+        appendTurnError(res.error || `回合失敗（HTTP ${responseStatus}）`, res);
       }
       return;
     }
@@ -1196,13 +1484,12 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
 
     renderTurnWarnings(res.warnings);
 
-    // 說書人的後台盤算（思維鏈）。**刻意只進 console，不進故事流**：它是模型動筆前的
-    // 筆記（「這次是些微失敗，要關掉通風管這條路」），印給玩家看等於先劇透這一回合的結局。
-    // 留在 console 是為了讓開發時看得出「模型到底有沒有照著判定結果想事情」——
-    // 那是調這一層唯一有效的線索，回傳了卻沒有任何地方讀它才是這個專案要避免的模式。
-    if (res.stThought) console.debug("[ST_THOUGHT]", res.stThought);
+    // [安全][2026-08-24] 說書人的後台盤算(st_thought)已經不會出現在 API 回應裡了
+    // (見 functions/api/turn.js 的說明：只印伺服器 log，不進任何會回到瀏覽器的欄位)，
+    // 這裡也就沒有東西可讀。以前這裡讀 res.stThought 印到 console，等於還是讓
+    // 打開開發者工具的玩家看得到這段本來設計成「玩家看不到」的文字。
 
-    if (res.narration) {
+    if (res.narration && !narrationStreamed) {
       appendNarrationBlock(res.narration);
     }
 
@@ -1226,6 +1513,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     // 日誌分頁開著的時候要跟著這一回合更新，不然玩家會看到一份停在上一回合的日誌。
     refreshJournalIfOpen();
   } catch (err) {
+    cancelNarrationStream();
     console.error("[TURN_FAILURE] /api/turn 呼叫失敗", err);
     // 網路層沒有拿到伺服器回應，無法安全判斷是否已保存 pendingTurn；重試卡會
     // 用明確 retryPending 讓伺服器自行驗證，有 pending 就回放，沒有就回 409，不會盲目重骰。
@@ -1612,10 +1900,20 @@ function renderExplorationTerminal(view) {
   const environment = view.environmentState ?? {};
   const features = Array.isArray(environment.featureSummary) ? environment.featureSummary : [];
   const hazards = Array.isArray(environment.hazardSummary) ? environment.hazardSummary : [];
+  const landmarks = Array.isArray(environment.landmarks) ? environment.landmarks : [];
+  const hazardHints = Array.isArray(environment.hazardHints) ? environment.hazardHints : [];
   if (terminalEnvironment) {
     const lines = [];
-    if (features.length) lines.push(`<div><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
-    if (hazards.length) lines.push(`<div><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
+    if (environment.description) lines.push(`<div class="mb-2 text-zinc-200 leading-relaxed">${escapeHtml(environment.description)}</div>`);
+    if (environment.atmosphere) lines.push(`<div class="mb-1"><span class="text-zinc-500">感官基調：</span>${escapeHtml(environment.atmosphere)}</div>`);
+    if (landmarks.length) {
+      const landmarkText = landmarks.map((item) => typeof item === "string" ? item : `${item.id ? `${item.id}：` : ""}${item.text ?? ""}`).join("；");
+      lines.push(`<div class="mb-1"><span class="text-zinc-500">可見地標：</span>${escapeHtml(landmarkText)}</div>`);
+    }
+    if (features.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">已確認物件：</span>${features.map(escapeHtml).join("、")}</div>`);
+    if (hazardHints.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">可見危險：</span>${hazardHints.map(escapeHtml).join("；")}</div>`);
+    if (hazards.length) lines.push(`<div class="mb-1"><span class="text-zinc-500">已知環境風險：</span>${hazards.map(escapeHtml).join("、")}</div>`);
+    if (environment.revisitVariant) lines.push(`<div class="mt-2 border-l-2 border-amber-500/40 pl-2 text-amber-100/90"><span class="text-amber-400/70">${escapeHtml(environment.revisitVariantLabel ?? "回訪變化")}：</span>${escapeHtml(environment.revisitVariant)}</div>`);
     terminalEnvironment.innerHTML = lines.length ? lines.join("") : "目前沒有額外的環境狀態記錄。";
   }
 }
@@ -2217,10 +2515,9 @@ function setDecisionContext(text) {
  */
 function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
   const panel = document.getElementById("dm-action-guidance");
-  const question = document.getElementById("dm-action-question");
   const hint = document.getElementById("dm-action-hint");
   const hints = document.getElementById("dm-action-hints");
-  if (!panel || !question || !hint || !hints) return;
+  if (!panel || !hint || !hints) return;
 
   panel.hidden = !visible;
   if (!visible) {
@@ -2229,12 +2526,9 @@ function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
   }
 
   const data = dmPrompt && typeof dmPrompt === "object" ? dmPrompt : {};
-  question.textContent = typeof data.question === "string" && data.question.trim()
-    ? data.question.trim()
-    : "你打算怎麼做？";
   hint.textContent = typeof data.hint === "string" && data.hint.trim()
     ? data.hint.trim()
-    : "你可以描述任何合理行動；提示只是方向，不是限制。";
+    : "可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。";
   const safeHints = Array.isArray(data.referenceHints)
     ? data.referenceHints.filter((value) => typeof value === "string" && value.trim()).slice(0, 3)
     : [];
@@ -2245,6 +2539,8 @@ function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
 
 function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt = null } = {}) {
   const grid = document.getElementById("option-grid");
+  const decisionKicker = document.getElementById("decision-kicker");
+  const decisionTitle = document.getElementById("decision-title");
   const safeOptions = Array.isArray(options) ? options : [];
   currentReferenceMode = Boolean(referenceMode);
   if (currentReferenceMode) {
@@ -2253,12 +2549,16 @@ function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt
       grid.hidden = true;
       grid.innerHTML = "";
     }
+    if (decisionKicker) decisionKicker.textContent = "行動方向";
+    if (decisionTitle) decisionTitle.textContent = "可參考的情境線索";
     setDecisionContext("自由行動 · 不使用預設選項");
     renderDmPrompt(dmPrompt, { visible: true });
     return;
   }
 
   currentOptions = safeOptions;
+  if (decisionKicker) decisionKicker.textContent = "下一步";
+  if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
   if (grid) grid.hidden = false;
   renderDmPrompt(null, { visible: false });
   if (!safeOptions.length) {
@@ -2496,6 +2796,7 @@ function buildFeedEvent(kind, label, content, opts = {}) {
 const RECENT_STORY_LIMIT = 5;
 let recentStoryEntries = [];
 let pendingStoryEntry = null;
+let activeNarrationStream = null;
 let storyEntrySequence = 0;
 let recentStoryChronicleTotal = 0;
 
@@ -3663,6 +3964,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btn = e.target.closest("[data-lifepath-option]");
     if (btn) chooseLifePathOption(btn.dataset.lifepathOption);
   });
+  document.getElementById("cg-specialty-options")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-starting-specialty]");
+    if (btn && !btn.disabled) toggleStartingSpecialty(btn.dataset.startingSpecialty);
+  });
   // 肉體重塑的加減點。同樣用委派——整格會在每次加減之後重畫。
   document.getElementById("cg-reshape-grid")?.addEventListener("click", (e) => {
     const up = e.target.closest("[data-reshape-up]");
@@ -3889,7 +4194,7 @@ async function openChronicle(scenarioId = null) {
   if (book) book.innerHTML = `<div class="chronicle-loading"><i class="fas fa-feather-pointed fa-bounce"></i> 正在翻閱存檔……</div>`;
   try {
     const suffix = scenarioId ? `&scenarioId=${encodeURIComponent(scenarioId)}` : "";
-    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}${suffix}`)).json();
+    const res = await (await fetch(`/api/chronicle?sessionId=${encodeURIComponent(currentSessionId)}&includePackage=1${suffix}`)).json();
     if (!res.ok) throw new Error(res.error || "劇情回顧載入失敗");
     chronicleState = res;
     renderChronicle();
@@ -4251,7 +4556,7 @@ window.openExplorationTerminal = openExplorationTerminal;
 window.openStoryLog = openChronicle;
 window.revealMainGodSpace = revealMainGodSpace;
 window.resetPortalInvitation = resetPortalInvitation;
-window.continueFirstGodspaceStory = continueFirstGodspaceStory;
+window.cancelChargenReleaseTransition = cancelChargenReleaseTransition;
 window.returnToMainGodSpace = returnToMainGodSpace;
 window.loadGodspace = loadGodspace;
 window.openLastRunDebrief = openLastRunDebrief;

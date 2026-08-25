@@ -112,3 +112,28 @@ test("空字串/undefined 不會丟錯，一律退回退路檢定", () => {
     assert.equal(params.attribute, FALLBACK_INTENT.attribute);
   }
 });
+
+test("提到持槍 NPC 不會被誤判為玩家射擊", () => {
+  const params = inferCheckParams("我向那個持槍男人搭話，想了解現在到底是什麼情況？");
+  assert.equal(params.requiresCheck, false);
+  assert.equal(params.actionType, "free_action");
+  assert.equal(params.skill, undefined);
+});
+
+test("環顧周遭與聆聽動靜屬於低風險免骰行動", () => {
+  for (const input of [
+    "我轉頭看看四周，確認除了自己之外還有誰",
+    "我環顧周遭，留意附近的動靜",
+  ]) {
+    const params = inferCheckParams(input);
+    assert.equal(params.requiresCheck, false, input);
+    assert.equal(params.actionType, "free_action", input);
+  }
+});
+
+test("明確攻擊行動仍然進入射擊檢定", () => {
+  const params = inferCheckParams("我舉槍瞄準異形並開槍");
+  assert.equal(params.requiresCheck, true);
+  assert.equal(params.attribute, "敏捷");
+  assert.equal(params.skill, "射擊");
+});

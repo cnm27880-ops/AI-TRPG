@@ -12,6 +12,7 @@ import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestGet as formsGet, onRequestPost as formsPost } from "../functions/api/forms.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { emptyCharacter } from "../core/schema.js";
 import { computeDerivedStats } from "../core/derivedStats.js";
 import { openPool } from "../core/energyPools.js";
@@ -49,7 +50,6 @@ function 帶著兩個型態的角色卡({ 內力 = 2 } = {}) {
  * 而且看起來還是綠的。
  */
 async function 讓玩家先手(env, sessionId) {
-  const { resolveSessionStore } = await import("../content/storage/sessionStore.js");
   const store = resolveSessionStore(env);
   const session = await store.get(sessionId);
   session.combat.order = ["player", "enemy"];
@@ -57,10 +57,23 @@ async function 讓玩家先手(env, sessionId) {
   await store.put(session);
 }
 
+/**
+ * 這裡的測試角色卡(帶著兩個型態的角色卡())是刻意配出來驗證型態接線的組合，
+ * 屬性總花費超過建卡的 8 點預算(POST /api/session 現在會把超支的 providedCharacter
+ * 安全地重置成一張歸零的角色卡，見 content/characterBuilder.js 的 sanitizeProvidedCharacter)。
+ * 這裡要測的是「型態花費/池子有沒有正確接線」，不是「建卡預算擋不擋得下超支角色」
+ * (那件事已經在 test/security2026_08_24.test.js 測過)，所以先用一張合法角色卡建立
+ * session，再直接改寫底層存檔——繞過的是 API 的公開驗證，不是引擎的計算邏輯。
+ */
 async function newSession(env, character) {
-  const body = await read(await sessionPost(req(env, { character })));
+  const body = await read(await sessionPost(req(env, { character: emptyCharacter(character?.concept?.name ?? "測試") })));
   assert.equal(body.ok, true, JSON.stringify(body));
-  return body.session.id;
+  const sessionId = body.session.id;
+  const store = resolveSessionStore(env);
+  const session = await store.get(sessionId);
+  session.character = character;
+  await store.put(session);
+  return sessionId;
 }
 
 test("/api/forms 把「這次要決定什麼」一起交出去(支付範圍、二選一選項、維持成本)", async () => {

@@ -168,11 +168,15 @@ test("未知的面具要在最前面就擋下來(400)，不要等到組系統提
   assert.equal(env.calls.length, 0, "參數錯誤的回合不該浪費一次LLM呼叫");
 });
 
-test("思維鏈(st_thought)不會被印進敘事，但會原樣回傳供開發檢視", async () => {
+test("[安全] 思維鏈(st_thought)不會被印進敘事，也不會出現在公開API回應的任何欄位", async () => {
   const env = scriptedEnv([replyWithFreeOption(1)]);
   const sessionId = await newSession(env);
   const { body } = await readJson(await turnPost(req(env, { sessionId })));
 
-  assert.match(body.stThought, /第1輪盤算/);
+  // 前端「不印」跟玩家「看不到」是兩件事——打開瀏覽器開發者工具的 Network 分頁
+  // 就能看到完整回應本文，所以 st_thought 不能出現在 body 的任何地方，
+  // 不是只有「不要出現在 body.stThought」這一個欄位而已。
+  assert.equal(body.stThought, undefined, "st_thought 不可以出現在公開回應裡");
+  assert.ok(!JSON.stringify(body).includes("第1輪盤算"), "後台盤算文字不可以出現在回應本文的任何地方");
   assert.ok(!body.narration.includes("盤算"), "後台盤算不可以混進玩家讀到的敘事裡");
 });

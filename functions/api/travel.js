@@ -2,7 +2,7 @@
 // 客戶端只能提出目的地；目前位置、路線、前置條件、時間與威脅全部由這裡查驗。
 // 移動不呼叫 LLM，也不讓玩家用自由文字改寫 location 或 reference state。
 
-import { resolveSessionStore, pushHistory } from "../../content/storage/sessionStore.js";
+import { resolveSessionStore, pushHistory, SessionConflictError } from "../../content/storage/sessionStore.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../content/auth/ownership.js";
 import { getDownState } from "../../content/downState.js";
@@ -78,6 +78,9 @@ export async function onRequestPost(context) {
   if (!canAccessSession(session, await getCurrentUser(context.request, env))) {
     return error({ error: `找不到存檔 ${sessionId}` }, 404);
   }
+  // 進入這個函式時的修訂號；寫回前用它偵測「讀取之後、寫入之前，存檔被別的
+  // 請求(例如同時送出的 /api/turn 或另一次 /api/travel)改過」的併發衝突。
+  const expectedRev = session.rev ?? 0;
   if (isRetiredScenarioId(session.scenario?.packId)) {
     return error({
       retiredScenario: true,
@@ -291,6 +294,16 @@ export async function onRequestPost(context) {
       savedAt: timestamp,
     };
   }
-  await store.put(session);
+  try {
+    await store.put(session, { expectedRev });
+  } catch (err) {
+    if (err instanceof SessionConflictError) {
+      return error({
+        code: "SESSION_CONFLICT",
+        error: "這份存檔剛被另一個請求更新（可能是重複送出），請重新整理後再試一次。",
+      }, 409);
+    }
+    throw err;
+  }
   return json(responseBody);
 }

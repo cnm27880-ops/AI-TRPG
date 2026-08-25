@@ -257,7 +257,11 @@ test("甦醒那一幕：過場通用、房間交給副本、掃描要引用玩�
   const scene = composeAwakening({
     options,
     morality,
-    traits: [{ name: "多疑的智者", description: "說明" }],
+    startingSpecialties: [
+      { id: "crisis_observer", name: "危機觀察", skill: "偵察", description: "說明" },
+      { id: "first_aid", name: "急救經驗", skill: "醫療", description: "說明" },
+      { id: "melee_reflex", name: "近身反應", skill: "格鬥", description: "說明" },
+    ],
     attributes,
     arrivalNarration: "你醒在一艘船上。你被一層防護罩罩住。",
   });
@@ -273,6 +277,9 @@ test("甦醒那一幕：過場通用、房間交給副本、掃描要引用玩�
   assert.equal(scene.system.vice.key, morality.vice);
   assert.ok(scene.system.core.name);
   assert.match(scene.system.footer, new RegExp(`${RESHAPE_POINTS} 點自由屬性`));
+  assert.equal(scene.system.startingSpecialties.length, 3);
+  assert.deepEqual(scene.system.startingSpecialties.map((specialty) => specialty.skill), ["偵察", "醫療", "格鬥"]);
+  assert.equal(scene.system.traits, undefined, "甦醒資料不應再回傳純敘事特性");
   assert.equal(scene.reshape.points, RESHAPE_POINTS);
   assert.deepEqual(scene.reshape.base, attributes, "重塑要疊在自動配點的結果上");
 });
