@@ -33,6 +33,16 @@ import {
   normalizeRipleyCooperationState,
   buildRipleyCooperationPromptBlock,
 } from "./ripleyCooperationPolicy.js";
+import {
+  createParkerCooperationState,
+  normalizeParkerCooperationState,
+  buildParkerCooperationPromptBlock,
+} from "./parkerCooperationPolicy.js";
+import {
+  createLambertCooperationState,
+  normalizeLambertCooperationState,
+  buildLambertCooperationPromptBlock,
+} from "./lambertCooperationPolicy.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -211,6 +221,8 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     npcCooperation: {
       ...createNpcCooperationState(),
       ...createRipleyCooperationState(),
+      ...createParkerCooperationState(),
+      ...createLambertCooperationState(),
     },
     injuries: [],
     infectionStatus: "unknown",
@@ -257,6 +269,8 @@ export function normalizeReferenceState(reference, rawState) {
     npcCooperation: {
       ...normalizeNpcCooperationState(rawState.npcCooperation),
       ...normalizeRipleyCooperationState(rawState.npcCooperation),
+      ...normalizeParkerCooperationState(rawState.npcCooperation),
+      ...normalizeLambertCooperationState(rawState.npcCooperation),
     },
     injuries: unique(rawState.injuries),
     sceneTurnCount: Number.isInteger(rawState.sceneTurnCount) && rawState.sceneTurnCount >= 0
@@ -906,6 +920,16 @@ export function buildReferencePromptBlock({
       turnNumber,
     }),
     buildRipleyCooperationPromptBlock(reference, state, {
+      actionText,
+      sceneId: scene?.id ?? currentScene?.id ?? null,
+      turnNumber,
+    }),
+    buildParkerCooperationPromptBlock(reference, state, {
+      actionText,
+      sceneId: scene?.id ?? currentScene?.id ?? null,
+      turnNumber,
+    }),
+    buildLambertCooperationPromptBlock(reference, state, {
       actionText,
       sceneId: scene?.id ?? currentScene?.id ?? null,
       turnNumber,

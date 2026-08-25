@@ -114,6 +114,8 @@ import { sceneKeyOf } from "../../content/shop/access.js";
 import { formsForScene } from "../../content/shop/forms.js";
 import { applyNpcCooperationForAction } from "../../content/scenario/npcCooperationPolicy.js";
 import { applyRipleyCooperationForAction } from "../../content/scenario/ripleyCooperationPolicy.js";
+import { applyParkerCooperationForAction } from "../../content/scenario/parkerCooperationPolicy.js";
+import { applyLambertCooperationForAction } from "../../content/scenario/lambertCooperationPolicy.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -794,7 +796,7 @@ async function executeTurn(context, streamHooks = null) {
   // ---------------------------------------------------------------------
   // NPC 協作層：這是有限的 server-side 社會反應，不是新的 engine effect。
   // ---------------------------------------------------------------------
-  // 玩家仍可自由輸入；只有可辨識的陸遠／Ripley 互動才會更新各自的 bounded cooperation state。
+  // 玩家仍可自由輸入；只有可辨識的陸遠／Ripley／Parker／Lambert 互動才會更新各自的 bounded cooperation state。
   // matched／unmatched 都能觸發，因為 NPC 不應只對按鈕行動有記憶。
   // pending replay 不重新套用，避免 LLM 失敗重試時重複提高威脅或降低合作。
   if (scenarioReference && referenceState && actionText && !pendingReplay) {
@@ -802,23 +804,20 @@ async function executeTurn(context, streamHooks = null) {
       ? referenceResolution.scene?.id ?? referenceState.currentSceneId
       : referenceState.currentSceneId;
     const turnNumber = (session?.turns ?? 0) + 1;
-    const cooperationDecisions = [
-      applyNpcCooperationForAction({
-        reference: scenarioReference,
-        state: referenceState,
-        actionText,
-        sceneId,
-        turnNumber,
-      }),
-      applyRipleyCooperationForAction({
-        reference: scenarioReference,
-        state: referenceState,
-        actionText,
-        sceneId,
-        turnNumber,
-      }),
+    const cooperationPolicies = [
+      applyNpcCooperationForAction,
+      applyRipleyCooperationForAction,
+      applyParkerCooperationForAction,
+      applyLambertCooperationForAction,
     ];
-    for (const decision of cooperationDecisions) {
+    for (const applyPolicy of cooperationPolicies) {
+      const decision = applyPolicy({
+        reference: scenarioReference,
+        state: referenceState,
+        actionText,
+        sceneId,
+        turnNumber,
+      });
       if (!decision.changed) continue;
       referenceState = decision.state;
       if (session?.scenario) session.scenario.referenceState = referenceState;

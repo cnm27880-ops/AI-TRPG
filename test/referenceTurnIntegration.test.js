@@ -90,6 +90,50 @@ test("Ripley cooperation state is persisted before an unavailable LLM response",
   assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_boundary_force_01");
 });
 
+test("同一回合的 Ripley／Lambert cooperation state 會依序合併而不互相覆蓋", async () => {
+  const env = {};
+  const created = await createSession({
+    request: request("https://test.local/api/session", {
+      character: emptyCharacter("多 NPC 整合測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  });
+  const createdBody = await created.json();
+  assert.equal(createdBody.ok, true);
+  const sessionId = createdBody.session.id;
+
+  const opening = await playTurn({
+    request: request("https://test.local/api/turn", { sessionId }),
+    env,
+  });
+  assert.equal(opening.status, 200);
+  const store = resolveSessionStore(env);
+  const seeded = await store.get(sessionId);
+  seeded.scenario.referenceState.currentSceneId = "evt_meet_ripley";
+  seeded.scenario.referenceState.currentLocation = "loc_bridge";
+  await store.put(seeded);
+
+  const action = await playTurn({
+    request: request("https://test.local/api/turn", {
+      sessionId,
+      requestId: "support-lambert-ripley-1",
+      playerAction: "我安撫 Lambert，請 Ripley 說明下一步",
+    }),
+    env,
+  });
+  assert.equal(action.status, 503);
+  const actionBody = await action.json();
+  assert.equal(actionBody.ok, false);
+  assert.equal(actionBody.pendingTurn?.referenceState, undefined);
+
+  const saved = await store.get(sessionId);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_cooperate_lambert_02");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
+  assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_cooperate_lambert_02");
+  assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
+});
+
 test("V2 reference action is persisted before an unavailable LLM response", async () => {
   const env = {};
   const character = emptyCharacter("Reference 測試者");
