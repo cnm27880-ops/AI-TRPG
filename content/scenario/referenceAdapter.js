@@ -754,6 +754,7 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     approach: resolution.approach,
     result: narrativeResult,
     effects: discoveryEffects,
+    outcomeTier: selected.key,
   });
 
   const nextNode = nextScene?.nodeId ?? null;

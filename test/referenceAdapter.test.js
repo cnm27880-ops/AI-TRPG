@@ -27,6 +27,11 @@ import {
   buildNarrativeNpcPromptBlock,
   narrativePackageCoverage,
 } from "../content/scenario/narrativePackageAdapter.js";
+import {
+  cluePresentationFor,
+  approvedCluePresentationCount,
+  approvedClueIds,
+} from "../content/scenario/cluePresentationAdapter.js";
 
 test("《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping", () => {
   assert.equal(contentPackage.sourcePackId, reference.sourcePackId);
@@ -80,7 +85,7 @@ test("補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端�
 });
 
 test("補充二未核准的 clue 仍不會進入 approved runtime lookup，重大變體則已完成核准", () => {
-  assert.equal(contentPackage.approvedExplorationGap.omitted.cluePresentation, "pending_canonical_clue_question_mapping");
+  assert.equal(contentPackage.approvedExplorationGap.omitted.cluePresentation, "new_clue_ids_pending_canonical_mapping");
   assert.equal("majorSceneVariants" in contentPackage.approvedExplorationGap.omitted, false);
   assert.equal(contentPackage.approvedMajorSceneVariants.status, "approved_canonical_result_overlays");
   assert.equal(contentPackage.canonicalLocationMap.loc_bridge.status, "direct");
@@ -503,6 +508,7 @@ test("reference results create public discoveries and unresolved questions witho
 
   assert.ok(exploration.recentDiscoveries.some((item) => item.kind === "event_result"));
   assert.ok(exploration.recentDiscoveries.some((item) => item.id === "clue:clue_alien_trace"));
+  assert.match(exploration.recentDiscoveries.find((item) => item.id === "clue:clue_alien_trace").text, /腐蝕/);
   assert.equal(exploration.unresolvedQuestions.find((item) => item.id === "q_alien_route")?.status, "updated");
   assert.equal(JSON.stringify(exploration).includes("fixedTruths"), false);
   assert.equal(JSON.stringify(exploration).includes("privateGoals"), false);
@@ -546,6 +552,109 @@ test("q_order_937 uses mapped progress text before the canonical reveal answer",
   const publicPending = referenceStateForResponse(reference, peekApplied.state).exploration.unresolvedQuestions
     .find((item) => item.id === "q_order_937");
   assert.match(publicPending.progressText, /完整的簽發內容/);
+});
+
+test("四個 canonical clue 使用嚴格 source binding 與 tier 分級演出", () => {
+  assert.equal(approvedCluePresentationCount(), 20);
+  assert.deepEqual(approvedClueIds(), [
+    "clue_alien_trace",
+    "clue_ash_synthetic",
+    "clue_order_937",
+    "clue_narcissus_prep",
+  ]);
+
+  const alienState = { clues: ["clue_alien_trace"], flags: [] };
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_alien_trace",
+    sceneId: "evt_cryo_clearance",
+    approachId: "app_cryo_recon",
+    outcomeTier: "成功",
+    state: alienState,
+  }).text, /體型遠超人類/);
+  assert.equal(cluePresentationFor(reference, {
+    clueId: "clue_alien_trace",
+    sceneId: "evt_cryo_clearance",
+    approachId: "app_cryo_recon",
+    outcomeTier: "narrow_success",
+    state: alienState,
+  }), null);
+
+  const ashState = { clues: ["clue_ash_synthetic"], flags: [] };
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_ash_synthetic",
+    sceneId: "evt_meet_ash",
+    approachId: "app_ash_observe_abnormal",
+    outcomeTier: "成功",
+    state: ashState,
+  }).text, /還不足以判定/);
+  assert.equal(cluePresentationFor(reference, {
+    clueId: "clue_ash_synthetic",
+    sceneId: "evt_meet_ash",
+    approachId: "app_ash_observe_abnormal",
+    outcomeTier: "大成功",
+    state: ashState,
+  }), null);
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_ash_synthetic",
+    sceneId: "evt_meet_ash",
+    approachId: "app_ash_observe_abnormal",
+    outcomeTier: "大成功",
+    state: { ...ashState, flags: ["flag_ash_synthetic_known"] },
+  }).text, /人類外表/);
+
+  const orderState = { clues: ["clue_order_937"], flags: [] };
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_order_937",
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "成功",
+    state: orderState,
+  }).text, /CREW EXPENDABLE/);
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_order_937",
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "些微失敗",
+    state: orderState,
+  }).text, /不足以還原完整指令/);
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_order_937",
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_manual_read",
+    outcomeTier: "自動",
+    state: orderState,
+  }).text, /裁切/);
+
+  const narcissusState = { clues: ["clue_narcissus_prep"], flags: [] };
+  assert.match(cluePresentationFor(reference, {
+    clueId: "clue_narcissus_prep",
+    sceneId: "evt_meet_ripley",
+    approachId: "app_ripley_show_evidence",
+    outcomeTier: "成功",
+    state: narcissusState,
+  }).text, /機械掛鉤/);
+  assert.equal(cluePresentationFor(reference, {
+    clueId: "clue_narcissus_prep",
+    sceneId: "evt_narcissus_final_purge",
+    approachId: "app_purge_classic",
+    outcomeTier: "成功",
+    state: narcissusState,
+  }), null);
+
+  assert.equal(cluePresentationFor(reference, {
+    clueId: "clue_order_937",
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "成功",
+    state: { clues: [] },
+  }), null);
+  assert.equal(cluePresentationFor({ ...reference, sourcePackId: "other-pack" }, {
+    clueId: "clue_order_937",
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "成功",
+    state: orderState,
+  }), null);
 });
 
 test("Ash question resolves only after the reference flag confirms the identity", () => {

@@ -3,8 +3,8 @@ export default {
   "sourceFile": "包.txt",
   "sourceTitle": "《異形：生化深淵》V2 空間資料、移動轉場與 NPC 語氣庫（P0 核心內容包）",
   "sourcePackId": "scenario.nostromo-01-v2",
-  "conversionStatus": "content_only_with_approved_exploration_gap_and_major_variants",
-  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白與已接觸 NPC 的語氣素材；canonical reference 與 engine effects 仍是唯一真相。重大場景 overlay 必須附著在已套用的 canonical result 上，不得自行新增狀態。",
+  "conversionStatus": "content_only_with_approved_exploration_gap_major_variants_and_clue_presentations",
+  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白、已接觸 NPC 的語氣素材與依 canonical result 綁定的線索演出；canonical reference 與 engine effects 仍是唯一真相。重大場景與 clue overlay 必須附著在已套用的 canonical result 上，不得自行新增狀態。",
   "canonicalLocationMap": {
     "loc_cryo": {
       "packageId": "loc_cryo",
@@ -1457,8 +1457,10 @@ export default {
       }
     ],
     "omitted": {
-      "cluePresentation": "pending_canonical_clue_question_mapping"
-    }
+      "cluePresentation": "new_clue_ids_pending_canonical_mapping",
+      "questionMapping": "remaining_supplement_questions_pending_canonical_mapping"
+    },
+    "approvedCluePresentation": "content/scenario/cluePresentationAdapter.js",
   },
   "approvedMajorSceneVariants": {
     "id": "major-scene-variants-1",

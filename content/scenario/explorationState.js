@@ -5,6 +5,7 @@
 // 不把 NPC privateGoals、gmTruth、question catalog 的未達成答案送到前端。
 
 import { narrativeTransitionText } from "./narrativePackageAdapter.js";
+import { cluePresentationFor } from "./cluePresentationAdapter.js";
 
 const QUESTION_STATUS_LABELS = Object.freeze({
   open: "未解",
@@ -140,7 +141,7 @@ export function synchronizeExplorationState(reference, state) {
   };
 }
 
-export function recordReferenceDiscoveries(reference, state, { scene, approach, result, effects } = {}) {
+export function recordReferenceDiscoveries(reference, state, { scene, approach, result, effects, outcomeTier } = {}) {
   const next = {
     ...state,
     recentDiscoveries: asArray(state?.recentDiscoveries).slice(),
@@ -164,11 +165,18 @@ export function recordReferenceDiscoveries(reference, state, { scene, approach, 
     if (!clue) continue;
     const existing = next.recentDiscoveries.find((item) => item.id === `clue:${clueId}`);
     if (existing) continue;
+    const presentation = cluePresentationFor(reference, {
+      clueId,
+      sceneId: scene?.id,
+      approachId: approach?.id,
+      outcomeTier,
+      state: next,
+    });
     next.recentDiscoveries.push({
       id: `clue:${clueId}`,
       kind: "clue",
       title: clue.name ?? "新線索",
-      text: clue.reveals ?? "你取得了一項尚待分析的線索。",
+      text: presentation?.text ?? clue.reveals ?? "你取得了一項尚待分析的線索。",
       source: scene?.id ?? "reference",
       location,
     });
