@@ -23,6 +23,7 @@ import contentPackage from "../content/scenario/examples/alienNostromo_v2_conten
 import {
   narrativeLocationView,
   narrativeTransitionText,
+  narrativeMajorSceneVariant,
   buildNarrativeNpcPromptBlock,
   narrativePackageCoverage,
 } from "../content/scenario/narrativePackageAdapter.js";
@@ -41,6 +42,7 @@ test("《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping
     mappedTransitions: 17,
     approvedLocations: 3,
     approvedTransitions: 14,
+    approvedMajorSceneVariants: 15,
   });
   assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.sourcePlayerVisibleDescription?.includes("八具白色低溫休眠艙"), true);
   assert.equal(contentPackage.locations.find((item) => item.id === "loc_cryo")?.playerVisibleDescription?.includes("數具白色低溫休眠艙"), true);
@@ -77,12 +79,86 @@ test("補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端�
   assert.equal(contentPackage.canonicalRouteMap.travel_lower_deck_airlock.status, "direct");
 });
 
-test("補充二未核准的 clue 與 major variants 不會進入 approved runtime lookup", () => {
+test("補充二未核准的 clue 仍不會進入 approved runtime lookup，重大變體則已完成核准", () => {
   assert.equal(contentPackage.approvedExplorationGap.omitted.cluePresentation, "pending_canonical_clue_question_mapping");
-  assert.equal(contentPackage.approvedExplorationGap.omitted.majorSceneVariants, "pending_exact_result_and_outcome_audit");
+  assert.equal("majorSceneVariants" in contentPackage.approvedExplorationGap.omitted, false);
+  assert.equal(contentPackage.approvedMajorSceneVariants.status, "approved_canonical_result_overlays");
   assert.equal(contentPackage.canonicalLocationMap.loc_bridge.status, "direct");
   assert.equal(contentPackage.canonicalLocationMap.loc_service_corridor.status, "direct");
   assert.equal(contentPackage.canonicalLocationMap.loc_lower_deck.status, "direct");
+});
+
+test("15 個重大變體只在 canonical scene／approach／正式 tier 完全匹配時提供 overlay", () => {
+  assert.equal(contentPackage.approvedMajorSceneVariants.variants.length, 15);
+  const ash = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_ash_ambush",
+    approachId: "app_ash_shoot",
+    outcomeTier: "大成功",
+    actionText: "我瞄準 Ash 的頭部開火",
+  });
+  assert.equal(ash.id, "major_ash_shoot_success");
+  assert.match(ash.text, /仿生表層/);
+  assert.match(ash.text, /科學官權限卡從制服內袋滑落/);
+
+  const order = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_order_937_reveal",
+    approachId: "app_order_query",
+    outcomeTier: "驚險成功",
+    actionText: "我檢索主機資料",
+  });
+  assert.equal(order.id, "major_937_query_narrow");
+  assert.match(order.text, /樣本優先/);
+
+  const purge = narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_narcissus_final_purge",
+    approachId: "app_purge_classic",
+    outcomeTier: "慘烈失敗",
+    actionText: "我拉下氣閘拉桿",
+  });
+  assert.equal(purge.id, "major_purge_classic_critical_failure");
+  assert.match(purge.text, /安全繩/);
+
+  assert.equal(narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_mother_chamber_infiltrate",
+    approachId: "app_order_query",
+    outcomeTier: "成功",
+    actionText: "我檢索主機資料",
+  }), null, "變體不能掛在錯誤的 scene");
+  assert.equal(narrativeMajorSceneVariant(reference, {
+    sceneId: "evt_ash_ambush",
+    approachId: "app_ash_shoot",
+    outcomeTier: "narrow_success",
+    actionText: "我開火",
+  }), null, "非正式 tier 不得觸發變體");
+});
+
+test("reference prompt 只把重大變體當成 canonical result 之上的 server overlay", () => {
+  const state = {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    flags: ["flag_ash_ambush_unlocked"],
+  };
+  const scene = reference.scenes.find((item) => item.id === "evt_ash_ambush");
+  const approach = scene.approaches.find((item) => item.id === "app_ash_shoot");
+  const resolution = { matched: true, scene, approach, mode: "reference" };
+  const applied = {
+    resultKey: "大成功",
+    resultText: "canonical result",
+    effectSummary: { itemsAdd: ["item_access_card"], npcStatusChanges: { npc_ash: "destroyed" } },
+  };
+  const prompt = buildReferencePromptBlock({
+    reference,
+    state,
+    resolution,
+    applied,
+    actionText: "我瞄準 Ash 的頭部開火",
+    outcomeTier: "大成功",
+  });
+  assert.match(prompt, /<Major_Scene_Narrative_Overlay>/);
+  assert.match(prompt, /只能補充已套用固定結果/);
+  assert.match(prompt, /item_access_card/);
+  assert.match(prompt, /major_ash_shoot_success|evt_ash_ambush／app_ash_shoot／大成功/);
 });
 
 test("補充二的 approved exploration gap 會提供所有 14 條 canonical route 與地點回訪素材", () => {

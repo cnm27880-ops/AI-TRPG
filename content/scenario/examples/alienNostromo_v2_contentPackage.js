@@ -3,8 +3,8 @@ export default {
   "sourceFile": "包.txt",
   "sourceTitle": "《異形：生化深淵》V2 空間資料、移動轉場與 NPC 語氣庫（P0 核心內容包）",
   "sourcePackId": "scenario.nostromo-01-v2",
-  "conversionStatus": "content_only_with_approved_exploration_gap",
-  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白與已接觸 NPC 的語氣素材；不授權新增位置、物品、傷勢、旗標、威脅、結局或秘密。",
+  "conversionStatus": "content_only_with_approved_exploration_gap_and_major_variants",
+  "safetyNote": "本資料只提供玩家可見敘事、轉場旁白與已接觸 NPC 的語氣素材；canonical reference 與 engine effects 仍是唯一真相。重大場景 overlay 必須附著在已套用的 canonical result 上，不得自行新增狀態。",
   "canonicalLocationMap": {
     "loc_cryo": {
       "packageId": "loc_cryo",
@@ -1457,8 +1457,505 @@ export default {
       }
     ],
     "omitted": {
-      "cluePresentation": "pending_canonical_clue_question_mapping",
-      "majorSceneVariants": "pending_exact_result_and_outcome_audit"
+      "cluePresentation": "pending_canonical_clue_question_mapping"
     }
+  },
+  "approvedMajorSceneVariants": {
+    "id": "major-scene-variants-1",
+    "sourceFile": "異形補充二.md",
+    "status": "approved_canonical_result_overlays",
+    "safetyNote": "每筆文字均已綁定現行 sceneId、approachId 與正式 outcome tier；overlay 只可補充已授權結果，不可取代 canonical result 或建立 effects。",
+    "variants": [
+      {
+        "id": "major_luyuan_contact_receptive",
+        "sourceResultKey": "evt_deck_a_recon.talk.success",
+        "sceneId": "evt_deck_a_recon",
+        "approachId": "app_deck_luyuan_contact",
+        "outcomeTier": "自動",
+        "narrativeMode": "normal",
+        "variantPurpose": "陸遠接受交換情報後的克制評估。",
+        "selection": {
+          "default": true,
+          "any": [
+            "交換",
+            "說明",
+            "合作",
+            "坦白",
+            "回答",
+            "詢問"
+          ]
+        },
+        "text": "陸遠的視線從手錶倒數移回你身上，槍口仍壓在安全角度。他等你說完，才用低沉短促的聲音道：「反應還行。這艘船上的東西會利用聲音和震動移動；別把自己困在沒有第二條出口的房間。」他示意你跟上，視線已經先一步掃向通風管與科學區方向。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "改綁 app_deck_luyuan_contact／自動；只補充陸遠的語氣與可觀察動作，不宣告新增裝備或關係數值。"
+      },
+      {
+        "id": "major_luyuan_contact_cautious",
+        "sourceResultKey": "evt_deck_a_recon.talk.narrow_success",
+        "sceneId": "evt_deck_a_recon",
+        "approachId": "app_deck_luyuan_contact",
+        "outcomeTier": "自動",
+        "narrativeMode": "normal",
+        "variantPurpose": "陸遠在玩家謹慎試探後維持戒備的演出。",
+        "selection": {
+          "any": [
+            "小心",
+            "低聲",
+            "試探",
+            "觀察",
+            "先確認",
+            "謹慎"
+          ]
+        },
+        "text": "你的回答讓陸遠握著槍柄的手指微微收緊了一瞬。他沒有立刻接話，而是側過頭掃過身後閃爍的走廊，像在捕捉鋼板深處的細微回音。「思路沒錯，但別讓語速暴露你的慌亂。」他壓低聲音提醒，隨後示意你保持在能被他看見的位置。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "改綁 app_deck_luyuan_contact／自動；原始膠布與額外物品動作移除，避免產生未授權物品。"
+      },
+      {
+        "id": "major_luyuan_contact_guarded",
+        "sourceResultKey": "evt_deck_a_recon.talk.failure",
+        "sceneId": "evt_deck_a_recon",
+        "approachId": "app_deck_luyuan_contact",
+        "outcomeTier": "自動",
+        "narrativeMode": "normal",
+        "variantPurpose": "陸遠面對含糊或挑釁說法時的保持距離演出。",
+        "selection": {
+          "any": [
+            "威脅",
+            "挑釁",
+            "質疑",
+            "指責",
+            "奪",
+            "搶",
+            "拒絕合作"
+          ]
+        },
+        "text": "陸遠的眉頭在你的話音中越鎖越深。他沒有提高音量，只把視線轉向走廊前方，讓沉默先替他切斷爭辯。「先退開，別用猜測浪費時間。」冰冷的槍栓聲在走廊裡響起；他仍在帶路，但明顯要求你留在自己的視線範圍內。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "改綁 app_deck_luyuan_contact／自動；不宣告信任下降、掩護取消或額外戰鬥。"
+      },
+      {
+        "id": "major_ash_quarantine_success",
+        "sourceResultKey": "evt_meet_ash.talk.success",
+        "sceneId": "evt_meet_ash",
+        "approachId": "app_ash_talk_quarantine",
+        "outcomeTier": "成功",
+        "narrativeMode": "normal",
+        "variantPurpose": "在不提前揭露 Ash 身分的前提下，強化檢疫交涉的冷靜與迴避。",
+        "text": "Ash 放下手中的金屬鑷子，轉身面向你。冷白燈下，他以平穩而禮貌的語氣交出一份基礎生物特徵報告：外骨骼、酸性體液，以及對一般物理刺激的反應；當問題觸及火焰與低溫時，他的回答始終繞開最關鍵的部分。",
+        "npcContext": [
+          "npc_ash"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "對應 canonical app_ash_talk_quarantine／成功；不使用未解鎖的生理異常觀察。"
+      },
+      {
+        "id": "major_ash_quarantine_narrow",
+        "sourceResultKey": "evt_meet_ash.talk.narrow_success",
+        "sceneId": "evt_meet_ash",
+        "approachId": "app_ash_talk_quarantine",
+        "outcomeTier": "驚險成功",
+        "narrativeMode": "normal",
+        "variantPurpose": "交涉取得片段情報但雙方底線開始收緊。",
+        "text": "Ash 聽完你的陳述，微微點頭，隨即把話題拉回樣本安全與武器管制。他沒有提高音量，卻用極其完整的禮貌句式反覆要求你們停止靠近分析台。你得到的回答足以確認酸性體液的危險，但實驗室內的空氣已經冷到像一層看不見的薄膜，雙方都在衡量下一句話的代價。",
+        "npcContext": [
+          "npc_ash",
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將非正式 narrow_success 轉為 canonical 驚險成功；保留氣氛，不宣告交出武器或額外鎖門。"
+      },
+      {
+        "id": "major_ash_quarantine_failure",
+        "sourceResultKey": "evt_meet_ash.talk.failure",
+        "sceneId": "evt_meet_ash",
+        "approachId": "app_ash_talk_quarantine",
+        "outcomeTier": "失敗",
+        "narrativeMode": "normal",
+        "variantPurpose": "和平交涉失敗但不提前觸發未授權的門禁結果。",
+        "text": "當你的說法碰到 Ash 不可能忽略的矛盾時，他臉上的禮貌沒有消失，只是變得完全沒有溫度。「這些陳述不足以取得資料授權。」他關掉分析螢幕，拒絕繼續回答；對話停在一道沒有回音的牆前，和平取得情報的路線暫時中斷。",
+        "npcContext": [
+          "npc_ash"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將非正式 failure 轉為 canonical 失敗；移除直接宣告按鈕、通道鎖死與未授權門禁結果。"
+      },
+      {
+        "id": "major_ash_shoot_success",
+        "sourceResultKey": "evt_ash_ambush.shoot.success",
+        "sceneId": "evt_ash_ambush",
+        "approachId": "app_ash_shoot",
+        "outcomeTier": "大成功",
+        "narrativeMode": "combat",
+        "variantPurpose": "強化 canonical 大成功已授權的擊潰、Ash destroyed 與權限卡取得。",
+        "text": "你在 Ash 撲近前扣動扳機。大口徑槍火撕開他肩頸與顱側的仿生表層，第二發擊中核心連接；那具身體在分析台旁失去支撐，露出的金屬結構映著冷白燈光。短暫的抽搐停止後，一張科學官權限卡從制服內袋滑落，停在你能夠取到的位置。",
+        "npcContext": [
+          "npc_ash"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將 source success 對應 canonical 大成功；保留已由 effects 授權的 Ash destroyed 與 item_access_card，刪除未必要的仿生腦漿細節。"
+      },
+      {
+        "id": "major_ash_shoot_narrow",
+        "sourceResultKey": "evt_ash_ambush.shoot.narrow_success",
+        "sceneId": "evt_ash_ambush",
+        "approachId": "app_ash_shoot",
+        "outcomeTier": "驚險成功",
+        "narrativeMode": "combat",
+        "variantPurpose": "呈現命中但未擊潰 Ash、樣本狀態變得不穩定的驚險結果。",
+        "text": "槍火撕開 Ash 的仿生表層，卻在金屬骨架上偏轉。你們趁他動作短暫失去同步時逼出退路；飛濺的液體落在冷卻槽邊緣，腐蝕警示隨即亮起，原本穩定的樣本狀態開始變得不可靠。Ash 仍然站著，這一輪只是被迫停頓。",
+        "npcContext": [
+          "npc_ash",
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將非正式 narrow_success 轉為 canonical 驚險成功；移除 Ash destroyed、陸遠負傷與權限卡掉落等未授權結果。"
+      },
+      {
+        "id": "major_ash_shoot_failure",
+        "sourceResultKey": "evt_ash_ambush.shoot.failure",
+        "sceneId": "evt_ash_ambush",
+        "approachId": "app_ash_shoot",
+        "outcomeTier": "失敗",
+        "narrativeMode": "combat",
+        "variantPurpose": "強化射擊失敗造成的受創、失去先手與被迫換位。",
+        "text": "頻閃的應急燈切碎了你的瞄準線，子彈在金屬櫃上炸出火星。Ash 沒有閃避的慌亂，只用一隻手扭住你的槍腕；撞擊讓手臂傳來尖銳痛楚，陸遠從側面把你拉開，兩人被迫退入服務維修通道。這次交火沒有解除威脅，你們只能改變位置與方法。",
+        "npcContext": [
+          "npc_ash",
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將 source failure 對應 canonical 失敗；保留 canonical fracture_arm、flag_ash_hostile 與 playerLocation=loc_service_corridor 的結果。"
+      },
+      {
+        "id": "major_937_query_success",
+        "sourceResultKey": "evt_mother_chamber_infiltrate.query.success",
+        "sceneId": "evt_order_937_reveal",
+        "approachId": "app_order_query",
+        "outcomeTier": "成功",
+        "narrativeMode": "reveal",
+        "variantPurpose": "將 937 完整揭露掛到真正的 evt_order_937_reveal／app_order_query。",
+        "text": "最後一個字節輸入後，機械打字機突然連續敲響，穿孔紙帶一行行吐出：`SPECIAL ORDER 937`、`PRIORITY ONE：RECOVER ORGANISM FOR ANALYSIS`，以及最令人窒息的最後一句：`CREW EXPENDABLE`。簽發細節仍有部分遮蔽，但你已經確定這艘船的救援優先級從來不是船員安全。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "sceneId 從 evt_mother_chamber_infiltrate 改正為真正揭露場景 evt_order_937_reveal；對應 canonical app_order_query／成功。"
+      },
+      {
+        "id": "major_937_query_narrow",
+        "sourceResultKey": "evt_mother_chamber_infiltrate.query.narrow_success",
+        "sceneId": "evt_order_937_reveal",
+        "approachId": "app_order_query",
+        "outcomeTier": "驚險成功",
+        "narrativeMode": "reveal",
+        "variantPurpose": "情報取得與審計警報同時成立的驚險揭露。",
+        "text": "你只來得及讀到「樣本優先」與「船員可犧牲」兩行，主機便以尖銳蜂鳴切斷介面。穹頂周圍的指示燈由黃轉橙，螢幕上跳出遠端審計通知；你們取得了足以改變判斷的情報，但這次未授權查詢也已被系統記錄。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "sceneId 改正為 evt_order_937_reveal；將 narrow_success 轉為 canonical 驚險成功，不宣告 Ash 已知悉或立即到場。"
+      },
+      {
+        "id": "major_937_query_failure",
+        "sourceResultKey": "evt_mother_chamber_infiltrate.query.failure",
+        "sceneId": "evt_order_937_reveal",
+        "approachId": "app_order_query",
+        "outcomeTier": "失敗",
+        "narrativeMode": "normal",
+        "variantPurpose": "查詢失敗後保留部分受阻感，但不新增精確鎖定時間。",
+        "text": "沉重的機械鍵盤在最後幾個字元卡住，防火牆把介面彈回一片亂碼。核心房的黃燈轉成紅色，遠端審計通知隨之亮起；你沒有帶走完整文件，原本的查詢方法也已經失效，下一步必須改用不同的途徑。",
+        "npcContext": [
+          "npc_luyuan"
+        ],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "sceneId 改正為 evt_order_937_reveal；移除 180 秒／三分鐘等 canonical 未授權時間效果。"
+      },
+      {
+        "id": "major_purge_classic_success",
+        "sourceResultKey": "evt_narcissus_final_purge.classic.success",
+        "sceneId": "evt_narcissus_final_purge",
+        "approachId": "app_purge_classic",
+        "outcomeTier": "成功",
+        "narrativeMode": "combat",
+        "variantPurpose": "強化 canonical 成功中的氣閘減壓、異形焚毀與接駁艇受損。",
+        "text": "你拉下紅色減壓拉桿，真空颶風把異形從門框上硬生生扯開；你隨即撲向點火台，藍白尾焰吞沒了被拋出的黑色身影。氣閘重新閉合，水仙號保住了密封，但儀表板上的輔助推進線路警示燈持續閃爍，提醒你這次逃生並非毫髮無傷。",
+        "npcContext": [],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將 source success 對應 canonical app_purge_classic／成功；明確保留 canonical shipStatus=damaged，不新增其他設備損壞。"
+      },
+      {
+        "id": "major_purge_classic_narrow",
+        "sourceResultKey": "evt_narcissus_final_purge.classic.narrow_success",
+        "sceneId": "evt_narcissus_final_purge",
+        "approachId": "app_purge_classic",
+        "outcomeTier": "驚險成功",
+        "narrativeMode": "combat",
+        "variantPurpose": "強化 canonical 驚險成功中的安全繩代價與成功密封。",
+        "text": "氣閘開啟與推進器點火都成功了，異形在尾焰中失去蹤影；然而安全繩猛然繃緊，肩臂傳來一聲令人牙酸的錯位聲。你忍著劇痛重新確認艙門密封，水仙號保住了氣密，只有你的手臂留下了這次逃生的代價。",
+        "npcContext": [],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將非正式 narrow_success 轉為 canonical 驚險成功；移除前擋風窗破裂與三分之一氣壓等未授權設備結果。"
+      },
+      {
+        "id": "major_purge_classic_critical_failure",
+        "sourceResultKey": "evt_narcissus_final_purge.classic.critical_failure",
+        "sceneId": "evt_narcissus_final_purge",
+        "approachId": "app_purge_classic",
+        "outcomeTier": "慘烈失敗",
+        "narrativeMode": "combat",
+        "variantPurpose": "對應 canonical 真空死亡旗標的不可逆收束。",
+        "text": "在拉下氣閘拉桿的瞬間，你才發現安全繩掛鉤沒有完全鎖死。失壓狂風同時抓住你與異形，把兩個身影拖向外艙門；你最後看見的是水仙號推進器在遠方點火的藍白閃光。你沒有機會回到艙內，意識在冰冷的深空中逐漸消失。",
+        "npcContext": [],
+        "allowedFacts": [
+          "canonicalResultFacts",
+          "authorizedNpcPresence",
+          "authorizedLocation",
+          "authorizedEffects"
+        ],
+        "forbiddenClaims": [
+          "newDamage",
+          "newItem",
+          "newNpcAction",
+          "newNpcDeath",
+          "newLocationChange",
+          "newFlag",
+          "newThreatDelta",
+          "newEnding",
+          "secretBeforeReveal"
+        ],
+        "reviewNotes": "將 critical_failure 轉為 core 正式 tier 慘烈失敗；死亡僅由 canonical flag_player_dead_vacuum／結局推導，不在 overlay 自行創造 ending ID。"
+      }
+    ]
   }
 };

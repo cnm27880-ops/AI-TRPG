@@ -18,7 +18,11 @@ import {
   publicUnresolvedQuestions,
   resolveTravelAction,
 } from "./explorationState.js";
-import { narrativeLocationView, buildNarrativeNpcPromptBlock } from "./narrativePackageAdapter.js";
+import {
+  narrativeLocationView,
+  narrativeMajorSceneVariant,
+  buildNarrativeNpcPromptBlock,
+} from "./narrativePackageAdapter.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -790,9 +794,9 @@ export function buildReferencePromptBlock({
   state,
   resolution = null,
   applied = null,
-  actionText = "",
-  outcomeTier = null,
-}) {
+    actionText = "",
+    outcomeTier = null,
+  }) {
   const currentScene = findScene(reference, state?.currentSceneId) ?? firstScene(reference);
   const scene = resolution?.matched ? resolution.scene : currentScene;
   if (!scene) return "";
@@ -833,6 +837,23 @@ export function buildReferencePromptBlock({
     lines.push(`固定結果核心：${applied.resultText}`);
     lines.push(`已套用狀態效果：${JSON.stringify(applied.effectSummary)}`);
     lines.push("只能在這些固定結果之上擴寫畫面與對話；不要新增資料中不存在的物品、NPC、真相或狀態效果。若固定結果與玩家輸入的自我宣稱衝突，以固定結果為準。 ");
+    const majorVariant = narrativeMajorSceneVariant(reference, {
+      sceneId: resolution.scene?.id,
+      approachId: resolution.approach?.id,
+      outcomeTier: applied.resultKey ?? outcomeTier,
+      actionText,
+    });
+    if (majorVariant) {
+      lines.push(
+        "",
+        "<Major_Scene_Narrative_Overlay>",
+        "【已通過 canonical binding 的重大場景演出素材】",
+        `演出綁定：${majorVariant.sceneId}／${majorVariant.approachId}／${majorVariant.outcomeTier}`,
+        `演出素材：${majorVariant.text}`,
+        "這段文字只能補充已套用固定結果的鏡頭、感官與對話；不可把它當成新的裁定，不可新增物品、傷勢、NPC 行動、旗標、威脅、位置、時間效果或結局。若演出素材與 Engine_Result 衝突，以 Engine_Result 與已套用 effects 為準。",
+        "</Major_Scene_Narrative_Overlay>",
+      );
+    }
   } else if (resolution?.mode === "unmatched") {
     lines.push("", "【這一回合是未命中任何 approach 的自由行動：限制性裁定】");
     lines.push(`玩家原始行動：${String(actionText).slice(0, 240) || "（未提供）"}`);

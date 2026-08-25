@@ -132,6 +132,62 @@ export function narrativeTransitionText(reference, state, canonicalTransitionId)
   return transitionVariant(transition, state);
 }
 
+function sceneApproaches(scene) {
+  return [
+    ...(Array.isArray(scene?.approaches) ? scene.approaches : []),
+    ...(Array.isArray(scene?.phases) ? scene.phases.flatMap((phase) => phase?.approaches ?? []) : []),
+  ];
+}
+
+function hasCanonicalOutcome(reference, sceneId, approachId, outcomeTier) {
+  const scene = reference?.scenes?.find((item) => item?.id === sceneId);
+  const approach = sceneApproaches(scene).find((item) => item?.id === approachId);
+  return Boolean(approach?.outcomes && Object.prototype.hasOwnProperty.call(approach.outcomes, outcomeTier));
+}
+
+function actionMatchesSelection(selection, actionText) {
+  if (!selection || typeof selection !== "object") return false;
+  const text = String(actionText ?? "").trim();
+  if (!text) return false;
+  return Array.isArray(selection.any) && selection.any.some((keyword) => text.includes(keyword));
+}
+
+/**
+ * 只挑選已通過 canonical binding 的重大場景演出 overlay。
+ * 這不是結果裁定器：scene、approach、outcomeTier 必須先由 reference adapter／engine 決定，
+ * overlay 只能補畫面與對話，不能建立任何 effects、狀態、物品、傷勢或結局。
+ */
+export function narrativeMajorSceneVariant(reference, {
+  sceneId,
+  approachId,
+  outcomeTier,
+  actionText = "",
+} = {}) {
+  const pack = narrativePackageFor(reference);
+  const variants = pack?.approvedMajorSceneVariants?.variants ?? [];
+  if (!sceneId || !approachId || !outcomeTier || !hasCanonicalOutcome(reference, sceneId, approachId, outcomeTier)) return null;
+
+  const candidates = variants.filter((variant) =>
+    variant?.sceneId === sceneId &&
+    variant?.approachId === approachId &&
+    variant?.outcomeTier === outcomeTier
+  );
+  if (!candidates.length) return null;
+  const selected = candidates.find((variant) => actionMatchesSelection(variant.selection, actionText))
+    ?? candidates.find((variant) => variant.selection?.default === true)
+    ?? candidates[0];
+  if (!selected?.text) return null;
+  return {
+    id: selected.id,
+    sceneId: selected.sceneId,
+    approachId: selected.approachId,
+    outcomeTier: selected.outcomeTier,
+    narrativeMode: selected.narrativeMode ?? "normal",
+    text: selected.text,
+    npcContext: Array.isArray(selected.npcContext) ? selected.npcContext.slice() : [],
+  };
+}
+
 function publicContactIds(reference, state) {
   const sceneId = state?.currentSceneId;
   const sceneNpcIds = SCENE_NPCS[sceneId] ?? [];
@@ -217,5 +273,6 @@ export function narrativePackageCoverage(reference) {
     mappedTransitions: Object.values(pack.canonicalRouteMap).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
     approvedLocations: pack.approvedExplorationGap?.locations?.length ?? 0,
     approvedTransitions: pack.approvedExplorationGap?.transitions?.length ?? 0,
+    approvedMajorSceneVariants: pack.approvedMajorSceneVariants?.variants?.length ?? 0,
   };
 }
