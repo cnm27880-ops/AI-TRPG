@@ -31,6 +31,65 @@ test("new session without scenarioId defaults to Alien V2 and seeds reference st
   assert.equal("scenario" in body.session, false, "POST session 不得暴露 raw scenario");
 });
 
+test("Ripley cooperation state is persisted before an unavailable LLM response", async () => {
+  const env = {};
+  const created = await createSession({
+    request: request("https://test.local/api/session", {
+      character: emptyCharacter("Ripley 整合測試者"),
+      scenarioId: "scenario.nostromo-01-v2",
+    }),
+    env,
+  });
+  const createdBody = await created.json();
+  assert.equal(createdBody.ok, true);
+  const sessionId = createdBody.session.id;
+
+  const opening = await playTurn({
+    request: request("https://test.local/api/turn", { sessionId }),
+    env,
+  });
+  assert.equal(opening.status, 200);
+  const store = resolveSessionStore(env);
+  const seeded = await store.get(sessionId);
+  seeded.scenario.referenceState.currentSceneId = "evt_meet_ripley";
+  seeded.scenario.referenceState.currentLocation = "loc_bridge";
+  await store.put(seeded);
+
+  const action = await playTurn({
+    request: request("https://test.local/api/turn", {
+      sessionId,
+      requestId: "ripley-threat-1",
+      playerAction: "我拿槍指著 Ripley，要求她立刻開門",
+    }),
+    env,
+  });
+  assert.equal(action.status, 503);
+  const actionBody = await action.json();
+  assert.equal(actionBody.ok, false);
+  assert.equal(actionBody.pendingTurn?.referenceState, undefined, "pendingTurn 不得把 server-only referenceState 暴露給前端");
+
+  const saved = await store.get(sessionId);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.state, "angry");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_boundary_force_01");
+  assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_ripley.lastUpdatedTurn, 2);
+
+  const retry = await playTurn({
+    request: request("https://test.local/api/turn", {
+      sessionId,
+      requestId: "ripley-threat-1",
+      retryPending: true,
+      playerAction: "我拿槍指著 Ripley，要求她立刻開門",
+    }),
+    env,
+  });
+  assert.equal(retry.status, 503);
+  const retryBody = await retry.json();
+  assert.equal(retryBody.ok, false);
+  const replayed = await store.get(sessionId);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.boundaryIncidents, 1);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_boundary_force_01");
+});
+
 test("V2 reference action is persisted before an unavailable LLM response", async () => {
   const env = {};
   const character = emptyCharacter("Reference 測試者");
