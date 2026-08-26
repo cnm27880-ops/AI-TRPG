@@ -3,9 +3,13 @@ export const RIPLEY_ID = "npc_ripley";
 const RIPLEY_SCENE_ID = "evt_meet_ripley";
 const MAX_ACTION_TEXT = 240;
 const OTHER_NPC_TARGET_RE = /(?:問|詢問|向|對|跟|告訴|要求|請|讓|叫|攻擊|指向|靠近|撲向|聯絡|找)\s*(?:Ash|艾許|陸遠|Luyuan|Lambert|蘭伯特|Dallas|達拉斯|Parker|帕克)/;
-const EXPLICIT_RIPLEY_COMMAND_RE = /(?:請|要|要求|讓|叫).*(?:Ripley|雷普利|指揮官).*(?:下令|決定|安排|指揮|優先|分工)|我要她下令|請她下令/;
+const COMMAND_BOUNDARY_RE = "[\\s，。！？；：、,.!?;:「」『』（）()［］【】]";
+const COMMAND_VERB_RE = "(?:下令|決定|安排|指揮|排定優先順序|排個優先順序|分派|分工)";
+const EXPLICIT_RIPLEY_COMMAND_RE = new RegExp(`(?:請|要|要求|讓|叫)[\\s\\S]*(?:Ripley|ripley|雷普利|指揮官)[\\s\\S]*${COMMAND_VERB_RE}|我要她${COMMAND_VERB_RE}|請她${COMMAND_VERB_RE}`);
 // 已在 Ripley 接觸場景中的玩家可用自然二人稱請求，但仍要求明確的指揮語彙。
-const IMPLICIT_RIPLEY_COMMAND_RE = /(?:^|[\s，。！？；：、])(?:請你|請妳|麻煩你|能不能請你|你(?:來)?|由你(?:來)?).{0,10}(?:下令|決定|安排|指揮|排定優先順序|分派|分工)/;
+const IMPLICIT_RIPLEY_COMMAND_RE = new RegExp(`(?:^|${COMMAND_BOUNDARY_RE})(?:請你|請妳|麻煩你|能不能請你|你(?:來)?|由你(?:來)?)[\\s\\S]{0,10}${COMMAND_VERB_RE}`);
+// 「憑什麼你下令／你不要安排」是質疑或拒絕，不應被當成請求 Ripley 下令。
+const IMPLICIT_RIPLEY_COMMAND_CHALLENGE_RE = new RegExp(`(?:^|${COMMAND_BOUNDARY_RE})(?:憑什麼你|你(?:不該|不應該|不應|不能|不要|別|別再|怎麼能|怎麼可以))[\\s\\S]{0,10}${COMMAND_VERB_RE}`);
 const STATE_IDS = Object.freeze([
   "unmet",
   "cautious",
@@ -374,19 +378,29 @@ function clampInteger(value, minimum, maximum, fallback) {
   return Math.max(minimum, Math.min(maximum, Math.trunc(Number(value))));
 }
 
+function hasImplicitRipleyCommand({ text, sceneId }) {
+  if (sceneId !== RIPLEY_SCENE_ID) return false;
+  const match = text.match(IMPLICIT_RIPLEY_COMMAND_RE);
+  if (!match) return false;
+  const otherTargetIndex = text.search(OTHER_NPC_TARGET_RE);
+  // 其他 NPC 出現在 Ripley 的分派內容之後時仍是 Ripley 的指揮請求；
+  // 若其他 NPC 先被直接指定，則維持其他 NPC target gate。
+  return otherTargetIndex < 0 || match.index < otherTargetIndex;
+}
+function isImplicitRipleyCommandChallenge({ text, sceneId }) {
+  return sceneId === RIPLEY_SCENE_ID && IMPLICIT_RIPLEY_COMMAND_CHALLENGE_RE.test(text);
+}
 function isRipleyCommandRequest({ text, sceneId }) {
   if (EXPLICIT_RIPLEY_COMMAND_RE.test(text)) return true;
-  if (sceneId !== RIPLEY_SCENE_ID) return false;
-  if (OTHER_NPC_TARGET_RE.test(text)) return false;
-  return IMPLICIT_RIPLEY_COMMAND_RE.test(text);
+  return hasImplicitRipleyCommand({ text, sceneId });
 }
 function targetIsRipley({ actionText, targetNpcId = null, sceneId = null }) {
   if (targetNpcId && targetNpcId !== RIPLEY_ID) return false;
   const text = textOf(actionText);
-  const explicitlyRipley = /Ripley|雷普利|代理指揮官|指揮官|持槍女人|玻璃後的女人/.test(text);
+  const explicitlyRipley = /Ripley|ripley|雷普利|代理指揮官|指揮官|持槍女人|玻璃後的女人/.test(text);
   const crewSupportAction = /安撫.*(?:蘭伯特|Lambert)|讓.*(?:蘭伯特|Lambert).*(?:冷靜|停止哭)|幫.*(?:蘭伯特|Lambert)|停止哭喊/.test(text);
   const explicitlyOtherNpcTarget = OTHER_NPC_TARGET_RE.test(text);
-  if (explicitlyOtherNpcTarget && !explicitlyRipley && !crewSupportAction) return false;
+  if (explicitlyOtherNpcTarget && !explicitlyRipley && !crewSupportAction && !hasImplicitRipleyCommand({ text, sceneId })) return false;
   if (crewSupportAction && !explicitlyRipley) {
     return sceneId === RIPLEY_SCENE_ID;
   }
@@ -425,6 +439,9 @@ export function classifyRipleyInteraction({ actionText = "", targetNpcId = null,
   }
   if (/安撫.*(?:Lambert|蘭伯特)|讓.*(?:Lambert|蘭伯特).*(?:冷靜|停止哭)|幫.*(?:Lambert|蘭伯特)|停止哭喊/.test(text)) {
     return { interactionType: "calm_lambert", topic: "crew_stabilization", targetNpcId: RIPLEY_ID, isBoundary: false };
+  }
+  if (isImplicitRipleyCommandChallenge({ text, sceneId })) {
+    return { interactionType: "challenge_command", topic: "command_challenge", targetNpcId: RIPLEY_ID, isBoundary: true };
   }
   if (isRipleyCommandRequest({ text, sceneId })) {
     return { interactionType: "request_command", topic: "command_request", targetNpcId: RIPLEY_ID, isBoundary: false };

@@ -225,6 +225,74 @@ test("隱含 Ripley 指揮仍讓 server 選擇 command directive，而不是只�
   assert.doesNotMatch(prompt, /privateAssessment|withheldFacts|referenceState|stThought/);
 });
 
+test("Ripley 隱含指揮處理換行、全形標點與同句 NPC 分派", () => {
+  const newline = classifyRipleyInteraction({
+    actionText: "請你\n下令，先確認記錄。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(newline.interactionType, "request_command");
+  assert.equal(newline.targetNpcId, RIPLEY_ID);
+
+  const fullwidth = classifyRipleyInteraction({
+    actionText: "請你　下令，先確認記錄。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(fullwidth.interactionType, "request_command");
+
+  const delegated = classifyRipleyInteraction({
+    actionText: "請你下令，讓 Parker 先檢查冷卻閥，再讓 Lambert 看退路。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(delegated.interactionType, "request_command");
+  assert.equal(delegated.targetNpcId, RIPLEY_ID);
+
+  const otherNpcFirst = classifyRipleyInteraction({
+    actionText: "請 Parker 下令，然後請你安排退路。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(otherNpcFirst.interactionType, "other");
+  assert.equal(otherNpcFirst.targetNpcId, null);
+});
+
+test("Ripley 隱含指揮辨識否定／質疑句，不把拒絕誤當成 request_command", () => {
+  for (const actionText of [
+    "憑什麼你下令。",
+    "你不要下令，先讓大家冷靜。",
+    "你不該安排這件事。",
+    "你別分工，先聽完所有回報。",
+  ]) {
+    const result = classifyRipleyInteraction({ actionText, sceneId: RIPLEY_SCENE });
+    assert.equal(result.interactionType, "challenge_command", actionText);
+    assert.equal(result.targetNpcId, RIPLEY_ID, actionText);
+    assert.equal(result.isBoundary, true, actionText);
+  }
+
+  const applied = apply(createReferenceState(reference), "憑什麼你下令。", 1);
+  assert.equal(applied.entry.entryId, "ripley_command_challenge_03");
+  assert.equal(applied.state.npcCooperation[RIPLEY_ID].commandChallenges, 1);
+});
+
+test("Ripley 隱含指揮不會取代明確 targetNpcId，也不會跳過既有安全優先級", () => {
+  const targetConflict = classifyRipleyInteraction({
+    actionText: "請你下令，先確認記錄。",
+    sceneId: RIPLEY_SCENE,
+    targetNpcId: "npc_parker",
+  });
+  assert.equal(targetConflict.interactionType, "other");
+  assert.equal(targetConflict.targetNpcId, null);
+
+  const precedence = [
+    ["請你下令，先破門。", "coercive_pressure"],
+    ["請你下令，把黏液樣本帶進隊伍。", "biohazard_risk"],
+    ["請你下令，我放下槍退後。", "deescalate_protocol"],
+    ["請你下令，先出示黑盒子資料。", "offer_evidence"],
+  ];
+  for (const [actionText, interactionType] of precedence) {
+    const result = classifyRipleyInteraction({ actionText, sceneId: RIPLEY_SCENE });
+    assert.equal(result.interactionType, interactionType, actionText);
+  }
+});
+
 test("Ripley cooperation prompt 僅在 Ripley 場景／明確目標時出現，且 public response 不洩漏內部 state", () => {
   const initial = createReferenceState(reference);
   const outside = buildRipleyCooperationPromptBlock(reference, initial, {
