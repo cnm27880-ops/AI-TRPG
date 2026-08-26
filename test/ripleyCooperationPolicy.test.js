@@ -157,6 +157,74 @@ test("Ripley classifier 不會把 Lambert 或一般環境行動誤判成 Ripley 
   assert.equal(ashFromTurn.interactionType, "other");
 });
 
+test("evt_meet_ripley 允許明確二人稱指揮請求使用 Ripley 隱含目標", () => {
+  const implicit = classifyRipleyInteraction({
+    actionText: "請你下令，現在先確認船員記錄，還是先整理逃生路線？",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(implicit.interactionType, "request_command");
+  assert.equal(implicit.topic, "command_request");
+  assert.equal(implicit.targetNpcId, RIPLEY_ID);
+
+  const decided = classifyRipleyInteraction({
+    actionText: "你決定先查船員記錄還是先整理逃生路線。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(decided.interactionType, "request_command");
+  assert.equal(decided.targetNpcId, RIPLEY_ID);
+});
+
+test("Ripley 隱含指揮規則只在 evt_meet_ripley 生效", () => {
+  const outside = classifyRipleyInteraction({
+    actionText: "請你下令，現在先確認船員記錄，還是先整理逃生路線？",
+    sceneId: "evt_deck_a_recon",
+  });
+  assert.equal(outside.interactionType, "other");
+  assert.equal(outside.targetNpcId, null);
+
+  const ordinary = classifyRipleyInteraction({
+    actionText: "現在先確認船員記錄，還是先整理逃生路線？",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(ordinary.interactionType, "survival_question");
+  assert.equal(ordinary.targetNpcId, RIPLEY_ID);
+});
+
+test("隱含 Ripley 指揮不會攔截明確指向其他 NPC 的請求", () => {
+  const parker = classifyRipleyInteraction({
+    actionText: "請 Parker 下令，現在先確認冷卻閥還是通訊台？",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(parker.interactionType, "other");
+  assert.equal(parker.targetNpcId, null);
+
+  const lambert = classifyRipleyInteraction({
+    actionText: "讓 Lambert 決定是否先走逃生路線。",
+    sceneId: RIPLEY_SCENE,
+  });
+  assert.equal(lambert.interactionType, "other");
+  assert.equal(lambert.targetNpcId, null);
+});
+
+test("隱含 Ripley 指揮仍讓 server 選擇 command directive，而不是只改分類", () => {
+  const result = apply(
+    createReferenceState(reference),
+    "請你下令，現在先確認船員記錄，還是先整理逃生路線？",
+    1,
+  );
+  assert.equal(result.classification.interactionType, "request_command");
+  assert.equal(result.entry.entryId, "ripley_command_set_priority_01");
+  assert.equal(result.state.npcCooperation[RIPLEY_ID].lastEntryId, "ripley_command_set_priority_01");
+
+  const prompt = buildRipleyCooperationPromptBlock(reference, result.state, {
+    actionText: "請你下令，現在先確認船員記錄，還是先整理逃生路線？",
+    sceneId: RIPLEY_SCENE,
+    turnNumber: 1,
+  });
+  assert.match(prompt, /指揮互動|設定優先順序/);
+  assert.doesNotMatch(prompt, /privateAssessment|withheldFacts|referenceState|stThought/);
+});
+
 test("Ripley cooperation prompt 僅在 Ripley 場景／明確目標時出現，且 public response 不洩漏內部 state", () => {
   const initial = createReferenceState(reference);
   const outside = buildRipleyCooperationPromptBlock(reference, initial, {
