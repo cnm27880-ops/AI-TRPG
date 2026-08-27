@@ -1659,12 +1659,7 @@ async function attemptRevive() {
       `花費 <span class="fe-num">${res.cost}</span> 點 · 這是第 <span class="fe-num">${res.reviveCount}</span> 次復活`
     );
     // 復活後那場戰鬥已經在後端標記結束了，把畫面切回故事流。
-    if (currentCombat) {
-      currentCombat = null;
-      document.getElementById("combat-panel").style.display = "none";
-      document.getElementById("story-current").style.display = "flex";
-      document.getElementById("story-action-panel").style.display = "block";
-    }
+    if (currentCombat) leaveCombatView();
     await runTurn({ opening: true });
   } catch (err) {
     console.error("[REVIVE_FAILURE]", err);
@@ -1683,21 +1678,11 @@ function appendTurnError(message, res) {
       : "";
 
   setDecisionContext("回合沒有完成 · 可以重試或改用自訂行動");
-  const block = appendFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
+  // retry 寫在事件資料裡而不是事後插進 DOM：故事流會被重畫很多次（光是 runTurn 的
+  // finally 就有一次），只掛在 DOM 上的按鈕活不過下一次重畫。
+  appendFeedEvent("fault", "這一回合沒有完成", escapeHtml(message), {
     note: hint ? escapeHtml(hint) : undefined,
-  });
-  if (!block) return;
-  block.querySelector(".feed-event-body")?.insertAdjacentHTML(
-    "beforeend",
-    `<div class="feed-event-actions"><button data-turn-retry class="feed-event-retry">重試這一回合</button></div>`
-  );
-  // appendFeedEvent 已經將資料與 DOM 放進 recent buffer；插入重試控制後不重建，
-  // 避免一次錯誤又觸發整個訊息窗口重排。
-  block.querySelector("[data-turn-retry]")?.addEventListener("click", () => {
-    const id = block.dataset.recentStoryId;
-    recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
-    renderRecentStoryWindow({ forceBottom: true });
-    if (lastTurnRequest) runTurn({ ...lastTurnRequest, retryPending: true });
+    retry: "turn",
   });
 }
 
@@ -1921,18 +1906,6 @@ function renderExplorationTerminal(view) {
   }
 }
 
-function appendTravelRetryControl(block) {
-  if (!block) return;
-  block.querySelector(".feed-event-body")?.insertAdjacentHTML(
-    "beforeend",
-    `<div class="feed-event-actions"><button data-travel-retry class="feed-event-retry">重試這次移動</button></div>`
-  );
-  block.querySelector("[data-travel-retry]")?.addEventListener("click", () => {
-    const pending = lastTravelRequest;
-    if (pending) travelToLocation(pending.destinationId, pending.requestId);
-  });
-}
-
 async function travelToLocation(destinationId, existingRequestId = null) {
   if (!destinationId || !currentSessionId || turnInFlight || travelInFlight) return;
   const requestId = existingRequestId || `travel:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -1948,12 +1921,12 @@ async function travelToLocation(destinationId, existingRequestId = null) {
     });
     const response = await httpResponse.json().catch(() => ({ ok: false, error: "伺服器回傳不是合法 JSON", invalidJson: true }));
     if (!httpResponse.ok || !response.ok) {
-      const block = appendFeedEvent(
+      appendFeedEvent(
         "fault",
         response.invalidJson ? "移動結果未確認" : "移動未獲准",
-        escapeHtml(response.error ?? `移動失敗（HTTP ${httpResponse.status}）`)
+        escapeHtml(response.error ?? `移動失敗（HTTP ${httpResponse.status}）`),
+        response.invalidJson ? { retry: "travel" } : {}
       );
-      if (response.invalidJson) appendTravelRetryControl(block);
       if (response.scenario) updateScenarioHud(response.scenario);
       return;
     }
@@ -1980,8 +1953,7 @@ async function travelToLocation(destinationId, existingRequestId = null) {
     refreshJournalIfOpen();
   } catch (err) {
     console.error("[TRAVEL_FAILURE] /api/travel 呼叫失敗", err);
-    const block = appendFeedEvent("fault", "移動結果未確認", escapeHtml(`無法確認移動是否已保存：${err.message}`));
-    appendTravelRetryControl(block);
+    appendFeedEvent("fault", "移動結果未確認", escapeHtml(`無法確認移動是否已保存：${err.message}`), { retry: "travel" });
   } finally {
     travelInFlight = false;
     setTurnInputLocked(false);
@@ -2766,23 +2738,27 @@ const FEED_EVENT_KICKERS = {
 };
 
 /**
- * @param {string} kind  FEED_EVENT_KICKERS 的其中一個鍵
- * @param {string} label 這一則事件的一句話標題（已經是安全的 HTML）
- * @param {string} content 內文（已經是安全的 HTML）
- * @param {{tone?: "good"|"bad", note?: string, animate?: boolean}} [opts]
- * @returns {HTMLElement} 建好的區塊，呼叫點需要再掛東西上去時可以用
+ * 事件區塊上那顆「再試一次」的按鈕。
+ *
+ * [2026-08-27 修正] 重試按鈕以前是在 appendFeedEvent() 回傳的 DOM 上用
+ * insertAdjacentHTML() 額外插進去的，**沒有寫回 recentStoryEntries**。
+ * 但故事流每次重畫都是從 recentStoryEntries 重建整份 DOM，於是那顆按鈕的壽命是零：
+ * runTurn() 的 finally 裡就有一次 hideNarratorPending() → renderRecentStoryWindow()，
+ * 按鈕在玩家看到它之前就已經被抹掉了。回合失敗時畫面上只剩一行「這一回合沒有完成」，
+ * 沒有任何辦法重試——而伺服器那邊其實保存著 pendingTurn，重試是不會重骰的。
+ * 現在重試是事件資料的一部分（entry.opts.retry），重畫幾次都還在。
  */
-function buildFeedEvent(kind, label, content, opts = {}) {
-  const block = document.createElement("article");
-  block.dataset.feedEntry = "true";
-  block.dataset.feedKind = kind;
-  const tone = opts.tone === "good" ? " is-good" : opts.tone === "bad" ? " is-bad" : "";
-  // 日誌是一次畫出整份清單的，二十則同時播進場動畫只會變成一片閃爍；
-  // 故事流則是一次追加一則，動畫正是「有新東西進來了」的訊號。
-  const enter = opts.animate === false ? "" : "feed-block-enter ";
-  block.className = `${enter}feed-event feed-event-${kind}${tone}`;
-  block.innerHTML =
-    `<span class="feed-event-rail" aria-hidden="true"></span>` +
+const FEED_RETRY_LABELS = Object.freeze({
+  turn: "重試這一回合",
+  travel: "重試這次移動",
+});
+
+function feedEventInnerHtml(kind, label, content, opts = {}) {
+  const retryLabel = FEED_RETRY_LABELS[opts.retry];
+  const retryHtml = retryLabel
+    ? `<div class="feed-event-actions"><button type="button" data-feed-retry="${escapeHtml(opts.retry)}" class="feed-event-retry">${escapeHtml(retryLabel)}</button></div>`
+    : "";
+  return `<span class="feed-event-rail" aria-hidden="true"></span>` +
     `<div class="feed-event-body">` +
       `<div class="feed-event-head">` +
         `<span class="feed-event-kicker">${FEED_EVENT_KICKERS[kind] ?? "事件"}</span>` +
@@ -2790,7 +2766,32 @@ function buildFeedEvent(kind, label, content, opts = {}) {
       `</div>` +
       (content ? `<div class="feed-event-content">${content}</div>` : "") +
       (opts.note ? `<div class="feed-event-note">${opts.note}</div>` : "") +
+      retryHtml +
     `</div>`;
+}
+
+/** 把一則事件的內容寫進既有的區塊。animate=false 是「這是同一則的更新」，不重播進場動畫。 */
+function applyFeedEvent(block, kind, label, content, opts = {}, { animate = false } = {}) {
+  block.dataset.feedKind = kind;
+  const tone = opts.tone === "good" ? " is-good" : opts.tone === "bad" ? " is-bad" : "";
+  const enter = animate ? "feed-block-enter " : "";
+  block.className = `${enter}feed-event feed-event-${kind}${tone}`;
+  block.innerHTML = feedEventInnerHtml(kind, label, content, opts);
+}
+
+/**
+ * @param {string} kind  FEED_EVENT_KICKERS 的其中一個鍵
+ * @param {string} label 這一則事件的一句話標題（已經是安全的 HTML）
+ * @param {string} content 內文（已經是安全的 HTML）
+ * @param {{tone?: "good"|"bad", note?: string, animate?: boolean, retry?: "turn"|"travel"}} [opts]
+ * @returns {HTMLElement} 建好的區塊
+ */
+function buildFeedEvent(kind, label, content, opts = {}) {
+  const block = document.createElement("article");
+  block.dataset.feedEntry = "true";
+  // 日誌是一次畫出整份清單的，二十則同時播進場動畫只會變成一片閃爍；
+  // 故事流則是一次追加一則，動畫正是「有新東西進來了」的訊號。
+  applyFeedEvent(block, kind, label, content, opts, { animate: opts.animate !== false });
   return block;
 }
 
@@ -2811,49 +2812,138 @@ function updateRecentStoryHistoryHint(current = document.getElementById("recent-
   hint.setAttribute("aria-hidden", String(!atTop));
 }
 
+/**
+ * 已經畫在畫面上的區塊：entry.id → { node, signature }。
+ *
+ * [2026-08-27 效能／閃爍修正] 這個視窗以前每次重畫都是一次 replaceChildren，
+ * 也就是把五則全部丟掉、全部重建。問題在於 `.feed-block-enter` 是一段 0.35 秒的進場動畫：
+ * 節點一重建，五則就全部從頭再播一次。而串流敘事是每 18 個字送一次 delta
+ * （見 functions/api/turn.js 的 chunkByCodePoints(payload.narration, 18)，間隔 12ms），
+ * 一段 900 字的敘事就是 50 次全視窗重建 → 玩家看到的是整片持續閃爍，
+ * 而且每次重建都要把累積到目前為止的整段文字重新跑一次 renderNarrationHtml()，
+ * 成本是 O(字數²)。
+ *
+ * 現在改成對照 id 做增量更新：新的才建、變了的只改自己那一則的內容、
+ * 位置沒動的完全不碰。順帶讓 clearPreviousFinalQuestions() 真的有效——
+ * 它清掉的 class 以前會在下一次重建時從 entry.content 原封不動長回來。
+ */
+const renderedStoryBlocks = new Map();
+
+function storyEntrySignature(entry) {
+  const opts = entry.opts ?? {};
+  return [entry.kind, entry.label, entry.content, opts.tone ?? "", opts.note ?? "", opts.retry ?? ""].join("\u0000");
+}
+
+/** index.html 裡那句「等待第一段故事回應……」。被清掉過就重新建一個一樣的。 */
+let storyEmptyPlaceholderNode = null;
+function storyEmptyPlaceholder(current) {
+  if (!storyEmptyPlaceholderNode) {
+    storyEmptyPlaceholderNode = current.querySelector(".story-current-empty");
+  }
+  if (!storyEmptyPlaceholderNode) {
+    storyEmptyPlaceholderNode = document.createElement("div");
+    storyEmptyPlaceholderNode.className = "story-current-empty";
+    storyEmptyPlaceholderNode.textContent = "等待第一段故事回應……";
+  }
+  return storyEmptyPlaceholderNode;
+}
+
+function buildChronicleHintButton() {
+  const hint = document.createElement("button");
+  hint.type = "button";
+  hint.className = "story-chronicle-hint";
+  hint.dataset.chronicleHint = "true";
+  hint.setAttribute("aria-hidden", "true");
+  hint.innerHTML = `<i class="fas fa-book-open" aria-hidden="true"></i><span>已到最近五則的起點・更早的故事請看劇情回顧</span><i class="fas fa-arrow-up" aria-hidden="true"></i>`;
+  hint.addEventListener("click", () => openChronicle());
+  return hint;
+}
+
+/** 故事流上的按鈕一律用委派：區塊會被就地改寫，逐顆綁定會在改寫後失效。 */
+function bindRecentStoryDelegates(current) {
+  if (current.dataset.storyDelegatesBound) return;
+  current.addEventListener("scroll", () => updateRecentStoryHistoryHint(current), { passive: true });
+  current.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-feed-retry]");
+    if (!button) return;
+    const kind = button.getAttribute("data-feed-retry");
+    const id = button.closest("[data-recent-story-id]")?.dataset.recentStoryId;
+    if (id) {
+      recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
+      renderRecentStoryWindow({ forceBottom: true });
+    }
+    if (kind === "travel") {
+      const pending = lastTravelRequest;
+      if (pending) travelToLocation(pending.destinationId, pending.requestId);
+    } else if (kind === "turn" && lastTurnRequest) {
+      runTurn({ ...lastTurnRequest, retryPending: true });
+    }
+  });
+  current.dataset.storyDelegatesBound = "true";
+}
+
 function renderRecentStoryWindow({ forceBottom = false } = {}) {
   const current = document.getElementById("recent-story-list");
   if (!current) return;
+
+  bindRecentStoryDelegates(current);
 
   const wasNearBottom = current.scrollHeight - current.clientHeight - current.scrollTop <= 28;
   const entries = [...recentStoryEntries.slice(-RECENT_STORY_LIMIT)];
   if (pendingStoryEntry) entries.push(pendingStoryEntry);
 
-  const fragment = document.createDocumentFragment();
+  const desired = [];
   if (recentStoryChronicleTotal > RECENT_STORY_LIMIT) {
-    const hint = document.createElement("button");
-    hint.type = "button";
-    hint.className = "story-chronicle-hint";
-    hint.dataset.chronicleHint = "true";
-    hint.setAttribute("aria-hidden", "true");
-    hint.innerHTML = `<i class="fas fa-book-open" aria-hidden="true"></i><span>已到最近五則的起點・更早的故事請看劇情回顧</span><i class="fas fa-arrow-up" aria-hidden="true"></i>`;
-    hint.addEventListener("click", () => openChronicle());
-    fragment.appendChild(hint);
+    desired.push(current.querySelector("[data-chronicle-hint]") ?? buildChronicleHintButton());
   }
-  for (const entry of entries) {
-    const block = buildFeedEvent(entry.kind, entry.label, entry.content, entry.opts);
-    block.dataset.recentStoryId = entry.id;
-    if (entry.id === pendingStoryEntry?.id) {
-      block.id = "narrator-pending";
-      block.classList.add("pending-sweep", "is-pending");
-    }
-    fragment.appendChild(block);
-  }
-  current.replaceChildren(fragment);
-  if (!current.dataset.chronicleHintBound) {
-    current.addEventListener("scroll", () => updateRecentStoryHistoryHint(current), { passive: true });
-    current.dataset.chronicleHintBound = "true";
-  }
-  updateRecentStoryHistoryHint(current);
 
-  current.querySelectorAll("[data-turn-retry]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const id = button.closest("[data-recent-story-id]")?.dataset.recentStoryId;
-      recentStoryEntries = recentStoryEntries.filter((entry) => entry.id !== id);
-      renderRecentStoryWindow({ forceBottom: true });
-      if (lastTurnRequest) runTurn({ ...lastTurnRequest, retryPending: true });
-    });
-  });
+  for (const entry of entries) {
+    const isPending = entry.id === pendingStoryEntry?.id;
+    const signature = storyEntrySignature(entry);
+    let record = renderedStoryBlocks.get(entry.id);
+    if (!record) {
+      const node = buildFeedEvent(entry.kind, entry.label, entry.content, entry.opts);
+      node.dataset.recentStoryId = entry.id;
+      record = { node, signature };
+      renderedStoryBlocks.set(entry.id, record);
+    } else if (record.signature !== signature) {
+      applyFeedEvent(record.node, entry.kind, entry.label, entry.content, entry.opts, { animate: false });
+      record.signature = signature;
+    }
+    record.node.classList.toggle("pending-sweep", isPending);
+    record.node.classList.toggle("is-pending", isPending);
+    if (isPending) record.node.id = "narrator-pending";
+    else record.node.removeAttribute("id");
+    desired.push(record.node);
+  }
+
+  // 還沒有任何一則的時候留住 index.html 裡那句佔位文字。
+  // 舊版的 replaceChildren() 在 DOMContentLoaded 那一次就把它清掉了，於是開局到第一段
+  // 敘事回來之間，故事區是完全空白的一塊——那跟「畫面壞了」長得一模一樣。
+  if (!desired.length) {
+    desired.push(storyEmptyPlaceholder(current));
+  }
+
+  // 只動真的需要動的節點：先移掉不該在的，再把位置不對的搬過去。
+  // 一次換掉全部子節點會讓每一則都重新插入 DOM，動畫與捲動位置一起被重設。
+  // 用 childNodes 而不是 children：標記裡的換行會留下文字節點，只掃元素的話清不掉。
+  const keep = new Set(desired);
+  for (const child of [...current.childNodes]) {
+    if (!keep.has(child)) child.remove();
+  }
+  let cursor = current.firstChild;
+  for (const node of desired) {
+    if (cursor === node) {
+      cursor = cursor.nextSibling;
+      continue;
+    }
+    current.insertBefore(node, cursor);
+  }
+  for (const [id, record] of renderedStoryBlocks) {
+    if (!keep.has(record.node)) renderedStoryBlocks.delete(id);
+  }
+
+  updateRecentStoryHistoryHint(current);
 
   const count = document.getElementById("story-current-count");
   if (count) count.textContent = `${Math.min(recentStoryEntries.length, RECENT_STORY_LIMIT)} / ${RECENT_STORY_LIMIT}`;
@@ -2979,11 +3069,24 @@ async function doRest() {
   }
 }
 
+/**
+ * 把任意文字變成可以安全塞進 HTML 的字串。
+ *
+ * [2026-08-27 修正] 引號原本沒有被跳脫，但這個函式有超過二十個呼叫點是寫在
+ * **屬性值**裡的（`title="${escapeHtml(...)}"`、`aria-label="..."`、`data-npc-id="..."`
+ * 等等），只要來源文字帶一個雙引號就能提前關掉屬性、把後面的內容變成新的屬性——
+ * 那不是「顯示怪怪的」，那是 HTML 注入。副本文案、AI 敘事、NPC 名稱都會走到這裡，
+ * 沒有一個是我們能保證不含引號的。
+ * 同一份檔案裡的 index.html 早就有一個會跳脫引號的 escapeAttr()，這裡補齊到同一個標準，
+ * 之後兩邊行為一致，不用再記「哪個地方要用哪一個」。
+ */
 function escapeHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 // 僅將故事最後一句 DM 提問標記為翡翠綠引導條 + 粗體白字
@@ -3345,6 +3448,26 @@ function enterCombatView() {
   document.getElementById("combat-panel").style.display = "flex";
 }
 
+/**
+ * 離開戰鬥畫面、回到故事流。
+ *
+ * [2026-08-27 修正] 這段以前被抄在兩個地方（endCombat 與 attemptRevive），而且抄過去的
+ * 那一份漏掉了把 body 上的 is-combat-view 拿掉。那不是可有可無的一行：
+ * index.html 裡的
+ *   body.is-game-screen.is-combat-view #story-current      { display: none !important; }
+ *   body.is-game-screen.is-combat-view #story-action-panel { display: none !important; }
+ * 帶 !important，會直接蓋掉下面那兩行 inline style。結果就是「在戰鬥中被打死 → 按下復活」
+ * 之後，戰鬥面板收起來了、故事流與行動列卻仍然被 CSS 壓著不顯示，玩家看到一片空白，
+ * 而且沒有任何辦法回到遊戲。現在只留這一份實作，兩邊都叫它。
+ */
+function leaveCombatView() {
+  currentCombat = null;
+  document.body.classList.remove("is-combat-view");
+  document.getElementById("combat-panel").style.display = "none";
+  document.getElementById("story-current").style.display = "flex";
+  document.getElementById("story-action-panel").style.display = "block";
+}
+
 /** 在戰鬥紀錄裡插一行系統訊息（錯誤、還原提示…），跟攻擊紀錄用不同顏色區分。 */
 function appendCombatSystemLine(text, colorClass = "text-red-300") {
   const log = document.getElementById("combat-log");
@@ -3678,12 +3801,7 @@ async function combatAttack(weaponKey) {
 function endCombat() {
   const won = currentCombat?.winner === "player";
   const enemyName = currentCombat?.enemy?.name ?? "敵人";
-  currentCombat = null;
-  document.body.classList.remove("is-combat-view");
-
-  document.getElementById("combat-panel").style.display = "none";
-  document.getElementById("story-current").style.display = "flex";
-  document.getElementById("story-action-panel").style.display = "block";
+  leaveCombatView();
 
   // [2026-08-16 修正] 這裡以前不管輸贏都送「勉強脫身」回主迴圈，於是打到死掉的角色
   // 也照樣繼續玩下去。現在輸掉時先問伺服器角色到底是什麼狀態：真的倒下就不送行動回合
@@ -3763,8 +3881,23 @@ async function googleLogout() {
 
 /** 上一次抓到的輪迴者檔案清單，首頁與檔案視窗共用，不重複打 API。 */
 let mySessions = [];
+/**
+ * 正在進行中的清單請求。
+ *
+ * [2026-08-27 優化] 開站時這支 API 會被打兩次：refreshAuthState() → renderAuthState()
+ * 呼一次（不 await），緊接著 checkLocalSession() 又 await 一次。兩個請求同時在飛，
+ * 後回來的覆蓋先回來的，內容一樣、成本雙倍。開啟「輪迴者檔案」視窗時也可能疊上第三次。
+ * 同一個時間點只留一份請求就夠了。
+ */
+let sessionListRequest = null;
 
-async function refreshSessionList() {
+function refreshSessionList() {
+  if (sessionListRequest) return sessionListRequest;
+  sessionListRequest = loadSessionList().finally(() => { sessionListRequest = null; });
+  return sessionListRequest;
+}
+
+async function loadSessionList() {
   const list = document.getElementById("session-list");
   const status = document.getElementById("session-list-status");
   if (!list) return;
@@ -4188,7 +4321,7 @@ function renderChronicle() {
 
 async function openChronicle(scenarioId = null) {
   if (!currentSessionId) {
-    showToast("先建立輪迴者檔案，主神才會替你保存劇情。", { kind: "warning" });
+    showToast("先建立輪迴者檔案，主神才會替你保存劇情。", { kind: "warn" });
     return;
   }
   if (currentCombat?.active) return;
@@ -4254,7 +4387,7 @@ let shopBusy = false;
 
 async function openHubExchange() {
   if (!currentSessionId) {
-    showToast("先建立輪迴者檔案，主神才會開放兌換。", { kind: "warning" });
+    showToast("先建立輪迴者檔案，主神才會開放兌換。", { kind: "warn" });
     return;
   }
   await openShop();
@@ -4548,6 +4681,35 @@ document.addEventListener("click", (e) => {
   if (buy && !buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
   const form = e.target.closest("[data-form-toggle]");
   if (form) toggleForm(form.getAttribute("data-form-toggle"), form.getAttribute("data-form-action"));
+});
+
+// 「輪迴者檔案」清單裡的「接續」與「刪除」。
+//
+// [2026-08-27 修正] renderSessionList() 一直都會畫出這兩顆按鈕，deleteSession() 也一直都在，
+// 但**沒有任何地方把它們接起來**——整份專案裡 `data-load-session` 只出現在產生 HTML 的
+// 那一行，`deleteSession` 除了自己的定義之外沒有第二個引用。所以登入之後打開輪迴者檔案，
+// 兩顆按鈕按下去完全沒有反應：既換不了角色，也刪不掉舊檔案。那正是登入這件事本來要
+// 解決的問題（換裝置找回角色），卻卡在最後一步。
+// 用委派而不是逐顆綁定：清單每次重畫都是新的 DOM，逐顆綁的話重畫一次就全部失效。
+document.addEventListener("click", async (e) => {
+  const load = e.target.closest("[data-load-session]");
+  if (load) {
+    const id = load.getAttribute("data-load-session");
+    if (!id || id === currentSessionId) {
+      closeModal("sessionModal");
+      return;
+    }
+    closeModal("sessionModal");
+    try {
+      await resumeSession(id);
+    } catch (err) {
+      console.error("[RESUME_FAILURE]", err);
+      showToast(`讀取輪迴者檔案失敗：${err.message}`);
+    }
+    return;
+  }
+  const remove = e.target.closest("[data-delete-session]");
+  if (remove) deleteSession(remove.getAttribute("data-delete-session"));
 });
 
 window.showScreen = showScreen;
