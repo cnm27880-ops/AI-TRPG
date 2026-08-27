@@ -153,6 +153,6 @@ test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260824-r17/);
-  assert.match(sw, /CACHE_VERSION = "v6"/);
+  assert.match(index, /app\.js\?v=20260827-r18/);
+  assert.match(sw, /CACHE_VERSION = "v7"/);
 });

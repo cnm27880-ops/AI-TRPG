@@ -2,6 +2,37 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [FIX-2026.08.27] — 全頁排查：接不上的線與會被自己抹掉的 UI
+
+**影響範圍：** `public/app.js`、`public/index.html`、`public/sw.js`、`functions/api/godspace/enter.js`、`test/frontendRegressions.test.js`
+
+**變更性質：** 前端缺陷修正與一項路由補齊，不涉及規則引擎、判定公式、存檔格式或角色數值計算。
+
+### 修正
+
+| # | 症狀（玩家看到的） | 成因 | 修正 |
+|---|---|---|---|
+| 1 | 副本結算後按「返回主神空間」跳出 `Unexpected token '<'`，卡在結算頁 | 前端打 `POST /api/godspace/enter`，但 Cloudflare Pages Functions 是檔案路徑即路由，`functions/api/godspace.js` 只接得到 `/api/godspace`；請求落到靜態資源拿回 `index.html` | 新增 `functions/api/godspace/enter.js` 掛上既有 handler。既有測試是直接 import handler，繞過路由層才沒抓到 |
+| 2 | 登入後「輪迴者檔案」裡的「接續」「刪除」按下去沒有反應 | `renderSessionList()` 畫了 `data-load-session` / `data-delete-session`，但沒有任何監聽器；`deleteSession()` 從未被呼叫 | 補上委派監聽器 |
+| 3 | 回合失敗時的「重試這一回合」按鈕看不到 | 重試控制事後 `insertAdjacentHTML` 到 DOM，沒有寫回 `recentStoryEntries`；`runTurn()` 的 `finally` 會重畫故事流並把它抹掉 | 重試改成事件資料的一部分（`opts.retry`），並改用委派監聽。移動失敗的重試同樣處理 |
+| 4 | 串流敘事時故事區整片持續閃爍 | 每則 delta（每 18 個字）都 `replaceChildren` 重建整個視窗，五則的 `.feed-block-enter` 進場動畫一起重播；同時整段文字被重複重排，成本 O(字數²) | 改成依 `entry.id` 做增量比對：新的才建、變了的只改自己那一則、位置沒動的完全不碰 |
+| 5 | 戰鬥中被打死並復活後，畫面一片空白且回不去 | `attemptRevive()` 抄了顯示切換卻漏掉拿掉 `is-combat-view`，而 CSS 用 `!important` 壓著故事流與行動列 | 抽出唯一的 `leaveCombatView()`，兩個呼叫點共用 |
+| 6 | — | `escapeHtml()` 沒有跳脫引號，但有二十幾個呼叫點寫在 `title="…"`、`aria-label="…"`、`data-*="…"` 等屬性值裡，來源包含副本文案、NPC 名稱與 AI 敘事 | 補上 `"` 與 `'`，與 `index.html` 既有的 `escapeAttr()` 同一個標準 |
+| 7 | 開局到第一段敘事回來之間故事區是全白的一塊 | `replaceChildren` 在 `DOMContentLoaded` 那一次就把標記裡的佔位文字清掉了 | 沒有任何一則時保留「等待第一段故事回應……」 |
+| 8 | 兩則提示以紅色錯誤樣式出現 | `showToast(..., { kind: "warning" })`，但 `TOAST_STYLES` 的鍵是 `warn`，靜靜退回 `error` | 改用 `warn`，並加測試把種類釘死 |
+
+### 調整
+
+- 「輪迴者檔案」清單改為同一時間只發一個請求。開站時 `refreshAuthState()` 與 `checkLocalSession()` 會各打一次 `/api/session`，兩個請求同時在飛、內容一樣。
+- `#4` 的增量更新順帶讓兩件既有行為真的生效：`clearPreviousFinalQuestions()` 清掉的 class 不再於下一次重建時長回來；「說書人書寫中」的計時秒數不再每次重畫被重置。`aria-live="polite"` 的故事區也不再於每則 delta 重新朗讀整份清單。
+- `CACHE_VERSION` 升到 `v7`、`app.js?v=` 升到 `20260827-r18`，讓已安裝 PWA 的離線殼換到新的 `app.js`。
+
+### 測試
+
+新增 `test/frontendRegressions.test.js`（10 項）。其中「前端呼叫的每一個 `/api` 路徑都有對應的 Cloudflare Function 檔」是唯一能驗到真實行為的一項：它比對 `public/` 裡出現的 `/api/...` 字串與 `functions/` 底下的檔案，專門擋 `#1` 這一類「handler 寫好了但掛錯路徑」的問題。其餘沿用本專案既有做法，把每一項修正釘成可讀的原始碼契約。
+
+全套測試 1000 項通過。
+
 ## [UI-2026.08.22] — 決策卡與故事流閱讀體驗升級
 
 **對應 commit：** [`35b19c0`](https://github.com/cnm27880-ops/AI-TRPG/commit/35b19c0) [1]
