@@ -84,6 +84,9 @@ test("B0 payload：公開 contract 有版本與 profile，但不原樣暴露 god
   assert.equal("referenceState" in payload, false);
   assert.equal(JSON.stringify(payload).includes("must-not-be-public"), false);
   assert.equal(validateGodspacePayload(payload).valid, true);
+  assert.equal(payload.guide.phase, "in_scenario");
+  assert.equal(payload.guide.nextAction.id, "resume_scenario");
+  assert.match(payload.guide.summary, /尚未完成結算/);
 });
 
 test("B0 gate：active 副本不能進主神空間，B0 未開放功能回傳固定 disabled code", () => {

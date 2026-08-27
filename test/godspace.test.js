@@ -76,6 +76,10 @@ test("GET godspace：settled session 回傳 whitelist debrief、aftercare 與 se
   assert.ok(result.body.resources.wallet);
   assert.equal(result.body.actions.find((action) => action.id === "rest").enabled, true);
   assert.equal(result.body.actions.find((action) => action.id === "view_debrief").enabled, true);
+  assert.equal(result.body.guide.phase, "aftercare");
+  assert.equal(result.body.guide.nextAction.id, "view_debrief");
+  assert.equal(result.body.guide.steps.length, 3);
+  assert.match(result.body.guide.summary, /先看結算，再整理角色/);
   assert.equal("referenceState" in result.body, false, "hub payload 不得原樣暴露 referenceState");
 });
 
@@ -123,6 +127,9 @@ test("GET godspace：沒有副本的 session 回傳 no_scenario hub，且 owner 
   assert.equal(result.body.lifecycle.status, "no_scenario");
   assert.equal(result.body.location, "主神空間");
   assert.equal(result.body.debrief, null);
+  assert.equal(result.body.guide.phase, "ready");
+  assert.equal(result.body.guide.nextAction.id, "start_scenario");
+  assert.equal(result.body.guide.steps.length, 2);
   assert.equal(result.body.actions.find((action) => action.id === "start_scenario").enabled, true);
 });
 

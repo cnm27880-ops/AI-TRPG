@@ -118,6 +118,21 @@ test("portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全
   assert.match(app, /await playChargenReleaseTransition\(\);/);
 });
 
+test("C1 主神空間以安全區導引串起結算、整備與出發", () => {
+  assert.match(index, /id="hub-guide-card"/);
+  assert.match(index, /id="hub-guide-next-button"/);
+  assert.match(index, /id="hub-guide-step-review"/);
+  assert.match(index, /id="hub-guide-step-recover"/);
+  assert.match(index, /id="hub-guide-step-depart"/);
+  assert.match(index, /安全區導引/);
+  assert.match(index, /低亮度/);
+  assert.match(app, /function renderGodspaceGuide\(guide\)/);
+  assert.match(app, /guide\.nextAction/);
+  assert.match(app, /guide\.steps/);
+  assert.match(app, /applyHubActionButton\("hub-start-button", "start_scenario"\)/);
+  assert.match(app, /applyHubActionButton\("hub-shop-button", "shop"\)/);
+});
+
 test("設定 modal 的 light theme 會覆蓋原生表單 dark appearance", () => {
   assert.match(index, /html\[data-theme="light"\] \.modal-panel :is\(input, select, textarea\)/);
   assert.match(index, /color-scheme: light/);

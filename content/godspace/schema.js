@@ -72,6 +72,11 @@ export function validateGodspacePayload(payload) {
   if (payload?.schemaVersion !== GODSPACE_SCHEMA_VERSION) errors.push("schemaVersion 不符合 B0 contract");
   if (!payload?.lifecycle || typeof payload.lifecycle.status !== "string") errors.push("缺少 lifecycle.status");
   if (!Array.isArray(payload?.actions)) errors.push("缺少 actions 陣列");
+  if (!payload?.guide || typeof payload.guide !== "object") errors.push("缺少公開 godspace guide");
+  if (typeof payload?.guide?.phase !== "string") errors.push("guide.phase 必須是 string");
+  if (typeof payload?.guide?.title !== "string") errors.push("guide.title 必須是 string");
+  if (!Array.isArray(payload?.guide?.steps)) errors.push("guide.steps 必須是陣列");
+  if (!payload?.guide?.nextAction || typeof payload.guide.nextAction !== "object") errors.push("guide.nextAction 必須是物件");
   if (!payload?.profile || typeof payload.profile !== "object") errors.push("缺少公開 godspace profile");
   const flags = payload?.profile?.featureFlags;
   for (const key of FEATURE_KEYS) {

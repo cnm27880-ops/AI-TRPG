@@ -225,6 +225,11 @@ function acceptMainGodInvitation() {
 }
 
 async function startNewChargen() {
+  const meta = hubAction("start_scenario");
+  if (meta && !meta.enabled) {
+    showToast(meta.reason || "目前不能開始新的副本。", { kind: "warn" });
+    return;
+  }
   showScreen("chargen");
 
   if (!chargenRules) {
@@ -2239,8 +2244,61 @@ function applyHubActionButton(buttonId, actionId) {
   button.classList.toggle("cursor-not-allowed", !meta?.enabled);
 }
 
+function hubGuideHandler(actionId) {
+  return {
+    view_debrief: openLastRunDebrief,
+    rest: restFromGodspace,
+    revive: reviveFromGodspace,
+    start_scenario: startNewChargen,
+    resume_scenario: resumeLocalSession,
+  }[actionId] ?? null;
+}
+
+function applyGuideActionButton(button, action, handler = null) {
+  if (!button) return;
+  button.disabled = !action?.enabled;
+  button.textContent = action?.label ?? "目前不可用";
+  button.title = action?.reason ?? "目前不可用";
+  button.classList.toggle("is-disabled", !action?.enabled);
+  button.onclick = action?.enabled ? (handler ?? hubGuideHandler(action.id)) : null;
+}
+
+function renderGodspaceGuide(guide) {
+  const card = document.getElementById("hub-guide-card");
+  if (!card) return;
+  if (!guide) {
+    card.style.display = "none";
+    return;
+  }
+  card.style.display = "block";
+  setText("hub-guide-title", guide.title ?? "安全區導引");
+  setText("hub-guide-summary", guide.summary ?? "");
+  const nextAction = guide.nextAction ?? null;
+  const nextButton = document.getElementById("hub-guide-next-button");
+  applyGuideActionButton(nextButton, nextAction);
+  setText("hub-guide-next-reason", nextAction?.reason ?? "");
+
+  const slots = [
+    ["review", "hub-guide-step-review", "hub-guide-step-review-title", "hub-guide-step-review-copy", "hub-guide-step-review-button"],
+    ["recover", "hub-guide-step-recover", "hub-guide-step-recover-title", "hub-guide-step-recover-copy", "hub-guide-step-recover-button"],
+    ["depart", "hub-guide-step-depart", "hub-guide-step-depart-title", "hub-guide-step-depart-copy", "hub-guide-step-depart-button"],
+  ];
+  for (const [stepId, cardId, titleId, copyId, buttonId] of slots) {
+    const step = guide.steps?.find((candidate) => candidate.id === stepId) ?? null;
+    const stepCard = document.getElementById(cardId);
+    const stepButton = document.getElementById(buttonId);
+    if (!stepCard) continue;
+    stepCard.style.display = step ? "flex" : "none";
+    stepCard.classList.toggle("is-current", Boolean(step && nextAction?.id === step.action?.id));
+    setText(titleId, step?.title ?? "");
+    setText(copyId, step?.description ?? "");
+    applyGuideActionButton(stepButton, step?.action ?? null);
+  }
+}
+
 function renderGodspace(payload) {
   const panel = document.getElementById("portal-aftercare-panel");
+  renderGodspaceGuide(payload?.guide ?? null);
   if (!panel) return;
   const debrief = payload?.debrief;
   const lifecycle = payload?.lifecycle;
@@ -2294,6 +2352,8 @@ function renderGodspace(payload) {
   applyHubActionButton("hub-view-debrief", "view_debrief");
   applyHubActionButton("hub-rest-button", "rest");
   applyHubActionButton("hub-revive-button", "revive");
+  applyHubActionButton("hub-start-button", "start_scenario");
+  applyHubActionButton("hub-shop-button", "shop");
 }
 
 function openLastRunDebrief() {
@@ -4390,6 +4450,11 @@ let shopBusy = false;
 async function openHubExchange() {
   if (!currentSessionId) {
     showToast("先建立輪迴者檔案，主神才會開放兌換。", { kind: "warn" });
+    return;
+  }
+  const meta = hubAction("shop");
+  if (meta && !meta.enabled) {
+    showToast(meta.reason || "目前不能使用兌換。", { kind: "warn" });
     return;
   }
   await openShop();
