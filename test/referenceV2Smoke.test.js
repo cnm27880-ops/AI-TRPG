@@ -8,7 +8,7 @@ import { onRequestPost as travel } from "../functions/api/travel.js";
 import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
 import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
-import { getScenarioPack } from "../content/scenario/registry.js";
+import { getScenarioPack, getScenarioReference } from "../content/scenario/registry.js";
 
 function jsonRequest(url, body) {
   return new Request(url, {
@@ -79,7 +79,7 @@ async function startMockLlm() {
   return { server, prompts, url: `http://127.0.0.1:${port}/v1` };
 }
 
-test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference facts", async (t) => {
+test("V2 smoke: canonical direct-send runs from opening through Ash and preserves reference facts", async (t) => {
   const mock = await startMockLlm();
   t.after(() => mock.server.close());
   const env = {
@@ -129,14 +129,16 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterRecon.body.ok, true);
   assert.ok(afterRecon.body.checkResult, "開場行動應該經過既有骰子引擎");
   assert.ok(afterRecon.body.outcome, "開場行動應該產生結果分級");
-  assert.match(afterRecon.body.narration, /光束|拖痕|休眠室/);
+  assert.equal(afterRecon.body.degraded.llmCalled, false);
+  assert.equal(afterRecon.body.degraded.narrationSource, "canonical_result");
+  const cryoReference = getScenarioReference("scenario.nostromo-01-v2");
+  const cryoScene = cryoReference.scenes.find((scene) => scene.id === "evt_cryo_clearance");
+  assert.ok(Object.values(cryoScene.narrativeSource.outcomes.app_cryo_recon).includes(afterRecon.body.narration));
   assert.equal(afterRecon.body.scenario.reference.eventId, "evt_cryo_clearance");
   assert.equal(afterRecon.body.scenario.reference.npcs.length, 0, "仍在休眠室時不應提前公開未接觸人物");
   assert.equal(afterRecon.body.options.some((option) => option.reference?.sceneId === "evt_cryo_clearance"), true);
   assert.equal(afterRecon.body.options.every((option) => option.requiresCheck === false || Number.isInteger(option.dc)), true);
-  assert.match(mock.prompts[0], /evt_cryo_clearance/);
-  assert.match(mock.prompts[0], /app_cryo_recon/);
-  assert.match(mock.prompts[0], /已套用狀態效果/);
+  assert.equal(mock.prompts.length, 0, "canonical result 不應呼叫 LLM");
 
   const leaveAction = afterRecon.body.options.find((option) => option.reference?.approachId === "app_cryo_leave");
   assert.ok(leaveAction, "休眠室調查後應提供明確離開 approach");
@@ -153,8 +155,9 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(deckLuyuan?.trustLabel, "待接觸");
   assert.equal("privateGoals" in (deckLuyuan ?? {}), false);
   assert.equal(afterLeave.body.options.some((option) => option.reference?.approachId === "app_deck_luyuan_contact"), true);
-  assert.match(mock.prompts[1], /evt_cryo_clearance/);
-  assert.match(mock.prompts[1], /app_cryo_leave/);
+  assert.equal(afterLeave.body.degraded.llmCalled, false);
+  assert.match(afterLeave.body.degraded.narrationSource, /^canonical_result/);
+  assert.equal(mock.prompts.length, 0, "canonical scene transition 不應呼叫 LLM");
 
   const luyuanAction = afterLeave.body.options.find((option) => option.reference?.approachId === "app_deck_luyuan_contact");
   assert.ok(luyuanAction, "A 甲板應提供與陸遠交換情報的 approach");
@@ -165,6 +168,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterLuyuan.status, 200, JSON.stringify(afterLuyuan.body));
   assert.equal(afterLuyuan.body.ok, true);
   assert.match(afterLuyuan.body.narration, /陸遠/);
+  assert.equal(afterLuyuan.body.degraded.llmCalled, false);
+  assert.match(afterLuyuan.body.degraded.narrationSource, /^canonical_result/);
   assert.equal(afterLuyuan.body.scenario.reference.eventId, "evt_deck_a_recon");
   assert.equal(afterLuyuan.body.scenario.reference.sceneTurnCount, 1);
 
@@ -178,6 +183,8 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterScience.body.ok, true);
   assert.equal(afterScience.body.scenario.reference.eventId, "evt_meet_ash");
   assert.match(afterScience.body.narration, /Ash|科學實驗區/);
+  assert.equal(afterScience.body.degraded.llmCalled, false);
+  assert.match(afterScience.body.degraded.narrationSource, /^canonical_result/);
 
   const ashAction = afterScience.body.options.find((option) => option.reference?.approachId === "app_ash_talk_quarantine");
   assert.ok(ashAction, "進入科學區後才應提供 Ash 檢疫交涉 approach");
@@ -189,12 +196,11 @@ test("V2 smoke: fixed LLM runs from opening through Ash and preserves reference 
   assert.equal(afterAsh.body.ok, true);
   assert.ok(afterAsh.body.checkResult, "Ash 交涉應該經過既有骰子引擎");
   assert.match(afterAsh.body.narration, /Ash/);
+  assert.equal(afterAsh.body.degraded.llmCalled, false);
+  assert.match(afterAsh.body.degraded.narrationSource, /^canonical_result/);
   assert.equal(afterAsh.body.scenario.reference.eventId, "evt_meet_ash");
   assert.equal(afterAsh.body.scenario.reference.sceneTurnCount, 1);
-  assert.match(mock.prompts[2], /evt_deck_a_recon/);
-  assert.match(mock.prompts[2], /陸遠/);
-  assert.match(mock.prompts[3], /evt_meet_ash/);
-  assert.match(mock.prompts[3], /evt_meet_ash|937/);
+  assert.equal(mock.prompts.length, 0, "開場至 Ash 的 matched canonical actions 都不應呼叫 LLM");
 
   const saved = await resolveSessionStore(env).get(sessionId);
   const referenceState = saved.scenario.referenceState;
@@ -544,7 +550,7 @@ test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playa
   assert.equal(toMedbay.body.travel.to, "loc_medbay");
   assert.equal(toMedbay.body.scenario.reference.eventId, "evt_medbay_ruins");
   assert.match(toMedbay.body.travel.arrivalText, /醫療區的自動感應門卡在半開位置/);
-  assert.equal(mock.prompts.length, 1, "travel 到醫療區不應呼叫 LLM");
+  assert.equal(mock.prompts.length, 0, "travel 到醫療區不應呼叫 LLM");
 
   const medbayAction = toMedbay.body.options.find((option) => option.reference?.approachId === "app_medbay_scavenge");
   assert.ok(medbayAction);
@@ -571,7 +577,9 @@ test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playa
   const afterToolsEntry = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: toToolsAction }), env }));
   assert.equal(afterToolsEntry.body.ok, true, JSON.stringify(afterToolsEntry.body));
   assert.equal(afterToolsEntry.body.scenario.reference.eventId, "evt_cargo_tool_scavenge");
-  assert.match(mock.prompts.at(-1), /evt_cargo_tool_scavenge|工具櫃/);
+  assert.equal(afterToolsEntry.body.degraded.llmCalled, false);
+  assert.match(afterToolsEntry.body.degraded.narrationSource, /^canonical_result/);
+  assert.match(afterToolsEntry.body.narration, /工具櫃|貨艙/);
 
   const abandonTool = afterToolsEntry.body.options.find((option) => option.reference?.approachId === "app_cargo_tool_abandon");
   assert.ok(abandonTool);
@@ -603,7 +611,7 @@ test("V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playa
   const replayBridge = await readJson(await travel({ request: jsonRequest("https://test.local/api/travel", { sessionId, to: "loc_bridge" }), env }));
   assert.equal(replayBridge.status, 409, JSON.stringify(replayBridge.body));
   assert.equal(replayBridge.body.code, "TRAVEL_LOCKED");
-  assert.equal(mock.prompts.length >= 4, true, "只有實際 turn 才應增加 LLM 呼叫");
+  assert.equal(mock.prompts.length, 0, "此流程的 travel 與 matched canonical turn 都不應呼叫 LLM");
 });
 
 
@@ -650,7 +658,9 @@ test("V2 API smoke: core infiltration and engineering prep precede 937 and overl
   const afterDoor = await readJson(await playTurn({ request: jsonRequest("https://test.local/api/turn", { sessionId, chosenOption: card }), env }));
   assert.equal(afterDoor.status, 200, JSON.stringify(afterDoor.body));
   assert.equal(afterDoor.body.scenario.reference.eventId, "evt_order_937_reveal");
-  assert.match(mock.prompts.at(-1), /evt_mother_chamber_infiltrate|圓形金屬門/);
+  assert.equal(afterDoor.body.degraded.llmCalled, false);
+  assert.match(afterDoor.body.degraded.narrationSource, /^canonical_result/);
+  assert.match(afterDoor.body.narration, /圓形金屬門|主機核心/);
 
   const afterDoorSession = await store.get(sessionId);
   afterDoorSession.scenario.referenceState.flags = [...new Set([
@@ -662,7 +672,7 @@ test("V2 API smoke: core infiltration and engineering prep precede 937 and overl
   assert.equal(toEngine.status, 200, JSON.stringify(toEngine.body));
   assert.equal(toEngine.body.scenario.reference.eventId, "evt_engine_coolant_prep");
   assert.match(toEngine.body.travel.arrivalText, /刺骨的冷氣瞬間被滾燙的機油熱浪取代/);
-  assert.equal(mock.prompts.length, 1, "工程區 travel 仍不應呼叫 LLM");
+  assert.equal(mock.prompts.length, 0, "工程區 travel 仍不應呼叫 LLM");
 
   const parker = toEngine.body.options.find((option) => option.reference?.approachId === "app_engine_prep_parker");
   assert.ok(parker);

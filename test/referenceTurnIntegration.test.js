@@ -4,6 +4,7 @@ import { emptyCharacter } from "../core/schema.js";
 import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
+import { getScenarioReference } from "../content/scenario/registry.js";
 
 function request(url, body) {
   return new Request(url, {
@@ -122,16 +123,17 @@ test("同一回合的 Ripley／Lambert cooperation state 會依序合併而不�
     }),
     env,
   });
-  assert.equal(action.status, 503);
+  assert.equal(action.status, 200);
   const actionBody = await action.json();
-  assert.equal(actionBody.ok, false);
-  assert.equal(actionBody.pendingTurn?.referenceState, undefined);
+  assert.equal(actionBody.ok, true, JSON.stringify(actionBody));
+  assert.equal(actionBody.degraded.llmCalled, false);
+  assert.match(actionBody.degraded.narrationSource, /^canonical_/);
+  assert.equal(actionBody.pendingTurn, null);
 
   const saved = await store.get(sessionId);
   assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_cooperate_lambert_02");
   assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
-  assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_cooperate_lambert_02");
-  assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
+  assert.equal(saved.pendingTurn, null);
 });
 
 test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPending 不重複累計", async () => {
@@ -186,8 +188,16 @@ test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPend
   assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
 });
 
-test("V2 reference action is persisted before an unavailable LLM response", async () => {
-  const env = {};
+test("V2 reference action uses canonical direct-send without an LLM response", async () => {
+  let llmCalls = 0;
+  const env = {
+    AI: {
+      run: async () => {
+        llmCalls += 1;
+        throw new Error("canonical direct-send 不應呼叫 LLM");
+      },
+    },
+  };
   const character = emptyCharacter("Reference 測試者");
   const created = await createSession({
     request: request("https://test.local/api/session", {
@@ -215,17 +225,25 @@ test("V2 reference action is persisted before an unavailable LLM response", asyn
     }),
     env,
   });
-  assert.equal(action.status, 503);
+  assert.equal(action.status, 200);
   const actionBody = await action.json();
-  assert.equal(actionBody.ok, false);
-  assert.equal(actionBody.error.includes("沒有可用的LLM供應商"), true);
+  assert.equal(actionBody.ok, true, JSON.stringify(actionBody));
+  assert.equal(actionBody.degraded.llmCalled, false);
+  assert.equal(actionBody.degraded.narrationSource, "canonical_result");
+  assert.equal(actionBody.degraded.llmCalled, false);
+  assert.equal(llmCalls, 0);
+  assert.equal(actionBody.pendingTurn, null);
 
   const saved = await resolveSessionStore(env).get(sessionId);
+  const canonicalScene = getScenarioReference("scenario.nostromo-01-v2").scenes.find((scene) => scene.id === "evt_cryo_clearance");
+  const canonicalTexts = Object.values(canonicalScene.narrativeSource.outcomes.app_cryo_recon);
+  assert.ok(canonicalTexts.includes(actionBody.narration), "direct-send 必須逐字採用 canonical outcome 原文");
   assert.equal(saved.scenario.referenceState.lastApproachId, "app_cryo_recon");
   assert.equal(saved.scenario.referenceState.lastOutcomeTier !== null, true);
   assert.equal(saved.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
   assert.ok(saved.scenario.referenceState.flags.includes("flag_cryo_recon_done"));
   assert.equal(saved.log.events.some((entry) => entry.type === "reference_action"), true);
+  assert.equal(saved.history.at(-1).narration, actionBody.narration);
 
   const publicLoaded = await (await import("../functions/api/session.js")).onRequestGet({
     request: new Request(`https://test.local/api/session?id=${sessionId}`),

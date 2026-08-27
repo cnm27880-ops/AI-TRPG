@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
+import { DEFAULT_SCENARIO_ID } from "../content/scenario/registry.js";
 
 const DRAFT = {
   concept: { name: "串流測試者", gender: "不透露" },
@@ -10,20 +11,25 @@ const DRAFT = {
 };
 
 function envWithReply() {
+  const calls = [];
   return {
+    calls,
     AI: {
-      run: async () => ({
-        response: JSON.stringify({
-          st_thought: "這是 private thought，不得進入公開 response。",
-          narration: "串流測試的敘事已經抵達。",
-          options: [
-            { label: "觀察入口", attribute: "感知", skill: "偵察", difficulty: "容易" },
-            { label: "檢查設備", attribute: "智力", skill: "技藝", difficulty: "普通" },
-            { label: "保持戒備", attribute: "意志", skill: null, difficulty: "普通" },
-            { label: "繼續前進", attribute: "敏捷", skill: "體魄", difficulty: "普通" },
-          ],
-        }),
-      }),
+      run: async (model, payload) => {
+        calls.push({ model, payload });
+        return {
+          response: JSON.stringify({
+            st_thought: "這是 private thought，不得進入公開 response。",
+            narration: "串流測試的敘事已經抵達。",
+            options: [
+              { label: "觀察入口", attribute: "感知", skill: "偵察", difficulty: "容易" },
+              { label: "檢查設備", attribute: "智力", skill: "技藝", difficulty: "普通" },
+              { label: "保持戒備", attribute: "意志", skill: null, difficulty: "普通" },
+              { label: "繼續前進", attribute: "敏捷", skill: "體魄", difficulty: "普通" },
+            ],
+          }),
+        };
+      },
     },
   };
 }
@@ -83,6 +89,40 @@ test("/api/turn NDJSON：先送 lifecycle，最後才送完整安全 payload 與
   assert.equal("st_thought" in complete.payload, false);
 });
 
+
+test("V2 canonical direct-send 的 NDJSON 仍完成完整 lifecycle 且不呼叫 AI", async () => {
+  const env = envWithReply();
+  const session = await readJson(await sessionPost(plainRequest(env, {
+    draft: DRAFT,
+    scenarioId: DEFAULT_SCENARIO_ID,
+  })));
+  assert.equal(session.status, 200, JSON.stringify(session.body));
+  const openingResponse = await turnPost(streamRequest(env, { sessionId: session.body.session.id }));
+  const openingEvents = (await openingResponse.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const opening = openingEvents.at(-1).payload;
+  assert.equal(opening.ok, true);
+
+  const response = await turnPost(streamRequest(env, {
+    sessionId: session.body.session.id,
+    chosenOption: opening.options[0],
+  }));
+  const events = (await response.text())
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const complete = events.at(-1);
+  assert.equal(complete.type, "complete");
+  assert.equal(complete.payload.ok, true);
+  assert.equal(complete.payload.degraded.llmCalled, false);
+  assert.match(complete.payload.degraded.narrationSource, /^canonical_/);
+  assert.equal(env.calls.length, 0);
+  assert.equal(events.find((event) => event.type === "narrator_writing")?.source, "canonical");
+  const deltas = events.filter((event) => event.type === "narration_delta").map((event) => event.delta).join("");
+  assert.equal(deltas, complete.payload.narration);
+});
 
 test("普通 JSON Accept 仍維持既有 JSON response 相容性", async () => {
   const env = envWithReply();

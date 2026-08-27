@@ -7,8 +7,8 @@
 //     -> 引擎查驗這個選項的檢定合不合規則（AI說了不算，見 content/turnOptions.js）
 //     -> 引擎擲骰、算成功數、比DC（core/check.js，AI一個數字都不碰）
 //     -> 引擎把結果轉成敘事分級指令（core/narration.js）
-//     -> AI 依照那個分級寫敘事，並提出下一輪的4個選項與各自的檢定組合
-//     -> 引擎再查驗那4個選項
+//   -> reference action 命中已授權原文時，直接由 canonical narrative resolver 演出
+//   -> 只有未命中的合理自由行動才由 LLM 產生受限 bridge，且引擎再查驗任何選項
 //     -> 把這一輪的判定寫進事件日誌、敘事推進短期記憶、存回存檔
 //
 // **記憶**：prompt 會帶兩種記憶，兩者用途不同、缺一不可（見 promptContract.js 的說明）：
@@ -89,6 +89,7 @@ import {
   normalizeReferenceState,
   resolveReferenceAction,
   applyReferenceResult,
+  resolveCanonicalNarrative,
   applyReferenceCharacterEffects,
   buildReferenceOptions,
   buildReferencePromptBlock,
@@ -544,6 +545,7 @@ async function executeTurn(context, streamHooks = null) {
       degraded: {
         parseFailed: false,
         narrationSource: "scripted",
+        llmCalled: false,
         aiOptionCount: 0,
         fallbackOptionCount: scripted.fallbackCount,
         truncated: false,
@@ -826,8 +828,27 @@ async function executeTurn(context, streamHooks = null) {
   }
 
   // ---------------------------------------------------------------------
-  // 第二段：敘事層。從這裡開始才需要AI。
+  // 第二段：敘事層。canonical result 先於 AI；只有沒有授權原文時才需要 AI。
   // ---------------------------------------------------------------------
+  const canonicalNarrative = scenarioReference && referenceState && referenceApplied?.applied
+    ? resolveCanonicalNarrative({
+        reference: scenarioReference,
+        state: referenceState,
+        resolution: referenceResolution,
+        applied: referenceApplied,
+        actionText,
+        outcomeTier: outcome?.tier ?? "自動",
+      })
+    : null;
+  const canonicalActionMatched = Boolean(scenarioReference && referenceState && referenceResolution.matched);
+  const directNarrative = canonicalNarrative ?? (canonicalActionMatched
+    ? {
+        source: "engine_safe_reference",
+        text: "這次行動已由副本規則處理，但目前沒有對應的公開演出文字。局勢已依現有狀態更新，請根據眼前線索決定下一步。",
+      }
+    : null);
+  const canonicalDirectSend = Boolean(directNarrative);
+
   const referenceScene = scenarioReference && referenceState
     ? (referenceResolution.matched
       ? referenceResolution.scene
@@ -879,7 +900,7 @@ async function executeTurn(context, streamHooks = null) {
       where: "POST /api/turn", reason: "baseUrl只在provider=custom時生效", bodyProvider: bodyProvider ?? null,
     }));
   }
-  if (!provider) {
+  if (!canonicalDirectSend && !provider) {
     logReferenceAction();
     await persistReferenceTurn();
     return await jsonPartial(
@@ -900,27 +921,29 @@ async function executeTurn(context, streamHooks = null) {
     );
   }
 
-  let systemInstruction;
-  try {
-    systemInstruction = composeSystemInstruction({
-      rulesContract: SYSTEM_INSTRUCTION,
-      personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
-      styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
-      // 美德/惡德放在最前面：那是這個角色的核心，專長特質是細節。
-      // 兩者都走 characterHints（文筆層），不進規則契約層——它們是「這個人容易對什麼有反應」，
-      // 不是判定規則，放進契約層有機會被模型讀成「遇到這類情節就必須怎樣」的硬指令。
-      characterHints: [...moralityHints(character), ...narrativeFeatHints(character)],
-    });
-  } catch (err) {
-    return await jsonPartial(
-      { error: `文筆設定檔錯誤：${err.message}` },
-      {
-        session, checkParams, checkResult, outcome, warnings, store,
-        reusedCheck: Boolean(pendingReplay),
-        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
-      },
-      400
-    );
+  let systemInstruction = null;
+  if (!canonicalDirectSend) {
+    try {
+      systemInstruction = composeSystemInstruction({
+        rulesContract: SYSTEM_INSTRUCTION,
+        personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
+        styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
+        // 美德/惡德放在最前面：那是這個角色的核心，專長特質是細節。
+        // 兩者都走 characterHints（文筆層），不進規則契約層——它們是「這個人容易對什麼有反應」，
+        // 不是判定規則，放進契約層有機會被模型讀成「遇到這類情節就必須怎樣」的硬指令。
+        characterHints: [...moralityHints(character), ...narrativeFeatHints(character)],
+      });
+    } catch (err) {
+      return await jsonPartial(
+        { error: `文筆設定檔錯誤：${err.message}` },
+        {
+          session, checkParams, checkResult, outcome, warnings, store,
+          reusedCheck: Boolean(pendingReplay),
+          pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
+        },
+        400
+      );
+    }
   }
 
   // --- 記憶：從存檔裡取出來，餵進 prompt ---
@@ -985,12 +1008,18 @@ async function executeTurn(context, streamHooks = null) {
   await streamHooks?.emit({ type: "rules_resolved" });
 
   let text;
-  let model;
-  let usedProvider = provider;
+  let model = null;
+  let usedProvider = canonicalDirectSend ? null : provider;
   let finishReason = null;
   const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
-  try {
-    await streamHooks?.emit({ type: "narrator_writing" });
+  if (canonicalDirectSend) {
+    await streamHooks?.emit({ type: "narrator_writing", source: "canonical" });
+    // 後續 parser／state settlement 仍沿用同一條安全路徑；這個 JSON 只存在 server 內，
+    // narration 的實際內容仍是 resolver 已選出的原文，不是模型生成結果。
+    text = JSON.stringify({ narration: directNarrative.text, options: [] });
+  } else {
+    try {
+      await streamHooks?.emit({ type: "narrator_writing" });
     const res = await callNarrativeLlm({
       ...(bodyProvider ? { provider } : {}),
       env,
@@ -1028,6 +1057,7 @@ async function executeTurn(context, streamHooks = null) {
       },
       502
     );
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -1086,7 +1116,8 @@ async function executeTurn(context, streamHooks = null) {
   // 這一輪到底是AI生的還是引擎墊的，不用再靠肉眼比對選項文字有沒有重複。
   const degraded = {
     parseFailed: !parsed.ok,
-    narrationSource: "ai",
+    narrationSource: canonicalDirectSend ? directNarrative.source : "ai",
+    llmCalled: !canonicalDirectSend,
     aiOptionCount: 0,
     fallbackOptionCount: 0,
     freeOptionCount: 0,

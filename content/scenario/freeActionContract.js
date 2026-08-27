@@ -125,10 +125,13 @@ export function buildFreeActionRewritePrompt(contract, violations = []) {
 export function buildEngineSafeNarration(contract) {
   const rawAction = String(contract?.actionText || "這個行動").trim();
   const action = (rawAction.replace(/^我(?:試著|嘗試)?\s*/, "") || "這個行動").replace(/[。！？!?]+$/u, "");
+  const containsControlOrSecretToken = /gmtruth|privategoals|referencestate|stthought|system\s*override|ignore\s+(?:all|every)?\s*game\s*rule|(?:忽略|無視).{0,12}(?:規則|指令)/iu.test(action);
+  const safeAction = containsControlOrSecretToken ? "以不明方式介入當前局勢" : action;
+  const boundedAction = [...safeAction].slice(0, 180).join("") + ([...safeAction].length > 180 ? "…" : "");
   const tier = contract?.resolution?.outcomeTier || "未定";
   const stage = contract?.threat?.stage || "目前階段";
   return [
-    `你嘗試${action}。`,
+    `你嘗試${boundedAction}。`,
     `這次嘗試的引擎判定為「${tier}」，但沒有任何新的道路、物品、位置或傷勢變化被確認。`,
     `眼前只留下可感知的阻力與反應；威脅仍依「${stage}」階段存在。下一個決定仍由你做出。`,
   ].join("\n\n");

@@ -4,7 +4,7 @@
 //   reference JSON：世界真相、地圖、NPC、事件、前置條件、結果文字與 effects。
 //   adapter：驗證當前事件、把玩家行動對到合法 approach、套用 effects、推進事件。
 //   core/check.js：骰池、骰子、成功數與 DC。
-//   LLM：只把 adapter 已經裁定的結果寫成敘事與簡要選項。
+//   LLM：只在沒有已授權原文的合理自由行動中提供受限 bridge；正常 reference result 由 server 直接演出。
 //
 // 注意：referenceState 存在 session.scenario.referenceState，不放進 progress。
 // progress 仍然只負責章節、節點、時間、迫近度與套路，避免破壞舊存檔。
@@ -426,11 +426,16 @@ export function buildReferenceOptions(reference, state, { limit = 4 } = {}) {
 }
 
 function referenceTerms(text) {
-  const source = String(text ?? "").replace(/\s+/g, "");
+  const source = String(text ?? "");
   const terms = new Set();
-  if (source.length >= 2) {
-    for (let i = 0; i < source.length - 1; i += 1) terms.add(source.slice(i, i + 2));
+  // 中文用連續二字詞；拉丁字母改用完整 token，避免 generic English words
+  // （例如 referenceState 的「re」）與 NPC 名稱 Lambert/Ripley 產生假命中。
+  const hanRuns = source.match(/[\u3400-\u9fff\u{20000}-\u{2ffff}]+/gu) ?? [];
+  for (const run of hanRuns) {
+    for (let i = 0; i < run.length - 1; i += 1) terms.add(run.slice(i, i + 2));
   }
+  const latinTokens = source.match(/[A-Za-z][A-Za-z0-9_-]{2,}/g) ?? [];
+  for (const token of latinTokens) terms.add(token.toLowerCase());
   return terms;
 }
 
@@ -526,6 +531,75 @@ export function resultForOutcome(approach, outcomeTier) {
   const outcomes = approach?.outcomes ?? {};
   const key = tierFallbackOrder(outcomeTier).find((candidate) => outcomes[candidate]);
   return key ? { key, result: outcomes[key] } : null;
+}
+
+/**
+ * 依 server 已完成的 canonical 判定組裝這一回合的公開演出。
+ *
+ * 這個 helper 只挑文字，不重新判定 outcome、effects、威脅、位置、NPC 狀態或結局。
+ * `applied` 必須來自 applyReferenceResult()；未命中的自由行動、缺少原文的結果
+ * 或未授權 overlay 都回傳 null，交由 turn route 的 bridge／安全敘事處理。
+ */
+export function resolveCanonicalNarrative({
+  reference,
+  state,
+  resolution,
+  applied,
+  actionText = "",
+  outcomeTier = null,
+  includeNextSceneEntry = true,
+} = {}) {
+  if (!reference || !state || !applied?.applied || !String(applied.resultText ?? "").trim()) return null;
+
+  const sceneId = resolution?.scene?.id ?? null;
+  const approachId = resolution?.approach?.id ?? null;
+  const selectedTier = applied.resultKey ?? outcomeTier ?? null;
+  const overlay = sceneId && approachId && selectedTier
+    ? narrativeMajorSceneVariant(reference, {
+        sceneId,
+        approachId,
+        outcomeTier: selectedTier,
+        actionText,
+      })
+    : null;
+
+  const parts = [String(applied.resultText).trim()];
+  if (overlay?.text && overlay.text.trim() !== parts[0]) parts.push(overlay.text.trim());
+
+  let sceneEntryIncluded = false;
+  const nextSceneId = applied.nextSceneId ?? null;
+  if (
+    includeNextSceneEntry &&
+    applied.sceneAdvanced &&
+    nextSceneId &&
+    nextSceneId !== sceneId
+  ) {
+    const nextScene = findScene(reference, nextSceneId);
+    const entryText = narrativeEntryText(nextScene).trim();
+    if (entryText && !parts.includes(entryText)) {
+      parts.push(entryText);
+      sceneEntryIncluded = true;
+    }
+  }
+
+  const source = overlay && sceneEntryIncluded
+    ? "canonical_result_with_overlay_and_scene_entry"
+    : overlay
+      ? "canonical_result_with_overlay"
+      : sceneEntryIncluded
+        ? "canonical_result_with_scene_entry"
+        : "canonical_result";
+
+  return {
+    source,
+    text: parts.join("\n\n"),
+    sceneId,
+    approachId,
+    outcomeTier: selectedTier,
+    overlayId: overlay?.id ?? null,
+    nextSceneId,
+    sceneEntryIncluded,
+  };
 }
 
 const INJURY_DAMAGE_MAP = Object.freeze({

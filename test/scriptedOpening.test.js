@@ -4,9 +4,8 @@
 // 和周圍環境的警惕」。實作方式是在 functions/api/turn.js 開一條短路：符合條件的開場回合
 // 直接回傳作者寫好的文字，**完全不呼叫AI**。
 //
-// 所以這裡最重要的一條測試是「開場那一回合，假的 AI binding 一次都沒有被呼叫過」——
-// 那是「固定」與「零延遲」這兩個賣點唯一的實質保證。其餘測試守著它的邊界：
-// 玩家一旦開始行動就必須回到正常的AI流程，讀檔續玩不可以再播一次開場。
+// 所以這裡最重要的測試是「開場與已預寫 reference action 都不呼叫 AI」——
+// 這是 canonical-first 與零延遲的實質保證。只有沒有 canonical 對應的續玩／自由輸入才回到 AI bridge。
 import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
@@ -103,21 +102,23 @@ test("固定開頭的選項一樣要通過規則查驗(屬性/技能/難度都�
   assert.deepEqual(openingWarnings, [], "副本包裡的固定選項不該需要引擎修正");
 });
 
-test("玩家一旦行動就回到正常AI流程，而且不會再播一次開場", async () => {
+test("canonical 玩家行動不呼叫AI，而且讀檔續玩不會再播一次開場", async () => {
   const env = makeEnv();
   const sessionId = await newSession(env);
   const opening = await readJson(await turnPost(req(env, { sessionId })));
 
   const next = await readJson(await turnPost(req(env, { sessionId, chosenOption: opening.options[0] })));
-  assert.equal(env.calls.length, 1, "玩家行動的回合必須真的呼叫AI");
-  assert.equal(next.narration, "AI寫的敘事");
-  assert.equal(next.degraded.narrationSource, "ai");
+  assert.equal(env.calls.length, 0, "命中 canonical approach 的玩家行動不應呼叫AI");
+  assert.notEqual(next.narration, "AI寫的敘事");
+  assert.match(next.degraded.narrationSource, /^canonical_result/);
+  assert.equal(next.degraded.llmCalled, false);
   assert.ok(next.checkResult, "選了帶檢定的選項就要真的擲骰");
 
-  // 讀檔續玩：已經有歷史了，開場短路不可以再觸發（否則玩家會看到自己剛醒來兩次）
+  // 讀檔續玩：已經有歷史了，開場短路不可以再觸發；沒有新 action 時才進入 AI continuation。
   const resumed = await readJson(await turnPost(req(env, { sessionId })));
   assert.equal(resumed.degraded.narrationSource, "ai");
-  assert.equal(env.calls.length, 2);
+  assert.equal(resumed.degraded.llmCalled, true);
+  assert.equal(env.calls.length, 1);
 });
 
 test("沒有固定開頭的副本行為完全不變(開場照樣交給AI)", async () => {
