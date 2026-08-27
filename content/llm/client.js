@@ -8,7 +8,7 @@
 // 靜默塞一段預設文字。敘事層寧可讓玩家看到「AI服務失敗」，也不能生出一段沒有來源的文字——
 // 因為玩家分不出「AI寫的」跟「程式湊的」，那會侵蝕整個遊戲的可信度。
 
-import { PROTOCOLS, resolveProvider } from "./providers.js";
+import { PROTOCOLS, resolveProvider, resolveServerProviderChain } from "./providers.js";
 import { assertSafeOutboundUrl } from "./urlSafety.js";
 
 /**
@@ -187,8 +187,98 @@ export async function callLlm({
   }
 }
 
+/**
+ * 判斷一次 provider 失敗是否值得交給下一個 server-managed provider。
+ *
+ * 可切換：429／408／425／5xx、timeout、Workers binding failure、回應 shape 不符。
+ * 不可切換：400／401／403／404、SSRF block、其他 config 錯誤。這樣不會把錯誤的模型名、
+ * 金鑰或安全設定，悄悄掩蓋成「另一家剛好能用」。
+ */
+export function isRetryableLlmError(err) {
+  if (err?.stage === "timeout" || err?.stage === "binding" || err?.stage === "shape") return true;
+  if (err?.stage !== "http") return false;
+  return new Set([408, 425, 429, 500, 502, 503, 504, 529]).has(Number(err.status));
+}
+
+function attachFallbackAttempts(err, attempts) {
+  if (err && typeof err === "object") err.fallbackAttempts = attempts;
+  return err;
+}
+
+/**
+ * server-managed provider chain。
+ *
+ * 這個 helper 刻意不接受 provider/apiKey/baseUrl override：玩家 BYOK 與 custom 必須
+ * 走單一 callLlm()，不能因為第一家失敗就消耗部署者的其他金鑰。chain 由 providers.js
+ * 依免費優先順序與 LLM_ALLOW_PAID_FALLBACK 解析；一個 request 最多每家嘗試一次。
+ */
+export async function callLlmWithFallback(params = {}) {
+  const {
+    env = {},
+    provider: forbiddenProvider,
+    apiKey: forbiddenApiKey,
+    baseUrl: forbiddenBaseUrl,
+    ...shared
+  } = params;
+  if (forbiddenProvider || forbiddenApiKey || forbiddenBaseUrl) {
+    throw new LlmError("server fallback 不接受玩家或呼叫端的 provider／金鑰／Base URL 覆寫", {
+      provider: forbiddenProvider ?? null,
+      model: shared.model ?? null,
+      stage: "config",
+    });
+  }
+
+  const chain = resolveServerProviderChain(env);
+  if (!chain.length) {
+    throw new LlmError("沒有可用的 server-managed LLM provider", {
+      provider: null,
+      model: null,
+      stage: "config",
+    });
+  }
+
+  const primaryId = chain[0].id;
+  const attempts = [];
+  let lastError = null;
+  for (const candidate of chain) {
+    // LLM_MODEL／LLM_BASE_URL 是 server primary 的覆寫，不可污染另一家 fallback。
+    const candidateEnv = candidate.id === primaryId
+      ? ((candidate.id === "custom" || env.LLM_PROVIDER === candidate.id)
+          ? env
+          : { ...env, LLM_BASE_URL: undefined })
+      : { ...env, LLM_MODEL: undefined, LLM_BASE_URL: undefined };
+    try {
+      return await callLlm({
+        ...shared,
+        env: candidateEnv,
+        provider: candidate.id,
+        ...(candidate.model ? { model: candidate.model } : {}),
+      });
+    } catch (err) {
+      lastError = err;
+      attempts.push({
+        provider: err?.provider ?? candidate.id,
+        model: err?.model ?? candidate.model ?? null,
+        stage: err?.stage ?? "unknown",
+        status: err?.status ?? null,
+      });
+      if (!isRetryableLlmError(err) || candidate === chain[chain.length - 1]) {
+        throw attachFallbackAttempts(err, attempts);
+      }
+      console.warn("[LLM_FALLBACK]", JSON.stringify({
+        failedProvider: err?.provider ?? candidate.id,
+        failedModel: err?.model ?? candidate.model ?? null,
+        stage: err?.stage ?? "unknown",
+        status: err?.status ?? null,
+        nextProvider: chain[chain.indexOf(candidate) + 1]?.id ?? null,
+      }));
+    }
+  }
+  throw attachFallbackAttempts(lastError ?? new LlmError("所有 LLM provider 都失敗", { stage: "http" }), attempts);
+}
+
 // ---------------------------------------------------------------------------
-// OpenAI相容格式 —— DeepSeek / OpenRouter / Groq / 硅基流動 / 各種第三方中轉共用這一段
+// OpenAI相容格式 —— DeepSeek / OpenRouter / Groq / SiliconFlow / NVIDIA NIM / Mistral / 各種第三方中轉共用這一段
 // ---------------------------------------------------------------------------
 
 /**

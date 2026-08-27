@@ -19,7 +19,7 @@ npm install
 npm test
 ```
 
-目前測試套件共有 **67 個 `.test.js` 測試檔案、831 個可重現測試案例**，正常結果應為 `# pass 831`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry、Alien V2 reference runtime，以及手機設定／PWA／故事主畫面 UI 靜態契約。兩個 `runRealGemini*.mjs` 是需要本地 `.dev.vars` 與真實供應商金鑰的手動連線測試，不會納入一般 `npm test`；可用 `npm run test:real-gemini` 額外執行。
+目前測試套件共有 **1001 個可重現測試案例**，正常結果應為 `# pass 1001`、`# fail 0`。測試除規則核心外，也涵蓋 API 存檔、劇情回顧、跨副本 facts isolation、LLM 失敗後的 pending-turn retry、Alien V2 reference runtime，以及手機設定／PWA／故事主畫面 UI 靜態契約。兩個 `runRealGemini*.mjs` 是需要本地 `.dev.vars` 與真實供應商金鑰的手動連線測試，不會納入一般 `npm test`；可用 `npm run test:real-gemini` 額外執行。
 
 若要重新產生前端使用的 Tailwind 靜態 CSS，執行：
 
@@ -46,7 +46,7 @@ npx wrangler pages dev
 
 | 指令 | 用途 |
 |---|---|
-| `npm test` | 執行 67 個可重現 `.test.js` 測試檔案，共 831 個案例 |
+| `npm test` | 執行完整可重現測試套件，目前共 1001 個案例 |
 | `npm run test:real-gemini` | 使用本地 `.dev.vars` 執行兩個真實 Gemini／Alien V2 連線 smoke test |
 | `npm run build:css` | 由 `src/tailwind.css` 產生 `public/tailwind.css` |
 | `npm run watch:css` | 監看 CSS 來源並持續產生靜態 CSS |
@@ -178,13 +178,13 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 | `CONVERSION_RULES.md` | 把規則書資源轉成內容包／商店商品時的轉換規則 |
 | `DEPLOYMENT.md` | Cloudflare Pages、KV、AI binding、登入與正式部署步驟 |
 | `GEMINI_INTEGRATION.md` | Gemini 金鑰與整合設定說明 |
-| `LLM_PROVIDERS.md` | Gemini、DeepSeek、OpenRouter、Workers AI 與 OpenAI 相容供應商設定 |
+| `LLM_PROVIDERS.md` | Groq、Workers AI、SiliconFlow、NVIDIA NIM、Mistral、Gemini、DeepSeek、OpenRouter 與 fallback 設定 |
 | `CHANGELOG.md` | 已推送版本的介面變更、測試結果與後續動畫設計提案 |
 | `UI_LAYOUT_REVIEW.md` | 故事流、決策卡與桌面版面設計審查 |
 | `UI_AUDIT_NOTES.md` | UI 實測尺寸、瀏覽器驗證與迭代紀錄 |
 
 ## AI 在這個架構裡的角色
 
-AI 會收到引擎已經算好的結果，例如玩家使用某個屬性與技能對指定 DC 進行判定，並取得實際成功數、傷害、迫近度或其他狀態變化。`core/narration.js` 與相關 prompt contract 會把這些結果轉成固定的敘事方向；AI 的工作是把結果寫成有畫面的文字，並依 schema 產生下一輪選項。
+AI 會收到引擎已經算好的結果，例如玩家使用某個屬性與技能對指定 DC 進行判定，並取得實際成功數、傷害、迫近度或其他狀態變化。`core/narration.js` 與相關 prompt contract 會把這些結果轉成固定的敘事方向；AI 的工作是把結果寫成有畫面的文字，並依 schema 產生下一輪選項。server-managed request 可依免費優先序在 Groq、Cloudflare Workers AI、SiliconFlow、NVIDIA NIM 與 Mistral 之間 fallback；玩家明確提供 BYOK 時仍只呼叫指定 provider。
 
 AI 不應自行編造骰子、成功數、生命值、獎勵、價格或勝負判定。這個邊界同時保護規則一致性，也讓前端可以把 API 回應直接呈現給玩家，而不必猜測 AI 文字中的數字是否可信。

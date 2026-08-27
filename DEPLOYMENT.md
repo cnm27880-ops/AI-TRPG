@@ -14,12 +14,12 @@ package.json                npm專案設定，"test"跑單元測試，"deploy"�
 public/index.html           前端UI(單頁)，這就是玩家會看到的畫面
 public/app.js               前端應用層，負責渲染角色卡與呼叫下面這些API
 functions/api/check.js      POST /api/check —— 呼叫 core/check.js 做一次判定
-functions/api/narrate.js    POST /api/narrate —— 判定 + 敘事分級 + Gemini生成敘事(需要金鑰)
+functions/api/narrate.js    POST /api/narrate —— 無存檔示範端點；BYOK 單一 provider 或受旗標控制的 server fallback
+functions/api/turn.js       POST /api/turn —— server-authoritative 回合、規則層與 server fallback 敘事
 functions/api/combat/resolve.js  POST /api/combat/resolve —— 呼叫 resolveCombatAction() 跑一次完整攻擊
 ```
 
-這些API端點直接複用引擎裡已經有222個單元測試涵蓋過的運算邏輯，**沒有新的遊戲規則**，
-純粹是「把function包成HTTP端點」。
+這些 API 端點直接複用引擎與內容層的可重現測試；目前完整套件為 **1001 個案例**，**沒有因 LLM fallback 新增任何規則裁定**。規則、骰子、NPC cooperation、地圖與效果仍由 server-authoritative 程式碼決定，provider 只負責在規則層完成後生成敘事。
 
 `public/` 就是 `wrangler.toml` 裡 `pages_build_output_dir` 指到的目錄——**網站只會發佈這個目錄
 底下的檔案**，repo根目錄的規則書全文(`rules-2.35.txt`，15MB)與各種.md文件都不會被公開發佈。
@@ -65,8 +65,7 @@ npx wrangler login
 npm test
 ```
 
-應該會看到222個測試全部通過(`# pass 222` `# fail 0`)。如果這裡就失敗了，先別急著部署，
-表示你的環境(Node版本太舊之類)有問題，跟Cloudflare無關。
+應該會看到 **1001 個測試全部通過**（`# pass 1001`、`# fail 0`）。如果這裡就失敗了，先別急著部署，表示你的環境或依賴版本有問題，跟 Cloudflare 網路部署無關。
 
 ### 步驟5：部署
 
@@ -91,7 +90,7 @@ npx wrangler pages deploy public
 > **正確的網址以每次部署後 PR 上 Cloudflare 機器人留言的 Preview URL 為準**，
 > 不要從專案名稱推測。一個 404 有兩種可能——函式沒部署，或你根本打錯站。
 
-部署完打開瀏覽器或用curl測試一下 `/api/check` 端點是否正常運作，例如：
+部署完打開瀏覽器或用 curl 依序測試 `/api/scenario`、`/api/check`、`/api/session`，再用測試 session 做一次 `/api/turn`。先確認 API routing 正常，再確認 LLM secret／binding 與 fallback chain。`/api/scenario` 是單數形式，不是 `/api/scenarios`。例如：
 
 ```powershell
 curl -X POST https://你的網址.pages.dev/api/check `
@@ -99,9 +98,7 @@ curl -X POST https://你的網址.pages.dev/api/check `
   -d '{\"character\":{\"attributes\":{\"力量\":3},\"skills\":{}},\"params\":{\"attribute\":\"力量\",\"dc\":2}}'
 ```
 
-如果回傳 `{\"ok\":true,\"result\":{...}}` 這種結構，代表接上了。如果回傳500錯誤或「函式拋出例外」，
-最可能的原因是 `wrangler.toml` 裡的 `compatibility_flags = ["nodejs_compat"]` 沒有生效
-(見 `wrangler.toml` 檔案裡的註解說明為什麼一定要開這個)。
+如果 `/api/check` 回傳 `{"ok":true,"result":{...}}`，代表函式 routing 與規則層接上。真正送出 `/api/turn` 後，應確認成功回應的 `provider`／`model` 是實際使用的 provider；所有 provider 失敗時應保留可重試的 pending 狀態，而不是偽造敘事。若回傳 500 或「函式拋出例外」，請檢查 `wrangler.toml` 裡的 `compatibility_flags = ["nodejs_compat"]`。
 
 ## 想在本機先看看畫面
 
@@ -112,23 +109,18 @@ npx wrangler pages dev
 ```
 
 它會同時提供 `public/` 的靜態檔案跟 `functions/` 底下的API，等於在本機模擬正式環境。
-注意 `/api/narrate` 需要 `GEMINI_API_KEY`，本機測試可以用 `--binding GEMINI_API_KEY=你的金鑰`
-帶進去(這個指令參數請以 `npx wrangler pages dev --help` 的輸出為準，wrangler的CLI參數會改版)。
+本機測試可在 `.dev.vars` 設定任一 server provider，例如 `GROQ_API_KEY`、`SILICONFLOW_API_KEY`、`NVIDIA_API_KEY` 或 `MISTRAL_API_KEY`，再用 `LLM_PROVIDER` 與 `LLM_FALLBACK_PROVIDERS` 指定順序。Workers AI 則需要本機 Wrangler 能提供 `[ai] binding`；若只是測試前端，不要把 API key 寫進 `public/`。`/api/narrate` 的 server-managed 模式另需 `NARRATE_ALLOW_SERVER_LLM=true`，正式 V2 遊玩則使用 `/api/turn`。
 
 **如果你直接用瀏覽器打開 `public/index.html`**：畫面會出來，但右上角會顯示 `ENGINE OFFLINE`，
 任何行動都會跳出 `SYSTEM.ERROR`——這是正常的，因為那樣沒有任何東西在提供 `/api/*`。
 這是刻意設計的：寧可讓你看到「後端沒接上」，也不會假裝擲出了一個骰子結果。
 
-## 之後要做的(不在這次骨架範圍內)
+## 目前仍可擴充的項目
 
-- 建卡流程與存檔(目前角色卡寫死在 `public/app.js`，重整頁面就回到初始狀態，
-  需要 KV / D1 之類的儲存才能真的存檔)。
-- 戰鬥介面(`/api/combat/resolve` 目前還沒有任何UI在呼叫)。
-- 把前端的Tailwind從Play CDN換成build-time版本(見 `ARCHITECTURE.md` 的前端接線決策記錄)。
-- 環境變數/API金鑰的管理(Gemini整合需要，見 `GEMINI_INTEGRATION.md`，那邊會用到
-  `wrangler pages secret put` 這個指令)。
-- 自訂網域(如果你不想用`*.pages.dev`，需要在Cloudflare Dashboard另外設定，這步驟因人而異，
-  請照Cloudflare官方文件操作)。
+- 將 Tailwind Play CDN 改成 build-time CSS，降低正式環境對外部 CDN 的依賴。
+- 為 fallback chain 增加帳戶／每日 request counter 與更細緻的 paid-spend hard stop；目前 `LLM_ALLOW_PAID_FALLBACK` 只控制付費候補是否能加入，不是計費平台的硬斷路器。
+- 在 Cloudflare production 上用各帳戶實際 secret 完成 Groq、SiliconFlow、NVIDIA、Mistral 的 smoke test，確認模型 ID、免費資格與 JSON 支援仍有效。
+- 設定自訂網域與登入 OAuth；這些設定依你的 Cloudflare／Google 帳戶而異，請以官方文件為準。
 
 ## Google 登入（選配）
 

@@ -72,6 +72,23 @@ async function newSession(env) {
   return res.body.session.id;
 }
 
+function responseSequence(responses) {
+  const calls = [];
+  let index = 0;
+  const fetchFn = async (url, options) => {
+    calls.push({ url, options });
+    const next = responses[Math.min(index++, responses.length - 1)];
+    return {
+      ok: next.ok ?? true,
+      status: next.status ?? 200,
+      json: async () => next.body ?? {},
+      text: async () => JSON.stringify(next.body ?? {}),
+    };
+  };
+  fetchFn.calls = calls;
+  return fetchFn;
+}
+
 /** 一段格式正確、每輪內容都不同的AI回覆。 */
 function goodReply(n) {
   return JSON.stringify({
@@ -84,6 +101,46 @@ function goodReply(n) {
     ],
   });
 }
+
+test("/api/turn：server-managed primary 429 時切到下一家，規則層只執行一次且公開實際 provider", async () => {
+  const originalFetch = globalThis.fetch;
+  const fetchFn = responseSequence([
+    { ok: false, status: 429, body: { error: "rate limited" } },
+    { ok: true, status: 200, body: {
+      choices: [{ message: { content: JSON.stringify({
+        narration: "候補 provider 已完成本回合敘事。",
+        options: [
+          { label: "觀察走廊", attribute: "感知", skill: "偵察", difficulty: "容易" },
+          { label: "推開鐵門", attribute: "力量", skill: "格鬥", difficulty: "困難" },
+          { label: "保持安靜", attribute: "意志", skill: null, difficulty: "普通" },
+          { label: "沿牆移動", attribute: "敏捷", skill: "體魄", difficulty: "普通" },
+        ],
+      }) } }],
+    } },
+  ]);
+  globalThis.fetch = fetchFn;
+  try {
+    const env = {
+      GROQ_API_KEY: "groq-key",
+      MISTRAL_API_KEY: "mistral-key",
+      LLM_FALLBACK_PROVIDERS: "mistral=mistral-small-latest",
+    };
+    const sessionId = await newSession(env);
+    const result = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(result.status, 200);
+    assert.equal(result.body.ok, true);
+    assert.equal(result.body.provider, "mistral");
+    assert.equal(fetchFn.calls.length, 2);
+    assert.equal(fetchFn.calls[0].url, "https://api.groq.com/openai/v1/chat/completions");
+    assert.equal(fetchFn.calls[1].url, "https://api.mistral.ai/v1/chat/completions");
+
+    const store = resolveSessionStore(env);
+    const saved = await store.get(sessionId);
+    assert.equal(saved.turns, 1, "fallback 成功後只應提交一個回合");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 // ---------------------------------------------------------------------------
 // 這個bug本身

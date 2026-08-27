@@ -2,17 +2,19 @@
 //
 // 設計重點：市面上的LLM API其實只有兩種線路格式(wire protocol)，不是每家一種：
 //   1) "openai-chat" —— OpenAI的 /chat/completions 格式。DeepSeek、OpenRouter、Groq、
-//      硅基流動、智譜、以及**絕大多數第三方中轉/代理接口**都宣稱相容這個格式，
+//      硅基流動、NVIDIA NIM、Mistral、智譜、以及**絕大多數第三方中轉/代理接口**都宣稱相容這個格式，
 //      所以它們共用同一份請求/回應轉換程式碼，差別只有 baseUrl / 模型名 / 金鑰。
 //   2) "gemini" —— Google自己的 generateContent 格式(system_instruction + contents)。
 // 另外有一個不走HTTP的特例："workers-ai"，用Cloudflare的binding直接呼叫(見 client.js)。
+// server-managed request 可透過 resolveServerProviderChain() 依免費優先順序切換；
+// 玩家 BYOK 仍然走單一 provider，不會混入 server chain。
 //
 // 所以要「多支援一家第三方API」通常**不需要寫任何程式碼**，只要在部署環境設好
 // LLM_BASE_URL / LLM_MODEL / LLM_API_KEY 三個變數，用內建的 "custom" 供應商就好。
 //
 // ============================================================================
 // [可信度說明 —— 這一段請在部署前自己重新核對一次]
-// 下面每一筆的 baseUrl 與 defaultModel 都是 2026-08-15 查官方文件當下的值，並附上出處。
+// 下面每一筆的 baseUrl 與 defaultModel 都是 2026-08-27 查官方文件當下的值，並附上出處。
 // 這類資訊(尤其模型名稱)變動頻率很高，本專案的原則是「會變動的資訊不能杜撰成確定事實」，
 // 所以這裡老實標註查證日期與來源，而不是假裝它們永遠正確：
 //
@@ -22,15 +24,13 @@
 //     (正好就是本專案每回合敘事的形狀)官方的建議就是繼續用 generateContent。
 //     所以這裡刻意不急著遷移——遷移沒有好處，只有破壞既有測試的風險。
 //   - DeepSeek：https://api-docs.deepseek.com/ —— 官方明講相容OpenAI格式，Bearer認證。
-//   - NVIDIA NIM (build.nvidia.com)：https://build.nvidia.com/ —— OpenAI相容，免費申請金鑰即可用，
-//     過去有總量上限(個人1000/企業5000次)，但查證當下(2026-08-16)已取消，改成**只受RPM限制**
-//     (預設40 RPM，可申請調高到200 RPM)，不需要信用卡。這跟下面LLM_PROVIDERS.md解釋過的
-//     「來路不明的免金鑰代理」是兩回事——這是NVIDIA官方自己的服務、你自己申請的金鑰，
-//     跟Gemini/DeepSeek屬於同一類「正當的官方免費額度」，不是那種會無預警消失的第三方轉發。
+//   - NVIDIA NIM (build.nvidia.com)：https://build.nvidia.com/ —— OpenAI相容，Developer Program 提供
+//     hosted NIM 原型使用；RPM、credits 與模型可用性依帳戶／模型變動，不能假設是無限免費或 production SLA。
 //   - OpenRouter：https://openrouter.ai/docs/api-reference/overview —— OpenAI相容。
-//     注意免費模型(`:free`結尾)的slug**每週都在變**，所以這裡故意不給預設模型，
-//     強制你自己去 https://openrouter.ai/models 挑一個當下真的存在的，避免寫死一個會失效的值。
+//     注意免費模型(`:free`結尾)的slug**每週都在變**，收到 429 或 404 時應改用另一個現存 slug。
 //   - Cloudflare Workers AI：https://developers.cloudflare.com/workers-ai/platform/pricing/
+//   - Groq：https://console.groq.com/docs/rate-limits —— OpenAI-compatible Free Plan，依模型受 RPM/RPD/TPM/TPD 限制。
+//   - Mistral：https://docs.mistral.ai/admin/billing-usage/usage-limits —— 官方 Free mode，額度依帳戶。
 // ============================================================================
 
 /**
@@ -70,6 +70,22 @@ export const PROVIDERS = {
     docs: "https://ai.google.dev/gemini-api/docs/pricing",
     freeTier: "有免費額度（需要自己申請金鑰）",
     jsonMode: "gemini-schema",
+    fallbackClass: "paid",
+  },
+
+  // --- Groq（官方，OpenAI-compatible，Free Plan） ---
+  groq: {
+    label: "Groq",
+    protocol: PROTOCOLS.OPENAI_CHAT,
+    baseUrl: "https://api.groq.com/openai/v1",
+    // 官方 rate-limit 文件目前列 openai/gpt-oss-120b 為 Free Plan 30 RPM / 1K RPD / 8K TPM。
+    // 免費模型與限流會變動；正式部署前應以帳戶 Limits page 為準。
+    defaultModel: "openai/gpt-oss-120b",
+    apiKeyEnv: "GROQ_API_KEY",
+    docs: "https://console.groq.com/docs/rate-limits",
+    freeTier: "Free Plan；模型依帳戶有 RPM/RPD/TPM/TPD 限制，429 會提供 retry-after headers",
+    jsonMode: "openai-schema",
+    fallbackClass: "free",
   },
 
   // --- DeepSeek（官方） ---
@@ -84,6 +100,7 @@ export const PROVIDERS = {
     docs: "https://api-docs.deepseek.com/",
     freeTier: "無常態免費額度，依官方計價（新帳號是否送額度請自行確認）",
     jsonMode: "openai-schema",
+    fallbackClass: "paid",
   },
 
   // --- SiliconFlow 硅基流動（聚合平台，有一批常駐免費模型） ---
@@ -123,9 +140,10 @@ export const PROVIDERS = {
     // 如果你把 LLM_MODEL 換成那些模型，結構化輸出會失效(client.js 收到400會自動退回純prompt模式，
     // 遊戲照樣能玩，只是保底選項的觸發率會回升)。
     jsonMode: "openai-schema",
+    fallbackClass: "free",
   },
 
-  // --- NVIDIA NIM（build.nvidia.com，官方，免費申請、無總量上限只受RPM限制） ---
+  // --- NVIDIA NIM（build.nvidia.com，官方 hosted NIM，免費原型使用） ---
   nvidia: {
     label: "NVIDIA NIM",
     protocol: PROTOCOLS.OPENAI_CHAT,
@@ -140,7 +158,22 @@ export const PROVIDERS = {
     // NIM 的結構化輸出支援度依模型而異，不是每個都吃 response_format，所以預設不送。
     // 你的模型支援的話設 LLM_JSON_MODE=on 打開。
     jsonMode: null,
-    freeTier: "免費申請即可用，不需信用卡；過去有總量上限，查證當下已取消，僅受RPM限制(預設40，可申請調高)",
+    freeTier: "NVIDIA Developer Program 提供 hosted NIM 原型使用；RPM、credits 與模型可用性依帳戶／模型而變",
+    fallbackClass: "free",
+  },
+
+  // --- Mistral（官方 Free mode） ---
+  mistral: {
+    label: "Mistral",
+    protocol: PROTOCOLS.OPENAI_CHAT,
+    baseUrl: "https://api.mistral.ai/v1",
+    // Free mode 的實際 included usage 與 limits 以 Mistral Admin Panel 為準。
+    defaultModel: "mistral-small-latest",
+    apiKeyEnv: "MISTRAL_API_KEY",
+    docs: "https://docs.mistral.ai/admin/billing-usage/usage-limits",
+    freeTier: "Free mode 有每月 included usage；實際模型與 rate limits 以 Admin Panel 顯示為準",
+    jsonMode: "openai-schema",
+    fallbackClass: "free",
   },
 
   // --- OpenRouter（第三方聚合，一把金鑰打很多家模型） ---
@@ -161,6 +194,7 @@ export const PROVIDERS = {
     docs: "https://openrouter.ai/models",
     jsonMode: "openai-schema",
     freeTier: "有一批 `:free` 結尾的免費模型，但slug會變動，需自行到models頁確認",
+    fallbackClass: "paid",
     // OpenRouter建議(非必要)帶上這兩個header，用來在它的排行榜顯示來源
     extraHeaders: { "HTTP-Referer": "https://github.com/cnm27880-ops/AI-TRPG", "X-Title": "AI-TRPG" },
   },
@@ -170,17 +204,16 @@ export const PROVIDERS = {
     label: "Cloudflare Workers AI（免費）",
     protocol: PROTOCOLS.WORKERS_AI,
     baseUrl: null, // 不走HTTP，走 env.AI binding
-    // [決策記錄 2026-08-15] 原本這裡是 "@cf/meta/llama-3.1-8b-instruct"，實際部署到Cloudflare
-    // Pages後直接打/api/turn發現它已經被Cloudflare下架("was deprecated on 2026-05-30")，
-    // 代表模型型錄變動比想像中快，不能只信任文件查證日期。這裡換成同系列的 -fast 變體，
-    // 但**這個值一樣有可能在未來某天又被下架**——如果之後又遇到「敘事生成失敗」且錯誤訊息
-    // 提到某個模型被deprecated，直接照錯誤訊息去 docs 連結查目前可用的模型改這裡即可，
-    // 不需要動其他程式碼。也可以完全不改這裡，改設環境變數 LLM_MODEL 覆蓋(見下面 resolveProvider)。
-    defaultModel: "@cf/meta/llama-3.1-8b-instruct-fast",
+    // [決策記錄 2026-08-27] 舊的 Llama 3.1 model 已在 Cloudflare catalog 標示 deprecated；
+    // 改用目前 catalog 可查到的 Qwen3 30B A3B FP8。Workers AI model catalog 會變動，
+    // 如果未來遇到 model deprecated，直接以官方 catalog 的現行 ID 覆蓋 LLM_MODEL 即可，
+    // 不需要改其他 provider protocol。也可以用 LLM_MODEL 指定帳戶已確認的模型。
+    defaultModel: "@cf/qwen/qwen3-30b-a3b-fp8",
     apiKeyEnv: null, // 這正是重點：不需要任何API金鑰
     docs: "https://developers.cloudflare.com/workers-ai/models/",
     jsonMode: "workers-ai-schema",
     freeTier: "每天10,000 Neurons免費額度（查證當下），超過要升級Workers付費方案",
+    fallbackClass: "free",
   },
 
   // --- 任意第三方/自架接口（只要是OpenAI相容就能用，不必改程式碼） ---
@@ -194,6 +227,7 @@ export const PROVIDERS = {
     freeTier: "依服務而定",
     // 自訂端點五花八門，不能假設它支援。支援的話設 LLM_JSON_MODE=on。
     jsonMode: null,
+    fallbackClass: "custom",
   },
 };
 
@@ -274,14 +308,92 @@ function defaultJsonModeForProtocol(protocol) {
  */
 export function pickProvider(env = {}) {
   if (env.LLM_PROVIDER) return env.LLM_PROVIDER;
-  // 順序固定，不是照物件宣告順序——先問「使用者到底設了哪一把金鑰」。
-  // 每一家都連別名一起看，這樣照舊名(例如 SiliconFlow_API_KEY)設好的部署也挑得到。
-  for (const id of ["gemini", "deepseek", "siliconflow", "nvidia", "openrouter"]) {
+
+  // server 預設優先選免費／平台既有額度：Groq → Workers AI → SiliconFlow → NVIDIA → Mistral。
+  // Workers AI 不需要 key，因此放在 Groq key 之後、其他需要 key 的 provider 之前。
+  if (readApiKey(PROVIDERS.groq, env)) return "groq";
+  if (env.AI && typeof env.AI.run === "function") return "workers-ai";
+  for (const id of ["siliconflow", "nvidia", "mistral", "gemini", "deepseek", "openrouter"]) {
     if (readApiKey(PROVIDERS[id], env)) return id;
   }
   if (env.LLM_API_KEY && env.LLM_BASE_URL) return "custom";
-  if (env.AI) return "workers-ai";
   return null;
+}
+
+export const FREE_FALLBACK_PROVIDER_ORDER = ["groq", "workers-ai", "siliconflow", "nvidia", "mistral"];
+export const PAID_FALLBACK_PROVIDER_ORDER = ["gemini", "deepseek", "openrouter"];
+
+/** 判斷 server 是否真的有能力呼叫某個 provider；custom 不可自動混入 fallback。 */
+export function isProviderConfigured(providerId, env = {}) {
+  const provider = PROVIDERS[providerId];
+  if (!provider || providerId === "custom") return false;
+  if (provider.protocol === PROTOCOLS.WORKERS_AI) {
+    return Boolean(env.AI && typeof env.AI.run === "function");
+  }
+  return Boolean(readApiKey(provider, env));
+}
+
+/**
+ * 解析 server-managed provider chain。
+ *
+ * LLM_FALLBACK_PROVIDERS 可明確指定：
+ *   groq=openai/gpt-oss-120b,workers-ai=@cf/qwen/qwen3-30b-a3b-fp8
+ *
+ * 未指定時使用免費優先順序；付費 provider 只有在 LLM_ALLOW_PAID_FALLBACK=true
+ * 時才會自動加入。這層不處理玩家 BYOK，custom 也永遠不能放入自動候補鏈。
+ */
+export function resolveServerProviderChain(env = {}) {
+  const primaryId = env.LLM_PROVIDER || pickProvider(env);
+  if (!primaryId) return [];
+  if (!PROVIDERS[primaryId]) {
+    throw new Error(`未知的主要 LLM provider：「${primaryId}」`);
+  }
+
+  const primary = { id: primaryId, model: env.LLM_MODEL || undefined };
+  const allowPaidFallback = String(env.LLM_ALLOW_PAID_FALLBACK ?? "").toLowerCase() === "true";
+  const explicitSpec = typeof env.LLM_FALLBACK_PROVIDERS === "string" && env.LLM_FALLBACK_PROVIDERS.trim();
+  const fallbackEntries = explicitSpec
+    ? parseFallbackProviderSpec(env.LLM_FALLBACK_PROVIDERS)
+    : [
+        ...FREE_FALLBACK_PROVIDER_ORDER.map((id) => ({ id })),
+        ...(allowPaidFallback ? PAID_FALLBACK_PROVIDER_ORDER.map((id) => ({ id })) : []),
+      ];
+
+  const chain = [primary];
+  const seen = new Set([primaryId]);
+  for (const entry of fallbackEntries) {
+    if (seen.has(entry.id)) continue;
+    const provider = PROVIDERS[entry.id];
+    if (!provider) continue;
+    if (entry.id === "custom") {
+      throw new Error("custom 不能放進 server fallback chain；請把它作為單一 provider 使用");
+    }
+    if (provider.fallbackClass !== "free" && !allowPaidFallback) {
+      throw new Error(`fallback provider「${entry.id}」可能產生付費用量；請設定 LLM_ALLOW_PAID_FALLBACK=true 後再啟用`);
+    }
+    seen.add(entry.id);
+    // 未設定 key／binding 的 provider 不放進 chain，避免先打到一個確定的 config error
+    // 而把後面的可用免費 provider 擋住。
+    if (!isProviderConfigured(entry.id, env)) continue;
+    chain.push({ id: entry.id, model: entry.model });
+  }
+  return chain;
+}
+
+function parseFallbackProviderSpec(rawValue) {
+  const entries = String(rawValue)
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const separator = entry.indexOf("=");
+      const id = (separator >= 0 ? entry.slice(0, separator) : entry).trim();
+      const model = separator >= 0 ? entry.slice(separator + 1).trim() : undefined;
+      if (!PROVIDERS[id]) throw new Error(`LLM fallback provider 不存在：「${id}」`);
+      return { id, model: model || undefined };
+    });
+  if (entries.length > 5) throw new Error("LLM fallback provider 最多只能設定 5 家");
+  return entries;
 }
 
 /**

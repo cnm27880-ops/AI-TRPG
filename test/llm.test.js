@@ -13,8 +13,16 @@ import {
   MAX_LLM_PROMPT_CHARS,
   MAX_LLM_SYSTEM_CHARS,
   extractWorkersAiText,
+  callLlmWithFallback,
+  isRetryableLlmError,
 } from "../content/llm/client.js";
-import { PROVIDERS, PROVIDER_IDS, resolveProvider, pickProvider } from "../content/llm/providers.js";
+import {
+  PROVIDERS,
+  PROVIDER_IDS,
+  resolveProvider,
+  pickProvider,
+  resolveServerProviderChain,
+} from "../content/llm/providers.js";
 
 /** 做一個假的fetch，記錄呼叫參數並回傳指定的JSON */
 function fakeFetch(responseJson, { ok = true, status = 200 } = {}) {
@@ -26,6 +34,23 @@ function fakeFetch(responseJson, { ok = true, status = 200 } = {}) {
       status,
       json: async () => responseJson,
       text: async () => JSON.stringify(responseJson),
+    };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+function sequenceFetch(responses) {
+  const calls = [];
+  let index = 0;
+  const fn = async (url, options) => {
+    calls.push({ url, options });
+    const next = responses[Math.min(index++, responses.length - 1)];
+    return {
+      ok: next.ok ?? true,
+      status: next.status ?? 200,
+      json: async () => next.body ?? {},
+      text: async () => JSON.stringify(next.body ?? {}),
     };
   };
   fn.calls = calls;
@@ -71,8 +96,10 @@ test("resolveProvider：未知供應商要丟出有幫助的錯誤(列出可用�
 
 test("pickProvider：依環境自動挑選，明確指定的LLM_PROVIDER最優先", () => {
   assert.equal(pickProvider({ LLM_PROVIDER: "deepseek", GEMINI_API_KEY: "k" }), "deepseek");
+  assert.equal(pickProvider({ GROQ_API_KEY: "k", GEMINI_API_KEY: "k" }), "groq");
   assert.equal(pickProvider({ GEMINI_API_KEY: "k" }), "gemini");
   assert.equal(pickProvider({ DEEPSEEK_API_KEY: "k" }), "deepseek");
+  assert.equal(pickProvider({ MISTRAL_API_KEY: "k" }), "mistral");
   assert.equal(pickProvider({ NVIDIA_API_KEY: "k" }), "nvidia");
   assert.equal(pickProvider({ OPENROUTER_API_KEY: "k" }), "openrouter");
   assert.equal(pickProvider({ LLM_API_KEY: "k", LLM_BASE_URL: "https://x/v1" }), "custom");
@@ -84,6 +111,120 @@ test("pickProvider：什麼金鑰都沒有但有AI binding時，退到免金鑰�
 
 test("pickProvider：什麼都沒有時回傳null(讓呼叫端明確報錯，不是偷偷用假資料)", () => {
   assert.equal(pickProvider({}), null);
+});
+
+test("server fallback chain：免費 provider 按 Groq → Workers AI → SiliconFlow → NVIDIA → Mistral，付費 provider 預設不加入", () => {
+  const chain = resolveServerProviderChain({
+    GROQ_API_KEY: "groq-key",
+    AI: { run: () => {} },
+    SILICONFLOW_API_KEY: "siliconflow-key",
+    NVIDIA_API_KEY: "nvidia-key",
+    MISTRAL_API_KEY: "mistral-key",
+    GEMINI_API_KEY: "gemini-key",
+  });
+  assert.deepEqual(chain.map((entry) => entry.id), ["groq", "workers-ai", "siliconflow", "nvidia", "mistral"]);
+
+  const paidChain = resolveServerProviderChain({
+    GROQ_API_KEY: "groq-key",
+    GEMINI_API_KEY: "gemini-key",
+    LLM_ALLOW_PAID_FALLBACK: "true",
+  });
+  assert.deepEqual(paidChain.map((entry) => entry.id), ["groq", "gemini"]);
+});
+
+test("server fallback chain：每個 fallback 可指定模型，且不沿用 primary 的 LLM_MODEL", () => {
+  const chain = resolveServerProviderChain({
+    LLM_PROVIDER: "groq",
+    LLM_MODEL: "primary-model",
+    GROQ_API_KEY: "groq-key",
+    MISTRAL_API_KEY: "mistral-key",
+    LLM_FALLBACK_PROVIDERS: "mistral=mistral-small-latest",
+  });
+  assert.deepEqual(chain, [
+    { id: "groq", model: "primary-model" },
+    { id: "mistral", model: "mistral-small-latest" },
+  ]);
+});
+
+test("callLlmWithFallback：primary 429 時切到下一家，回傳實際成功 provider", async () => {
+  const ff = sequenceFetch([
+    { ok: false, status: 429, body: { error: "rate limited" } },
+    { ok: true, status: 200, body: OPENAI_OK },
+  ]);
+  const result = await callLlmWithFallback({
+    env: { GROQ_API_KEY: "groq-key", MISTRAL_API_KEY: "mistral-key" },
+    prompt: "x",
+    fetchFn: ff,
+  });
+  assert.equal(result.provider, "mistral");
+  assert.equal(ff.calls.length, 2);
+  assert.equal(ff.calls[0].url, "https://api.groq.com/openai/v1/chat/completions");
+  assert.equal(ff.calls[1].url, "https://api.mistral.ai/v1/chat/completions");
+});
+
+test("callLlmWithFallback：Groq 429 後可退到免金鑰 Workers AI", async () => {
+  const ff = sequenceFetch([{ ok: false, status: 429, body: { error: "rate limited" } }]);
+  const calls = [];
+  const result = await callLlmWithFallback({
+    env: {
+      GROQ_API_KEY: "groq-key",
+      AI: {
+        run: async (model, payload) => {
+          calls.push({ model, payload });
+          return { response: JSON.stringify(OPENAI_OK) };
+        },
+      },
+    },
+    prompt: "x",
+    fetchFn: ff,
+  });
+  assert.equal(result.provider, "workers-ai");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].model, PROVIDERS["workers-ai"].defaultModel);
+});
+
+test("server fallback chain：明確列出付費 provider 但未開閘門時拒絕設定", () => {
+  assert.throws(
+    () => resolveServerProviderChain({
+      GROQ_API_KEY: "groq-key",
+      DEEPSEEK_API_KEY: "deepseek-key",
+      LLM_FALLBACK_PROVIDERS: "deepseek=deepseek-v4-flash",
+    }),
+    /LLM_ALLOW_PAID_FALLBACK/
+  );
+});
+
+test("server fallback chain：自動挑選內建 provider 時不繼承 custom 的 LLM_BASE_URL", async () => {
+  const ff = sequenceFetch([{ ok: true, status: 200, body: OPENAI_OK }]);
+  await callLlmWithFallback({
+    env: {
+      GROQ_API_KEY: "groq-key",
+      LLM_BASE_URL: "https://attacker-configured-proxy.invalid/v1",
+    },
+    prompt: "x",
+    fetchFn: ff,
+  });
+  assert.equal(ff.calls[0].url, "https://api.groq.com/openai/v1/chat/completions");
+});
+
+test("callLlmWithFallback：401 不切換 provider，避免掩蓋錯誤金鑰或錯誤設定", async () => {
+  const ff = fakeFetch({ error: "bad key" }, { ok: false, status: 401 });
+  await assert.rejects(
+    () => callLlmWithFallback({
+      env: { GROQ_API_KEY: "bad-key", MISTRAL_API_KEY: "mistral-key" },
+      prompt: "x",
+      fetchFn: ff,
+    }),
+    (err) => err.status === 401 && err.provider === "groq"
+  );
+  assert.equal(ff.calls.length, 1);
+});
+
+test("callLlmWithFallback：不接受 provider／apiKey/baseUrl override，避免 BYOK 混入 server chain", async () => {
+  await assert.rejects(
+    () => callLlmWithFallback({ provider: "custom", apiKey: "user-key", prompt: "x" }),
+    (err) => err instanceof LlmError && err.stage === "config"
+  );
 });
 
 // --- OpenAI相容線路(DeepSeek / OpenRouter / 第三方中轉共用) ---
@@ -112,6 +253,34 @@ test("DeepSeek：打到 /chat/completions，帶Bearer金鑰與system/user兩則�
     { role: "system", content: "你是說書人" },
     { role: "user", content: "玩家開槍" },
   ]);
+});
+
+test("Groq：打到官方 OpenAI-compatible endpoint，使用預設 structured-output 模型", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  const result = await callLlm({
+    provider: "groq",
+    env: { GROQ_API_KEY: "groq-key" },
+    prompt: "玩家開門",
+    fetchFn: ff,
+  });
+  assert.equal(result.provider, "groq");
+  assert.equal(result.model, PROVIDERS.groq.defaultModel);
+  assert.equal(ff.calls[0].url, "https://api.groq.com/openai/v1/chat/completions");
+  assert.equal(ff.calls[0].options.headers.authorization, "Bearer groq-key");
+});
+
+test("Mistral：打到官方 chat completions endpoint，帶Bearer金鑰", async () => {
+  const ff = fakeFetch(OPENAI_OK);
+  const result = await callLlm({
+    provider: "mistral",
+    env: { MISTRAL_API_KEY: "mistral-key" },
+    prompt: "玩家開門",
+    fetchFn: ff,
+  });
+  assert.equal(result.provider, "mistral");
+  assert.equal(result.model, PROVIDERS.mistral.defaultModel);
+  assert.equal(ff.calls[0].url, "https://api.mistral.ai/v1/chat/completions");
+  assert.equal(ff.calls[0].options.headers.authorization, "Bearer mistral-key");
 });
 
 test("NVIDIA NIM：打到 /chat/completions，帶Bearer金鑰，走OpenAI相容線路", async () => {
@@ -228,6 +397,17 @@ test("OpenAI相容線路：非2xx要丟出含HTTP狀態碼的錯誤，不是靜�
     () => callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", fetchFn: ff }),
     /HTTP 401/
   );
+});
+
+test("isRetryableLlmError：只把暫時性 provider failure 判為可切換", () => {
+  assert.equal(isRetryableLlmError({ stage: "http", status: 429 }), true);
+  assert.equal(isRetryableLlmError({ stage: "timeout" }), true);
+  assert.equal(isRetryableLlmError({ stage: "binding" }), true);
+  assert.equal(isRetryableLlmError({ stage: "shape" }), true);
+  assert.equal(isRetryableLlmError({ stage: "http", status: 401 }), false);
+  assert.equal(isRetryableLlmError({ stage: "http", status: 400 }), false);
+  assert.equal(isRetryableLlmError({ stage: "config" }), false);
+  assert.equal(isRetryableLlmError({ stage: "ssrf-blocked" }), false);
 });
 
 // --- Gemini線路 ---

@@ -3446,10 +3446,12 @@
                              後端不需要為任何一家多寫整合邏輯（見 providers.js 檔頭的線路格式說明）。 -->
                         <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                             <option value="">（使用伺服器預設）</option>
+                            <option value="groq">Groq（官方 Free Plan）</option>
                             <option value="gemini">Google Gemini（官方）</option>
                             <option value="deepseek">DeepSeek（官方）</option>
                             <option value="siliconflow">SiliconFlow 硅基流動（含免費模型）</option>
                             <option value="nvidia">NVIDIA NIM（官方，自行申請金鑰）</option>
+                            <option value="mistral">Mistral（官方 Free mode）</option>
                             <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
                             <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
                             <option value="custom">自訂（相容OpenAI：Azure OpenAI／Cohere／AI21／自架 vLLM・LiteLLM…）</option>
@@ -3672,10 +3674,12 @@
          * 這份對照表跟 app.js 的 PROVIDER_UI_META 是同一件事，新增供應商時兩邊都要加。
          */
         const PROVIDER_FIELDS = {
+            groq:          { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Groq 模型；Free Plan 限流依模型與帳戶而變。' },
             gemini:        { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Gemini 模型。' },
             deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
             siliconflow:   { key: true,  baseUrl: false, model: false, modelHint: '留空＝用預設的免費模型。免費模型清單會輪替，請到 cloud.siliconflow.com/models 確認目前可用的 slug。注意：DeepSeek R1／V3 系列不支援 JSON 結構化輸出，選了會讓保底選項變多。' },
             nvidia:        { key: true,  baseUrl: false, model: false, modelHint: '金鑰請自己到 build.nvidia.com 申請。留空＝用預設模型。' },
+            mistral:       { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Mistral 模型；Free mode 額度依帳戶而變。' },
             openrouter:    { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡指定的預設模型。免費模型（:free 結尾）的 slug 會輪替，收到 404 時請到 openrouter.ai/models 挑一個目前存在的貼上。' },
             'workers-ai':  { key: false, baseUrl: false, model: false, modelHint: '免金鑰，用你自己 Cloudflare 帳號的額度。留空＝用預設模型。' },
             custom:        { key: true,  baseUrl: true,  model: true,  modelHint: '必填：自訂接口沒有預設模型，請填你的服務接受的模型名稱。' },

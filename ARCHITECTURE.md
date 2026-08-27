@@ -423,16 +423,13 @@ GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非
 
 ## 多供應商AI敘事(Phase 5.1)的決策記錄
 
-- **市面上的LLM API只有兩種線路格式，不是每家一種**：DeepSeek、OpenRouter、Groq、硅基流動、
-  以及絕大多數第三方中轉都相容OpenAI的 `/chat/completions`；Gemini走自己的 `generateContent`。
-  所以 `content/llm/client.js` 只實作兩份轉換程式碼，`providers.js` 只是一張設定表。
-  **要多支援一家第三方接口通常不用寫程式**，設 `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` 即可。
-- **預設供應商選 Cloudflare Workers AI，理由是「它不需要任何金鑰」**：使用者問能不能找一個
-  網路上的公益API當預設，查證後的判斷是**不要**——那類免金鑰公共代理會無預警消失、
-  相當一部分背後是來源可疑的金鑰池、而且玩家的所有輸入都會送到不知道留不留log的伺服器。
-  Workers AI 用的是使用者自己Cloudflare帳號的免費額度(查證當下每天10,000 Neurons)，
-  不經第三方，而且專案本來就部署在Cloudflare上，所以它是唯一正當的「零設定即可跑」選項。
-  代價是小模型的中文敘事品質不如Gemini/DeepSeek，文件裡有寫明這個取捨。
+- **市面上的LLM API只有兩種線路格式，不是每家一種**：DeepSeek、OpenRouter、Groq、硅基流動、NVIDIA NIM、Mistral、
+  以及絕大多數第三方中轉都相容OpenAI的 `/chat/completions`；Gemini走自己的 `generateContent`，Workers AI走 Cloudflare binding。
+  所以 `content/llm/client.js` 只實作 OpenAI chat、Gemini、Workers AI 三種 protocol，`providers.js` 是集中式設定表。
+  **要多支援一家 OpenAI-compatible 第三方接口通常不用改 client**，設 `LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY` 即可。
+- **server-managed 預設採免費／平台既有額度優先**：使用者問能不能找網路上的公益API當預設，查證後的判斷是**不要**——那類免金鑰公共代理會無預警消失、相當一部分背後是來源可疑的金鑰池，而且玩家輸入會送到不知道留不留 log 的伺服器。
+  現在 server provider 與 fallback 順序是 **Groq → Cloudflare Workers AI → SiliconFlow → NVIDIA NIM → Mistral**；Groq、SiliconFlow、NVIDIA、Mistral 需要部署者自己的 secret，Workers AI 使用自己的 Cloudflare binding／allocation。
+  `resolveServerProviderChain()` 只把已配置的 provider 加入 chain，Gemini／DeepSeek／OpenRouter 等可能產生付費用量的 provider 預設排除，只有 `LLM_ALLOW_PAID_FALLBACK=true` 才能自動加入。玩家 BYOK 仍只走指定 provider，不會消耗 server fallback chain。
 - **`generateContent` 被標為legacy，但刻意不遷移**：先前的交接文件把這件事列為「可信度：中」
   的待查項，現在有答案了。Google已把Interactions API列為GA並建議新專案採用，但**明確聲明
   generateContent仍完整支援**，且對「單次、無狀態、低延遲」的呼叫(正好是本專案每回合敘事的形狀)
@@ -441,8 +438,7 @@ GEMINI_INTEGRATION.md   Gemini API金鑰申請與串接步驟(給使用者，非
 - **DeepSeek的模型名稱查證後與記憶不同**：查證當下官方列的是 `deepseek-v4-flash` /
   `deepseek-v4-pro`。這印證了本專案「會變動的資訊一律現查、不憑記憶」的原則——
   `providers.js` 每一筆都標了查證日期與出處連結，之後重新核對時不用重找。
-- **OpenRouter刻意不給預設模型**：免費模型的 `:free` slug每週在變，寫死一個等於保證未來某天
-  壞掉、而且錯誤訊息會很難懂。沒設 `LLM_MODEL` 時直接報錯並告訴使用者去哪裡挑。
+- **OpenRouter 不作預設免費主力**：免費模型的 `:free` slug 會輪替，且線上曾發生 429。專案保留目前 registry 的預設 slug 以維持相容性，但 server fallback 預設不加入 OpenRouter；收到 404／429 時應更新模型或啟用其他 provider。
 - **系統提示拆成「規則契約層 + 文筆層」兩層**(`content/narrativeStyle.js`)：如果混在同一段文字裡，
   之後為了調整文筆去改那段提示，很容易不小心把「不能自己編數字」的語氣改弱，
   而且**不會馬上發現**——AI大部分時候仍會照做，只有玩家開始用話術凹的時候才破功。

@@ -8,16 +8,19 @@
 
 | 情況 | 建議 | 要不要申請金鑰 |
 |---|---|---|
-| 只想先把整條鏈路跑起來看看 | **Cloudflare Workers AI**（預設） | **不用**，靠 `wrangler.toml` 的 `[ai]` binding |
-| 想要免費、無總量上限、且不需要信用卡 | **NVIDIA NIM** | 要，但免費、免卡 |
-| 要正式玩，想要中文敘事品質好一點 | **Gemini** 免費層 | 要，2026-03-23後新申請的帳號可能需要先綁定Prepaid付款方式才能拿到金鑰(見下方說明) |
-| 想用中文推理能力強的模型 | **DeepSeek** | 要，付費 |
-| 想一把金鑰試很多模型 / 想用免費模型 | **OpenRouter** | 要，有免費模型 |
+| 想先用免費 provider 跑公開測試 | **Groq** | 要，Free Plan；依模型有 RPM/RPD/TPM/TPD 限制 |
+| 不想管理任何第三方金鑰 | **Cloudflare Workers AI** | 不用，靠 `wrangler.toml` 的 `[ai] binding` 與 Cloudflare allocation |
+| 想要中文敘事品質與免費額度的折衷 | **SiliconFlow** | 要；免費模型與限流依帳戶當下資料 |
+| 想要另一個官方 hosted 模型候補 | **NVIDIA NIM** | 要，Developer Program；模型與 RPM 依帳戶 |
+| 想要另一個官方免費候補 | **Mistral Free mode** | 要；每月 included usage 與 limits 依帳戶 |
+| 要正式玩，想要較高品質模型 | **Gemini** | 要；API 額度與 Cloud Billing 另計 |
+| 想用中文推理能力強的付費模型 | **DeepSeek** | 要，付費 |
+| 想一把金鑰試很多模型 / 想用免費模型 | **OpenRouter** | 要，有免費模型，但目前不作預設首選 |
 | 你已經有慣用的第三方中轉接口 | **custom** | 依該服務 |
 
-**什麼都不設定的話，程式會自動用 Cloudflare Workers AI**，因為它是唯一不需要申請任何東西的選項。
-但它預設接的是最小的 `llama-3.1-8b-instruct` 這一檔，指令遵循能力偏弱（見下方說明），
-如果只是想要「免申請、又不要模型太笨」，**NVIDIA NIM** 現在是更好的免費選項。
+**什麼都不設定但有 `[ai] binding` 的話，程式會使用 Cloudflare Workers AI**；如果同時設了 Groq key，則會先用 Groq。
+目前 server-managed fallback 的免費優先順序是：**Groq → Cloudflare Workers AI → SiliconFlow → NVIDIA NIM → Mistral**。
+未設定 `LLM_FALLBACK_PROVIDERS` 時，沒有配置 key／binding 的 provider 會自動跳過。
 
 ## 關於「網路上的免費／公益 API」
 
@@ -35,20 +38,15 @@
 或者用 **Cloudflare Workers AI**——它用的是你自己Cloudflare帳號的免費額度，
 不需要額外申請金鑰，也不經過任何第三方。所以我把它設成預設。
 
-查證當下（2026-08-16）確認有免費額度的正當選項：
+查證當下（2026-08-27）值得列入 server fallback 的正當選項：
 
-- **Cloudflare Workers AI** —— 每天 10,000 Neurons 免費（[定價頁](https://developers.cloudflare.com/workers-ai/platform/pricing/)），
-  但預設接的 `llama-3.1-8b-instruct` 是最小檔，指令遵循能力較弱（實測：容易原地重複前幾回合的敘事、
-  也常常不理會「請在JSON裡加nodeComplete欄位」這類額外指示）。同帳號免費額度下也可以在 `LLM_MODEL`
-  換成 `@cf/openai/gpt-oss-20b`（更聰明，免費額度約可撐70次左右的敘事回合）。
-- **NVIDIA NIM (build.nvidia.com)** —— 免費申請金鑰即可用、**不需要信用卡**，過去有總量上限，
-  查證當下（2026-08-16）**已取消總量上限**，只受RPM限制（預設40 RPM，可申請調高到200 RPM）。
-  OpenAI相容格式，目前是這幾個選項裡「免費額度最寬鬆」的（[models頁](https://build.nvidia.com/models)）。
-- **Google Gemini** —— 多個 flash 系列模型在免費層可用（[定價頁](https://ai.google.dev/gemini-api/docs/pricing)），
-  但**2026-03-23起，新申請AI Studio帳號的使用者可能被要求先綁定Prepaid付款方式才能拿到金鑰**——
-  免費額度內使用仍是$0，但「申請金鑰前得先加卡」這件事對很多人來說已經不算純粹免申請的免費選項了，
-  舊帳號通常不受影響。
-- **OpenRouter** —— 有一批 `:free` 結尾的免費模型，但**slug每週在變**，要自己去 [models頁](https://openrouter.ai/models) 挑當下存在的
+- **Groq** —— 官方 Free Plan，依模型與帳戶有 RPM／RPD／TPM／TPD 限制；官方會在 429 回應提供 `retry-after` 與 rate-limit headers。Groq 使用 OpenAI-compatible endpoint，適合低延遲候補（[rate limits](https://console.groq.com/docs/rate-limits)）。
+- **Cloudflare Workers AI** —— 使用 `[ai] binding`，不需第三方 API key；免費 allocation 與 Neurons 計費依 Cloudflare 方案而變。現在的 registry 預設使用 `@cf/qwen/qwen3-30b-a3b-fp8`，model catalog 會變動（[pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)、[models](https://developers.cloudflare.com/workers-ai/models/)）。
+- **SiliconFlow** —— 免費模型費用為 0，免費模型有固定限流；實際免費 slug、帳戶條件與 JSON 支援要以帳戶當下頁面確認（[rate limits](https://docs.siliconflow.com/en/userguide/rate-limits/rate-limit-and-upgradation)）。
+- **NVIDIA NIM** —— NVIDIA Developer Program 提供 hosted NIM 原型使用；RPM、credits 與模型可用性依帳戶與模型變動，適合內部測試或第二順位候補（[build.nvidia.com](https://build.nvidia.com/)）。
+- **Mistral Free mode** —— Free mode 有每月 included usage，實際可用模型與 limits 以 Admin Panel 顯示為準；適合低流量候補（[usage limits](https://docs.mistral.ai/admin/billing-usage/usage-limits)）。
+- **Google Gemini** —— API 有獨立 model-specific Free Tier；AI Pro 會員主要提高 AI Studio 介面權益，不等於 API quota。若啟用 Cloud Billing，應搭配 application hard stop（[pricing](https://ai.google.dev/gemini-api/docs/pricing)、[Google AI plans](https://ai.google.dev/gemini-api/docs/google-ai-plans)）。
+- **OpenRouter** —— 有一批 `:free` 結尾模型，但 slug 會輪替且目前線上曾遇到 429；保留作最後候補，不當唯一 production provider（[models](https://openrouter.ai/models)）。
 
 ## 怎麼設定
 
@@ -58,15 +56,19 @@
 
 | 變數 | 用途 |
 |---|---|
-| `LLM_PROVIDER` | `gemini` / `deepseek` / `siliconflow` / `nvidia` / `openrouter` / `workers-ai` / `custom`。不設就自動偵測 |
+| `LLM_PROVIDER` | `groq` / `workers-ai` / `siliconflow` / `nvidia` / `mistral` / `gemini` / `deepseek` / `openrouter` / `custom`。不設就依 server 優先序自動偵測 |
 | `LLM_MODEL` | 覆寫模型名稱 |
 | `LLM_BASE_URL` | 第三方中轉接口的網址（要含 `/v1`，不要含 `/chat/completions`） |
 | `LLM_API_KEY` | 通用金鑰欄位（`custom` 用這個） |
 | `GEMINI_API_KEY` | Gemini 金鑰 |
 | `DEEPSEEK_API_KEY` | DeepSeek 金鑰 |
+| `GROQ_API_KEY` | Groq API 金鑰 |
 | `SILICONFLOW_API_KEY` | SiliconFlow 硅基流動 金鑰（也吃舊名 `SiliconFlow_API_KEY`） |
 | `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) 金鑰 |
+| `MISTRAL_API_KEY` | Mistral API 金鑰 |
 | `OPENROUTER_API_KEY` | OpenRouter 金鑰（也吃舊名 `API_KEY`） |
+| `LLM_FALLBACK_PROVIDERS` | server fallback 順序，例如 `groq=openai/gpt-oss-120b,workers-ai=@cf/qwen/qwen3-30b-a3b-fp8`；不設則使用免費優先序 |
+| `LLM_ALLOW_PAID_FALLBACK` | 必須明確設為 `true` 才允許 Gemini／DeepSeek／OpenRouter 自動加入 fallback；預設不允許 |
 | `LLM_MAX_TOKENS` | 輸出長度上限，預設 2048。**不要調到 1000 以下**，原因見下方 |
 | `NARRATIVE_STYLE` | 文筆設定檔名稱：`白描`（預設）/`標準`/`恐怖懸疑`/`冷硬寫實`/`電影感` |
 | `NARRATOR_PERSONA` | 敘事者人格面具：`RUTHLESS_JUDGE`（預設）/`GENTLE_GOD`/`PANIC_SURVIVOR` |
@@ -77,8 +79,40 @@
 > 這不是假設：2026-08-16 線上實測時，Workers AI 沒指定 max_tokens 的預設值是 256，
 > 中文又特別吃 token，敘事寫到 100 字出頭就被切斷，每一輪都吃保底選項。
 
-自動偵測的順序是：`LLM_PROVIDER` → 有哪把金鑰 → 都沒有就用 Workers AI → 連binding都沒有才報錯。
+自動偵測的順序是：`LLM_PROVIDER` → Groq key → Workers AI binding → SiliconFlow／NVIDIA／Mistral／Gemini／DeepSeek／OpenRouter key → custom → 報錯。
+未帶 `provider` 的 server-managed `/api/turn` 與允許 server LLM 的 `/api/narrate` 會使用 fallback chain；玩家在前端明確選 provider 並帶 BYOK 時，仍然只呼叫該 provider，不會混用 server chain。
 **任何情況下都不會偷偷產生假的敘事文字**，失敗就是明確報錯。
+
+### Server fallback chain
+
+Fallback 只套用在 server-managed request。第一家 provider 遇到 429、timeout、暫時性 5xx、Workers AI binding failure 或 response shape failure 時，才會依序嘗試下一家；401、403、400、404、SSRF block 與設定錯誤不會自動跳過，避免把錯誤金鑰或錯誤模型名掩蓋掉。
+
+預設只允許免費／平台既有額度 provider 自動加入。Gemini、DeepSeek、OpenRouter 被標記為可能產生付費用量，必須明確設定 `LLM_ALLOW_PAID_FALLBACK=true` 才能進入自動 fallback。`custom` 永遠不能放進 fallback chain。
+
+最簡設定如下：
+
+```bash
+LLM_PROVIDER=groq
+LLM_FALLBACK_PROVIDERS=groq,workers-ai,siliconflow,nvidia,mistral
+LLM_ALLOW_PAID_FALLBACK=false
+```
+
+如果需要固定每一家候補模型，可寫成 `provider=model`；fallback 的模型不會沿用主 provider 的 `LLM_MODEL`：
+
+```bash
+LLM_PROVIDER=groq
+LLM_MODEL=openai/gpt-oss-120b
+LLM_FALLBACK_PROVIDERS=workers-ai=@cf/qwen/qwen3-30b-a3b-fp8,siliconflow=Qwen/Qwen3-30B-A3B-Instruct,nvidia=meta/llama-3.3-70b-instruct,mistral=mistral-small-latest
+```
+
+若你確實接受付費候補，才加入：
+
+```bash
+LLM_ALLOW_PAID_FALLBACK=true
+LLM_FALLBACK_PROVIDERS=groq,workers-ai,siliconflow,nvidia,mistral,gemini=gemini-3.7-flash,deepseek=deepseek-v4-flash
+```
+
+Fallback 不會重新擲骰、重新套用 NPC policy 或改變 canonical state。`/api/turn` 仍先完成規則層，只有敘事 provider 失敗時才切換；所有 provider 都失敗時沿用現有 `pendingTurn`，`retryPending` 不會重算規則層。
 
 ### 玩家自己在遊戲裡覆寫（「系統與文筆設定」）
 
@@ -88,10 +122,12 @@
 
 | 供應商 | 金鑰 | Base URL | 模型 |
 |---|---|---|---|
+| Groq | 必填 | 內建 | 選填（留空用預設） |
 | Google Gemini | 必填 | 內建 | 選填（留空用預設） |
 | DeepSeek | 必填 | 內建 | 選填 |
 | SiliconFlow 硅基流動 | 必填 | 內建 | 選填（免費模型 slug 會輪替，建議自己填） |
-| NVIDIA NIM | 必填（免費免卡） | 內建 | 選填 |
+| NVIDIA NIM | 必填 | 內建 | 選填 |
+| Mistral | 必填 | 內建 | 選填（留空用預設） |
 | OpenRouter | 必填 | 內建 | 選填（有預設值，但 `:free` 的 slug 常變動，收到 404 就自己填一個） |
 | Cloudflare Workers AI | 不需要 | 不適用 | 選填 |
 | 自訂（相容OpenAI） | 必填 | **必填** | **必填** |
@@ -123,20 +159,30 @@ Cohere、AI21、自架的 vLLM / LiteLLM 等，只要它是 OpenAI 相容格式�
 金鑰**絕對不能**寫進 `wrangler.toml`、`public/` 底下任何檔案、或任何會被commit的地方：
 
 ```bash
+# 依你實際啟用的 provider 設定；每一行只需執行一次，絕對不要提交 secret 值
+npx wrangler pages secret put GROQ_API_KEY --project-name=wxh-engine
+npx wrangler pages secret put SILICONFLOW_API_KEY --project-name=wxh-engine
+npx wrangler pages secret put NVIDIA_API_KEY --project-name=wxh-engine
+npx wrangler pages secret put MISTRAL_API_KEY --project-name=wxh-engine
+npx wrangler pages secret put GEMINI_API_KEY --project-name=wxh-engine
 npx wrangler pages secret put DEEPSEEK_API_KEY --project-name=wxh-engine
+npx wrangler pages secret put OPENROUTER_API_KEY --project-name=wxh-engine
 ```
 
 非機密的設定（模型名稱、文筆）可以直接放在 Cloudflare Dashboard 的環境變數，或用 `[vars]`。
 
 ### 把某一家設成「整個網站的預設」
 
-想讓所有玩家不用自己填金鑰就能玩，就在部署環境設兩個變數（以 SiliconFlow 為例）：
+想讓所有玩家不用自己填金鑰就能玩，就在部署環境設定 server provider。公開測試建議先用 Groq：
 
 ```bash
 # 金鑰用 secret，不會出現在程式碼、也不會被送到瀏覽器
-npx wrangler pages secret put SILICONFLOW_API_KEY --project-name=wxh-engine
-# 供應商是非機密設定，可以直接放 Dashboard 環境變數或 [vars]
-LLM_PROVIDER=siliconflow
+npx wrangler pages secret put GROQ_API_KEY --project-name=wxh-engine
+# 以下是非機密設定，可放 Cloudflare Dashboard environment variables 或 [vars]
+LLM_PROVIDER=groq
+LLM_MODEL=openai/gpt-oss-120b
+LLM_FALLBACK_PROVIDERS=groq,workers-ai,siliconflow,nvidia,mistral
+LLM_ALLOW_PAID_FALLBACK=false
 ```
 
 **金鑰只能放在伺服器端。** 這個專案的設計是：金鑰只在 `functions/api/*` 裡讀 `env`，
@@ -164,8 +210,23 @@ NARRATIVE_STYLE=恐怖懸疑
 
 ## 各供應商的查證資訊
 
-以下是 **2026-08-15** 查官方文件當下的值。這類資訊（尤其模型名稱）變動頻率很高，
+以下是 **2026-08-27** 查官方文件當下的值。這類資訊（尤其模型名稱）變動頻率很高，
 本專案的原則是「會變動的資訊不能杜撰成確定事實」，所以列出查證日期與出處，**部署前請自己再核對一次**。
+
+### Groq（官方，OpenAI-compatible）
+
+- 端點：`https://api.groq.com/openai/v1/chat/completions`
+- 預設模型：`openai/gpt-oss-120b`
+- 認證：`Authorization: Bearer <key>`
+- Free Plan 的 RPM／RPD／TPM／TPD 依模型與帳戶顯示；官方 rate-limit headers 會提供剩餘額度與 `retry-after`。
+- Structured Outputs 的 strict mode 目前支援部分 GPT-OSS 模型；本專案先使用既有 best-effort JSON schema，若模型不接受則沿用 schema fallback。
+- 文件：https://console.groq.com/docs/rate-limits
+
+```bash
+LLM_PROVIDER=groq
+GROQ_API_KEY=你的金鑰
+LLM_MODEL=openai/gpt-oss-120b
+```
 
 ### Gemini（官方）
 
@@ -229,15 +290,28 @@ SILICONFLOW_API_KEY=你的金鑰
 同一頁官方自己也提醒「max_tokens 要設得夠大，避免 JSON 字串被截斷」——
 本專案的 `LLM_MAX_TOKENS` 預設 2048 就是為了這件事。
 
+### Mistral（官方 Free mode）
+
+- 端點：`https://api.mistral.ai/v1/chat/completions`
+- 預設模型：`mistral-small-latest`
+- 認證：`Authorization: Bearer <key>`
+- Free mode 有每月 included usage；實際 RPM／TPM 與可用模型以 Mistral Admin Panel 為準。
+- 官方 chat endpoint 支援 `response_format` 的 JSON object／JSON schema 模式。
+- 文件：https://docs.mistral.ai/admin/billing-usage/usage-limits
+
+```bash
+LLM_PROVIDER=mistral
+MISTRAL_API_KEY=你的金鑰
+LLM_MODEL=mistral-small-latest
+```
+
 ### NVIDIA NIM（官方，build.nvidia.com）
 
 - 端點：`https://integrate.api.nvidia.com/v1/chat/completions`（OpenAI相容）
 - 預設模型：`meta/llama-3.3-70b-instruct`（推理/指令遵循較強，也可以換 `nvidia/mistral-nemotron`，
   官方特別強調它在agentic/function-calling/指令遵循上的表現）
 - 認證：`Authorization: Bearer <key>`
-- 免費申請，**不需要信用卡**；過去有總量上限（個人1000次/企業5000次），查證當下（2026-08-16）
-  已取消，改成只受RPM限制（預設40 RPM，可申請調高到200 RPM），對單人TRPG這種一次一個請求的
-  用量來說完全夠用
+- NVIDIA Developer Program 提供 hosted NIM 原型使用；目前不應把它描述成無總量上限。RPM、credits、可用模型與試用條件依帳戶／模型而變，部署前應從 build.nvidia.com 的模型頁與帳戶介面確認。
 - 文件：https://build.nvidia.com/
 
 ```
@@ -258,14 +332,27 @@ NVIDIA_API_KEY=你的金鑰
 ### Cloudflare Workers AI（免金鑰）
 
 - 不走HTTP，走 `wrangler.toml` 的 `[ai] binding = "AI"`
-- 預設模型：`@cf/meta/llama-3.1-8b-instruct-fast`（`-fast` 之前的那一檔已被 Cloudflare 下架）
-- 文件：https://developers.cloudflare.com/workers-ai/models/
+- 預設模型：`@cf/qwen/qwen3-30b-a3b-fp8`
+- Cloudflare 官方 model catalog 目前列出 Qwen3 30B A3B FP8，具有多語言、reasoning 與 function calling 能力；model catalog 會變動，部署前仍應在帳戶中實測。
+- 文件：https://developers.cloudflare.com/workers-ai/models/qwen3-30b-a3b-fp8/
+
+```bash
+# wrangler.toml
+[ai]
+binding = "AI"
+
+# 可選；模型名稱是非機密設定
+LLM_PROVIDER=workers-ai
+LLM_MODEL=@cf/qwen/qwen3-30b-a3b-fp8
+```
+
+Cloudflare Workers AI 的每日免費 allocation 與 Neurons 計費依方案而變；超過免費 allocation 後可能產生計費，不應把 `[ai] binding` 誤當成無限免費。
+
 
 **注意**：這個binding只在Cloudflare上執行時存在。直接用瀏覽器開 `public/index.html` 是沒有的，
 本機要用 `npx wrangler pages dev`。另外免費額度是「你的Cloudflare帳號」的額度，超過會需要升級。
 
-小模型的中文敘事品質明顯不如 Gemini/DeepSeek，它的定位是「不用申請任何東西就能先跑起來」，
-真的要玩建議還是申請一把免費的 Gemini 金鑰。
+Workers AI 的定位是「不需第三方 API key 就能先跑起來」，但它使用你的 Cloudflare allocation，並非無限免費；中文敘事品質要用本專案的 reference prompt 實測後再決定是否提升順位。
 
 ### custom（任意第三方／自架）
 
@@ -356,5 +443,6 @@ curl -X POST http://localhost:8788/api/narrate \
   }'
 ```
 
-回傳裡會有 `provider` 與 `model` 兩個欄位，告訴你**實際上是誰在回應**——
-這是刻意加的，避免你以為在用 Gemini、其實一直退到 Workers AI 而不自知。
+回傳裡會有 `provider` 與 `model` 兩個欄位，告訴你**實際上是誰在回應**；如果啟用了 fallback，這裡會是最後成功的 provider，而不是原本的 primary。
+
+建議再用一個故意回傳 429 的測試 endpoint 或測試 fake fetch 驗證 fallback；不要為了測試而在 production 反覆消耗真實 API 額度。檢查 Cloudflare log 的 `[LLM_FALLBACK]` 與 `[LLM_FAILURE]`，公開 response 只會保留安全的 provider／model／stage 摘要。

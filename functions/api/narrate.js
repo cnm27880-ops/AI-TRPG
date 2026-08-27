@@ -34,7 +34,7 @@ import {
 } from "../../content/turnOptions.js";
 import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { sanitizeProvidedCharacter } from "../../content/characterBuilder.js";
-import { callLlm, describeLlmFailure } from "../../content/llm/client.js";
+import { callLlm, callLlmWithFallback, describeLlmFailure } from "../../content/llm/client.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
@@ -56,6 +56,7 @@ function logLlmFailure(err, { provider }) {
     model: err?.model ?? null,
     stage: err?.stage ?? "unknown",
     httpStatus: err?.status ?? null,
+    ...(Array.isArray(err?.fallbackAttempts) ? { fallbackAttempts: err.fallbackAttempts } : {}),
     message: err?.message ?? String(err),
     bodySnippet: err?.bodySnippet ?? null,
   }));
@@ -169,7 +170,8 @@ export async function onRequestPost(context) {
     return jsonWithCheck(
       {
         error:
-          "沒有可用的LLM供應商。請設定任一組金鑰(GEMINI_API_KEY / DEEPSEEK_API_KEY / " +
+          "沒有可用的LLM供應商。請設定任一組金鑰(GROQ_API_KEY / SILICONFLOW_API_KEY / " +
+          "NVIDIA_API_KEY / MISTRAL_API_KEY / GEMINI_API_KEY / DEEPSEEK_API_KEY / " +
           "OPENROUTER_API_KEY / LLM_API_KEY+LLM_BASE_URL)，或在 wrangler.toml 加上 " +
           '[ai] binding = "AI" 使用免金鑰的 Cloudflare Workers AI。設定步驟見 LLM_PROVIDERS.md。' +
           `可用的供應商id：${PROVIDER_IDS.join(" / ")}`,
@@ -205,38 +207,39 @@ export async function onRequestPost(context) {
   const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents: boundedRecentEvents });
 
 
+  const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
   try {
-    const { text, model } = await callLlm({
-      provider,
+    const result = await callNarrativeLlm({
+      ...(bodyProvider ? { provider } : {}),
       env,
       systemInstruction,
       prompt,
-      ...llmOverrides,
+      ...(bodyProvider ? llmOverrides : {}),
     });
     return new Response(
       JSON.stringify({
         ok: true,
-        provider,
-        model,
+        provider: result.provider ?? provider,
+        model: result.model,
         checkParams: resolvedParams,
         checkResult,
         outcome,
-        narration: text,
+        narration: result.text,
       }),
       { headers: { "content-type": "application/json; charset=utf-8" } }
     );
   } catch (err) {
     // AI敘事失敗時，仍然把算好的判定結果回傳，讓前端至少知道規則層面發生了什麼，
     // 不會因為AI敘事失敗就連帶掩蓋掉「其實判定已經算完了」這件事。
-    logLlmFailure(err, { provider });
+    logLlmFailure(err, { provider: err?.provider ?? provider });
     return jsonWithCheck(
       {
-        provider,
+        provider: err?.provider ?? provider,
         model: err?.model ?? null,
         // [安全][2026-08-24 second pass] 同 /api/turn：err.message 可能整段帶著第三方
         // 供應商的原始回應本文，不能原樣送回瀏覽器。完整原因已經在上面 logLlmFailure()
         // 寫進 server log。
-        error: `敘事生成失敗（${provider}）：${describeLlmFailure(err)}`,
+        error: `敘事生成失敗（${err?.provider ?? provider}）：${describeLlmFailure(err)}`,
         llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
       },
       { resolvedParams, checkResult, outcome },

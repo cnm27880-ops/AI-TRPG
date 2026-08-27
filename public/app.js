@@ -25,10 +25,12 @@ const RETIRED_SCENARIO_ID = "scenario.nostromo-01";
  * 新增一家OpenAI相容供應商時，這裡加一列、index.html 的 <option> 加一行，不用改任何邏輯。
  */
 const PROVIDER_UI_META = {
+  groq: { label: "Groq（官方 Free Plan）", needsKey: true, needsBaseUrl: false, needsModel: false },
   gemini: { label: "Google Gemini（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
   deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
   siliconflow: { label: "SiliconFlow 硅基流動", needsKey: true, needsBaseUrl: false, needsModel: false },
   nvidia: { label: "NVIDIA NIM（build.nvidia.com）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  mistral: { label: "Mistral（官方 Free mode）", needsKey: true, needsBaseUrl: false, needsModel: false },
   // [2026-08-20] openrouter 在 2026-08-18 被指定了預設模型，所以 needsModel 從 true 改成 false——
   // 留著 true 的話，前端會擋下「選了 OpenRouter 但沒填模型」的回合，
   // 但後端其實有預設模型可以用，變成前端自己擋自己。
