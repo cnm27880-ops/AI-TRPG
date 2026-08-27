@@ -15,6 +15,8 @@ import {
   extractWorkersAiText,
   callLlmWithFallback,
   isRetryableLlmError,
+  resolveAutoRetryConfig,
+  autoRetryDelayMs,
 } from "../content/llm/client.js";
 import {
   PROVIDERS,
@@ -408,6 +410,16 @@ test("isRetryableLlmError：只把暫時性 provider failure 判為可切換", (
   assert.equal(isRetryableLlmError({ stage: "http", status: 400 }), false);
   assert.equal(isRetryableLlmError({ stage: "config" }), false);
   assert.equal(isRetryableLlmError({ stage: "ssrf-blocked" }), false);
+});
+
+test("bounded retry 設定：重試 timeout 不超過原始 timeout，且 delay 有硬上限", () => {
+  assert.deepEqual(resolveAutoRetryConfig({}), { maxDelayMs: 5000, retryTimeoutMs: 30000 });
+  assert.deepEqual(resolveAutoRetryConfig({ LLM_REQUEST_TIMEOUT_MS: "120000" }), { maxDelayMs: 5000, retryTimeoutMs: 30000 });
+  assert.deepEqual(resolveAutoRetryConfig({ LLM_REQUEST_TIMEOUT_MS: "20000", LLM_AUTO_RETRY_TIMEOUT_MS: "60000" }), { maxDelayMs: 5000, retryTimeoutMs: 20000 });
+  assert.deepEqual(resolveAutoRetryConfig({ LLM_AUTO_RETRY_MAX_DELAY_MS: "90000" }).maxDelayMs, 30000);
+  assert.equal(autoRetryDelayMs({ stage: "timeout" }, {}), 250);
+  assert.equal(autoRetryDelayMs({ stage: "http", status: 429, retryAfterMs: 1000 }, {}), 1000);
+  assert.equal(autoRetryDelayMs({ stage: "http", status: 429, retryAfterMs: 6000 }, {}), null);
 });
 
 // --- Gemini線路 ---

@@ -30,7 +30,7 @@ import { assertSafeOutboundUrl } from "./urlSafety.js";
  * @property {string|null} bodySnippet 供應商回應本文的前幾百字，用來看是配額用盡還是金鑰無效
  */
 export class LlmError extends Error {
-  constructor(message, { provider, model = null, status = null, stage, bodySnippet = null, cause } = {}) {
+  constructor(message, { provider, model = null, status = null, stage, bodySnippet = null, retryAfterMs = null, cause } = {}) {
     super(message, cause ? { cause } : undefined);
     this.name = "LlmError";
     this.provider = provider;
@@ -38,6 +38,7 @@ export class LlmError extends Error {
     this.status = status;
     this.stage = stage;
     this.bodySnippet = bodySnippet;
+    this.retryAfterMs = Number.isFinite(Number(retryAfterMs)) ? Math.max(0, Math.trunc(Number(retryAfterMs))) : null;
   }
 }
 
@@ -120,6 +121,18 @@ function snippet(text) {
   return text.length > BODY_SNIPPET_LIMIT ? `${text.slice(0, BODY_SNIPPET_LIMIT)}…(已截斷)` : text;
 }
 
+/** 讀取 HTTP Retry-After，但永遠只保留毫秒數，不把供應商 header 原文送進公開 response。 */
+function retryAfterMsFromHeaders(headers) {
+  if (!headers || typeof headers.get !== "function") return null;
+  const raw = headers.get("retry-after");
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  const dateMs = Date.parse(raw);
+  if (Number.isFinite(dateMs)) return Math.max(0, dateMs - Date.now());
+  return null;
+}
+
 /**
  * 呼叫LLM產生一段文字。
  *
@@ -198,6 +211,40 @@ export function isRetryableLlmError(err) {
   if (err?.stage === "timeout" || err?.stage === "binding" || err?.stage === "shape") return true;
   if (err?.stage !== "http") return false;
   return new Set([408, 425, 429, 500, 502, 503, 504, 529]).has(Number(err.status));
+}
+
+export const DEFAULT_AUTO_RETRY_MAX_DELAY_MS = 5_000;
+export const DEFAULT_AUTO_RETRY_TIMEOUT_MS = 30_000;
+
+/**
+ * 單請求 bounded retry 的設定解析。只給 bridge 呼叫端使用；不會無限等待或無限重試。
+ * retry timeout 不超過原始 request timeout，避免一次 timeout 後再完整等待另一個 90 秒。
+ */
+export function resolveAutoRetryConfig(env = {}) {
+  const delayRaw = Number(env.LLM_AUTO_RETRY_MAX_DELAY_MS);
+  const timeoutRaw = Number(env.LLM_AUTO_RETRY_TIMEOUT_MS);
+  const maxDelayMs = Number.isFinite(delayRaw) && delayRaw >= 0
+    ? Math.min(30_000, Math.trunc(delayRaw))
+    : DEFAULT_AUTO_RETRY_MAX_DELAY_MS;
+  const configuredTimeout = Number(env.LLM_REQUEST_TIMEOUT_MS);
+  const originalTimeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? Math.max(1_000, Math.min(300_000, Math.trunc(configuredTimeout)))
+    : 90_000;
+  const retryTimeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0
+    ? Math.min(originalTimeoutMs, Math.max(1_000, Math.min(60_000, Math.trunc(timeoutRaw))))
+    : Math.min(originalTimeoutMs, DEFAULT_AUTO_RETRY_TIMEOUT_MS);
+  return { maxDelayMs, retryTimeoutMs };
+}
+
+/** 計算這次是否值得再試；Retry-After 過長時直接交給 pending gate，不硬等。 */
+export function autoRetryDelayMs(err, env = {}) {
+  const { maxDelayMs } = resolveAutoRetryConfig(env);
+  const hasRetryAfter = err?.retryAfterMs !== null && err?.retryAfterMs !== undefined;
+  const retryAfterMs = Number(err?.retryAfterMs);
+  if (hasRetryAfter && Number.isFinite(retryAfterMs) && retryAfterMs >= 0) {
+    return retryAfterMs <= maxDelayMs ? Math.trunc(retryAfterMs) : null;
+  }
+  return Math.min(250, maxDelayMs);
 }
 
 function attachFallbackAttempts(err, attempts) {
@@ -462,6 +509,7 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
       status: response.status,
       stage: "http",
       bodySnippet: snippet(body),
+      retryAfterMs: retryAfterMsFromHeaders(response.headers),
     });
   }
 
@@ -577,6 +625,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
       status: response.status,
       stage: "http",
       bodySnippet: snippet(body),
+      retryAfterMs: retryAfterMsFromHeaders(response.headers),
     });
   }
 

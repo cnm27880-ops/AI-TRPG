@@ -72,6 +72,25 @@ async function newSession(env) {
   return res.body.session.id;
 }
 
+async function newReferenceSession(env) {
+  const res = await readJson(
+    await sessionPost(
+      req(env, { draft: DRAFT, scenarioId: "scenario.nostromo-01-v2" })
+    )
+  );
+  assert.equal(res.body.ok, true, `建立 V2 存檔失敗：${res.body.error}`);
+  return res.body.session.id;
+}
+
+function safeBridgeReply(label = "bridge") {
+  return JSON.stringify({
+    narration: `你${label}，但這個嘗試暫時沒有改變周遭局勢。通風系統的低鳴仍在持續。`,
+    options: [],
+    narrativeMode: "micro",
+    threatAssessment: { level: "stable", reason: "沒有新增可觀察的危險變化。" },
+  });
+}
+
 function responseSequence(responses) {
   const calls = [];
   let index = 0;
@@ -241,7 +260,68 @@ test("LLM呼叫失敗時回502，並帶出 stage/httpStatus 讓前端決定要�
   assert.equal(body.llmFailure.stage, "binding");
   assert.equal(body.model, PROVIDERS["workers-ai"].defaultModel, "要指名哪個模型壞掉");
   assert.equal(body.retryable, true, "有存檔時應保存可重試回合");
-  assert.ok(body.pendingTurn?.requestId);
+    assert.ok(body.pendingTurn?.requestId);
+});
+
+test("V2 unmatched bridge：暫時性 provider failure 會在同一請求內自動重試一次", async () => {
+  const env = scriptedEnv([
+    () => { throw new Error("temporary upstream timeout"); },
+    safeBridgeReply("重新整理袖口"),
+  ]);
+  env.LLM_JSON_MODE = "off";
+  env.LLM_AUTO_RETRY_TIMEOUT_MS = "1000";
+  const sessionId = await newReferenceSession(env);
+  const opening = await readJson(await turnPost(req(env, { sessionId })));
+  assert.equal(opening.status, 200);
+  const result = await readJson(await turnPost(req(env, {
+    sessionId,
+    playerAction: "Count the rivets on my boots and wait silently.",
+    turnRequestId: "auto-retry-success-1",
+  })));
+  assert.equal(result.status, 200);
+  assert.equal(result.body.ok, true);
+  assert.equal(result.body.degraded.narrationSource, "bridge_llm");
+  assert.equal(result.body.degraded.autoRetryAttempts, 1);
+  assert.equal(result.body.pendingTurn ?? null, null);
+  assert.equal(env.calls.length, 2, "第一次暫時失敗後只能再自動呼叫一次");
+
+  const store = resolveSessionStore(env);
+  const saved = await store.get(sessionId);
+  assert.equal(saved.pendingTurn, null);
+  assert.equal(saved.turns, 2, "開場與 bridge 回合各只結算一次");
+  assert.equal(saved.history.length, 2, "自動 retry 不得重複寫入 history");
+});
+
+test("V2 unmatched bridge：兩次暫時性失敗後保留 pending，新行動回傳409且不重骰", async () => {
+  const env = scriptedEnv([
+    () => { throw new Error("temporary upstream timeout"); },
+    () => { throw new Error("temporary upstream timeout again"); },
+  ]);
+  env.LLM_JSON_MODE = "off";
+  env.LLM_AUTO_RETRY_TIMEOUT_MS = "1000";
+  const sessionId = await newReferenceSession(env);
+  const opening = await readJson(await turnPost(req(env, { sessionId })));
+  assert.equal(opening.status, 200);
+  const failed = await readJson(await turnPost(req(env, {
+    sessionId,
+    playerAction: "Count the rivets on my boots and wait silently.",
+    turnRequestId: "auto-retry-failed-1",
+  })));
+  assert.equal(failed.status, 502);
+  assert.equal(failed.body.retryable, true);
+  assert.equal(failed.body.llmFailure.autoRetryAttempts, 1);
+  assert.equal(failed.body.pendingTurn.requestId, "auto-retry-failed-1");
+  assert.equal(env.calls.length, 2);
+
+  const blocked = await readJson(await turnPost(req(env, {
+    sessionId,
+    playerAction: "I try a different action while the narrator is unavailable.",
+    turnRequestId: "auto-retry-failed-new-action",
+  })));
+  assert.equal(blocked.status, 409);
+  assert.equal(blocked.body.ok, false);
+  assert.match(blocked.body.error, /規則結果已經保存|系統會自動接續|pending|重播/);
+  assert.equal(env.calls.length, 2, "pending gate 不得讓新行動再次呼叫 LLM");
 });
 
 test("LLM在規則層後失敗：retryPending 必須沿用同一骰面且只結算一次", async () => {

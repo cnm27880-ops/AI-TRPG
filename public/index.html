@@ -1159,6 +1159,8 @@
         .exploration-terminal-panel { max-height: min(760px, calc(100dvh - 2rem)); }
         .exploration-terminal-scroll { max-height: min(610px, calc(100dvh - 10rem)); overflow-y: auto; }
         .exploration-map { background: rgb(9 9 11 / .76); border: 1px solid rgb(16 185 129 / .22); border-radius: .5rem; padding: .8rem; }
+        .exploration-map-legend { display: flex; flex-wrap: wrap; gap: .45rem .8rem; margin-bottom: .65rem; color: rgb(161 161 170); font: .62rem/1.4 'Noto Serif TC', serif; }
+        .exploration-map-legend b { color: rgb(110 231 183); font-family: 'JetBrains Mono', monospace; font-weight: 700; }
         .exploration-map-row { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; font: .7rem/1.5 'Noto Serif TC', serif; }
         .exploration-map-node { display: inline-flex; align-items: center; gap: .35rem; border: 1px solid rgb(113 113 122 / .45); border-radius: .3rem; padding: .25rem .45rem; color: rgb(212 212 216); background: rgb(39 39 42 / .46); }
         .exploration-map-node.is-current { border-color: rgb(52 211 153 / .75); color: rgb(167 243 208); background: rgb(16 185 129 / .14); box-shadow: 0 0 0 1px rgb(16 185 129 / .12); }
@@ -1180,7 +1182,14 @@
         .exploration-question.is-updated { border-left-color: rgb(251 191 36 / .78); }
         .exploration-question.is-answered { border-left-color: rgb(52 211 153 / .78); }
         .exploration-question-status { color: rgb(161 161 170); font-size: .56rem; }
-        .exploration-terminal-section-title { color: rgb(110 231 183); font: 700 .62rem/1.2 'JetBrains Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
+        .exploration-terminal-section-title { color: rgb(110 231 183); font: 700 .64rem/1.35 'JetBrains Mono', monospace; letter-spacing: .07em; text-transform: uppercase; }
+        .exploration-terminal-guide { padding: .55rem .65rem; border-left: 2px solid rgb(52 211 153 / .5); border-radius: .25rem; background: rgb(16 185 129 / .07); color: rgb(167 243 208 / .82); font: .72rem/1.55 'Noto Serif TC', serif; }
+        .exploration-terminal-panel #exploration-current-location, .exploration-terminal-panel #exploration-current-event, .exploration-terminal-panel #exploration-current-objective { display: block; margin-top: .18rem; line-height: 1.5; }
+        .exploration-terminal-panel #exploration-current-objective { color: rgb(167 243 208); }
+        .exploration-terminal-panel .exploration-route-card { padding: .65rem .7rem; }
+        .exploration-terminal-panel .exploration-route-card strong { font-size: .76rem; }
+        .exploration-terminal-panel .exploration-route-card span { font-size: .68rem; line-height: 1.55; }
+        html[data-stage="godspace"] .exploration-terminal-guide { border-left-color: rgba(110, 231, 183, .45); background: rgba(16, 185, 129, .08); color: #a7f3d0; }
         @media (max-width: 767px) {
             .mission-location-block { min-width: 0; max-width: 9rem; padding-left: .55rem; }
             .mission-location-name { font-size: .7rem; }
@@ -2535,18 +2544,18 @@
         </div>
         <div class="platform-arrival-mark" aria-hidden="true">
             <span class="platform-arrival-line"></span>
-                <span>主神空間 / 暗幕接入</span>
+                <span>主神空間 / 安全區</span>
             <span class="platform-arrival-line"></span>
         </div>
 
         <!-- 主選單旗幟橫幅 -->
         <div class="menu-banner platform-heading anim-fade-up">
-            <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">輪迴者待命 · 2.35</div>
+            <div class="menu-banner-tagline text-[11px] font-mono tracking-[0.35em] mb-1.5">輪迴者中繼站 · 安全區</div>
             <h1 id="portal-title" class="text-2xl sm:text-4xl font-bold tracking-tight font-mono text-white drop-shadow-[0_2px_10px_rgba(0,0,0,.55)]">主神空間</h1>
         </div>
 
         <p id="portal-subtitle" class="text-[13px] text-zinc-300 font-serif font-semibold leading-relaxed max-w-sm anim-fade-up" style="animation-delay:.08s">
-            暗幕沒有出口。下一場恐怖片開始前，你還有一段時間可以準備。
+            這裡是每場副本之間的安全區。查看上一場結果、整理角色，或準備下一場輪迴。
         </p>
 
         <!-- 剛登入回來時的一句話（見 app.js 的 consumeLoginRedirect） -->
@@ -2555,7 +2564,7 @@
         <!-- 檢測到既有輪迴者檔案 -->
         <div id="portal-resume-box" style="display:none" class="w-full max-w-sm hud-float border border-emerald-500/40 text-left font-mono text-xs space-y-2.5 pulse-glow p-3.5">
             <div class="flex justify-between items-center text-zinc-300 text-[11px]">
-                <span class="section-tag">找到一名輪迴者</span>
+                <span class="section-tag">找到你的輪迴者檔案</span>
                 <span class="text-emerald-300 font-bold" id="resume-char-name">輪迴者</span>
             </div>
             <button onclick="resumeLocalSession()" class="w-full py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-bold transition-all hover:-translate-y-px flex items-center justify-center gap-2">
@@ -2576,21 +2585,21 @@
         <section id="portal-aftercare-panel" style="display:none" class="w-full max-w-2xl text-left font-mono border border-emerald-500/25 bg-zinc-950/55 rounded-xl p-4 sm:p-5 shadow-[0_12px_50px_rgba(0,0,0,.25)] anim-fade-up" aria-live="polite">
             <div class="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
                 <div>
-                    <div class="text-[10px] tracking-[0.28em] text-emerald-300/80">AFTERCARE // SERVER RECORD</div>
-                    <h2 id="hub-aftercare-title" class="mt-1 text-base sm:text-lg font-bold text-white">上一場輪迴已封存</h2>
+                    <div class="text-[10px] tracking-[0.28em] text-emerald-300/80">上一場副本 / SAVED RUN</div>
+                    <h2 id="hub-aftercare-title" class="mt-1 text-base sm:text-lg font-bold text-white">上一場副本已封存</h2>
                     <p id="hub-aftercare-status" class="mt-1 text-[11px] text-zinc-400">正在讀取主神記錄……</p>
                 </div>
                 <button id="hub-view-debrief" onclick="openLastRunDebrief()" class="px-3 py-2 rounded border border-emerald-400/40 bg-emerald-500/10 text-emerald-200 text-[11px] font-bold hover:bg-emerald-500/20 transition-colors">查看完整結算</button>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
                 <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
-                    <div class="text-[10px] tracking-widest text-zinc-500">THE JUDGEMENT</div>
+                    <div class="text-[10px] tracking-widest text-zinc-500">副本評價 / EVALUATION</div>
                     <div id="hub-aftercare-grade" class="mt-1 text-3xl font-black text-emerald-300">—</div>
                     <div id="hub-aftercare-evaluation" class="text-[11px] text-zinc-300">尚無結算資料</div>
                     <div id="hub-aftercare-score" class="mt-2 text-[10px] text-zinc-500">QUALITY — · SPEED — · OVERALL —</div>
                 </div>
                 <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
-                    <div class="text-[10px] tracking-widest text-zinc-500">AFTERCARE</div>
+                    <div class="text-[10px] tracking-widest text-zinc-500">角色整備 / RECOVERY</div>
                     <div id="hub-health-hp" class="mt-2 text-sm text-white">HP —</div>
                     <div id="hub-health-willpower" class="mt-1 text-[11px] text-zinc-300">意志力 —</div>
                     <div id="hub-health-energy" class="mt-1 text-[11px] text-zinc-400">能量池 —</div>
@@ -2601,7 +2610,7 @@
                     </div>
                 </div>
                 <div class="rounded-lg border border-white/10 bg-white/[.03] p-3">
-                    <div class="text-[10px] tracking-widest text-zinc-500">RESOURCES</div>
+                    <div class="text-[10px] tracking-widest text-zinc-500">資源紀錄 / RESOURCES</div>
                     <div id="hub-resource-wallet" class="mt-2 text-[11px] text-white">資源讀取中……</div>
                     <div id="hub-resource-items" class="mt-1 text-[10px] text-zinc-400">道具 —</div>
                     <div id="hub-resource-activity" class="mt-2 text-[10px] text-zinc-500">活動 —</div>
@@ -2615,31 +2624,31 @@
         <div class="w-full max-w-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono anim-fade-up" style="animation-delay:.16s">
             <button onclick="startNewChargen()" class="action-tile primary hub-object hub-object-mission col-span-2 sm:col-span-1">
                 <i class="fas fa-door-open action-tile-icon"></i>
-                <span class="action-tile-label">開始輪迴</span>
+                <span class="action-tile-label">開始新的副本</span>
                 <span class="action-tile-sub">建立輪迴者檔案</span>
             </button>
             <button onclick="openModal('sessionModal')" class="action-tile hub-object hub-object-records">
                 <i class="fas fa-file-lines action-tile-icon"></i>
-                <span class="action-tile-label">輪迴者檔案</span>
+                <span class="action-tile-label">角色檔案</span>
                 <span class="action-tile-sub">查看／接續不同角色</span>
             </button>
             <button onclick="openHubExchange()" class="action-tile hub-object hub-object-shop">
                 <i class="fas fa-gem action-tile-icon"></i>
-                <span class="action-tile-label">主神兌換</span>
-                <span class="action-tile-sub">支線與獎勵點數</span>
+                <span class="action-tile-label">兌換與整備</span>
+                <span class="action-tile-sub">使用獎勵點數與支線</span>
             </button>
             <button onclick="openModal('settingsModal')" class="action-tile hub-object hub-object-settings">
                 <i class="fas fa-sliders-h action-tile-icon"></i>
-                <span class="action-tile-label">調整介面</span>
-                <span class="action-tile-sub">文筆與顯示</span>
+                <span class="action-tile-label">設定</span>
+                <span class="action-tile-sub">文筆、顯示與 API</span>
             </button>
         </div>
 
         <div id="portal-connection-signal" class="platform-status inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>輪迴者待命 · 主神空間</span>
+            <span>安全區運作中 · 可以整理與出發</span>
         </div>
-        <div class="platform-footnote text-[10px] font-mono text-zinc-500">主神記錄：下一場輪迴尚未開始</div>
+        <div class="platform-footnote text-[10px] font-mono text-zinc-500">先查看上一場結果，再整理角色，最後決定是否開始下一場副本。</div>
         </div>
     </div>
 
@@ -2957,8 +2966,8 @@
                     <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧" class="px-2.5 py-1 rounded bg-stone-500/10 border border-stone-400/35 text-stone-300 hover:bg-stone-400/15 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
                         <i class="fas fa-book-open text-[10px]"></i><span class="hidden sm:inline"> 劇情回顧</span>
                     </button>
-                    <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟船艦探索終端" aria-label="開啟船艦探索終端" class="px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-map text-[10px]"></i><span class="hidden sm:inline"> 探索終端</span>
+                    <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟副本情報" aria-label="開啟副本情報" class="px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
+                        <i class="fas fa-map text-[10px]"></i><span class="hidden sm:inline"> 副本情報</span>
                     </button>
                     <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
                          主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
@@ -2986,33 +2995,35 @@
                 </div>
             </details>
 
-            <!-- 單一船艦探索終端：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。 -->
+            <!-- 跨副本探索情報面板：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。 -->
             <div id="explorationTerminal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
                 <div class="modal-panel exploration-terminal-panel bg-zinc-900 border hairline-border w-full max-w-2xl rounded-lg p-4 sm:p-5 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-labelledby="exploration-terminal-title" tabindex="-1">
                     <div class="flex items-start justify-between gap-3 pb-3 hairline-b">
                         <div class="min-w-0">
-                            <div class="text-[10px] font-mono tracking-[.22em] text-cyan-300/90 uppercase">SHIP CONSOLE / 探索終端</div>
-                            <h2 id="exploration-terminal-title" class="text-lg font-bold text-zinc-100 mt-1">諾斯托羅莫號空間情報</h2>
-                            <p id="exploration-terminal-subtitle" class="text-[11px] font-mono text-zinc-400 mt-1">等待副本位置資料……</p>
+                            <div class="text-[10px] font-mono tracking-[.22em] text-cyan-300/90 uppercase">副本情報 / EXPLORATION BRIEF</div>
+                            <h2 id="exploration-terminal-title" class="text-lg font-bold text-zinc-100 mt-1">副本情報</h2>
+                            <p id="exploration-terminal-subtitle" class="text-[11px] font-mono text-zinc-400 mt-1">先看目前位置，再看目前目標；這裡只顯示你已經發現的資訊。</p>
+                            <div id="exploration-terminal-guide" class="exploration-terminal-guide mt-2">快速讀法：綠色標記是目前位置；可用路線會顯示移動回合與風險。</div>
                         </div>
                         <button type="button" onclick="closeModal('explorationTerminal')" class="shrink-0 text-zinc-400 hover:text-red-300 transition-colors text-lg leading-none" aria-label="關閉探索終端"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="exploration-terminal-scroll pt-3 space-y-4 font-mono text-xs">
                         <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2" aria-label="目前探索情勢" aria-live="polite" aria-atomic="false">
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <div><div class="text-[10px] text-zinc-500">目前位置</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>
-                                <div><div class="text-[10px] text-zinc-500">目前事件</div><strong id="exploration-current-event" class="text-zinc-200">—</strong></div>
-                                <div><div class="text-[10px] text-zinc-500">行動方向</div><strong id="exploration-current-objective" class="text-emerald-200">—</strong></div>
+                            <div class="exploration-terminal-section-title">先看這裡 / CURRENT SITUATION</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div><div class="text-[10px] text-zinc-500">你現在在哪裡</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>
+                                <div><div class="text-[10px] text-zinc-500">目前場景</div><strong id="exploration-current-event" class="text-zinc-200">—</strong></div>
+                                <div><div class="text-[10px] text-zinc-500">你現在要處理什麼</div><strong id="exploration-current-objective" class="text-emerald-200">—</strong></div>
                             </div>
                         </section>
                         <section class="space-y-2">
-                            <div class="exploration-terminal-section-title">船艦路線 / KNOWN ROUTES</div>
+                            <div class="exploration-terminal-section-title">地圖與可前往地點 / MAP & ROUTES</div>
                             <div id="exploration-terminal-map" class="exploration-map" role="list" aria-label="玩家已知的船艦路線"></div>
                             <div id="exploration-terminal-routes" class="space-y-1.5" aria-live="polite" aria-atomic="false"></div>
                         </section>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <section class="space-y-2">
-                                <div class="exploration-terminal-section-title">最近確認 / RECENT DISCOVERIES</div>
+                                <div class="exploration-terminal-section-title">剛剛發現 / RECENT DISCOVERIES</div>
                                 <div id="exploration-terminal-discoveries" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">尚未記錄新的發現。</div>
                             </section>
                             <section class="space-y-2">
@@ -3021,17 +3032,17 @@
                             </section>
                         </div>
                         <section class="space-y-2">
-                            <div class="exploration-terminal-section-title">未解問題 / OPEN QUESTIONS</div>
+                            <div class="exploration-terminal-section-title">還沒解開的問題 / OPEN QUESTIONS</div>
                             <div id="exploration-terminal-questions" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">目前沒有待追查的問題。</div>
                         </section>
                         <section class="space-y-2">
-                            <div class="exploration-terminal-section-title">環境狀態 / LOCAL CONDITIONS</div>
+                            <div class="exploration-terminal-section-title">這裡的環境 / LOCAL CONDITIONS</div>
                             <div id="exploration-terminal-environment" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">等待位置資料……</div>
                         </section>
                     </div>
                     <div class="flex items-center justify-between gap-3 pt-3 mt-3 hairline-t text-[10px] font-mono text-zinc-500">
-                        <span>地圖提供方向，不公開未發現的主持真相。</span>
-                        <button type="button" onclick="closeModal('explorationTerminal')" class="px-3 py-1.5 rounded border hairline-border text-zinc-300 hover:text-white hover:border-cyan-500/50 transition-colors">返回現場</button>
+                        <span>只顯示你已經知道的情報；想推進劇情，先看上方的「你現在要處理什麼」。</span>
+                        <button type="button" onclick="closeModal('explorationTerminal')" class="px-3 py-1.5 rounded border hairline-border text-zinc-300 hover:text-white hover:border-cyan-500/50 transition-colors">回到劇情</button>
                     </div>
                 </div>
             </div>

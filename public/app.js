@@ -1809,7 +1809,7 @@ function renderExplorationTerminal(view) {
 
   const knownLocations = Array.isArray(view.knownLocations) ? view.knownLocations : [];
   terminalMap.innerHTML = knownLocations.length
-    ? `<div class="exploration-map-row">${knownLocations.map((item, index) => {
+    ? `<div class="exploration-map-legend" aria-label="地圖圖例"><span><b aria-hidden="true">◆</b> 目前位置</span><span><b aria-hidden="true">●</b> 已探索</span><span><b aria-hidden="true">○</b> 已知、尚未探索</span></div><div class="exploration-map-row">${knownLocations.map((item, index) => {
         const stateClass = item.id === location.id ? "is-current" : item.status === "visited" ? "is-visited" : item.status === "known" ? "is-known" : "is-unknown";
         const marker = item.id === location.id ? "◆" : item.status === "visited" ? "●" : "○";
         const separator = index ? `<span class="exploration-map-link" aria-hidden="true">—</span>` : "";
@@ -1965,7 +1965,7 @@ async function travelToLocation(destinationId, existingRequestId = null) {
 
 function openExplorationTerminal() {
   if (!lastExplorationView?.currentLocation) {
-    showToast("目前尚未取得副本位置資料。開始一個 V2 副本後，船艦探索終端會在這裡顯示。", { kind: "info" });
+    showToast("目前尚未取得副本位置資料。開始副本後，副本情報面板會在這裡顯示。", { kind: "info" });
     return;
   }
   renderExplorationTerminal(lastExplorationView);
@@ -2334,7 +2334,7 @@ async function enterGodspaceFromSettlement(source = "settlement") {
     document.body.classList.remove("is-settlement-open");
     currentCombat = null;
     showScreen("portal");
-    document.getElementById("portal-subtitle").textContent = "上一場輪迴已封存。主神空間正在等待你的下一個決定。";
+    document.getElementById("portal-subtitle").textContent = "上一場副本已封存。你可以查看結果、整理角色，或準備下一場副本。";
     finishPortalReveal("resume");
     renderGodspace(response);
     return true;
@@ -3415,8 +3415,8 @@ async function resumeSession(id) {
     const pending = res.session.pendingTurn;
     appendFeedEvent(
       "world",
-      "恢復未完成回合",
-      "伺服器已保存上一回合的判定；正在安全重播敘事，不會重新擲骰或重複扣除規則效果。",
+      "上一回合尚未完成",
+      "伺服器已保存上一回合的判定；系統會自動接續敘事，不會重新擲骰或重複扣除規則效果。請等待這次接續完成。",
       { tone: "neutral" }
     );
     await runTurn({
