@@ -2256,11 +2256,15 @@ function hubGuideHandler(actionId) {
 
 function applyGuideActionButton(button, action, handler = null) {
   if (!button) return;
-  button.disabled = !action?.enabled;
+  // guide 來自 server；即使 payload 被誤填，也不能讓未知 action 變成沒有 handler 的可點按鈕。
+  const resolvedHandler = handler ?? (action?.id ? hubGuideHandler(action.id) : null);
+  const enabled = Boolean(action?.enabled && resolvedHandler);
+  button.disabled = !enabled;
   button.textContent = action?.label ?? "目前不可用";
-  button.title = action?.reason ?? "目前不可用";
-  button.classList.toggle("is-disabled", !action?.enabled);
-  button.onclick = action?.enabled ? (handler ?? hubGuideHandler(action.id)) : null;
+  button.title = enabled ? (action?.reason ?? "") : (action?.reason ?? "目前不可用");
+  button.classList.toggle("is-disabled", !enabled);
+  button.setAttribute("aria-disabled", String(!enabled));
+  button.onclick = enabled ? resolvedHandler : null;
 }
 
 function renderGodspaceGuide(guide) {
@@ -2278,22 +2282,28 @@ function renderGodspaceGuide(guide) {
   applyGuideActionButton(nextButton, nextAction);
   setText("hub-guide-next-reason", nextAction?.reason ?? "");
 
+  // 三張既有卡是版面槽位，不是 server action 的固定語意。這樣 active 的
+  // resume/blocked、ready 的 create/play，以及 settled 的 review/recover/depart
+  // 都能由同一份 server guide 呈現，前端不猜測 lifecycle 或動作名稱。
   const slots = [
-    ["review", "hub-guide-step-review", "hub-guide-step-review-title", "hub-guide-step-review-copy", "hub-guide-step-review-button"],
-    ["recover", "hub-guide-step-recover", "hub-guide-step-recover-title", "hub-guide-step-recover-copy", "hub-guide-step-recover-button"],
-    ["depart", "hub-guide-step-depart", "hub-guide-step-depart-title", "hub-guide-step-depart-copy", "hub-guide-step-depart-button"],
+    ["hub-guide-step-review", "hub-guide-step-review-title", "hub-guide-step-review-copy", "hub-guide-step-review-button"],
+    ["hub-guide-step-recover", "hub-guide-step-recover-title", "hub-guide-step-recover-copy", "hub-guide-step-recover-button"],
+    ["hub-guide-step-depart", "hub-guide-step-depart-title", "hub-guide-step-depart-copy", "hub-guide-step-depart-button"],
   ];
-  for (const [stepId, cardId, titleId, copyId, buttonId] of slots) {
-    const step = guide.steps?.find((candidate) => candidate.id === stepId) ?? null;
+  const steps = Array.isArray(guide.steps) ? guide.steps.slice(0, slots.length) : [];
+  slots.forEach(([cardId, titleId, copyId, buttonId], index) => {
+    const step = steps[index] ?? null;
     const stepCard = document.getElementById(cardId);
     const stepButton = document.getElementById(buttonId);
-    if (!stepCard) continue;
+    if (!stepCard) return;
     stepCard.style.display = step ? "flex" : "none";
+    if (step) stepCard.dataset.guideStepId = step.id ?? "";
+    else delete stepCard.dataset.guideStepId;
     stepCard.classList.toggle("is-current", Boolean(step && nextAction?.id === step.action?.id));
     setText(titleId, step?.title ?? "");
     setText(copyId, step?.description ?? "");
     applyGuideActionButton(stepButton, step?.action ?? null);
-  }
+  });
 }
 
 function renderGodspace(payload) {

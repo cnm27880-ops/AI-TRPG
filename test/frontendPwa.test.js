@@ -133,6 +133,14 @@ test("C1 主神空間以安全區導引串起結算、整備與出發", () => {
   assert.match(app, /applyHubActionButton\("hub-shop-button", "shop"\)/);
 });
 
+test("C1 導引卡依 server steps 動態呈現 active／ready 流程並拒絕未知 action", () => {
+  assert.match(app, /const steps = Array\.isArray\(guide\.steps\) \? guide\.steps\.slice\(0, slots\.length\) : \[\]/);
+  assert.match(app, /stepCard\.dataset\.guideStepId = step\.id/);
+  assert.match(app, /const resolvedHandler = handler \?\? \(action\?\.id \? hubGuideHandler\(action\.id\) : null\)/);
+  assert.match(app, /const enabled = Boolean\(action\?\.enabled && resolvedHandler\)/);
+  assert.doesNotMatch(app, /guide\.steps\?\.find\(\(candidate\) => candidate\.id === stepId\)/);
+});
+
 test("設定 modal 的 light theme 會覆蓋原生表單 dark appearance", () => {
   assert.match(index, /html\[data-theme="light"\] \.modal-panel :is\(input, select, textarea\)/);
   assert.match(index, /color-scheme: light/);
@@ -168,6 +176,6 @@ test("PWA metadata、Service Worker 與前端 cache-bust 保持有效", () => {
   assert.ok(manifest.icons.some((icon) => icon.sizes === "192x192"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512"));
   assert.match(index, /apple-mobile-web-app-capable/);
-  assert.match(index, /app\.js\?v=20260827-r18/);
+  assert.match(index, /app.js\?v=20260827-r19/);
   assert.match(sw, /CACHE_VERSION = "v7"/);
 });
