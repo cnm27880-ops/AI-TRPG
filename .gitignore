@@ -15,3 +15,19 @@ dist/
 # 作業系統雜項
 .DS_Store
 Thumbs.db
+
+# 本地可重建建置產物
+_worker.bundle
+
+# 本地暫存研究筆記與真實互動結果（不得進版本庫）
+.tmp_*
+REAL_GEMINI_V2_INTERACTION_RESULTS.json
+
+# 歷史 V2 audit 產物；需要時應在指定 commit 上重建並另行 archive
+V2_EVENT_COVERAGE_AUDIT.json
+V2_EVENT_COVERAGE_AUDIT.md
+V2_ORIGINAL_TEXT_FIDELITY_AUDIT.json
+V2_ORIGINAL_TEXT_FIDELITY_AUDIT.md
+V2_SCENES_AND_TRANSITIONS.md
+V2_SCENE_FIDELITY_BY_CHAPTER.json
+V2_SCENE_FIDELITY_BY_CHAPTER.md
