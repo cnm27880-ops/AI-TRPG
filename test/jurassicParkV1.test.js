@@ -275,15 +275,32 @@ test("帶出事故證據會計入品質分數（結算旗標不再只認異形�
   assert.equal(withEvidence - withoutEvidence, 20);
 });
 
-test("NPC 演出素材包已註冊，但目前是空殼：不影響回合、也不會噴錯", () => {
+test("NPC 演出素材包已貼入三名 NPC 的 Gemini 對白，並且會出現在已接觸 NPC 的 prompt block", () => {
   const state = createReferenceState(REFERENCE);
   const pack = narrativePackageFor(REFERENCE);
   assert.equal(pack?.sourcePackId, "scenario.jurassic-park-01-v1");
-  assert.deepEqual(pack.npcs, [], "Gemini 對白尚未貼入前，npcs 應該是空陣列");
-  // 空殼不該讓 prompt block 噴錯，只是先回傳空字串（等同於完全沒有這份資料時的行為）。
+  assert.equal(pack.npcs.length, 3, "三名 NPC 的演出素材都已貼入");
+  assert.deepEqual(
+    pack.npcs.map((npc) => npc.id),
+    ["npc_engineer_morales", "npc_researcher_karen", "npc_pilot_vance"]
+  );
+  assert.equal(narrativePackageCoverage(REFERENCE).npcs, 3);
+
+  // 莫拉萊斯與范斯共用 flag_radio_contact_established；兩人都已宣告 contactFlags，
+  // 命中後應該同時出現在 prompt block 裡，且不外洩 privateGoals／knowledge.secret。
   const contacted = { ...state, flags: ["flag_radio_contact_established"] };
-  assert.equal(buildNarrativeNpcPromptBlock(REFERENCE, contacted), "");
-  assert.equal(narrativePackageCoverage(REFERENCE).npcs, 0);
+  const promptBlock = buildNarrativeNpcPromptBlock(REFERENCE, contacted);
+  assert.match(promptBlock, /npc_engineer_morales/);
+  assert.match(promptBlock, /npc_pilot_vance/);
+  assert.doesNotMatch(promptBlock, /npc_researcher_karen/, "未命中 contactFlags／presenceScenes 的 NPC 不應出現");
+  assert.doesNotMatch(promptBlock, /privateGoals/);
+  assert.doesNotMatch(promptBlock, /電擊棍/, "禁止透露清單：電擊棍不能出現在任何 prompt context");
+  assert.doesNotMatch(promptBlock, /排洪閥/, "禁止透露清單：未標記排洪閥不能出現");
+  assert.doesNotMatch(promptBlock, /BioSyn/i, "禁止透露清單：Karen 的 BioSyn 收購秘密不能出現");
+  assert.doesNotMatch(promptBlock, /私下授權/, "禁止透露清單：范斯的總部私下授權內容不能出現");
+
+  // 沒有命中任何 contactFlags／presenceScenes 時，行為等同於素材包還沒接上——不噴錯，回傳空字串。
+  assert.equal(buildNarrativeNpcPromptBlock(REFERENCE, state), "");
 });
 
 test("回歸：異形副本沒有宣告 endingRules，仍走內建判定", () => {

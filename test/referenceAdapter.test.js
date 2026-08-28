@@ -194,7 +194,7 @@ test("canonical narrative resolver 只組合已裁定 result、核准 overlay �
   });
   assert.equal(withEntry.sceneEntryIncluded, true);
   assert.match(withEntry.source, /scene_entry/);
-  assert.match(withEntry.text, /橋樓主走廊內亮著斷續的應急紅光/);
+  assert.match(withEntry.text, /A 甲板的照明每隔幾秒暗一次/);
 });
 
 test("reference prompt 只把重大變體當成 canonical result 之上的 server overlay", () => {
@@ -826,8 +826,11 @@ test("canonical scene entry is returned by an authorized travel action", () => {
   const travel = applyTravelAction(reference, state, resolution);
   assert.equal(travel.applied, true);
   assert.equal(travel.nextSceneId, "evt_deck_a_recon");
-  assert.match(travel.arrivalText, /橋樓主走廊內亮著斷續的應急紅光/);
-  assert.match(travel.arrivalText, /黑盒子終端指示燈/);
+  // [2026-08-28修正] 這裡曾經斷言 A 甲板抵達文字含有「橋樓主走廊」——那正是
+  // narrativeSource.entryText 錯位到別的場景的那個 bug，測試本身把 bug 鎖成了
+  // 期望行為。修正資料後，抵達 A 甲板應該看到 A 甲板自己的描述。
+  assert.match(travel.arrivalText, /A 甲板的照明每隔幾秒暗一次/);
+  assert.doesNotMatch(travel.arrivalText, /橋樓主走廊/);
 });
 
 test("Ash canonical result remains progressive while the server controls disclosure flags", () => {

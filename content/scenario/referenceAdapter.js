@@ -573,6 +573,63 @@ export function resultForOutcome(approach, outcomeTier) {
  * `applied` 必須來自 applyReferenceResult()；未命中的自由行動、缺少原文的結果
  * 或未授權 overlay 都回傳 null，交由 turn route 的 bridge／安全敘事處理。
  */
+// [2026-08-28新增] canonical result 與 NPC overlay／下一場景 entry 併接時的保守去重。
+//
+// 背景：resolveCanonicalNarrative() 原本只做完全字串相等比對，擋不住「意思相同、
+// 用詞不同」的重述——real Gemini 測試實際抓到一個案例：陸遠的 overlay 已經在講
+// 「船上的東西靠聲音和震動移動、別困在沒有第二出口的房間」，這兩件事 canonical
+// result 本來就講過。已經把陸遠那筆 overlay 資料本身修正過，但這裡仍然加一層
+// 通用防線，之後任何新副本、新 overlay 都受保護，不用每次都手動抓重複。
+//
+// 只用 deterministic 的字元 bigram overlap 比對，不呼叫 LLM 判斷語意——理由跟
+// referenceTerms() 一致：這是會影響「這段文字算不算合法演出」的判斷，必須可重現、
+// 可測試，不能交給模型臨場決定。
+function normalizeForOverlap(text) {
+  return String(text ?? "")
+    .normalize("NFKC")
+    .replace(/[\s　]+/g, "")
+    .replace(/[，。！？「」『』：；、,.!?:;"'()（）\[\]【】]/gu, "");
+}
+
+function splitSentences(text) {
+  return String(text ?? "")
+    .split(/(?<=[。！？\n])/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+}
+
+function bigramSet(text) {
+  const normalized = normalizeForOverlap(text);
+  const grams = new Set();
+  for (let i = 0; i < normalized.length - 1; i += 1) grams.add(normalized.slice(i, i + 2));
+  if (grams.size === 0 && normalized.length > 0) grams.add(normalized);
+  return grams;
+}
+
+function overlapRatio(a, b) {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  const [smaller, larger] = a.size <= b.size ? [a, b] : [b, a];
+  for (const gram of smaller) if (larger.has(gram)) shared += 1;
+  return shared / smaller.size;
+}
+
+/**
+ * 只在候選文字對既有段落「有新意」時才附加；重複句子會被逐句過濾掉，
+ * 不會整段丟棄，也不會改寫 canonical result 本身一個字。
+ */
+export function appendDistinctNarrativePart(parts, candidate, { threshold = 0.78 } = {}) {
+  const candidateText = String(candidate ?? "").trim();
+  if (!candidateText) return parts;
+  const baseSentences = parts.flatMap((part) => splitSentences(part)).map(bigramSet);
+  const freshSentences = splitSentences(candidateText).filter((sentence) => {
+    const grams = bigramSet(sentence);
+    return !baseSentences.some((baseGrams) => overlapRatio(grams, baseGrams) >= threshold);
+  });
+  if (!freshSentences.length) return parts;
+  return [...parts, freshSentences.join("")];
+}
+
 export function resolveCanonicalNarrative({
   reference,
   state,
@@ -596,8 +653,15 @@ export function resolveCanonicalNarrative({
       })
     : null;
 
-  const parts = [String(applied.resultText).trim()];
-  if (overlay?.text && overlay.text.trim() !== parts[0]) parts.push(overlay.text.trim());
+  let parts = [String(applied.resultText).trim()];
+  let overlayApplied = false;
+  if (overlay?.text) {
+    const withOverlay = appendDistinctNarrativePart(parts, overlay.text.trim());
+    if (withOverlay.length > parts.length) {
+      parts = withOverlay;
+      overlayApplied = true;
+    }
+  }
 
   let sceneEntryIncluded = false;
   const nextSceneId = applied.nextSceneId ?? null;
@@ -609,15 +673,18 @@ export function resolveCanonicalNarrative({
   ) {
     const nextScene = findScene(reference, nextSceneId);
     const entryText = narrativeEntryText(nextScene).trim();
-    if (entryText && !parts.includes(entryText)) {
-      parts.push(entryText);
-      sceneEntryIncluded = true;
+    if (entryText) {
+      const withEntry = appendDistinctNarrativePart(parts, entryText);
+      if (withEntry.length > parts.length) {
+        parts = withEntry;
+        sceneEntryIncluded = true;
+      }
     }
   }
 
-  const source = overlay && sceneEntryIncluded
+  const source = overlayApplied && sceneEntryIncluded
     ? "canonical_result_with_overlay_and_scene_entry"
-    : overlay
+    : overlayApplied
       ? "canonical_result_with_overlay"
       : sceneEntryIncluded
         ? "canonical_result_with_scene_entry"
