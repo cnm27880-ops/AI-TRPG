@@ -9,7 +9,8 @@ import { getDownState } from "../../content/downState.js";
 import { appendChronicle } from "../../content/storage/chronicle.js";
 import { appendEvent, EVENT_TYPES } from "../../core/eventLog.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
-import { spendChapterTime } from "../../content/scenario/progress.js";
+import { spendChapterTime, completeNodeAndAdvance } from "../../content/scenario/progress.js";
+import { creditNodeReward } from "../../content/scenario/settlement.js";
 import { isExpired, timeStatus } from "../../content/scenario/timeBudget.js";
 import { applyDirectThreatDelta, threatSummary } from "../../content/scenario/threat.js";
 import { scenarioHudView } from "../../content/scenario/hudView.js";
@@ -102,8 +103,15 @@ export async function onRequestPost(context) {
 
   const pack = session.scenario ? getScenarioPack(session.scenario.packId) : null;
   const reference = getScenarioReference(pack);
-  if (!pack || !reference || reference.sourcePackId !== "scenario.nostromo-01-v2") {
-    return error({ error: "目前只有 V2 異形副本支援 server-authoritative exploration travel。" }, 409);
+  // 支援條件是資料層能力，不是副本白名單：只要 reference 帶著地圖與已授權的 route，
+  // server-authoritative 探索移動就適用（第二副本之後不需要再改這裡）。
+  const travelReady =
+    Boolean(pack) &&
+    reference?.sourcePackId === pack?.id &&
+    Array.isArray(reference?.map) && reference.map.length > 0 &&
+    Array.isArray(reference?.travelTransitions) && reference.travelTransitions.length > 0;
+  if (!travelReady) {
+    return error({ error: "這個副本沒有可供 server 驗證的探索地圖，無法使用探索移動。" }, 409);
   }
   if (session.pendingTurn) {
     return error({
@@ -116,7 +124,7 @@ export async function onRequestPost(context) {
     return error({
       code: "COMBAT_REQUIRED",
       combatRequired: true,
-      error: "異形已經接觸玩家，必須先進入戰鬥，不能繼續普通移動。",
+      error: "威脅已經接觸玩家，必須先進入戰鬥，不能繼續普通移動。",
     }, 409);
   }
 
@@ -165,13 +173,40 @@ export async function onRequestPost(context) {
   const travelResult = applyTravelAction(reference, referenceState, resolution);
   if (!travelResult.applied) return error({ error: travelResult.error }, 409);
 
-  const nextProgressBeforeThreat = spendChapterTime(progress, resolution.timeCost, "船艦移動");
+  const nextProgressBeforeThreat = spendChapterTime(progress, resolution.timeCost, "區域移動");
   const threatChange = applyDirectThreatDelta(nextProgressBeforeThreat.threat, resolution.risk.threatDelta);
-  const nextProgress = {
+  let nextProgress = {
     ...nextProgressBeforeThreat,
     threat: threatChange.track,
     pendingCombat: Boolean(nextProgressBeforeThreat.pendingCombat || threatChange.contact),
   };
+
+  // [非線性副本] 有些副本的主線節點是「區域」而不是「單一事件鏈」：玩家可能先繞去別的模組，
+  // 再回頭處理原本的節點。這種副本可以在 reference 宣告 travelCompletesNodes，
+  // 讓「從某節點的場景走進另一個節點的場景」本身就是那個節點的完成信號。
+  // 沒有宣告的副本（Alien V2）行為完全不變；前置與重複結算仍由 completeNodeAndAdvance 查驗。
+  let travelNodeCompleted = null;
+  const departingNodeId = resolution.fromScene?.nodeId ?? null;
+  const arrivingNodeId = resolution.nextScene?.nodeId ?? null;
+  if (reference?.travelCompletesNodes && departingNodeId && arrivingNodeId && departingNodeId !== arrivingNodeId) {
+    const departingNode = (pack.entries ?? [])
+      .flatMap((chapter) => chapter.nodes ?? [])
+      .find((node) => node.id === departingNodeId && !node.isFinale);
+    if (departingNode && !nextProgress.nodes?.[departingNode.id]?.completed) {
+      const settled = completeNodeAndAdvance(pack, nextProgress, departingNode.id, 0);
+      if (settled.ok) {
+        nextProgress = settled.progress;
+        const credited = creditNodeReward(session.wallet, settled.reward, departingNode.title);
+        session.wallet = credited.wallet;
+        travelNodeCompleted = {
+          nodeId: departingNode.id,
+          title: departingNode.title,
+          divergenceTier: 0,
+          reward: settled.reward,
+        };
+      }
+    }
+  }
   const nextReferenceState = travelResult.state;
   const nextOptions = buildReferenceOptions(reference, nextReferenceState);
   const turn = (session.turns ?? 0) + 1;
@@ -200,6 +235,22 @@ export async function onRequestPost(context) {
     nodeId: scenarioHudView(pack, nextProgress)?.activeNode?.id ?? null,
     scenarioId: pack.id,
   });
+
+  if (travelNodeCompleted) {
+    appendEvent(
+      session.log,
+      EVENT_TYPES.NODE_COMPLETE,
+      travelNodeCompleted,
+      { timestamp, scenarioId: pack.id, turn }
+    );
+    appendEvent(
+      session.log,
+      EVENT_TYPES.POINTS_GRANT,
+      { total: travelNodeCompleted.reward, reason: `完成節點「${travelNodeCompleted.title}」` },
+      { timestamp, scenarioId: pack.id, turn }
+    );
+    warnings.push(`你離開了「${travelNodeCompleted.title}」的現場，這個階段已經結算。`);
+  }
 
   appendEvent(
     session.log,
@@ -284,6 +335,7 @@ export async function onRequestPost(context) {
       arrivalText: systemNarration,
       arrivalSourceEventIds: travelResult.arrivalSourceEventIds,
     },
+    ...(travelNodeCompleted ? { nodeCompleted: travelNodeCompleted } : {}),
     ...(nextProgress.pendingCombat ? { combatRequired: true } : {}),
   };
   if (requestId) {

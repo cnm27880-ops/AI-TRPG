@@ -227,13 +227,16 @@ function transitionBlockedFlags(transition, state) {
 function riskFor(reference, state, targetLocationId) {
   const items = new Set(asArray(state?.inventory));
   const flags = flagsOf(state);
-  const matched = TRAVEL_RISK_RULES.filter((rule) => {
-    if (!rule.locations.includes(targetLocationId)) return false;
+  // 副本可以在 reference.travelRiskRules 宣告自己的路線風險；沒有宣告時沿用 Alien V2 的內建規則。
+  const rules = Array.isArray(reference?.travelRiskRules) ? reference.travelRiskRules : TRAVEL_RISK_RULES;
+  const matched = rules.filter((rule) => {
+    if (!asArray(rule?.locations).includes(targetLocationId)) return false;
+    if (rule.from?.length && !rule.from.includes(state?.currentLocation)) return false;
     if (rule.absentItems?.some((item) => items.has(item))) return false;
     if (rule.flags?.some((flag) => !flags.has(flag))) return false;
     return true;
   });
-  const threatDelta = matched.reduce((sum, rule) => sum + rule.threatDelta, 0);
+  const threatDelta = matched.reduce((sum, rule) => sum + (Number(rule.threatDelta) || 0), 0);
   return {
     level: threatDelta >= 2 ? "high" : threatDelta === 1 ? "elevated" : "low",
     threatDelta,
@@ -303,6 +306,7 @@ export function resolveTravelAction(reference, state, targetLocationId) {
     from: currentLocation,
     to: target.id,
     target,
+    fromScene: asArray(reference?.scenes).find((item) => item?.id === state?.currentSceneId) ?? null,
     timeCost: TRAVEL_COST,
     risk,
     transitionId: transition.id ?? null,

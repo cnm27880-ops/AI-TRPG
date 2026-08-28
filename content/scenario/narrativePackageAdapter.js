@@ -4,10 +4,18 @@
 // 仍是事件、effects、位置、物品、威脅與結局的唯一真相。
 // 尚未完成 canonical mapping 的內容保留在 package 中，但不會自動被 runtime 使用。
 
-import contentPackage from "./examples/alienNostromo_v2_contentPackage.js";
+import alienContentPackage from "./examples/alienNostromo_v2_contentPackage.js";
+import jurassicParkContentPackage from "./examples/jurassicPark_v1_contentPackage.js";
 
-const SUPPORTED_SOURCE_PACK_ID = "scenario.nostromo-01-v2";
+// 每個副本各自的演出素材包，用 sourcePackId 對照。新副本要接演出素材時，
+// 在這裡多登記一筆就好，不用改下面任何一個 export function。
+const CONTENT_PACKAGES = Object.freeze({
+  "scenario.nostromo-01-v2": alienContentPackage,
+  "scenario.jurassic-park-01-v1": jurassicParkContentPackage,
+});
 
+// Alien V2 專用的場景→NPC 對照表（沒有在 reference.npcs[] 宣告
+// contactFlags／presenceScenes 的舊副本，繼續吃這張表）。
 const SCENE_NPCS = Object.freeze({
   evt_deck_a_recon: ["npc_luyuan"],
   evt_meet_ash: ["npc_ash"],
@@ -37,44 +45,40 @@ function flagsOf(state) {
   return new Set(Array.isArray(state?.flags) ? state.flags : []);
 }
 
-function sourceMatches(reference) {
-  return reference?.sourcePackId === SUPPORTED_SOURCE_PACK_ID;
-}
-
-function packageLocationById(packageId) {
-  const approved = contentPackage.approvedExplorationGap?.locations ?? [];
+function packageLocationById(pack, packageId) {
+  const approved = pack.approvedExplorationGap?.locations ?? [];
   return approved.find((item) => item?.locationId === packageId || item?.id === packageId)
-    ?? contentPackage.locations.find((item) => item?.id === packageId)
+    ?? (pack.locations ?? []).find((item) => item?.id === packageId)
     ?? null;
 }
 
-function packageTransitionById(packageId) {
-  const approved = contentPackage.approvedExplorationGap?.transitions ?? [];
+function packageTransitionById(pack, packageId) {
+  const approved = pack.approvedExplorationGap?.transitions ?? [];
   return approved.find((item) => item?.routeId === packageId || item?.id === packageId)
-    ?? contentPackage.transitions.find((item) => item?.id === packageId)
+    ?? (pack.transitions ?? []).find((item) => item?.id === packageId)
     ?? null;
 }
 
-function packageNpcById(npcId) {
-  return contentPackage.npcs.find((item) => item?.id === npcId) ?? null;
+function packageNpcById(pack, npcId) {
+  return (pack.npcs ?? []).find((item) => item?.id === npcId) ?? null;
 }
 
 export function narrativePackageFor(reference) {
-  return sourceMatches(reference) ? contentPackage : null;
+  return CONTENT_PACKAGES[reference?.sourcePackId] ?? null;
 }
 
 export function narrativeLocationFor(reference, canonicalLocationId) {
   const pack = narrativePackageFor(reference);
   const mapping = pack?.canonicalLocationMap?.[canonicalLocationId];
-  if (!mapping?.packageId || !["direct", "alias"].includes(mapping.status)) return null;
-  return packageLocationById(mapping.packageId);
+  if (!pack || !mapping?.packageId || !["direct", "alias"].includes(mapping.status)) return null;
+  return packageLocationById(pack, mapping.packageId);
 }
 
 export function narrativeTransitionFor(reference, canonicalTransitionId) {
   const pack = narrativePackageFor(reference);
   const mapping = pack?.canonicalRouteMap?.[canonicalTransitionId];
-  if (!mapping?.packageId || !["direct", "alias"].includes(mapping.status)) return null;
-  return packageTransitionById(mapping.packageId);
+  if (!pack || !mapping?.packageId || !["direct", "alias"].includes(mapping.status)) return null;
+  return packageTransitionById(pack, mapping.packageId);
 }
 
 function locationVariant(location, state) {
@@ -188,9 +192,25 @@ export function narrativeMajorSceneVariant(reference, {
   };
 }
 
+// 副本可以在 reference.npcs[] 宣告 contactFlags／presenceScenes（見 referenceAdapter.js
+// 的 npcHasPublicContact，同一套宣告兩邊共用）；沒有宣告的舊副本（Alien V2）
+// 繼續吃檔頭那張寫死的 SCENE_NPCS 對照表，行為完全不變。
+function declaredContactIds(reference, state) {
+  const flags = new Set(Array.isArray(state?.flags) ? state.flags : []);
+  const sceneId = state?.currentSceneId;
+  return (reference?.npcs ?? [])
+    .filter((npc) => Array.isArray(npc?.contactFlags) || Array.isArray(npc?.presenceScenes))
+    .filter((npc) =>
+      (npc.contactFlags ?? []).some((flag) => flags.has(flag)) ||
+      (npc.presenceScenes ?? []).includes(sceneId)
+    )
+    .map((npc) => npc.id);
+}
+
 function publicContactIds(reference, state) {
   const sceneId = state?.currentSceneId;
-  const sceneNpcIds = SCENE_NPCS[sceneId] ?? [];
+  const declared = declaredContactIds(reference, state);
+  const sceneNpcIds = declared.length ? declared : (SCENE_NPCS[sceneId] ?? []);
   const canonicalIds = new Set((reference?.npcs ?? []).map((npc) => npc?.id).filter(Boolean));
   return sceneNpcIds.filter((id) => {
     if (!canonicalIds.has(id)) return false;
@@ -236,7 +256,7 @@ export function buildNarrativeNpcPromptBlock(reference, state) {
   const pack = narrativePackageFor(reference);
   if (!pack) return "";
   const entries = publicContactIds(reference, state)
-    .map((npcId) => safeNpcFields(packageNpcById(npcId), npcId, state))
+    .map((npcId) => safeNpcFields(packageNpcById(pack, npcId), npcId, state))
     .filter(Boolean);
   if (!entries.length) return "";
 
@@ -266,11 +286,11 @@ export function narrativePackageCoverage(reference) {
   const pack = narrativePackageFor(reference);
   if (!pack) return null;
   return {
-    locations: pack.locations.length,
-    transitions: pack.transitions.length,
-    npcs: pack.npcs.length,
-    mappedLocations: Object.values(pack.canonicalLocationMap).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
-    mappedTransitions: Object.values(pack.canonicalRouteMap).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
+    locations: (pack.locations ?? []).length,
+    transitions: (pack.transitions ?? []).length,
+    npcs: (pack.npcs ?? []).length,
+    mappedLocations: Object.values(pack.canonicalLocationMap ?? {}).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
+    mappedTransitions: Object.values(pack.canonicalRouteMap ?? {}).filter((item) => item?.packageId && ["direct", "alias"].includes(item.status)).length,
     approvedLocations: pack.approvedExplorationGap?.locations?.length ?? 0,
     approvedTransitions: pack.approvedExplorationGap?.transitions?.length ?? 0,
     approvedMajorSceneVariants: pack.approvedMajorSceneVariants?.variants?.length ?? 0,
