@@ -26,6 +26,11 @@ import {
 } from "../content/scenario/referenceAdapter.js";
 import { resolveTravelAction, applyTravelAction } from "../content/scenario/explorationState.js";
 import { deriveQualityScore } from "../content/scenario/settlement.js";
+import {
+  narrativePackageFor,
+  buildNarrativeNpcPromptBlock,
+  narrativePackageCoverage,
+} from "../content/scenario/narrativePackageAdapter.js";
 
 const REFERENCE = runtimeReference;
 
@@ -268,6 +273,17 @@ test("帶出事故證據會計入品質分數（結算旗標不再只認異形�
     npcStatuses: {},
   });
   assert.equal(withEvidence - withoutEvidence, 20);
+});
+
+test("NPC 演出素材包已註冊，但目前是空殼：不影響回合、也不會噴錯", () => {
+  const state = createReferenceState(REFERENCE);
+  const pack = narrativePackageFor(REFERENCE);
+  assert.equal(pack?.sourcePackId, "scenario.jurassic-park-01-v1");
+  assert.deepEqual(pack.npcs, [], "Gemini 對白尚未貼入前，npcs 應該是空陣列");
+  // 空殼不該讓 prompt block 噴錯，只是先回傳空字串（等同於完全沒有這份資料時的行為）。
+  const contacted = { ...state, flags: ["flag_radio_contact_established"] };
+  assert.equal(buildNarrativeNpcPromptBlock(REFERENCE, contacted), "");
+  assert.equal(narrativePackageCoverage(REFERENCE).npcs, 0);
 });
 
 test("回歸：異形副本沒有宣告 endingRules，仍走內建判定", () => {
