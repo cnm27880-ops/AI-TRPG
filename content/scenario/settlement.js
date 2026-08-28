@@ -138,6 +138,8 @@ export function deriveSpeedBonus(pack, progress) {
  * 品質分數只使用完成節點、扭轉度與 reference 已保存的可驗證狀態，作為未來品質榜的穩定基礎。
  * 這不是排行榜 API；它只是結算時不可變的 server-computed 欄位。
  */
+const EVIDENCE_FLAGS = Object.freeze(["flag_937_evidence_saved", "flag_evidence_secured"]);
+
 export function deriveQualityScore(pack, progress, referenceState = null) {
   const completed = Object.entries(progress?.nodes ?? {}).filter(([, node]) => node?.completed);
   const nodeScore = completed.reduce(
@@ -148,7 +150,8 @@ export function deriveQualityScore(pack, progress, referenceState = null) {
     (pack?.entries ?? []).flatMap((chapter) => (chapter.nodes ?? []).filter((node) => node.isFinale).map((node) => node.id))
   );
   const finaleBonus = completed.some(([id]) => finaleIds.has(id)) ? 50 : 0;
-  const evidenceBonus = referenceState?.flags?.includes("flag_937_evidence_saved") ? 20 : 0;
+  // 「把可驗證的事故證據帶出副本」的加分。各副本用自己的旗標命名，這裡列出已註冊的來源。
+  const evidenceBonus = EVIDENCE_FLAGS.some((flag) => referenceState?.flags?.includes(flag)) ? 20 : 0;
   const sampleBonus = referenceState?.sampleStatus === "preserved" ? 20 : 0;
   const survivorBonus = Object.values(referenceState?.npcStatuses ?? {}).some((status) => status === "survived") ? 10 : 0;
   return nodeScore + finaleBonus + evidenceBonus + sampleBonus + survivorBonus;

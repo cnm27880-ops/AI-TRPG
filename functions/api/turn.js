@@ -1459,40 +1459,52 @@ async function executeTurn(context, streamHooks = null) {
     }
 
     let nodeCompleted = null;
+    // 非線性副本可能在「目前主線節點」以外的節點上先完成事件（例如玩家先繞去實驗室、
+    // 之後才回頭恢復供電）。reference 的 nodeComplete 是 server 依事件資料算出來的事實，
+    // 所以允許它結算自己指名的那個節點；前置與重複結算仍由 completeNodeAndAdvance 查驗。
+    // AI 自己宣稱的 nodeComplete 一律只能用在目前主線節點上。
+    const referenceNodeId = referenceApplied?.nodeComplete?.nodeId ?? null;
+    const referenceNode =
+      referenceNodeId && referenceNodeId !== activeNode?.id
+        ? (scenarioPack.entries ?? [])
+            .flatMap((chapter) => chapter.nodes ?? [])
+            .find((node) => node.id === referenceNodeId && !node.isFinale && !progress.nodes?.[node.id]?.completed) ?? null
+        : null;
+    const settlementNode = referenceNode ?? activeNode;
     // 一般節點可由 reference scene 或 AI 的 nodeComplete 結算；最終戰節點仍不接受
     // AI 單靠文字完成。唯一例外是 reference 明確完成了資料定義的 final purge，
     // 或 /api/combat/* 回報實際戰鬥勝利（後者在 combat/act.js 處理）。
-    if (activeNode && parsed.ok && (!activeNode.isFinale || referenceApplied?.finaleComplete)) {
-      const signal = activeNode.isFinale
+    if (settlementNode && parsed.ok && (!settlementNode.isFinale || referenceApplied?.finaleComplete)) {
+      const signal = settlementNode.isFinale
         ? (referenceApplied?.finaleComplete ? { tier: 0 } : null)
-        : (referenceApplied?.nodeComplete?.nodeId === activeNode.id
+        : (referenceApplied?.nodeComplete?.nodeId === settlementNode.id
           ? { tier: referenceApplied.nodeComplete.divergenceTier }
           : referenceFreeInputPending
             ? null
             : validateNodeComplete(parsed.data.nodeComplete));
       if (signal) {
-        const result = completeNodeAndAdvance(scenarioPack, progress, activeNode.id, signal.tier);
+        const result = completeNodeAndAdvance(scenarioPack, progress, settlementNode.id, signal.tier);
         if (result.ok) {
           progress = result.progress;
           // 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
           // 在錢包進存檔之前這裡沒有地方放它，只好塞進 character.xp；現在放回該去的地方。
           // XP 改由副本通關時結算，見 content/scenario/settlement.js 的檔頭。
-          const credited = creditNodeReward(session.wallet, result.reward, activeNode.title);
+          const credited = creditNodeReward(session.wallet, result.reward, settlementNode.title);
           session.wallet = credited.wallet;
           const ts = new Date().toISOString();
           appendEvent(
             session.log,
             EVENT_TYPES.NODE_COMPLETE,
-            { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward },
+            { nodeId: settlementNode.id, title: settlementNode.title, divergenceTier: signal.tier, reward: result.reward },
             { timestamp: ts, scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
           );
           appendEvent(
             session.log,
             EVENT_TYPES.POINTS_GRANT,
-            { total: credited.credited, reason: `完成節點「${activeNode.title}」` },
+            { total: credited.credited, reason: `完成節點「${settlementNode.title}」` },
             { timestamp: ts, scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
           );
-          nodeCompleted = { nodeId: activeNode.id, title: activeNode.title, divergenceTier: signal.tier, reward: result.reward };
+          nodeCompleted = { nodeId: settlementNode.id, title: settlementNode.title, divergenceTier: signal.tier, reward: result.reward };
         } else {
           // 查驗失敗不當成硬錯誤：AI可能判斷錯了時機，忽略這次信號，遊戲照常繼續。
           // 但要讓玩家看得到——不然他只會覺得「我明明做完了，進度條為什麼不動」。
@@ -1500,7 +1512,7 @@ async function executeTurn(context, streamHooks = null) {
             where: "POST /api/turn",
             sessionId: session.id,
             packId: scenarioPack.id,
-            nodeId: activeNode.id,
+            nodeId: settlementNode.id,
             reason: result.error,
           }));
           scenarioWarnings.push(`本回合的節點結算被引擎擋下：${result.error}`);

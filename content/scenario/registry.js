@@ -9,12 +9,15 @@ import { validateScenarioPack } from "./schema.js";
 import { ECHO_INSTITUTE_SCENARIO } from "./examples/echoInstitute.js";
 import { NOSTROMO_SCENARIO_V2 } from "./examples/alienNostromo_v2.js";
 import NOSTROMO_REFERENCE from "./examples/alienNostromo_v2_gm_reference.js";
+import { ISLA_NUBLAR_SCENARIO_V1 } from "./examples/jurassicPark_v1.js";
+import ISLA_NUBLAR_REFERENCE from "./examples/jurassicPark_v1_gm_reference.js";
 
 // V1 已退役，不再註冊或提供給 generic runtime；舊存檔由 API guard 明確拒絕。
-const ALL_PACKS = [NOSTROMO_SCENARIO_V2, ECHO_INSTITUTE_SCENARIO];
+const ALL_PACKS = [NOSTROMO_SCENARIO_V2, ISLA_NUBLAR_SCENARIO_V1, ECHO_INSTITUTE_SCENARIO];
 
 const SCENARIO_REFERENCES = Object.freeze({
   "reference.alien-nostromo-01-v2": NOSTROMO_REFERENCE,
+  "reference.jurassic-park-01-v1": ISLA_NUBLAR_REFERENCE,
 });
 
 export const SCENARIO_REGISTRY = {};

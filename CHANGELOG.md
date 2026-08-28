@@ -2,6 +2,36 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [CONTENT-2026.08.28] — 第二副本《努布拉島：維修站撤離》接入
+
+**影響範圍：** `content/scenario/examples/jurassicPark_v1*`、`content/scenario/registry.js`、`content/scenario/referenceAdapter.js`、`content/scenario/explorationState.js`、`content/scenario/settlement.js`、`functions/api/travel.js`、`functions/api/turn.js`、`validate_jurassic_v1.mjs`、`test/jurassicParkV1.test.js`、`docs/JURASSIC_PARK_V1_AUTHORING_AUDIT.md`
+
+**變更性質：** 新增一個內建副本，並把引擎裡原本寫死給異形副本的判定改成由 reference 資料宣告。判定公式、骰池、存檔格式與角色數值計算不變。
+
+### 新增
+
+- 第二個內建副本 `scenario.jurassic-park-01-v1`《努布拉島：維修站撤離》：5 個地點、12 條路線、7 個事件、16+ 條進路、140 個結果位置、3 名 NPC、6 件道具、7 條線索、3 個未解問題、6 個結局。難度「中等」，時間預算 40 回合。
+- `validate_jurassic_v1.mjs`：依 `docs/SCENARIO_VALIDATION_SPEC.md` 第 3 節輸出報告契約，另外擋下「失敗沒有造成任何局勢改變」「線索沒有 canonical 來源」「NPC 秘密外洩到玩家可見文字」三類問題。
+- `docs/JURASSIC_PARK_V1_AUTHORING_AUDIT.md`：接入審核紀錄，含 proposal → canonical 的每一項轉換決定與尚未完成的項目。
+
+### 調整（全部向後相容，未宣告新欄位的副本行為不變）
+
+| 位置 | 原本 | 現在 |
+|---|---|---|
+| `referenceAdapter.deriveEndingId` | 寫死異形副本的旗標與結局 | 副本可用 `endingRules` 宣告有序判定表 |
+| `referenceAdapter` 最終戰 | 寫死 `airlockPhase=secured` 且 `flag_xenomorph_killed` | 副本可用 `finaleCompletion` / `finaleVictory` 宣告 |
+| `referenceAdapter` 狀態軸 | 起始值寫死 | 副本可用 `initialStateAxes` 覆寫引擎已知的軸 |
+| `referenceAdapter` NPC 名冊 | 寫死五名異形副本 NPC 的接觸旗標與場景 | 副本可用 `npcs[].contactFlags` / `presenceScenes` 宣告 |
+| `referenceAdapter` 地點用途／事件標題 | 只有異形副本的對照表 | 改為優先讀 `map[].playerVisible` 與 `scenes[].title` |
+| `explorationState` 路線風險 | 寫死異形副本的四條規則 | 副本可用 `travelRiskRules` 宣告，並支援依出發地區分風險 |
+| `settlement` 證據加分 | 只認 `flag_937_evidence_saved` | 加上通用的 `flag_evidence_secured` |
+| `POST /api/travel` | 只允許 `scenario.nostromo-01-v2` | 改為檢查 reference 是否具備地圖與已授權 route |
+| `POST /api/turn` 節點結算 | 只結算目前主線節點 | reference 明確完成的節點可以結算自己指名的節點（前置與重複結算仍由 `completeNodeAndAdvance` 查驗）；AI 自己宣稱的 `nodeComplete` 仍只能用在目前主線節點上 |
+
+### 測試
+
+新增 `test/jurassicParkV1.test.js`（15 項），涵蓋主線三個節點依序結算、最終戰完成信號、六個結局的 state 推導、移動的相鄰與前置檢查、風險規則差異、公開視圖不洩漏 `gmTruth` 與 NPC 秘密，以及一項異形副本的回歸。全套測試 1047 項通過；`validate_alien_v2.mjs`、`validate_jurassic_v1.mjs` 與 Cloudflare Functions build 均通過。
+
 ## [FIX-2026.08.27] — 全頁排查：接不上的線與會被自己抹掉的 UI
 
 **影響範圍：** `public/app.js`、`public/index.html`、`public/sw.js`、`functions/api/godspace/enter.js`、`test/frontendRegressions.test.js`

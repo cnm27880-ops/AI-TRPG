@@ -195,6 +195,34 @@ function initialNpcStatuses(reference) {
   );
 }
 
+/** 引擎已知的狀態軸；reference 只能覆寫這些欄位的起始值與 effects。 */
+const STATE_AXIS_KEYS = Object.freeze(["infectionStatus", "sampleStatus", "shipStatus", "airlockPhase"]);
+
+/**
+ * reference 可宣告的狀態條件（結局規則、最終戰完成條件共用）。
+ * 只讀 server 已保存的 state，不接受模型或前端輸入。
+ */
+export function matchReferenceCondition(condition, state) {
+  if (!condition || typeof condition !== "object") return false;
+  if (Array.isArray(condition.any)) {
+    if (!condition.any.some((nested) => matchReferenceCondition(nested, state))) return false;
+  }
+  const flags = flagSet(state);
+  if ((condition.allFlags ?? []).some((flag) => !flags.has(flag))) return false;
+  if (condition.anyFlags?.length && !condition.anyFlags.some((flag) => flags.has(flag))) return false;
+  if ((condition.flagsAbsent ?? []).some((flag) => flags.has(flag))) return false;
+  for (const [key, expected] of Object.entries(condition.stateEquals ?? {})) {
+    if (String(state?.[key]) !== String(expected)) return false;
+  }
+  for (const [npcId, allowed] of Object.entries(condition.npcStatusAny ?? {})) {
+    const values = Array.isArray(allowed) ? allowed : [allowed];
+    if (!values.includes(state?.npcStatuses?.[npcId])) return false;
+  }
+  if (condition.locations?.length && !condition.locations.includes(state?.currentLocation)) return false;
+  if (condition.locationsAbsent?.length && condition.locationsAbsent.includes(state?.currentLocation)) return false;
+  return true;
+}
+
 export function createReferenceState(reference, { initialInventory = [] } = {}) {
   const scene = firstScene(reference);
   const initialState = {
@@ -235,6 +263,11 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     sceneTurnCount: 0,
     actionHistory: [],
     endingId: null,
+    // 副本可以覆寫狀態軸的起始值（例如侏羅紀副本一開場就是 shipStatus:"blackout"）。
+    // 只允許覆寫引擎已知的軸，避免副本資料偷渡新的 runtime 欄位。
+    ...Object.fromEntries(
+      Object.entries(reference?.initialStateAxes ?? {}).filter(([key]) => STATE_AXIS_KEYS.includes(key))
+    ),
   };
   return synchronizeExplorationState(reference, initialState);
 }
@@ -668,7 +701,7 @@ function applyBasicEffects(state, effects = {}) {
   for (const [npcId, delta] of Object.entries(effects.npcTrustDelta ?? {})) {
     next.npcTrust[npcId] = Number(next.npcTrust[npcId] ?? 0) + Number(delta ?? 0);
   }
-  for (const key of ["infectionStatus", "sampleStatus", "shipStatus", "airlockPhase", "playerLocation"]) {
+  for (const key of [...STATE_AXIS_KEYS, "playerLocation"]) {
     if (effects[key] !== undefined) {
       const target = key === "playerLocation" ? "currentLocation" : key;
       next[target] = effects[key];
@@ -759,6 +792,13 @@ function sceneIsLastForNode(reference, scene) {
 }
 
 export function deriveEndingId(reference, state) {
+  // 副本可以用資料宣告自己的結局判定順序；沒有宣告時沿用 Alien V2 的內建規則。
+  if (Array.isArray(reference?.endingRules) && reference.endingRules.length) {
+    const matched = reference.endingRules.find(
+      (rule) => rule?.endingId && matchReferenceCondition(rule, state)
+    );
+    return matched?.endingId ?? null;
+  }
   const flags = flagSet(state);
   const npcSurvived = Object.values(state?.npcStatuses ?? {}).some((status) => status === "survived");
   if (flags.has("flag_player_dead_combat")) return "end_death_alien_feast";
@@ -875,8 +915,9 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
   if (endingId) nextState.endingId = endingId;
   const finaleComplete =
     isFinaleScene(reference, resolution.scene) &&
-    nextState.airlockPhase === "secured" &&
-    nextState.flags.includes("flag_xenomorph_killed");
+    (reference?.finaleCompletion
+      ? matchReferenceCondition(reference.finaleCompletion, nextState)
+      : nextState.airlockPhase === "secured" && nextState.flags.includes("flag_xenomorph_killed"));
 
   return {
     applied: true,
@@ -1033,6 +1074,16 @@ function npcHasPublicContact(npc, state) {
   if (["met", "injured", "critical", "destroyed", "dead", "survived", "suspicious"].includes(status)) return true;
 
   const flags = flagSet(state);
+  // 副本可以在 reference.npcs[].contactFlags / presenceScenes 自行宣告接觸條件；
+  // 沒有宣告時沿用 Alien V2 的內建對照表。
+  const declaredFlags = Array.isArray(npc?.contactFlags) ? npc.contactFlags : null;
+  const declaredScenes = Array.isArray(npc?.presenceScenes) ? npc.presenceScenes : null;
+  if (declaredFlags || declaredScenes) {
+    return (
+      (declaredFlags ?? []).some((flag) => flags.has(flag)) ||
+      (declaredScenes ?? []).includes(state?.currentSceneId)
+    );
+  }
   const contactFlags = {
     npc_luyuan: ["flag_luyuan_met"],
     npc_ash: [
@@ -1129,11 +1180,29 @@ function publicLocation(reference, locationId, visited, current, state) {
     id: location.id,
     name: location.name,
     status: isVisited ? "visited" : location.connections?.includes(current) ? "known" : "unexplored",
-    description: packageView?.description ?? (isVisited ? (location.features ?? []).slice(0, 3).join("、") : "尚未親自確認；目前只知道這是船艦上的一個區域。"),
-    purpose: packageView?.purpose ?? LOCATION_PURPOSES[location.id] ?? "調查此區域並確認可用路線",
-    ...(packageView?.atmosphere ? { atmosphere: packageView.atmosphere } : {}),
-    ...(packageView?.landmarks?.length ? { landmarks: packageView.landmarks } : {}),
-    ...(packageView?.hazardHints?.length ? { hazardHints: packageView.hazardHints } : {}),
+    description:
+      packageView?.description ??
+      (isVisited
+        ? location.playerVisible?.firstArrival ?? (location.features ?? []).slice(0, 3).join("、")
+        : "尚未親自確認；目前只知道這是副本地圖上的一個區域。"),
+    purpose:
+      packageView?.purpose ??
+      location.playerVisible?.playerPurpose ??
+      LOCATION_PURPOSES[location.id] ??
+      "調查此區域並確認可用路線",
+    ...(packageView?.atmosphere ?? location.playerVisible?.atmosphere
+      ? { atmosphere: packageView?.atmosphere ?? location.playerVisible?.atmosphere }
+      : {}),
+    ...(packageView?.landmarks?.length
+      ? { landmarks: packageView.landmarks }
+      : location.playerVisible?.knownLandmarks?.length && isVisited
+        ? { landmarks: location.playerVisible.knownLandmarks }
+        : {}),
+    ...(packageView?.hazardHints?.length
+      ? { hazardHints: packageView.hazardHints }
+      : location.playerVisible?.visibleHazardHints?.length && isVisited
+        ? { hazardHints: location.playerVisible.visibleHazardHints }
+        : {}),
     ...(packageView?.revisitVariant ? {
       revisitVariant: packageView.revisitVariant,
       revisitVariantLabel: packageView.revisitVariantLabel,
@@ -1168,13 +1237,20 @@ export function buildExplorationView(reference, state) {
   return {
     currentLocation: publicLocation(reference, current, visited, current, state),
     currentEvent: currentScene
-      ? { id: currentScene.id, label: SCENE_LABELS[currentScene.id] ?? "目前事件" }
+      ? { id: currentScene.id, label: currentScene.title ?? SCENE_LABELS[currentScene.id] ?? "目前事件" }
       : null,
-    objective: LOCATION_PURPOSES[current] ?? "確認目前環境並決定下一步",
+    objective:
+      currentMap?.playerVisible?.playerPurpose ??
+      LOCATION_PURPOSES[current] ??
+      "確認目前環境並決定下一步",
     visitedLocations: visited,
     knownLocations,
     nearbyRoutes,
     nearbyNpcs: publicNpcRoster(reference, state).filter((npc) => {
+      const declared = (reference?.npcs ?? []).find((entry) => entry?.id === npc.id)?.presenceScenes;
+      if (Array.isArray(declared)) {
+        return declared.includes(state?.currentSceneId) || state?.npcStatuses?.[npc.id] !== "alive";
+      }
       const sceneIds = {
         npc_luyuan: ["evt_deck_a_recon", "evt_ash_ambush", "evt_hypersleep_return"],
         npc_ash: ["evt_meet_ash", "evt_ash_ambush"],
@@ -1236,6 +1312,20 @@ export function referenceEventSummary(reference, state) {
  * 戰鬥勝負仍完全由 combat engine 決定；這裡只把已確定的勝利轉成副本世界狀態。
  */
 export function applyReferenceFinaleVictory(reference, state) {
+  // 副本可以用資料宣告戰鬥勝利後要套用的世界狀態；沒有宣告時沿用 Alien V2 的內建收尾。
+  const declared = reference?.finaleVictory ?? null;
+  if (declared) {
+    const applied = applyBasicEffects(state, declared.effects ?? {});
+    const nextScene = findScene(reference, declared.nextSceneId);
+    return synchronizeExplorationState(reference, {
+      ...applied,
+      currentSceneId: nextScene?.id ?? applied.currentSceneId,
+      currentLocation: nextScene?.location ?? applied.currentLocation,
+      lastApproachId: declared.lastApproachId ?? "combat.finale",
+      lastOutcomeTier: declared.lastOutcomeTier ?? "戰鬥勝利",
+      completedSceneIds: unique([...applied.completedSceneIds, ...(declared.completedSceneIds ?? [])]),
+    });
+  }
   const next = applyBasicEffects(state, {
     worldFlagsAdd: ["flag_xenomorph_killed"],
     airlockPhase: "secured",
