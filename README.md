@@ -182,6 +182,9 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 | `CHANGELOG.md` | 已推送版本的介面變更、測試結果與後續動畫設計提案 |
 | `UI_LAYOUT_REVIEW.md` | 故事流、決策卡與桌面版面設計審查 |
 | `UI_AUDIT_NOTES.md` | UI 實測尺寸、瀏覽器驗證與迭代紀錄 |
+| `ROADMAP.md` | 主神空間與跨副本世界的現況與後續優先序 |
+| `ORIGINAL_TERMINOLOGY_RESEARCH.md` | 《無限恐怖》原作術語查證筆記，UI 用字的依據 |
+| `docs/SCENARIO_AUTHORING_STANDARD.md` / `docs/SCENARIO_VALIDATION_SPEC.md` | 新副本的固定製作流程與驗收規範（第二副本起適用） |
 
 ## AI 在這個架構裡的角色
 

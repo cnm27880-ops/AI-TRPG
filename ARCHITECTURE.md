@@ -1528,3 +1528,62 @@ schema 也不再宣告它，三則 skip 換成兩則**會執行**的測試，鎖
 
 規則書原文的專業機制仍記錄在 `RULES_DIGEST.md` 的「已知落差」，要做的時候從那裡接回來——
 接的時候三層要一起做完：`INTENT_TABLE` 的表定專業、`performCheck()` 的減半、以及玩家取得專業的入口。
+
+## 主神空間白色平台 hub 與世界觀術語校正 —— 2026-08-21
+
+一輪術語與 UI 稽核（原始查證見百度百科／維基百科／博客來對《無限恐怖》入口與世界觀的公開描述，以及專案內
+`rules-2.35.txt` 的主神空間段落）得出結論：介面用字沒有回到原作與規則書語境，主遊戲也還停留在「檔案面板」
+而不是「可進入的空間」。稽核比對了四份規則來源（`rules-2.35.txt`、`RULES_TRIM.md`、`RULES_DIGEST.md`、
+`CONVERSION_RULES.md`）確認：世界觀詞彙可以用來校正語氣，但不能把完整規則書的九維、二十二技能等內容連帶塞回
+目前六維、十技能的簡化版 UI。
+
+術語改動照建議表定案：`商店`→`主神兌換`、`錢包`→`資源`、`休息`→`修整`、`玩家角色`→`輪迴者`、
+`遭遇戰鬥`→`戰鬥開始`、`系統錯誤`→只在真正 API 錯誤時使用（不是所有狀態都叫系統錯誤）。這些詞已經是
+`public/index.html`／`public/app.js` 目前實際使用的字。
+
+UI 方向在「A：白色平台化」「B：恐怖片膠卷任務桌化」「C：保留檔案框架加物件」三案中選了 **A + C**：接受邀請後
+的主神空間改成原作的白色平台／巨大光源／遠方黑暗，`#portal-main-content` 外包成 `portal-platform`，中央放
+無互動光源，四個可互動 hub 物件（`data-hub-action="profile"／"exchange"／"mission"／"records"`）沿用既有
+`onclick` 函式，不新增資料流。副本內的 `#scenario-hud` 同時改成「輪迴者手錶」讀數容器 `#watch-hud`，
+`updateScenarioHud()` 照舊只更新既有 DOM ID，手錶只是外包裝。第一版刻意不做真正的 3D 場景或新資源系統，
+只驗證三件事：hub 有明確的「前往任務」入口而不是三個平等按鈕、手錶固定顯示位置／目標／回合／威脅、
+Decision Card 的數值退到卡片底部、行動文字才是第一眼資訊。骰子覆蓋層 `#dice-roll-overlay` 完全未改動。
+
+## V2 規則引擎：從「AI 生成選項單次推進」到「reference 世界真相＋規則引擎裁定」—— 2026-08-23
+
+單一檢定就能通關、AI 自由決定下一步的舊模式撐不住一個需要地圖、時間預算與多重威脅的副本。V2 把權責重新切開：
+`content/scenario/examples/*_gm_reference.json` 存世界真相（地圖、事件卡、approach、每個判定階層的 effects、
+NPC 知識分層、線索、未解問題、結局條件）；`content/scenario/referenceAdapter.js` 負責用這份資料裁定
+approach 命中、effects 套用、場景推進與結局判定；AI 只負責把已裁定的結果寫成敘事，不能自行決定骰子、
+effects、位置或結局（見 `docs/SCENARIO_VALIDATION_SPEC.md` 的阻擋級規則）。
+
+`content/scenario/threat.js` 把「判定成敗」接上一條會寫進存檔的迫近度軌（潛伏／追蹤／貼近／接觸四階段），
+成功買時間、失敗買不到、連續失敗跨階段——階段一變，餵給 AI 的強制敘事指令就換一段完全不同的文字，
+失敗不再是「原地再試一次」。`content/scenario/narrationGuard.js` 補上不合格時的安全重寫（最多一次），
+避免模型越界時只能整段報錯或放行。`content/scenario/explorationState.js` 把移動變成正式的 server-authoritative
+action（見 `functions/api/travel.js`）：地圖相鄰檢查、旗標前置、路線風險、抵達文字全部由 server 決定，
+AI 不能用文字新增地點或路線。
+
+《異形：生化深淵》V2（`scenario.nostromo-01-v2`）是第一個以這套架構完成的副本，後來成為預設副本；
+第二個副本《努布拉島：維修站撤離》（`scenario.jurassic-park-01-v1`）2026-08-28 接入時，把原本只為異形副本
+寫死的判定邏輯（結局規則、最終戰完成條件、NPC 接觸對照表、路線風險、地點用途）全部改成由 reference 資料
+宣告，沒有宣告的舊副本行為不變——這代表 reference schema 現在是真正可插拔的內容包格式，不是專為單一副本
+硬綁的資料形狀。新副本要照哪套流程做、要通過哪些驗證，見 `docs/SCENARIO_AUTHORING_STANDARD.md` 與
+`docs/SCENARIO_VALIDATION_SPEC.md`（取代了早期兩份一次性的 Gemini 生成指令文件）。
+
+## 受限自由行動合約與主神空間 Phase A —— 2026-08-23
+
+V2 引擎要解決兩個問題：玩家的自由文字輸入要在「不能無視」與「不能任意改世界狀態」之間找到界線；
+以及副本結算後玩家要有一個可靠的中繼點，而不是直接被丟回一個看不出狀態的首頁。
+
+第一個問題的答案是「受限自由行動合約」（`content/scenario/freeActionContract.js` 與
+`content/checkIntent.js`）：玩家輸入先被比對到最接近的 canonical approach，命中則走該 approach 的判定與
+effects；沒有命中則明確走「未命中自由行動」路徑，這一輪不授權任何持久世界改變，只能描寫嘗試的過程與阻力
+（見 `referenceAdapter.js` 的 `buildReferencePromptBlock` 對這兩種模式各自的措辭邊界）。不合格輸出不是
+無限重試，而是走一次 `narrationGuard.js` 的安全重寫，重寫仍失敗則退到不改變狀態的安全模板。
+
+第二個問題的答案是主神空間 Phase A：`GET /api/godspace`、`POST /api/godspace/enter`、
+`content/godspace/debrief.js` 的 debrief payload 白名單（只送 server 已計算好的 facts，不送 privateGoals
+或完整 reference state）、`POST /api/rest` 的擴充，加上前端的 `#portal-aftercare-panel`。這一階段的邊界很
+明確：主神人格用固定狀態文案，不做自由聊天；不做排行榜、跨副本承接或 world memory——這些留給後續，見
+`ROADMAP.md`。
