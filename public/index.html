@@ -293,6 +293,12 @@
            header 原本用 Tailwind 的 h-12 釘死高度，直接加 padding-top 會把按鈕列往外擠出可視框，
            所以這裡連同高度一起改成 min-height，讓瀏海留白時整條列自然變高，不會裁切按鈕。 */
         header.h-12 { height: auto; min-height: 3rem; padding-top: env(safe-area-inset-top, 0px); }
+        /* [2026-08-29] body 原本靠 Tailwind 的 h-screen 釘死 100vh。手機瀏覽器的
+           100vh 是「網址列收起後」的高度，網址列還在時畫面比它矮一截；body 又是
+           overflow-hidden，超出可視範圍的底部內容因此永遠滑不到——建卡頁與遊戲頁
+           底部按鈕都會被吃掉。同一份檔案其他地方（modal-panel、chronicle-panel…）
+           已經改用 dvh 修過一樣的坑，這裡把 body 補上同一個修法。 */
+        body.h-screen { height: 100dvh; }
         body { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
         #story-action-panel { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)); }
 
@@ -1322,26 +1328,31 @@
         #story-action-panel input:focus { border-color: rgba(222,214,200,.5) !important; box-shadow: 0 0 0 3px rgba(222,214,200,.08) !important; }
         #story-action-panel [data-send-custom] { background: rgba(166,176,162,.16) !important; border-color: rgba(166,176,162,.45) !important; color: var(--ink-100) !important; box-shadow: none !important; }
         #story-action-panel [data-send-custom]:hover { background: rgba(166,176,162,.28) !important; }
+        /* [2026-08-29 修正] 這一整段建卡畫面原本全部寫死深色 rgba 字面值（跟 :root
+           深色舞台預設值長得一樣，顯然是 token 系統上線前留下的）。結果不管切到淺色模式
+           還是主神空間的白色 token，建卡畫面完全沒反應——玩家看到的永遠是同一套寫死的深色卡片。
+           這裡改成全部吃 --c-* 通道值，數值挑跟原字面值最接近的 token，視覺上不變，
+           但從此會跟著舞台／主題走。 */
         #chargen-screen { color: var(--ink-100); }
-        #chargen-screen > .hud-box { background: rgba(27,25,21,.9); border-color: rgba(222,214,200,.16); border-radius: 4px; }
+        #chargen-screen > .hud-box { background: rgb(var(--c-surface-1) / .9); border-color: rgb(var(--c-line) / .16); border-radius: 4px; }
         #chargen-screen .text-zinc-100, #chargen-screen .text-zinc-200 { color: var(--ink-100) !important; }
         #chargen-screen .text-zinc-300, #chargen-screen .text-zinc-400 { color: var(--ink-400) !important; }
-        #chargen-screen input, #chargen-screen select { background: rgba(32,29,25,.92) !important; border-color: rgba(222,214,200,.16) !important; color: var(--ink-100) !important; box-shadow: none !important; }
-        #chargen-screen input:focus, #chargen-screen select:focus { border-color: rgba(222,214,200,.5) !important; box-shadow: 0 0 0 3px rgba(222,214,200,.08) !important; }
+        #chargen-screen input, #chargen-screen select { background: rgb(var(--c-surface-2) / .92) !important; border-color: rgb(var(--c-line) / .16) !important; color: var(--ink-100) !important; box-shadow: none !important; }
+        #chargen-screen input:focus, #chargen-screen select:focus { border-color: rgb(var(--c-line) / .5) !important; box-shadow: 0 0 0 3px rgb(var(--c-line) / .08) !important; }
         #cg-progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent-alt)) !important; box-shadow: none; }
-        #cg-main-god-panel { background: rgba(194,154,98,.06) !important; border-color: rgba(194,154,98,.36) !important; }
-        #cg-main-god-panel .text-violet-300, #cg-main-god-panel .text-violet-100, #cg-main-god-panel .text-violet-200\/90 { color: #c9a66f !important; }
-        #cg-main-god-panel .border-violet-500\/40, #cg-main-god-panel .border-violet-500\/25 { border-color: rgba(194,154,98,.32) !important; }
-        #cg-awakening-narration, #cg-review-background, #cg-review-tendency { background: rgba(31,28,24,.72) !important; border-color: rgba(222,214,200,.14) !important; color: var(--ink-100) !important; }
+        #cg-main-god-panel { background: rgb(var(--c-warn-base) / .06) !important; border-color: rgb(var(--c-warn-base) / .36) !important; }
+        #cg-main-god-panel .text-violet-300, #cg-main-god-panel .text-violet-100, #cg-main-god-panel .text-violet-200\/90 { color: rgb(var(--c-warn-text)) !important; }
+        #cg-main-god-panel .border-violet-500\/40, #cg-main-god-panel .border-violet-500\/25 { border-color: rgb(var(--c-warn-base) / .32) !important; }
+        #cg-awakening-narration, #cg-review-background, #cg-review-tendency { background: rgb(var(--c-surface-2) / .72) !important; border-color: rgb(var(--c-line) / .14) !important; color: var(--ink-100) !important; }
         #cg-review-tendency { color: var(--accent) !important; }
-        #cg-question-options button { background: rgba(31,28,24,.82) !important; border-color: rgba(222,214,200,.14) !important; }
-        #cg-question-options button:hover, #cg-question-options button.border-emerald-500 { background: rgba(51,47,40,.88) !important; border-color: rgba(222,214,200,.46) !important; }
+        #cg-question-options button { background: rgb(var(--c-surface-2) / .82) !important; border-color: rgb(var(--c-line) / .14) !important; }
+        #cg-question-options button:hover, #cg-question-options button.border-emerald-500 { background: rgb(var(--c-surface-3) / .88) !important; border-color: rgb(var(--c-line) / .46) !important; }
         #cg-question-options button .text-zinc-100, #cg-question-options button .text-emerald-200 { color: var(--ink-100) !important; }
-        #cg-reshape-grid button { background: rgba(31,28,24,.78) !important; border-color: rgba(222,214,200,.14) !important; }
-        #cg-submit { background: rgba(166,176,162,.16) !important; border-color: rgba(166,176,162,.48) !important; color: var(--ink-100) !important; box-shadow: none !important; }
-        #cg-submit:hover { background: rgba(166,176,162,.28) !important; }
-        #cg-back { color: var(--ink-400) !important; border-color: rgba(222,214,200,.16) !important; }
-        #cg-back:hover { color: var(--ink-100) !important; border-color: rgba(222,214,200,.42) !important; }
+        #cg-reshape-grid button { background: rgb(var(--c-surface-2) / .78) !important; border-color: rgb(var(--c-line) / .14) !important; }
+        #cg-submit { background: rgb(var(--c-accent-base) / .16) !important; border-color: rgb(var(--c-accent-base) / .48) !important; color: var(--ink-100) !important; box-shadow: none !important; }
+        #cg-submit:hover { background: rgb(var(--c-accent-base) / .28) !important; }
+        #cg-back { color: var(--ink-400) !important; border-color: rgb(var(--c-line) / .16) !important; }
+        #cg-back:hover { color: var(--ink-100) !important; border-color: rgb(var(--c-line) / .42) !important; }
         .modal-panel { background: rgba(27,25,21,.98) !important; border-color: rgba(222,214,200,.18) !important; border-radius: 4px; box-shadow: 0 22px 70px rgba(0,0,0,.3); }
         .modal-backdrop { background: rgba(8,7,6,.76); backdrop-filter: blur(10px) grayscale(.15); }
 
