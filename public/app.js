@@ -3464,7 +3464,11 @@ async function resumeSession(id) {
   // active 仍然是 true，於是玩家重整之後戰鬥面板消失、再按「遭遇戰鬥」永遠拿到
   // 409「已經有進行中的戰鬥」——那個節點如果是最終戰，這張存檔的主線就再也推不完了。
   // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
-  if (res.session.combat?.active) {
+  // Combat V2 的續戰走自己的路：它的狀態在 session.combatV2，而且不從存檔直接讀，
+  // 一律回頭問 /api/combat/v2/state——斷線重連以伺服器為準（規格第10節最後一列）。
+  if (res.session.combatV2?.active && typeof window.restoreCombatV2 === "function") {
+    await window.restoreCombatV2({ quiet: true });
+  } else if (res.session.combat?.active) {
     currentCombat = res.session.combat;
     // 續戰的行動列由伺服器算好一起送來(2026-08-17 第九輪)。先前這裡是 null，
     // 於是重整之後只剩 index.html 裡寫死的兩顆按鈕——買到的武器與型態全部按不到。
