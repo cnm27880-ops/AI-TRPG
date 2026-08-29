@@ -118,10 +118,10 @@
             /* 語意色：每種都有「文字階」與「實色階」 */
             --c-accent-text: 178 188 174;
             --c-accent-base: 166 176 162;
-            --c-danger-text: 217 154 140;
-            --c-danger-base: 173 89 73;
-            --c-warn-text: 201 166 111;
-            --c-warn-base: 194 154 98;
+            --c-danger-text: 239 135 119;
+            --c-danger-base: 196 77 59;
+            --c-warn-text: 227 184 115;
+            --c-warn-base: 204 153 61;
             --c-time-text: 197 139 112;
             --c-time-base: 189 118 81;
             --c-info-text: 157 179 189;
@@ -231,7 +231,7 @@
             --c-ink-400: 95 89 79;
             --c-ink-500: 130 123 112;
             --c-ink-700: 186 180 169;
-            --c-surface-0: 255 255 255;
+            --c-surface-0: 248 249 250;
             --c-surface-1: 255 255 255;
             --c-surface-2: 255 255 255;
             --c-surface-3: 255 255 255;
@@ -266,6 +266,9 @@
         /* 這三個原本是寫死螢光綠的任意值陰影（focus:shadow-[…rgba(16,185,129,…)] 之類）。
            任意值沒辦法透過色階映射跟著舞台走，所以收成三個吃 token 的 class；
            不然主神空間的白色輸入框一被聚焦，就會亮出一圈上一代的終端綠。 */
+        /* 文字反白選取色改吃 accent token，不再寫死翡翠綠——
+           不然主神空間（暖銅色）或淺色模式反白時，會突然跳出一格上一代的螢光綠。 */
+        ::selection { background-color: rgb(var(--c-accent-base) / .3); color: rgb(var(--c-accent-text)); }
         .focus-ring-accent:focus { box-shadow: 0 0 0 3px rgb(var(--c-accent-base) / .16); }
         .hover-glow-accent:hover { box-shadow: 0 4px 14px -4px rgb(var(--c-accent-base) / .4); }
         .hover-glow-accent-strong:hover { box-shadow: 0 8px 20px -8px rgb(var(--c-accent-base) / .5); }
@@ -2682,7 +2685,7 @@
 
     </style>
 </head>
-<body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden selection:bg-emerald-500/30 selection:text-emerald-300">
+<body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">
 
     <!-- 頂部導航列：只留功能按鈕，拿掉純裝飾用的品牌/狀態標籤 -->
     <header id="site-header" class="h-12 hairline-b panel-glow-top bg-zinc-950/90 backdrop-blur-md px-4 flex items-center justify-between shrink-0 z-40">
