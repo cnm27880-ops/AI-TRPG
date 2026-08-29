@@ -16,6 +16,9 @@ import { getAvailableCombatActions } from "../core/combat/v2/availableActions.js
 import { resolveTurn, validateSelection, TurnValidationError } from "../core/combat/v2/resolveTurn.js";
 import { toPublicBattle } from "../core/combat/v2/publicState.js";
 import { LEGACY_ACTION_LEVEL_TO_V2, fromLegacyActionLevel } from "../core/combat/v2/actionTypes.js";
+import { performAttack } from "../core/combat/v2/resolveAction.js";
+import { combatProfileFrom } from "../content/shop/effects.js";
+import { activeGrantSources } from "../content/shop/forms.js";
 
 const 葵花 = SHOP_GOODS.find((g) => g.goodId === "technique.葵花寶典.1");   // 鬼魅身：迅捷＋1內力，有維持成本
 const 混元 = SHOP_GOODS.find((g) => g.goodId === "pool.混元劍經.1");        // 劍氣：自由＋可變量，二選一
@@ -40,7 +43,9 @@ function 帶型態的角色卡({ goods = [葵花, 混元, 阿蘭斯], 內力, �
 }
 
 function battleWith(character, opts = {}) {
-  return startBattleV2({ character, battleId: "form_test", forms: opts.forms, seed: opts.seed ?? 4242, sceneKey: "test_scene" });
+  const battle = startBattleV2({ character, battleId: "form_test", forms: opts.forms, seed: opts.seed ?? 4242, sceneKey: "test_scene" });
+  if (opts.startRange) battle.ranges[Object.keys(battle.ranges)[0]] = opts.startRange;
+  return battle;
 }
 
 const 鬼魅身 = "form:technique.葵花寶典.1:鬼魅身";
@@ -270,6 +275,80 @@ test("公開狀態帶得出進行中的型態與資源，但不帶整張角色�
   for (const forbidden of ["abilities", "specializations", "seed", "rngCursor"]) {
     assert.equal(raw.includes(forbidden), false, `公開 payload 不得含「${forbidden}」`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// 從 test/shopForms.test.js 搬過來的（2026-08-29）。
+// 這些原本是透過舊戰鬥系統的 createEncounter()／resolveFormActivation()／combatOptions()
+// 驗的；那個介面隨舊系統移除了，但它們驗的行為沒變，只是換了一個表面。
+// ---------------------------------------------------------------------------
+
+test("戰鬥中變身讓防御真的變高（不是只有查表函式知道）", () => {
+  const Orphnoch = SHOP_GOODS.find((g) => g.goodId === "bloodline.Orphnoch.D");
+  const battle = battleWith(帶型態的角色卡({ goods: [Orphnoch] }));
+  const before = combatProfileFrom(battle.character, { extraSources: activeGrantSources(battle.forms) }).equipmentDefense;
+
+  resolveTurn(battle, [{ actionId: "form:bloodline.Orphnoch.D:進化形態" }]);
+
+  const after = combatProfileFrom(battle.character, { extraSources: activeGrantSources(battle.forms) }).equipmentDefense;
+  assert.ok(after > before, `變身後防御要變高（${before} -> ${after}）`);
+});
+
+test("買到的加骰商品真的進到戰鬥的攻擊骰池裡", () => {
+  // 怎麼觀察骰池大小：餵一個永遠擲出 5 的骰子——5 不是成功、也不觸發加骰，
+  // 所以「擲了幾顆」就等於這次攻擊的有效 DP。比直接偷看內部變數誠實，
+  // 而且它驗的正是玩家真正在意的那件事：買了商品，骰子有沒有變多。
+  const poolSizeWith = (abilities) => {
+    let dice = 0;
+    const c = 帶型態的角色卡({ goods: [] });
+    c.abilities = abilities;
+    const battle = battleWith(c);
+    performAttack({
+      battle,
+      attacker: battle.participants.find((p) => p.id === "player"),
+      defender: battle.participants.find((p) => p.id === "enemy_01"),
+      weapon: battle.loadout.weapons.find((w) => w.key === "unarmed"),
+      rng: { d10: () => { dice += 1; return 5; }, next: () => 0.5, pick: (l) => l[0] },
+    });
+    return dice;
+  };
+
+  const plain = poolSizeWith([]);
+  const buffed = poolSizeWith([{
+    goodId: "test.加骰",
+    name: "測試商品",
+    effects: [{ kind: "檢定加骰", amount: 3, scope: "攻擊", skill: "格鬥" }],
+  }]);
+  assert.equal(buffed - plain, 3, "買了加格鬥的商品，肉搏攻擊的骰池就該大 3");
+});
+
+test("買到的武器出現在戰鬥裝備表與行動選單裡（不是寫死的兩把）", () => {
+  const c = 帶型態的角色卡({ goods: [] });
+  c.abilities = [{
+    goodId: "test.武器",
+    name: "測試武器",
+    effects: [{ kind: "武器", label: "龍骨炮", attackType: "槍械", weaponDamage: 5, ranged: true }],
+  }];
+  const battle = battleWith(c);
+  assert.ok(
+    battle.loadout.weapons.some((w) => w.label === "龍骨炮"),
+    "買到的武器要進戰鬥裝備表，否則買了也按不到"
+  );
+  assert.equal(toPublicBattle(battle).loadout.weapons.some((w) => w.label === "龍骨炮"), true);
+});
+
+test("戰鬥結束會收掉以「輪」計時的型態（戰鬥外沒有輪可以數）", () => {
+  const battle = battleWith(帶型態的角色卡());
+  resolveTurn(battle, [{ actionId: 劍氣攻, parameters: { amount: 1 } }]);   // 持續 1 輪
+  const enemy = battle.participants.find((p) => p.id === "enemy_01");
+  enemy.hpState = { max: 12, intact: 0, B: 0, L: 0, A: 12, dead: true, unconscious: true, worsening: false };
+  resolveTurn(battle, [{ actionId: "hunker_down" }]);
+  assert.equal(battle.active, false);
+  assert.equal(
+    (battle.forms.active ?? []).some((f) => f.unit === "輪"),
+    false,
+    "以輪計時的型態留到戰鬥外就永遠不會到期"
+  );
 });
 
 test("型態授予的天生武器在啟動後真的按得到（裝備表會重算）", () => {

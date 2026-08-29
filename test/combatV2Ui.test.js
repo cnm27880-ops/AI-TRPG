@@ -27,10 +27,27 @@ function combatV2Panel() {
   return index.slice(start, end);
 }
 
-test("戰鬥頁面存在，而且與舊的 #combat-panel 是兩個獨立面板", () => {
+test("戰鬥頁面存在，而且是唯一的一個戰鬥面板", () => {
   assert.match(index, /id="combat-v2-panel"/);
-  assert.match(index, /id="combat-panel"/, "舊面板不得被刪除");
   assert.match(view, /combat-v2-panel/);
+  // [2026-08-29] 舊戰鬥面板已移除。兩個面板並存過一段時間，那期間最容易出的錯是
+  // 兩邊各記一份「在不在戰鬥中」；現在只有一個面板，也只有一個答案來源。
+  assert.equal(/id="combat-panel"/.test(index), false, "舊面板不得殘留");
+  assert.equal(/data-combat-attack/.test(index), false, "舊的寫死攻擊按鈕不得殘留");
+  assert.equal(/id="combat-start-btn"/.test(index), false, "不得有手動的「遭遇戰鬥」按鈕");
+});
+
+test("戰鬥由局勢觸發，不由按鈕觸發", () => {
+  // 迫近度到頂或推進到最終戰節點時自動開戰。玩家不需要、也不該自己去點一顆按鈕：
+  // 「接觸」代表威脅已經欺到臉前，這時候還等玩家發現角落多了一顆按鈕，等同於系統
+  // 知道玩家被逮到了卻假裝沒事。
+  assert.match(app, /const cornered = Boolean\(scenario\.threat\?\.contact\)/);
+  assert.match(app, /const isFinale = Boolean\(node\?\.isFinale\)/);
+  assert.match(app, /\(cornered \|\| isFinale\) && !inCombat\(\) && typeof window\.startCombatV2 === "function"/);
+  // 「在不在戰鬥中」只有一個答案來源，app.js 不自己記一份旗標。
+  assert.match(app, /function inCombat\(\)/);
+  assert.match(view, /function isInCombatV2\(\)/);
+  assert.equal(/let currentCombat\b/.test(app), false, "app.js 不得再記一份戰鬥狀態");
 });
 
 test("11.5.1 玩家能看到目前距離：三段距離帶由伺服器的 distance.band 渲染", () => {
@@ -165,13 +182,18 @@ test("V2 的路由都有對應的 Cloudflare Function 檔（Pages 是檔案路�
   }
 });
 
-test("重整頁面回來時，V2 續戰以伺服器狀態為準（不從存檔直接讀）", () => {
-  assert.match(app, /res\.session\.combatV2\?\.active/);
-  assert.match(app, /window\.restoreCombatV2/);
+test("重整頁面回來時，續戰以伺服器狀態為準（不從存檔直接讀）", () => {
+  assert.match(app, /res\.session\.combat\?\.active && typeof window\.restoreCombatV2 === "function"/);
   assert.match(view, /fetch\(`\/api\/combat\/v2\/state\?sessionId=/);
+  // 前端不重播本地狀態：還原時把選擇清空，要玩家依伺服器回來的那一份重新確認。
+  assert.match(view, /cv2Selection = \[\];/);
 });
 
-test("舊戰鬥面板與 V2 面板不共用任何狀態變數", () => {
-  assert.equal(/currentCombat\b/.test(view), false, "combatV2.js 不得碰舊面板的狀態");
-  assert.equal(/cv2Battle/.test(app), false, "app.js 不得碰 V2 的狀態");
+test("戰鬥狀態只住在 combatV2.js 裡，app.js 透過具名函式問它", () => {
+  assert.equal(/cv2Battle/.test(app), false, "app.js 不得直接碰戰鬥狀態");
+  assert.equal(/currentCombat\b/.test(view), false);
+  // app.js 需要的三件事都是具名的窗口，不是共用變數。
+  for (const fn of ["window.startCombatV2", "window.restoreCombatV2", "window.leaveCombatV2View", "window.isInCombatV2"]) {
+    assert.ok(view.includes(fn), `combatV2.js 要匯出 ${fn}`);
+  }
 });

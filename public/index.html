@@ -1319,9 +1319,6 @@
         #story-action-panel input:focus { border-color: rgba(222,214,200,.5) !important; box-shadow: 0 0 0 3px rgba(222,214,200,.08) !important; }
         #story-action-panel [data-send-custom] { background: rgba(166,176,162,.16) !important; border-color: rgba(166,176,162,.45) !important; color: var(--ink-100) !important; box-shadow: none !important; }
         #story-action-panel [data-send-custom]:hover { background: rgba(166,176,162,.28) !important; }
-        #combat-panel .hud-box, #combat-telegraph, #combat-log > * { background: rgba(31,28,24,.88); border-color: rgba(222,214,200,.15); }
-        #combat-enemy-name, #combat-over-text { color: #d99a8c !important; }
-        #combat-turn-indicator { color: var(--accent) !important; }
         #chargen-screen { color: var(--ink-100); }
         #chargen-screen > .hud-box { background: rgba(27,25,21,.9); border-color: rgba(222,214,200,.16); border-radius: 4px; }
         #chargen-screen .text-zinc-100, #chargen-screen .text-zinc-200 { color: var(--ink-100) !important; }
@@ -2205,9 +2202,7 @@
         #char-hud #derived-stats-bar strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; }
 
         /* 一般劇情模式的操作列是主回合入口，不能被上一場戰鬥的 inline 狀態帶走。 */
-        body.is-game-screen:not(.is-combat-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
-        body.is-game-screen.is-combat-view #story-action-panel { display: none !important; }
-        body.is-game-screen.is-combat-view #story-current { display: none !important; }
+        body.is-game-screen:not(.is-combat-v2-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
         /* Combat V2：戰鬥中不得有自由文字輸入（規格第1節、第11.5節第10點）。
            #story-action-panel 就是那個輸入框所在的面板，所以這兩行不是排版偏好，
            而是規則的實作——把它們拿掉，戰鬥中就會重新出現一個可以打字的框。 */
@@ -3227,15 +3222,6 @@
                      作法是把每一顆都設成不換行、不壓縮，並在小螢幕上只留圖示——
                      文字標籤改用 title/aria-label 保留語意，圖示本身在桌機仍然帶著文字。 -->
                 <div class="flex items-center gap-2 sm:gap-3 text-[11px] text-zinc-300 shrink-0">
-                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" title="遭遇戰鬥" aria-label="遭遇戰鬥" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-crosshairs text-[10px]"></i><span class="hidden sm:inline"> 遭遇戰鬥</span>
-                    </button>
-                    <!-- Combat V2：戰術戰鬥。跟左邊那顆是**兩條互不相干的線**（見
-                         core/combat/V2_ISOLATION.md）：這一顆打 /api/combat/v2/start、
-                         狀態存在 session.combatV2，不會影響舊的遭遇戰鬥。 -->
-                    <button id="combat-v2-start-btn" onclick="startCombatV2()" title="戰術戰鬥" aria-label="開始戰術戰鬥" class="px-2.5 py-1 rounded bg-orange-500/10 border border-orange-500/40 text-orange-300 hover:bg-orange-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-chess-board text-[10px]"></i><span class="hidden sm:inline"> 戰術戰鬥</span>
-                    </button>
                     <!-- 主神商店。門禁規則見 content/shop/access.js（規則書第469行）：
                          支線與獎勵點數只能在主神空間花，經驗兩邊都能花但副本中要兩倍。
                          按鈕一直在，因為玩家在副本中也需要看得到「等我出去要買什麼」。 -->
@@ -3343,68 +3329,8 @@
                 </div>
             </section>
 
-            <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
-            <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
-                <div class="hud-box p-4 rounded-lg space-y-3 shrink-0">
-                    <div class="flex items-center justify-between font-mono text-xs">
-                        <span class="text-red-300 font-bold flex items-center gap-1.5"><i class="fas fa-skull text-[11px]"></i><span id="combat-enemy-name">—</span></span>
-                        <span class="text-zinc-300">第 <span id="combat-round">1</span> 輪</span>
-                    </div>
-                    <div class="space-y-1" id="combat-enemy-hp-wrap">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
-                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-100 font-semibold">—</span>
-                        </div>
-                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    </div>
-                    <div class="space-y-1" id="combat-player-hp-wrap">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
-                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-100 font-semibold">—</span>
-                        </div>
-                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    </div>
-                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-300 font-semibold">—</div>
-                </div>
-
-                <!-- 敵人意圖預告：引擎在每一輪開始時抽一句（見 content/combat/encounterState.js
-                     的 pickTelegraph），玩家在按下攻擊鍵之前就看得到牠正在做什麼。
-                     沒有預告文案的敵人（舊樣板）這一格會整個隱藏，不會留一條空框。 -->
-                <div id="combat-telegraph" style="display:none"
-                     class="shrink-0 p-2.5 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-200 flex items-start gap-2">
-                    <i class="fas fa-eye mt-0.5 shrink-0"></i>
-                    <span id="combat-telegraph-text" class="flex-1"></span>
-                </div>
-
-                <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
-
-                <div id="combat-over-banner" style="display:none" class="hud-box p-4 rounded-lg text-center space-y-3 shrink-0">
-                    <div id="combat-over-text" class="text-lg font-bold"></div>
-                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
-                        返回劇情
-                    </button>
-                </div>
-
-                <div id="combat-actions" class="grid grid-cols-2 gap-2.5 shrink-0 font-mono">
-                    <button data-combat-attack="unarmed" class="action-tile !p-2.5 !flex-row justify-center">
-                        <i class="fas fa-hand-fist action-tile-icon !text-base"></i>
-                        <span class="flex flex-col items-start leading-tight">
-                            <span class="action-tile-label">徒手攻擊</span>
-                            <span class="action-tile-sub">力量 + 格鬥</span>
-                        </span>
-                    </button>
-                    <button data-combat-attack="pistol" class="action-tile !p-2.5 !flex-row justify-center">
-                        <i class="fas fa-gun action-tile-icon !text-base"></i>
-                        <span class="flex flex-col items-start leading-tight">
-                            <span class="action-tile-label">手槍射擊</span>
-                            <span class="action-tile-sub">敏捷 + 射擊</span>
-                        </span>
-                    </button>
-                </div>
-            </div>
-
             <!-- ================================================================
-                 Combat V2 戰術控制台（規格第7.1節 A~G 區）。
-                 舊的 #combat-panel 完全沒有動，兩者由 public/app.js 與
-                 public/combatV2.js 各自控制，不會同時顯示。
+                 戰術戰鬥控制台（規格第7.1節 A~G 區）。由 public/combatV2.js 控制。
 
                  這裡只放骨架與具名容器：**每一格的內容都由伺服器回的公開狀態渲染**，
                  沒有任何一顆行動按鈕是寫死在 HTML 裡的（舊版寫死兩顆攻擊鍵的教訓，
@@ -3965,7 +3891,7 @@
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';
             document.body.classList.toggle('is-game-screen', screen === 'game');
-            document.body.classList.remove('is-combat-view');
+            document.body.classList.remove('is-combat-v2-view');
             // 建卡與遊戲都發生在副本裡（深色檔案）；回到 portal 則退回第一幕，
             // 若該玩家已經接受過邀請，revealMainGodSpace('resume') 會馬上再把舞台推到主神空間。
             document.documentElement.setAttribute('data-stage', screen === 'portal' ? 'invitation' : 'instance');

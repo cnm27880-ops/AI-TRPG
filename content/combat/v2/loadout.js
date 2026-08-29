@@ -1,9 +1,8 @@
 // Combat V2 —— 玩家的戰鬥裝備清單（武器、彈藥、消耗品）。
 //
-// 武器來源刻意沿用既有的兩張表：content/combat/placeholderEncounters.js 的佔位武器
+// 武器來源是兩張表：content/combat/v2/weapons.js 的佔位武器
 // ＋ content/shop/effects.js 的 weaponsFrom()（買到的武器與型態授予的天生武器）。
-// 也就是說商店買到什麼，Combat V2 的行動選單就長出什麼——這條線在舊戰鬥流程已經接好了
-// （見 encounterState.js 的 combatOptions），沒有理由在 V2 重接一次。
+// 也就是說商店買到什麼，戰鬥的行動選單就長出什麼。
 //
 // V2 額外需要三個舊資料沒有的欄位，在這裡補上：
 //   category    武器類別（melee / firearm），行動的 requirements.weaponCategory 用它判定
@@ -15,7 +14,7 @@
 // 但也不該讓「戰鬥外的角色卡」多長出一個沒有人維護的欄位。之後真的要做跨場景彈藥
 // 管理時，把 loadout.ammo 搬進角色卡即可，行動選單那一層不用改。
 
-import { PLACEHOLDER_WEAPONS } from "../placeholderEncounters.js";
+import { COMBAT_WEAPONS } from "./weapons.js";
 import { weaponsFrom } from "../../shop/effects.js";
 
 export const WEAPON_CATEGORIES = Object.freeze({ MELEE: "melee", FIREARM: "firearm" });
@@ -54,7 +53,7 @@ export function toV2Weapon(weapon) {
  */
 export function buildLoadout(character, { extraSources = [] } = {}) {
   const table = new Map();
-  for (const weapon of Object.values(PLACEHOLDER_WEAPONS)) {
+  for (const weapon of Object.values(COMBAT_WEAPONS)) {
     table.set(weapon.key, toV2Weapon(weapon));
   }
   for (const weapon of weaponsFrom(character, { extraSources })) {
@@ -135,7 +134,7 @@ export function reloadWeapon(loadout, weaponKey) {
  */
 export function rebuildWeapons(loadout, character, extraSources = []) {
   const table = new Map();
-  for (const weapon of Object.values(PLACEHOLDER_WEAPONS)) table.set(weapon.key, toV2Weapon(weapon));
+  for (const weapon of Object.values(COMBAT_WEAPONS)) table.set(weapon.key, toV2Weapon(weapon));
   for (const weapon of weaponsFrom(character, { extraSources })) table.set(weapon.key, toV2Weapon(weapon));
 
   const weapons = [...table.values()];

@@ -14,12 +14,12 @@ import { getRange, isDown, livingEnemies, playerOf, pushLog, setRange } from "./
 import { RANGE_LABELS, stepRange } from "./range.js";
 import { hasStatus, removeStatus } from "./battleState.js";
 import { performAttack } from "./resolveAction.js";
-import { PLACEHOLDER_WEAPONS } from "../../../content/combat/placeholderEncounters.js";
+import { COMBAT_WEAPONS } from "../../../content/combat/v2/weapons.js";
 import { toV2Weapon } from "../../../content/combat/v2/loadout.js";
 
 /** 敵人身上那把武器的 V2 形狀。查不到就用徒手，不丟錯——資料寫錯不該讓戰鬥卡死。 */
 function enemyWeapon(enemy) {
-  const raw = PLACEHOLDER_WEAPONS[enemy.weaponKey] ?? PLACEHOLDER_WEAPONS.unarmed;
+  const raw = COMBAT_WEAPONS[enemy.weaponKey] ?? COMBAT_WEAPONS.unarmed;
   return toV2Weapon(raw);
 }
 

@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import { onRequestPost as sessionPost, onRequestGet as sessionGet } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
 import { onRequestPost as restPost } from "../functions/api/rest.js";
-import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
-import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/v2/start.js";
+import { onRequestPost as combatTurn } from "../functions/api/combat/v2/turn.js";
 import { resolveSessionStore, newSessionId } from "../content/storage/sessionStore.js";
 import { DEFAULT_SCENARIO_ID, getScenarioPack } from "../content/scenario/registry.js";
 
@@ -97,57 +97,37 @@ test("generic 副本整合：三個主線節點依序完成，最終戰只能透
   assert.equal(r.scenario.nodeCompleted, null, "最終戰節點不該被敘事信號結算");
   assert.equal(r.scenario.activeNode.id, finaleNodeId);
 
-  // 開戰：應該自動採用最終戰節點掛的boss樣板，而不是預設雜魚
-  r = await readJson(await combatStart(req(env, { sessionId })));
-  assert.equal(r.ok, true);
-  assert.equal(r.combat.scenarioFinaleNodeId, finaleNodeId);
-  assert.notEqual(r.combat.enemy.name, "掠奪者", "最終戰不該用預設雜魚樣板");
-  // armor 拿副本包裡寫的那個值來比，不要寫死數字：換一個預設副本就會失效，
-  // 而這條測試要鎖的是「boss樣板的armor有沒有被複製過去」，不是「armor剛好等於幾」。
+  // 開戰：應該自動採用最終戰節點掛的boss樣板，而不是預設雜魚。
+  // 這裡不再需要「按遭遇戰鬥」——戰鬥由局勢觸發，前端在最終戰節點會自動打這個端點。
+  r = await readJson(await combatStart(req(env, { sessionId, seed: 21 })));
+  assert.equal(r.ok, true, JSON.stringify(r));
+
+  const store = resolveSessionStore(env);
+  const withBattle = await store.get(sessionId);
+  assert.equal(withBattle.combatV2.scenarioFinaleNodeId, finaleNodeId, "開戰要記下這場是哪個最終戰節點");
+
   const finaleTemplate = getScenarioPack(LEGACY_SCENARIO_ID)
     .entries.flatMap((ch) => ch.nodes)
     .find((n) => n.isFinale).bossEncounter;
-  assert.equal(
-    r.combat.enemy.armor,
-    finaleTemplate.armor,
-    "boss樣板的armor要真的被帶進combat.enemy(先前的bug：armor被漏複製)"
-  );
+  const boss = withBattle.combatV2.participants.find((p) => p.side === "enemy");
+  assert.equal(boss.name, finaleTemplate.name, "最終戰不該用預設雜魚樣板");
+  // armor 拿副本包裡寫的那個值來比，不要寫死數字：換一個預設副本就會失效，
+  // 而這條測試要鎖的是「boss樣板的armor有沒有被複製過去」，不是「armor剛好等於幾」。
+  assert.equal(boss.armor, finaleTemplate.armor, "boss樣板的armor要真的被帶進戰鬥");
 
-  // 讓戰鬥在有限回合內確定分出勝負：直接調整雙方血量，不依賴真實骰子結果
-  const store = resolveSessionStore(env);
-  const session = await store.get(sessionId);
-  session.combat.enemy.hpState = { max: session.combat.enemy.hpState.max, intact: 1, B: 0, L: 0, A: 0, dead: false, unconscious: false };
-  // 護甲也一起歸零（armor 有沒有被正確複製，上面已經斷言過了，這裡不再需要它）。
-  //
-  // [2026-08-16] 這是在修別的東西時順手抓到的既有不穩定：敵人留著護甲時，玩家不只要
-  // 命中，還要「成功數 - 防禦DC - 護甲 >= 1」才扣得到那唯一一點血，實測每次攻擊約 1.2%，
-  // 300 次跑不完的機率約 2.6%——也就是每四十次CI就會無故紅一次，而且看起來像是隨機壞掉。
-  // 這條測試要驗的是「打贏最終戰會不會結算節點」，不是命中率，所以把變因拿掉。
-  session.combat.enemy.armor = 0;
-  session.character.derived.hp = { ...session.character.derived.hp, intact: session.character.derived.hp.max, B: 0, L: 0, A: 0 };
-  session.combat.player.hpState = { ...session.character.derived.hp };
-  await store.put(session);
+  // 讓戰鬥在一輪內確定分出勝負：直接把 boss 設成倒下，不依賴真實骰子結果。
+  // 這則測試要驗的是「打贏最終戰會不會結算節點」，不是命中率。
+  boss.hpState = { ...boss.hpState, intact: 0, B: 0, L: 0, A: boss.hpState.max, dead: true, unconscious: true };
+  await store.put(withBattle);
 
-  // 命中率取決於雙方屬性/技能的骰池(見 core/combat/defense.js 檔頭關於「單一DC」數學的說明)，
-  // 不是每次攻擊都會命中，所以這裡跑夠多輪，而不是假設固定幾輪內一定分出勝負。
-  // 敵人只有1點生命、玩家滿血，理論上玩家幾乎不可能輸，只是需要夠多次嘗試等到命中。
-  let combatOver = null;
-  let lastResult = null;
-  for (let i = 0; i < 300 && !combatOver?.over; i++) {
-    lastResult = await readJson(await combatAct(req(env, { sessionId, weaponKey: "unarmed" })));
-    combatOver = lastResult.combatOver;
-    if (!combatOver?.over) {
-      // 敵人打不贏(這場測試沒把敵人的攻擊力調弱)，玩家的血量可能被磨掉，
-      // 每輪結束前都補滿玩家血量，確保「敵人只剩1點血」才是真正決定勝負的變因。
-      const s = await store.get(sessionId);
-      if (s.combat?.active) {
-        const full = { ...s.character.derived.hp, intact: s.character.derived.hp.max, B: 0, L: 0, A: 0 };
-        s.character.derived.hp = full;
-        s.combat.player.hpState = { ...full };
-        await store.put(s);
-      }
-    }
-  }
+  const lastResult = await readJson(await combatTurn(req(env, {
+    sessionId,
+    stateVersion: withBattle.combatV2.stateVersion,
+    requestId: "finale-blow",
+    selectedActions: [{ actionId: "hunker_down" }],
+  })));
+  const combatOver = { over: !lastResult.battle.active, winner: lastResult.battle.outcome?.winner };
+
   assert.equal(combatOver?.winner, "player", "測試調整過血量，玩家應該必勝");
   assert.ok(lastResult.scenario?.nodeCompleted, "打贏最終戰應該自動結算節點");
   assert.equal(lastResult.scenario.nodeCompleted.nodeId, finaleNodeId);

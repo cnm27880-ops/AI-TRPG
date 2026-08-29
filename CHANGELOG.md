@@ -2,6 +2,35 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [BREAKING-2026.08.29] — 移除舊戰鬥系統，戰術戰鬥成為唯一戰鬥；戰鬥改由局勢觸發
+
+**影響範圍：** 移除 `core/combat/actionEconomy.js`、`content/combat/encounterState.js`、`content/combat/placeholderEncounters.js`、`functions/api/combat/{start,act,resolve}.js`、`public/index.html` 的 `#combat-panel` 與「遭遇戰鬥」按鈕；新增 `content/combat/v2/weapons.js`、`core/combat/README.md`；修改 `content/shop/forms.js`、`functions/api/session.js`、`public/app.js`、`public/combatV2.js`、`content/combat/v2/{encountersV2,battleFactory}.js`、`functions/api/combat/v2/start.js`
+
+**變更性質：** 破壞性——舊的 `/api/combat/{start,act,resolve}` 三個端點與 `session.combat` 欄位不再存在。判定公式、骰池、角色數值計算與角色卡格式不變。
+
+### 移除
+
+- 舊的單敵人戰鬥系統整套（狀態機、動作經濟、API、前端面板）。它與戰術戰鬥並存了一版，兩套並存最容易出的錯是「兩邊各記一份在不在戰鬥中」，現在只有一個答案來源。
+- **「遭遇戰鬥」按鈕**。戰鬥由局勢觸發：迫近度到頂（接觸）或主線推進到最終戰節點時自動開戰。打誰由伺服器依副本進度決定（最終戰的 `bossEncounter` > 副本自己的 `threatEncounter` > 內建佔位遭遇）。
+
+### 調整
+
+| 位置 | 原本 | 現在 |
+|---|---|---|
+| `content/shop/forms.js` | `activateForm()`／`payUpkeep()` 收 budget 並自己扣動作額度 | 只管資源與期限；動作額度由 `core/combat/v2/actionBudget.js` 扣。`effect.activation.action` 仍是資料，戰鬥系統讀它 |
+| `functions/api/session.js` | 自己攤平一份戰鬥狀態回給前端 | 只回「有沒有仗在打」的旗標，完整狀態走 `/api/combat/v2/state` 的白名單（兩份攤平邏輯遲早有一份忘記過濾） |
+| 副本敵人樣板 | 只有舊系統讀得懂 | `enemyFromTemplate()` 轉成戰術戰鬥的形狀，生命值與先攻由屬性推導，boss 難度不變 |
+| 武器表 | `content/combat/placeholderEncounters.js` | `content/combat/v2/weapons.js`（內容未改） |
+
+### 順帶修掉的兩個問題
+
+- **商品的攻擊加值在戰術戰鬥裡吃不到。** `performAttack()` 沒有呼叫 `attackModifiersFor()`，所以買到的「攻擊 +2DP」在敘事迴圈的檢定生效、在戰鬥裡卻無聲消失。這是移植舊測試時才發現的。
+- **角色卡壞掉時會用編出來的預設值開戰。** `battleFactory` 原本寫 `character.derived?.hp ?? { max: 10, ... }`，存檔壞掉的玩家會進到一場自己血量憑空變成 10 的戰鬥。改成當場報清楚——開不了的戰鬥好過一場數字是假的戰鬥。
+
+### 測試
+
+移除 `actionEconomy` / `encounterState` / `combatTelegraph` 三個測試檔（它們測的程式碼不存在了）。**驗的行為還在的那些全部搬走，不是刪掉**：`test/shopForms.test.js` 中段留了一段註解列出每一則搬到哪裡，`downState`／`formsApi`／`referenceV2Smoke`／`scenarioIntegration`／`security2026_08_24`／`silentFailures` 六個檔案改打戰術戰鬥的端點。全套 1151 項通過。另以 Chromium 實測：按鈕與舊面板都不存在、自動開戰進得去、戰鬥中沒有自由文字輸入、結算換輪正常、無 console 錯誤。
+
 ## [FEATURE-2026.08.29] — Combat V2：戰術戰鬥系統與新戰鬥頁面
 
 **影響範圍：** `core/combat/v2/*`（新增）、`content/combat/v2/*`（新增）、`functions/api/combat/v2/*`（新增）、`public/combatV2.js`（新增）、`public/index.html`、`public/app.js`、`core/combat/V2_ISOLATION.md`（新增）、`test/combatV2*.test.js`（新增）

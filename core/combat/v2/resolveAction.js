@@ -12,7 +12,7 @@
 import { resolveCombatAction } from "../resolveCombatAction.js";
 import { emptyCombatProfile } from "../../character.js";
 import { healDamage } from "../../health.js";
-import { buildAttackParams, PLACEHOLDER_WEAPONS } from "../../../content/combat/placeholderEncounters.js";
+import { buildAttackParams, COMBAT_WEAPONS } from "../../../content/combat/v2/weapons.js";
 import {
   addStatus,
   getParticipant,
@@ -35,6 +35,7 @@ import {
   usableWeaponsOfCategory,
 } from "../../../content/combat/v2/loadout.js";
 import { activateForm, activeGrantSources } from "../../../content/shop/forms.js";
+import { attackModifiersFor } from "../../../content/shop/effects.js";
 
 /** 狀態效果的具名定義。每一個都要有公開文案——玩家看得懂身上有什麼才能做決定。 */
 export const STATUS_DEFS = Object.freeze({
@@ -82,11 +83,19 @@ export function performAttack({ battle, attacker, defender, weapon, rng, extraBo
   const aiming = getStatus(attacker, `aiming@${defender.id}`);
   const defenseReduction = flanking ? STATUS_DEFS.flanking.defenseReduction : 0;
 
+  // 商品與型態給的攻擊加值。**沒有這一段，玩家買到的「攻擊 +2DP」在戰鬥裡完全吃不到**——
+  // 同一個加值在敘事迴圈的檢定生效、在戰鬥裡卻無聲消失，那是最難查的一種不一致。
+  // 只有玩家有角色卡；敵人的加值寫在牠自己的樣板數值裡，沒有商品這一層。
+  const mods = attacker.id === "player" && battle.character
+    ? attackModifiersFor(battle.character, weapon.attackType, { extraSources: activeGrantSources(battle.forms) })
+    : { dp: 0, bonusSuccesses: 0 };
+
   const result = resolveCombatAction({
     attackType: weapon.attackType,
     attackParams,
-    attackDpModifier: -attackPenaltyOf(attacker, battle),
-    attackBonusSuccesses: (aiming ? STATUS_DEFS.aiming.bonusSuccesses : 0) + extraBonusSuccesses,
+    attackDpModifier: mods.dp - attackPenaltyOf(attacker, battle),
+    attackBonusSuccesses:
+      (aiming ? STATUS_DEFS.aiming.bonusSuccesses : 0) + extraBonusSuccesses + (mods.bonusSuccesses ?? 0),
     // 距離減值：三段距離對應的公尺數是給遠程武器射程公式用的近似值。
     // 三段距離本身仍然是規則上的真實狀態，這裡只是把它翻成 attackTypes.rangePenalty() 吃的形狀。
     distance: rangeToMeters(getRange(battle, attacker.id, defender.id)),
@@ -386,10 +395,9 @@ const RESOLVERS = {
   /**
    * 啟動一個型態（變身／開眼／爆發）。
    *
-   * 動作額度**已經由 resolveTurn 用 V2 的計數池扣掉了**，所以這裡呼叫 activateForm() 時
-   * 一律傳 `budget: null`——那個參數走的是舊的 boolean 旗標模型（見 forms.js 的
-   * applyActionCost），兩種模型不相容。傳 null 時 forms.js 會跳過動作額度檢查，
-   * 只收意志力與能量池，正好是 V2 需要它做的那一半。舊模組因此一行都不用改。
+   * 動作額度**已經由 resolveTurn 用計數池扣掉了**。content/shop/forms.js 只管資源
+   * （意志力／能量池）與期限，不碰動作額度——「這個型態要花一個迅捷動作」是戰鬥系統的
+   * 規則，該由戰鬥系統用自己的模型執行。
    */
   resolve_activate_form(ctx) {
     const { battle, definition, parameters } = ctx;
@@ -398,8 +406,6 @@ const RESOLVERS = {
 
     const result = activateForm(character, battle.forms, definition.form.formId, {
       round: battle.round,
-      // 動作額度已經扣過，這裡不能再扣一次。
-      budget: null,
       sceneKey: battle.sceneKey ?? null,
       // 玩家在啟動當下的兩個決定。它們是**選擇**不是結果，所以可以由前端送上來——
       // 合法範圍仍然由 forms.js 驗（「不超過敏捷或感知取低」是規則，不是介面細節）。

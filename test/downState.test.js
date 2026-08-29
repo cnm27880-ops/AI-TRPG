@@ -11,7 +11,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost, onRequestGet as sessionGet } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
-import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/v2/start.js";
 import { onRequestPost as revivePost, onRequestGet as reviveGet } from "../functions/api/revive.js";
 import { getDownState, revivalQuote, reviveCharacter } from "../content/downState.js";
 import { emptyCharacter } from "../core/schema.js";
@@ -180,7 +180,7 @@ test("/api/turn：健康的角色每回合都會帶回 downState(前端才能持
   assert.equal(body.downState.canAct, true);
 });
 
-test("/api/combat/start：昏迷/死亡的角色不能開新戰鬥", async () => {
+test("/api/combat/v2/start：昏迷/死亡的角色不能開新戰鬥", async () => {
   const env = makeEnv();
   const sessionId = await newSession(env);
   await damageSessionCharacter(env, sessionId, (c) => {

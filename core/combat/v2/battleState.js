@@ -385,7 +385,7 @@ function tickForms(battle) {
   }
   battle.forms = { ...battle.forms, active: stillActive };
 
-  const upkeep = payUpkeep(battle.forms, battle.character, battle.round, null);
+  const upkeep = payUpkeep(battle.forms, battle.character, battle.round);
   battle.forms = upkeep.formsState;
   battle.character = upkeep.character;
   for (const paid of upkeep.paid) {

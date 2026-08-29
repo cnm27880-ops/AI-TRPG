@@ -9,7 +9,7 @@ import { createBattle } from "../../../core/combat/v2/battleState.js";
 import { combatProfileFrom } from "../../shop/effects.js";
 import { activeGrantSources } from "../../shop/forms.js";
 import { buildLoadout } from "./loadout.js";
-import { getEncounterV2 } from "./encountersV2.js";
+import { encounterFromTemplate, getEncounterV2 } from "./encountersV2.js";
 import { buildFormActionDefinitions } from "./formActions.js";
 import { createFormsState } from "../../shop/forms.js";
 
@@ -17,15 +17,31 @@ import { createFormsState } from "../../shop/forms.js";
  * @param {object} params
  * @param {object} params.character 角色卡（core/schema.js 形狀）
  * @param {string} params.battleId
- * @param {string} [params.encounterId]
+ * @param {string} [params.encounterId] 內建遭遇的 id（沒有 enemyTemplate 時才看它）
+ * @param {object} [params.enemyTemplate] 副本包裡的敵人樣板（最終戰的 bossEncounter 或
+ *   迫近度到頂的 threatEncounter）。有帶就用它，內建的佔位遭遇只是沒有副本時的退路——
+ *   否則玩家在異形副本裡按下去會跳出一隻不相干的「掠奪者」，世界觀當場穿幫。
  * @param {object} [params.forms] content/shop/forms.js 的型態狀態（型態授予的天生武器要進裝備表）
  * @param {string} [params.sceneKey] 以「場景」計時的型態要記下啟動當下的地點，
  *   語意見 content/shop/access.js 的 sceneKeyOf()。戰鬥不是一個獨立的場景——
  *   打一場架不會改變你站在哪裡，所以這裡用的是 session 的場景鑰匙，不是 battle.scene.id。
  * @param {number} [params.seed] 測試用：鎖定整場戰鬥的骰子
  */
-export function startBattleV2({ character, battleId, encounterId, forms, sceneKey = null, seed }) {
-  const encounter = getEncounterV2(encounterId);
+export function startBattleV2({ character, battleId, encounterId, enemyTemplate, forms, sceneKey = null, seed, encounterLabel }) {
+  // 角色卡壞掉時**要當場報清楚**，不要用一個編出來的預設值撐過去。
+  // 先前這裡寫 `character.derived?.hp ?? { max: 10, ... }`，那看起來像防禦性寫法，
+  // 實際效果是：存檔壞掉的玩家會進到一場自己血量憑空變成 10 的戰鬥，而且沒有任何
+  // 地方會說出哪裡不對。開不了的戰鬥好過一場數字是假的戰鬥。
+  if (!character?.derived?.hp || typeof character.derived.hp.max !== "number") {
+    throw new Error(
+      `角色卡沒有可用的生命值狀態（character.derived.hp）——無法建立戰鬥。` +
+        `這通常代表存檔的衍生數值沒有算過，見 core/derivedStats.js 的 computeDerivedStats()。`
+    );
+  }
+
+  const encounter = enemyTemplate
+    ? encounterFromTemplate(enemyTemplate, { id: encounterId ?? "scenario_encounter", label: encounterLabel ?? "副本遭遇" })
+    : getEncounterV2(encounterId);
   const extraSources = activeGrantSources(forms);
 
   const combatProfile = combatProfileFrom(character, {
@@ -40,8 +56,8 @@ export function startBattleV2({ character, battleId, encounterId, forms, sceneKe
       attributes: character.attributes ?? {},
       skills: character.skills ?? {},
       combatProfile,
-      hpState: character.derived?.hp ?? { max: 10, intact: 10, B: 0, L: 0, A: 0 },
-      initiative: (character.derived?.initiative ?? 0) + (combatProfile.initiativeBonus ?? 0),
+      hpState: character.derived.hp,
+      initiative: (character.derived.initiative ?? 0) + (combatProfile.initiativeBonus ?? 0),
     },
     enemyEntries: encounter.enemies.map((enemy) => ({ ...enemy })),
     scene: encounter.scene,

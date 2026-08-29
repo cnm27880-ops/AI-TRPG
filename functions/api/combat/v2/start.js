@@ -46,11 +46,21 @@ export async function onRequestPost(context) {
     return json({ ok: false, code: "PLAYER_DOWN", error: downState.reason, downState }, 409);
   }
 
-  // 副本的最終戰節點若已經是目前活躍節點，這場戰鬥就是那一場——記下節點 ID，
-  // 打贏之後 /api/combat/v2/turn 才知道要結算哪一個節點（跟舊流程同一個機制）。
+  // 這一場要打誰，由副本進度決定，不是由前端傳什麼決定：
+  //   1. 最終戰節點已經是目前活躍節點 -> 打那個節點掛的 bossEncounter
+  //   2. 迫近度到頂（接觸）-> 打這個副本自己的追兵樣板 threatEncounter
+  //   3. 都不是 -> 內建的佔位遭遇
+  //
+  // 第 2 點是「迫近度」那條軌道的兌現點：玩家一路失敗把它推到頂之後，如果只是換一段
+  // 比較嚇人的文字、開戰卻跳出一隻不相干的「掠奪者」，整條軌道就白做了。
   const scenarioPack = session.scenario ? getScenarioPack(session.scenario.packId) : null;
   const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
   const finaleNode = activeNode?.isFinale ? activeNode : null;
+
+  const threatTrack = session.scenario ? getThreatTrack(session.scenario.progress) : null;
+  const threatContact = Boolean(threatTrack && threatTrack.level >= THREAT_MAX);
+  const threatTemplate = !finaleNode && threatContact ? scenarioPack?.threatEncounter ?? null : null;
+  const enemyTemplate = finaleNode?.bossEncounter ?? threatTemplate ?? null;
 
   // 戰鬥外已經在進行中的型態要跟著進戰鬥，但**先對一次場景鑰匙**：玩家在別的地點變的身
   // 應該在走到這裡之前就已經到期（見 forms.js 的 formsForScene）。跟舊流程同一個判斷。
@@ -64,8 +74,10 @@ export async function onRequestPost(context) {
       character: session.character,
       forms: session.forms,
       sceneKey,
+      enemyTemplate,
+      encounterLabel: finaleNode ? finaleNode.title : threatTemplate ? "追兵接觸" : undefined,
       battleId: `battle_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
-      encounterId,
+      encounterId: enemyTemplate ? `scenario:${scenarioPack?.id ?? "unknown"}` : encounterId,
       // seed 只在測試/開發環境接受。正式環境傳進來也只影響**這一場**的骰序，
       // 而且 seed 從不出現在任何回應裡（見 publicState.js 的白名單），
       // 所以玩家沒有辦法用它預測後續結果。
@@ -76,6 +88,7 @@ export async function onRequestPost(context) {
       where: "POST /api/combat/v2/start",
       sessionId,
       encounterId,
+      enemyTemplate: enemyTemplate?.name ?? "(內建佔位遭遇)",
       message: err.message,
     }));
     return json({ ok: false, error: `無法建立戰鬥：${err.message}` }, 400);

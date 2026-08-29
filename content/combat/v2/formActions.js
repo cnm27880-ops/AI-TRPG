@@ -4,9 +4,8 @@
 // 靜態目錄（core/combat/v2/actionCatalog.js）只能放所有人共通的行動，所以型態的條目
 // 在開戰當下由這裡從角色卡長出來，跟著戰鬥狀態一起存。
 //
-// 資料來源是 content/shop/forms.js 的 formsOf()，也就是商店買到的東西。這條線在舊戰鬥
-// 流程已經接好（見 encounterState.js 的 combatOptions），V2 沒有理由重接一次——差別只在
-// V2 要把它包成一張標準的 action card，讓它跟射擊、移動走完全同一套驗證與結算路徑。
+// 資料來源是 content/shop/forms.js 的 formsOf()，也就是商店買到的東西。它被包成一張
+// 標準的 action card，跟射擊、移動走完全同一套驗證與結算路徑，沒有任何特例分支。
 //
 // [設計順序] 商品型錄目前是佔位資料，所以這裡的原則是**戰鬥系統是基準、商品往它對齊**：
 // 舊的六個動作等級由 fromLegacyActionLevel() 翻成 V2 的五類（自由→迅捷，理由見該處註解），

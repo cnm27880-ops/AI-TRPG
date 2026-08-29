@@ -70,7 +70,9 @@ core/                       純規則運算核心，不呼叫 AI
   energyPools.js            能量池與相關資源
   rest.js                   休息與恢復規則
   character.js              戰鬥角色檔案形狀
-  combat/                   先攻、防禦、攻擊、護甲、行動經濟與完整攻擊流程
+  combat/                   先攻、防禦、攻擊、護甲與完整攻擊流程
+    v2/                       戰術戰鬥：五類動作經濟、三段距離、動態行動選單、
+                              回合結算、敵方 AI 與公開狀態白名單
 
 content/                    可替換內容與服務層
   characterBuilder.js       建卡組裝與預算驗證
@@ -80,7 +82,8 @@ content/                    可替換內容與服務層
   narrativeStyle.js          說書人文筆與人格設定
   scenario/                  副本註冊、節點、進度、迫近度、時間預算、reference adapter 與結算
     examples/                 Alien V1／V2 範例副本與 V2 GM reference authoring/runtime sidecar
-  combat/                    遭遇狀態與目前的單敵人戰鬥內容
+  combat/                    戰鬥內容與戰後結算
+    v2/                        武器表、遭遇樣板、裝備清單、型態行動與戰鬥工廠
   shop/                      商店目錄、價格、錢包、購買、型態與存取規則
   contracts/                 契約內容包結構
   auth/                      Google OIDC、登入票、所有權與匿名存檔認領
@@ -106,13 +109,14 @@ functions/api/               Cloudflare Pages Functions API
   revive.js                  復活
   shop.js                    商店貨架與購買
   forms.js                   型態／資源啟動
-  combat/start.js            開始遭遇戰
-  combat/act.js              執行戰鬥回合行動
-  combat/resolve.js          執行完整攻擊行動
+  combat/v2/start.js         開始一場戰鬥（依副本進度挑敵人樣板）
+  combat/v2/state.js         取得目前戰鬥狀態（斷線重連的權威來源）
+  combat/v2/turn.js          驗證或結算玩家這一輪的選擇
 
 public/                      Cloudflare Pages 靜態資源
-  index.html                 單頁遊戲介面、建卡、角色 HUD、最近五則故事窗口與戰鬥面板
+  index.html                 單頁遊戲介面、建卡、角色 HUD、最近五則故事窗口與戰術戰鬥控制台
   app.js                     前端應用層與 API 呼叫，不做規則運算；含最近五則、回顧邊界提示與 pending retry UX
+  combatV2.js                戰術戰鬥控制台：只負責渲染、選擇與提交，不做任何規則判定
   tailwind.css               預先編譯的靜態 CSS
   manifest.webmanifest       PWA 安裝資訊
   sw.js                      Service Worker
@@ -127,7 +131,7 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 
 前端目前提供從邀請頁、建卡、主神空間到副本回合的完整主路徑。玩家可以建立角色、進行人生路徑問答與肉體重塑，建立存檔後進入回合循環；每輪由 API 回傳最多四個經過查驗的選項，玩家也可以輸入第五種自訂行動。
 
-遊戲主畫面包含角色 HUD、任務與副本狀態、最近五則故事窗口、決策卡、休息、輪迴者檔案、主神商店、型態／資源啟動、事件日誌，以及目前的單敵人戰鬥面板；Alien V2 另在角色側欄提供副本人物 roster、存活狀態與 server-owned 好感度摘要。V2 的休眠室是可持續多回合的起始事件：調查、封艙或聯絡母親只改變已授權狀態，玩家必須明確選擇離開休眠室後才會進入 Ash 場景；已完成的 approach 會由前置旗標隱藏，避免每回合看到同一組選項。reference options 的屬性、技能、難度與 DC 由 server-side adapter 正規化，前端不自行猜測。主畫面只保留最近五則現場訊息；完整長期劇情由主神商店旁的「劇情回顧」頁按需讀取，支援小說式回顧、事件事實與副本結束後可複製／下載的 AI-ready 劇情包。當 LLM 在規則層完成後暫時失敗，伺服器會保存 pendingTurn，玩家重試時沿用原骰面，不會重複扣時間、迫近度或寫入重複歷史。寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
+遊戲主畫面包含角色 HUD、任務與副本狀態、最近五則故事窗口、決策卡、休息、輪迴者檔案、主神商店、型態／資源啟動、事件日誌，以及戰術戰鬥控制台。**戰鬥由局勢觸發，沒有手動的「遭遇戰鬥」按鈕**：迫近度到頂（接觸）或主線推進到最終戰節點時自動進入戰鬥，打誰由副本進度決定。戰鬥中不提供自由文字輸入，所有行動由伺服器產生的動態選單選擇；Alien V2 另在角色側欄提供副本人物 roster、存活狀態與 server-owned 好感度摘要。V2 的休眠室是可持續多回合的起始事件：調查、封艙或聯絡母親只改變已授權狀態，玩家必須明確選擇離開休眠室後才會進入 Ash 場景；已完成的 approach 會由前置旗標隱藏，避免每回合看到同一組選項。reference options 的屬性、技能、難度與 DC 由 server-side adapter 正規化，前端不自行猜測。主畫面只保留最近五則現場訊息；完整長期劇情由主神商店旁的「劇情回顧」頁按需讀取，支援小說式回顧、事件事實與副本結束後可複製／下載的 AI-ready 劇情包。當 LLM 在規則層完成後暫時失敗，伺服器會保存 pendingTurn，玩家重試時沿用原骰面，不會重複扣時間、迫近度或寫入重複歷史。寬桌面決策卡會依螢幕寬度由 2×2 切換為 4×1，手機則保留單欄與角色抽屜操作模型。
 
 所有副本都是單向道：活躍中的輪迴者檔案只能接續目前進度，不能回到過去 scene 或重玩同一副本；想重玩時必須回到主神空間／首頁建立一名新的輪迴者。登入不是遊戲的必要條件。未登入時可以使用匿名輪迴者檔案；登入後，新檔案會綁定帳號，既有的瀏覽器匿名檔案也會在登入後嘗試認領。未來 Google 登入的檔案頁應管理多名角色及各自歷程，而不是作為回放選單。存檔、登入與 KV 的詳細取捨請看 `DEPLOYMENT.md` 與 `ARCHITECTURE.md`。
 
@@ -144,7 +148,8 @@ wrangler.toml                Cloudflare Pages、AI binding 與 KV 設定骨架
 | 敘事契約 | 判定 margin 到固定敘事方向的分級，避免 AI 自己改判定結果 |
 | 選項查驗 | 屬性／技能／難度／DC、純敘事選項、保底選項與回合輸出 schema |
 | 劇本狀態 | 副本節點、進度、迫近度、時間預算、重複行動與結算 |
-| 戰鬥 | 先攻、防禦、攻擊類型、護甲、行動經濟、傷害減免與完整攻擊流程 |
+| 戰鬥 | 先攻、防禦、攻擊類型、護甲、傷害減免與完整攻擊流程 |
+| 戰術戰鬥 | 五類動作經濟與轉化、三段距離、動態行動選單、結算順序、敵方 AI、型態接線、stateVersion／requestId 一致性與戰鬥頁面契約 |
 | 內容包 | 結構驗證、跨包撞名、資源模板稽核、商店目錄與價格檢查 |
 | API 與服務 | session、journal、chronicle、shop、forms、rest、auth、scenario、combat 與 LLM 整合路徑的測試；含 LLM failure retry 不重骰回歸 |
 

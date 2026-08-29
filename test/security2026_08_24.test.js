@@ -18,8 +18,8 @@ import { onRequestPost as narratePost } from "../functions/api/narrate.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
 import { onRequestPost as revivePost } from "../functions/api/revive.js";
 import { onRequestPost as restPost } from "../functions/api/rest.js";
-import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
-import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/v2/start.js";
+import { onRequestPost as combatTurn } from "../functions/api/combat/v2/turn.js";
 import { onRequestGet as chronicleGet } from "../functions/api/chronicle.js";
 import { onRequestPost as formsPost } from "../functions/api/forms.js";
 import { onRequestPost as shopPost } from "../functions/api/shop.js";
@@ -341,32 +341,37 @@ test("[併發] /api/combat/act：兩個真正並行的攻擊請求同時送出�
   const created = await read(await sessionPost(req(env, { character })));
   const sessionId = created.session.id;
 
-  const started = await read(await combatStart(req(env, { sessionId })));
+  const started = await read(await combatStart(req(env, { sessionId, seed: 5 })));
   assert.equal(started.ok, true, JSON.stringify(started));
-
   const store = resolveSessionStore(env);
-  const session = await store.get(sessionId);
-  session.combat.order = ["player", "enemy"];
-  session.combat.turnIndex = 0;
-  await store.put(session, { expectedRev: session.rev });
 
-  // 玩家連點兩次攻擊鍵(或網路重試造成的重複送出)，兩個請求幾乎同時抵達：
-  // 兩者都會讀到「現在輪到玩家」的同一份快照，只有一個能真的把攻擊結果寫回去。
+  // 玩家連點兩次確認鍵(或網路重試造成的重複送出)，兩個請求幾乎同時抵達，
+  // 而且**帶著不同的 requestId**（冪等機制擋不住這一種——那是同一次送出的重試）。
+  // 兩者都會讀到同一份快照，只有一個能真的把結果寫回去。
+  const body = (requestId) => ({
+    sessionId,
+    stateVersion: started.battle.stateVersion,
+    requestId,
+    selectedActions: [{ actionId: "firearm_shot", targetId: "enemy_01" }],
+  });
   const [resA, resB] = await Promise.all([
-    combatAct(req(env, { sessionId, weaponKey: "unarmed" })),
-    combatAct(req(env, { sessionId, weaponKey: "unarmed" })),
+    combatTurn(req(env, body("click-1"))),
+    combatTurn(req(env, body("click-2"))),
   ]);
   const [bodyA, bodyB] = await Promise.all([read(resA), read(resB)]);
   const results = [bodyA, bodyB];
   const successes = results.filter((r) => r.ok);
-  const conflicts = results.filter((r) => !r.ok && r.code === "SESSION_CONFLICT");
+  const rejected = results.filter(
+    (r) => !r.ok && (r.code === "SESSION_CONFLICT" || r.code === "STATE_VERSION_CONFLICT")
+  );
 
-  assert.equal(successes.length, 1, `兩個並行攻擊只能有一次真的結算，實際：${JSON.stringify(results)}`);
-  assert.equal(conflicts.length, 1, "另一個必須拿到明確的 SESSION_CONFLICT");
+  assert.equal(successes.length, 1, `兩個並行結算只能有一次真的成立，實際：${JSON.stringify(results)}`);
+  assert.equal(rejected.length, 1, "另一個必須拿到明確的衝突碼，不能也回成功");
 
   const after = await store.get(sessionId);
-  // 只結算了一次攻擊：戰鬥紀錄只多一筆玩家攻擊，血量變化也只發生一次，不是兩份傷害疊加。
-  assert.equal(after.combat.log.filter((entry) => entry.actor === "player").length, 1);
+  // 只結算了一輪：彈藥只少一發，不是兩發疊加。
+  assert.equal(after.combatV2.loadout.ammo.pistol.loaded, after.combatV2.loadout.ammo.pistol.magazine - 1);
+  assert.equal(after.combatV2.round, 2, "只推進了一輪");
 });
 
 // ---------------------------------------------------------------------------
@@ -726,20 +731,22 @@ test("[併發] /api/combat/start：兩個真正並行的開戰請求，只有一
   const [bodyA, bodyB] = await Promise.all([read(resA), read(resB)]);
   const results = [bodyA, bodyB];
   const successes = results.filter((r) => r.ok);
-  const conflicts = results.filter((r) => !r.ok && (r.code === "SESSION_CONFLICT" || /已經有進行中的戰鬥/.test(r.error ?? "")));
+  const conflicts = results.filter(
+    (r) => !r.ok && (r.code === "SESSION_CONFLICT" || r.code === "BATTLE_IN_PROGRESS")
+  );
 
   assert.equal(successes.length, 1, `兩個並行開戰請求只能有一個成功，實際：${JSON.stringify(results)}`);
   assert.equal(conflicts.length, 1, "另一個必須拿到明確的衝突/已有戰鬥錯誤，不能也回成功(那會是兩場戰鬥疊在一起)");
 
   const store = resolveSessionStore(env);
   const finalSession = await store.get(sessionId);
-  assert.equal(finalSession.combat?.active, true, "最終只能有一場戰鬥在進行中");
+  assert.equal(finalSession.combatV2?.active, true, "最終只能有一場戰鬥在進行中");
 });
 
 test("[併發] /api/forms：兩個真正並行的型態啟動請求，池子只被扣一次", async () => {
   const env = {};
-  // 劍氣/內力都是「以輪計時」，/api/forms 沒有輪數可以給(那是combat/act.js才有的
-  // context)，戰鬥外一定會被「缺少輪數」擋下——所以這裡改用「以場景計時」的
+  // 劍氣/內力都是「以輪計時」，/api/forms 沒有輪數可以給(只有戰鬥裡才有輪)，
+  // 戰鬥外一定會被「缺少輪數」擋下——所以這裡改用「以場景計時」的
   // 寫輪眼(洞察眼)：標準動作啟動、付1點查克拉、持續一個場景，戰鬥外啟動得起來。
   const 寫輪眼 = SHOP_GOODS.find((g) => g.goodId === "dojutsu.寫輪眼.D");
   const character = emptyCharacter("型態併發測試");

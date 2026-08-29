@@ -58,7 +58,7 @@ function publicEnemy(battle, enemy) {
     rangeLabel: RANGE_LABELS[getRange(battle, "player", enemy.id)] ?? null,
     inCover: Boolean(enemy.coverFeatureId),
     visible: enemy.visible,
-    // 意圖預告是刻意公開的敘事線索，不是內部資料（見 placeholderEncounters.js 的說明）。
+    // 意圖預告是刻意公開的敘事線索，不是內部資料：它不進任何公式，不影響命中、傷害或先攻。
     telegraph: enemy.currentTelegraph ?? null,
   };
 }

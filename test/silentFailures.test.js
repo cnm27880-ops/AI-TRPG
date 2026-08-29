@@ -7,10 +7,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost, onRequestGet as sessionGet } from "../functions/api/session.js";
-import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
-import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/v2/start.js";
+import { onRequestPost as combatTurn } from "../functions/api/combat/v2/turn.js";
 import { onRequestPost as narratePost } from "../functions/api/narrate.js";
-import { createEncounter, resolveEnemyAttack } from "../content/combat/encounterState.js";
+import { enemyFromTemplate } from "../content/combat/v2/encountersV2.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { emptyCharacter } from "../core/schema.js";
 
@@ -34,16 +34,22 @@ async function newSession(env, extra = {}) {
 // 清單#1：重整頁面後戰鬥狀態要還原得回來
 // ---------------------------------------------------------------------------
 
-test("戰鬥中的存檔，GET /api/session 要把 combat 原封不動帶回來(前端才有辦法還原畫面)", async () => {
+test("戰鬥中的存檔，GET /api/session 要告訴前端有仗在打(前端才知道要還原戰鬥畫面)", async () => {
   const env = {};
   const sessionId = await newSession(env);
   const started = await read(await combatStart(req(env, { sessionId })));
   assert.equal(started.body.ok, true);
 
   const saved = await resolveSessionStore(env).get(sessionId);
-  assert.equal(saved.combat.active, true, "存檔裡本來就有完整的戰鬥狀態，只是先前沒有人讀回來");
-  assert.ok(Array.isArray(saved.combat.order));
-  assert.ok(saved.combat.enemy?.name);
+  assert.equal(saved.combatV2.active, true, "存檔裡本來就有完整的戰鬥狀態");
+  assert.ok(Array.isArray(saved.combatV2.order));
+  assert.ok(saved.combatV2.participants.some((p) => p.side === "enemy"));
+
+  // /api/session 只回一個旗標，完整戰鬥狀態走 /api/combat/v2/state 的白名單——
+  // 在兩個地方各攤平一份，遲早有一份忘記過濾而漏出敵人的精確血量。
+  const view = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
+  assert.equal(view.body.session.combat.active, true, "前端要看得出有仗在打");
+  assert.equal(view.body.session.combat.enemy, undefined, "但不從這裡拿敵人資料");
   const { body } = await read(await sessionGet(getReq(env, `https://x/api/session?id=${sessionId}`)));
   assert.equal(body.session.log, undefined, "公開 session view 不得暴露完整 event log");
 });
@@ -56,32 +62,24 @@ test("最終戰結算失敗時，回應要帶出原因，不能讓玩家以為�
   const env = {};
   const sessionId = await newSession(env);
   const store = resolveSessionStore(env);
+  const started = await read(await combatStart(req(env, { sessionId, seed: 9 })));
+  assert.equal(started.body.ok, true, JSON.stringify(started.body));
 
   // 做一個「打贏了、但 scenarioFinaleNodeId 指向一個不存在的節點」的狀態，
-  // 這正是舊程式碼會安靜地把 scenarioResult 留在 null 的那條路。
+  // 這正是會安靜地把 scenario 留在 null 的那條路。
   const session = await store.get(sessionId);
-  session.combat = {
-    active: true,
-    round: 1,
-    turnIndex: 0,
-    order: ["player", "enemy"],
-    winner: null,
-    scenarioFinaleNodeId: "不存在的節點",
-    player: { hpState: { ...session.character.derived.hp }, budget: { actions: 1, reactions: 1 } },
-    enemy: {
-      name: "紙糊的敵人",
-      attributes: { 力量: 1, 敏捷: 1, 耐力: 1, 智力: 1, 感知: 1, 意志: 1 },
-      skills: { 格鬥: 0 },
-      weaponKey: "unarmed",
-      armor: 0,
-      hpState: { max: 1, intact: 0, B: 0, L: 0, A: 1, dead: true, unconscious: true, worsening: false },
-      budget: { actions: 1, reactions: 1 },
-    },
-    log: [],
-  };
+  session.scenario = { packId: "scenario.echo-institute-01", progress: { nodes: {} } };
+  session.combatV2.scenarioFinaleNodeId = "不存在的節點";
+  const enemy = session.combatV2.participants.find((p) => p.side === "enemy");
+  enemy.hpState = { ...enemy.hpState, intact: 0, B: 0, L: 0, A: enemy.hpState.max, dead: true, unconscious: true };
   await store.put(session);
 
-  const { body } = await read(await combatAct(req(env, { sessionId, weaponKey: "unarmed" })));
+  const { body } = await read(await combatTurn(req(env, {
+    sessionId,
+    stateVersion: session.combatV2.stateVersion,
+    requestId: "broken-finale",
+    selectedActions: [{ actionId: "hunker_down" }],
+  })));
   assert.equal(body.ok, true);
   assert.ok(body.scenario?.warnings?.length, "結算失敗必須帶出原因，不能靜靜地回 scenario:null");
   assert.match(body.scenario.warnings.join(), /最終戰/);
@@ -91,10 +89,9 @@ test("最終戰結算失敗時，回應要帶出原因，不能讓玩家以為�
 // 清單#8：敵人武器 key 打錯時要給看得懂的錯誤
 // ---------------------------------------------------------------------------
 
-test("敵人樣板的 weaponKey 不在型錄裡時，createEncounter 要指名問題並列出可用值", () => {
-  const hero = emptyCharacter("測試");
+test("敵人樣板的 weaponKey 不在型錄裡時，要指名問題並列出可用值", () => {
   assert.throws(
-    () => createEncounter(hero, {
+    () => enemyFromTemplate({
       name: "打錯字的Boss",
       attributes: { 力量: 3, 敏捷: 2, 耐力: 3, 智力: 1, 感知: 2, 意志: 2 },
       skills: { 格鬥: 2 },
@@ -104,38 +101,40 @@ test("敵人樣板的 weaponKey 不在型錄裡時，createEncounter 要指名�
     (err) => {
       assert.match(err.message, /打錯字的Boss/, "要指名是哪個敵人樣板");
       assert.match(err.message, /shotgun/, "要指名是哪個值");
-      assert.match(err.message, /placeholderEncounters/, "要指名去哪個檔案改");
+      assert.match(err.message, /weapons\.js/, "要指名去哪個檔案改");
       assert.ok(!/Cannot read properties/.test(err.message), "不可以是原生的undefined錯誤");
       return true;
     }
   );
 });
 
-test("resolveEnemyAttack 也要擋(舊存檔可能已經帶著壞掉的 weaponKey)", () => {
-  const hero = emptyCharacter("測試");
-  const combat = createEncounter(hero);
-  combat.enemy.weaponKey = "shotgun"; // 模擬存檔裡already壞掉的資料
-  combat.order = ["enemy", "player"];
-  combat.turnIndex = 0;
-  assert.throws(() => resolveEnemyAttack(combat, hero), /shotgun/);
+test("敵人樣板缺 attributes 時也要指名問題(推導不出生命值與先攻)", () => {
+  assert.throws(
+    () => enemyFromTemplate({ name: "沒有屬性的Boss", weaponKey: "unarmed" }),
+    (err) => {
+      assert.match(err.message, /沒有屬性的Boss/);
+      assert.match(err.message, /attributes/);
+      return true;
+    }
+  );
 });
 
-test("/api/combat/start：敵人樣板壞掉時回400並說明，不是沒有內容的500", async () => {
+test("/api/combat/v2/start：角色/敵人資料壞掉時回400並說明，不是沒有內容的500", async () => {
   const env = {};
   const sessionId = await newSession(env);
   const store = resolveSessionStore(env);
 
-  // createEncounter 會對壞資料丟錯這件事上面已經測過了；這裡要確認的是
+  // enemyFromTemplate 會對壞資料丟錯這件事上面已經測過了；這裡要確認的是
   // **API層有沒有接住**——先前這裡沒有 try/catch，例外會直接冒出去變成一個
   // 沒有內容的500，前端只能顯示「連線失敗」，真正的原因不會出現在任何地方。
   const broken = await store.get(sessionId);
-  broken.character.derived = null; // rollInitiative(character.derived.initiative) 會炸
+  broken.character.derived = null; // 推導先攻/生命值時會炸
   await store.put(broken);
 
   const { status, body } = await read(await combatStart(req(env, { sessionId })));
   assert.equal(status, 400, "應該是可讀的400，而不是讓例外冒出去變成500");
   assert.equal(body.ok, false);
-  assert.match(body.error, /無法建立戰鬥遭遇/);
+  assert.match(body.error, /無法建立戰鬥/);
 });
 
 // ---------------------------------------------------------------------------

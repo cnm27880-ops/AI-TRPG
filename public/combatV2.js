@@ -51,6 +51,16 @@ function leaveCombatV2View() {
   if (panel) panel.style.display = "none";
 }
 
+/**
+ * 現在是不是在一場進行中的戰鬥裡。
+ *
+ * app.js 有好幾個地方要問這件事（休息、劇情回顧、要不要自動開戰）。它**不自己記一份**
+ * ——兩個地方各記一個「在不在戰鬥中」的旗標，遲早會有一個忘記更新。
+ */
+function isInCombatV2() {
+  return Boolean(cv2Battle?.active) || cv2Busy;
+}
+
 /** 開始一場 Combat V2 戰鬥。 */
 async function startCombatV2(encounterId = null) {
   if (!currentSessionId || cv2Busy) return;
@@ -63,9 +73,18 @@ async function startCombatV2(encounterId = null) {
     });
     const payload = await res.json();
     if (!payload.ok) {
-      cv2Notice = { text: payload.error ?? "無法開始戰鬥", level: "error" };
-      // 已經有一場在進行中：直接把它接回來，而不是留一個打不開的按鈕。
-      if (payload.code === "BATTLE_IN_PROGRESS") await restoreCombatV2();
+      // 已經有一場在進行中：直接把它接回來。這在自動開戰下很常見——同一次 contact
+      // 可能觸發兩次（例如重整頁面），第二次會撞到 409。
+      if (payload.code === "BATTLE_IN_PROGRESS") {
+        await restoreCombatV2({ quiet: true });
+        return;
+      }
+      // 其他失敗（角色已倒下、敵人樣板壞掉）不要靜靜地什麼都不做：戰鬥是系統自動
+      // 發起的，玩家沒有按任何東西，畫面上必須看得到為什麼沒打起來。
+      console.error("[COMBAT_V2] 開戰失敗", payload);
+      if (typeof appendFeedEvent === "function") {
+        appendFeedEvent("world", "戰鬥沒有開始", payload.error ?? "未知原因");
+      }
       return;
     }
     cv2Battle = payload.battle;
@@ -604,7 +623,15 @@ document.addEventListener("click", (event) => {
     if (help) help.hidden = !help.hidden;
     return;
   }
-  if (event.target.closest?.("#cv2-over-close")) { leaveCombatV2View(); return; }
+  if (event.target.closest?.("#cv2-over-close")) {
+    // 收起戰鬥畫面之後要回到主敘事迴圈：贏了送一句「擊敗了X」回去讓 AI 接著寫，
+    // 輸了則先問伺服器角色是不是真的倒下（打到死掉的角色不該繼續玩下去）。
+    const won = cv2Battle?.outcome?.winner === "player";
+    const enemyName = cv2Battle?.enemies?.[0]?.name ?? "敵人";
+    leaveCombatV2View();
+    if (typeof endCombatReturn === "function") endCombatReturn({ won, enemyName });
+    return;
+  }
   if (event.target.closest?.("#cv2-exit-btn")) {
     // 進行中的戰鬥不得未經確認直接離開（規格第7.1節A區）。
     if (cv2Battle?.active && !window.confirm("戰鬥仍在進行中。離開後這場戰鬥仍會保留，之後可以回來繼續。確定離開嗎？")) return;
@@ -626,4 +653,5 @@ if (typeof window !== "undefined") {
   window.restoreCombatV2 = restoreCombatV2;
   window.leaveCombatV2View = leaveCombatV2View;
   window.renderCombatV2 = renderCombatV2;
+  window.isInCombatV2 = isInCombatV2;
 }

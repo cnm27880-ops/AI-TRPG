@@ -1,8 +1,8 @@
 // [設計-臨時佔位資料] Combat V2 的場景與敵人樣板。
 //
-// 跟 content/combat/placeholderEncounters.js 同樣的定位：不是規則書內容，也不是正式的
-// 怪物型錄。V2 需要的東西比舊資料多兩塊——**場景可互動物件**與**敵人 AI 檔案**——
-// 所以另開一份，而不是去改舊檔案（舊戰鬥流程還在用它，見 core/combat/V2_ISOLATION.md）。
+// 跟 content/combat/v2/weapons.js 同樣的定位：不是規則書內容，也不是正式的怪物型錄。
+// 副本包裡的真實敵人樣板（bossEncounter／threatEncounter）由底下的 enemyFromTemplate()
+// 轉成這裡的形狀，所以打副本時用的是副本自己的怪，不是這份佔位資料。
 //
 // scene.features 是規格第7.1節D區的「可互動環境」：每一個都對應行動選單裡的一顆
 // 環境行動按鈕，並且帶著自己的距離限制。玩家在遠距離就按不到中央的控制面板，
@@ -12,6 +12,9 @@
  * 場景可互動物件的類型。行動目錄（core/combat/v2/actionCatalog.js）用 tag 去找它，
  * 所以之後新增場景只要沿用同一組 tag，就自動長出對應的環境行動，不用改程式碼。
  */
+import { computeDerivedStats } from "../../../core/derivedStats.js";
+import { COMBAT_WEAPONS } from "./weapons.js";
+
 export const FEATURE_TAGS = Object.freeze({
   COVER: "cover",
   DOOR: "door",
@@ -68,8 +71,10 @@ export const AI_PROFILES = Object.freeze({
 });
 
 /**
- * 預設遭遇：一隻掠奪者。數值沿用 placeholderEncounters.js 的 PLACEHOLDER_ENEMY
- * （同樣刻意調低，理由見該檔案的說明），另外補上 V2 需要的 hp / threatLabel / ai。
+ * 預設遭遇：一隻掠奪者。數值刻意調低（相對於一般建卡角色）——單一DC防御公式下，
+ * 雙方技能相同時防御DC會逼近攻擊DP本身，命中率低到不像樣（見 ARCHITECTURE.md
+ * 「戰鬥數學簡化」的實測結果）。這裡先給一個「打得到、有來有回」的入門對手，
+ * 真正的怪物強度平衡留給接上真實型錄資料時再調。
  */
 export const DEFAULT_ENCOUNTER_V2 = Object.freeze({
   id: "cargo_bay_raider",
@@ -132,6 +137,64 @@ export const CROSSFIRE_ENCOUNTER_V2 = Object.freeze({
     }),
   ]),
 });
+
+/**
+ * 把副本包裡的敵人樣板（bossEncounter／threatEncounter）轉成戰鬥系統要的形狀。
+ *
+ * 副本資料寫的是 `{ name, attributes, skills, weaponKey, armor, size, telegraphs }`，
+ * 缺兩樣戰鬥需要的東西：生命值上限與先攻值。兩者都**由屬性推導**，而不是要副本作者
+ * 另外寫一個數字——推導公式（core/derivedStats.js）是規則書的算術，讓資料重複寫一次
+ * 只會多一個會走鐘的地方。這也正是舊戰鬥系統當初的作法，所以現有 boss 的難度不變。
+ *
+ * @param {object} template 副本包裡的敵人樣板
+ * @param {{ id?: string, threatLabel?: string }} [opts]
+ */
+export function enemyFromTemplate(template, { id = "enemy_01", threatLabel } = {}) {
+  if (!template?.attributes) {
+    throw new Error(`敵人樣板「${template?.name ?? "(未命名)"}」缺少 attributes，無法推導生命值與先攻`);
+  }
+  const derived = computeDerivedStats(template.attributes, { size: template.size ?? 5 });
+  const weapon = COMBAT_WEAPONS[template.weaponKey];
+  if (!weapon) {
+    // 開戰當下就報清楚，不要等到敵人第一次揮拳才炸——那時戰鬥已經寫進存檔，
+    // 玩家會卡在一場打不下去的戰鬥裡。
+    throw new Error(
+      `敵人樣板「${template.name}」的武器「${template.weaponKey}」不在武器型錄裡` +
+        `（可用的有：${Object.keys(COMBAT_WEAPONS).join("/")}）。見 content/combat/v2/weapons.js`
+    );
+  }
+
+  return {
+    id,
+    name: template.name,
+    // 副本資料可以自己寫 threatLabel；沒寫就用一個中性的公開分級，
+    // 不要從內部數值推——那等於把戰力數字換一個說法漏出去。
+    threatLabel: template.threatLabel ?? threatLabel ?? "威脅",
+    attributes: template.attributes,
+    skills: template.skills ?? {},
+    weaponKey: template.weaponKey,
+    armor: template.armor ?? 0,
+    hp: derived.hp.max,
+    initiative: derived.initiative,
+    // AI 檔案從武器推：有遠程武器的會想維持距離，只有近戰的會一路逼近。
+    ai: { profile: weapon.ranged ? AI_PROFILES.RANGED_HOLDER : AI_PROFILES.MELEE_RUSHER },
+    telegraphs: template.telegraphs ?? [],
+  };
+}
+
+/**
+ * 用一個副本敵人樣板組一場遭遇。場景仍用佔位的貨艙——副本資料目前沒有描述戰場的欄位，
+ * 那是之後接上真實地點時要補的（見 ROADMAP）。
+ */
+export function encounterFromTemplate(template, { id = "scenario_encounter", label = "副本遭遇" } = {}) {
+  return {
+    id,
+    label,
+    scene: CARGO_BAY_SCENE,
+    startRange: "medium",
+    enemies: [enemyFromTemplate(template)],
+  };
+}
 
 export const ENCOUNTERS_V2 = Object.freeze({
   [DEFAULT_ENCOUNTER_V2.id]: DEFAULT_ENCOUNTER_V2,

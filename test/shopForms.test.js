@@ -13,7 +13,6 @@ import { computeDerivedStats } from "../core/derivedStats.js";
 import { performCheck } from "../core/check.js";
 import { computeDefenseDC } from "../core/combat/defense.js";
 import { ATTACK_TYPES, ATTACK_CHECK_KEYS, attackCheckKeys } from "../core/combat/attackTypes.js";
-import { createActionBudget, useMove } from "../core/combat/actionEconomy.js";
 import {
   validateEffect,
   checkModifiersFor,
@@ -43,15 +42,6 @@ import {
   variablePaymentRange,
   payUpkeep,
 } from "../content/shop/forms.js";
-import {
-  createEncounter,
-  resolvePlayerAttack,
-  resolveEnemyAttack,
-  resolveFormActivation,
-  playerWeapons,
-  playerCombatProfile,
-  combatOptions,
-} from "../content/combat/encounterState.js";
 
 function hero() {
   const c = emptyCharacter("測試輪迴者");
@@ -176,30 +166,35 @@ test("意志力不夠就啟動不了，而且理由講得出數字", () => {
   assert.match(r.blockers[0].message, /需要1點意志力，目前只有0點/);
 });
 
-test("啟動要花掉對應的動作額度，額度用完了就啟動不了", () => {
+// [2026-08-29] 動作額度的檢查**不在這個模組**。舊版的 activateForm() 收一個 budget 參數
+// 並自己扣，那份額度模型隨舊戰鬥系統一起移除了；現在動作額度由戰鬥系統用自己的計數池扣
+// （見 core/combat/v2/actionBudget.js，測試在 test/combatV2Forms.test.js 的
+// 「啟動型態會扣 V2 的動作額度、意志力與能量池」與「動作額度用完時型態跟其他行動一樣不可用」）。
+//
+// 這個模組保留的責任是：**把動作等級當資料宣告出來**，讓戰鬥系統讀得到要扣哪一種。
+test("型態的啟動動作等級是資料的一部分，戰鬥系統靠它決定要扣哪一種動作", () => {
   const c = withAbility(hero(), [進化形態]);
-  const formId = formIdOf("test.血統", "進化形態");
+  const form = formsOf(c).find((f) => f.formId === formIdOf("test.血統", "進化形態"));
+  assert.equal(form.effect.activation.action, "移動");
 
-  const ok = activateForm(c, createFormsState(), formId, { budget: createActionBudget() });
+  // 而且啟動本身不再需要、也不接受動作額度——資源夠就成立。
+  const ok = activateForm(c, createFormsState(), form.formId);
   assert.equal(ok.ok, true);
-  assert.equal(ok.budget.moveAvailable, false, "移動動作應該被用掉");
-
-  const spent = useMove(createActionBudget());
-  const blocked = activateForm(c, createFormsState(), formId, { budget: spent });
-  assert.equal(blocked.ok, false);
-  assert.equal(blocked.blockers[0].code, "動作額度不足");
+  assert.equal(ok.budget, undefined, "回傳值不該再帶動作額度");
 });
 
 test("啟動失敗時意志力不會被扣掉(所有阻擋一次列齊，然後整筆不成立)", () => {
   const c = withAbility(hero(), [進化形態]);
   c.derived.willpower.current = 0;
-  const r = activateForm(c, createFormsState(), formIdOf("test.血統", "進化形態"), {
-    budget: useMove(createActionBudget()),
-  });
+  const formId = formIdOf("test.血統", "進化形態");
+  // 兩個同時成立的阻擋：意志力不足，而且它已經在進行中。
+  const running = { active: [{ formId, label: "進化形態", grants: [], unit: "場景" }], log: [] };
+  const r = activateForm(c, running, formId);
   assert.equal(r.ok, false);
-  assert.equal(r.blockers.length, 2, "意志力與動作額度兩個理由都要說");
+  assert.equal(r.blockers.length, 2, "兩個理由都要一次說齊，不是遇到第一個就回傳");
+  assert.deepEqual(r.blockers.map((b) => b.code).sort(), ["已在進行中", "意志力不足"]);
   assert.equal(r.character, undefined);
-  assert.equal(c.derived.willpower.current, 0);
+  assert.equal(c.derived.willpower.current, 0, "整筆不成立就一點都不扣");
 });
 
 test("同一個型態不能疊加——書上的「每場景一次」就是靠這一條表達的", () => {
@@ -342,102 +337,23 @@ test("formsOf/describeActiveForms：貨架與敘事拿得到人看得懂的描�
 // 接到真的戰鬥迴圈上
 // ---------------------------------------------------------------------------
 
-test("戰鬥中變身：防御DC真的變高，天生武器真的可以拿來打", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-
-  const beforeDefense = playerCombatProfile(combat, c).equipmentDefense;
-  assert.equal(beforeDefense, 0);
-  assert.ok(!("test.血統:進化形態" in playerWeapons(combat, c)));
-
-  const activation = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(activation.ok, true);
-  const transformed = activation.character;
-
-  assert.equal(playerCombatProfile(combat, transformed).equipmentDefense, 3);
-  const weaponKey = "test.血統:進化形態:Orphnoch的手足(天生武器)";
-  assert.ok(weaponKey in playerWeapons(combat, transformed), "變身後天生武器要出現在可用武器表");
-
-  // 真的打得出去，而且用的是天生武器的傷害
-  const { result } = resolvePlayerAttack(combat, transformed, weaponKey, {
-    rollFn: () => ({ successes: 8, rolls: [], isFortuneDie: false, fumble: false }),
-  });
-  assert.equal(result.hit, true);
-  assert.ok(result.finalDamage > 0);
-});
-
-test("戰鬥中變身會花掉移動動作，同一輪不能變身兩次", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-
-  const first = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(first.ok, true);
-  assert.equal(combat.player.budget.moveAvailable, false);
-
-  const second = resolveFormActivation(combat, first.character, formIdOf("test.血統", "進化形態"));
-  assert.equal(second.ok, false);
-  assert.ok(second.blockers.some((b) => b.code === "已在進行中"));
-});
-
-/**
- * 打完一場架：把敵人設成一擊必倒，然後打他一下。
- * alreadyActive=true 代表型態是戰鬥外就開好帶進來的，這裡不用再啟動一次。
- */
-function 一擊結束戰鬥(combat, character, formId, { alreadyActive = false } = {}) {
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-  combat.enemy.hpState = { ...combat.enemy.hpState, max: 1, intact: 1, B: 0, L: 0, A: 0 };
-  let attacker = character;
-  if (!alreadyActive) {
-    const activation = resolveFormActivation(combat, character, formId);
-    assert.equal(activation.ok, true, JSON.stringify(activation.blockers));
-    attacker = activation.character;
-  }
-  assert.equal(combat.forms.active.length, 1, "型態要先真的在進行中");
-  resolvePlayerAttack(combat, attacker, "unarmed", {
-    rollFn: () => ({ successes: 20, rolls: [], isFortuneDie: false, fumble: false }),
-  });
-  assert.equal(combat.active, false, "敵人應該倒下");
-}
-
-test("戰鬥結束收掉以「輪」計時的型態(戰鬥外沒有輪可以數)", () => {
-  const c = withAbility(hero(), [爆發]);
-  const combat = createEncounter(c);
-  一擊結束戰鬥(combat, c, formIdOf("test.血統", "爆發"));
-  assert.deepEqual(combat.forms.active, [], "以輪計時的型態留到戰鬥外就永遠不會到期");
-  assert.ok(combat.log.some((l) => l.event === "型態到期"));
-});
-
-test("戰鬥結束**不會**收掉以「場景」計時的型態——打一場架不會改變你站在哪裡", () => {
-  // [使用者決定 2026-08-17] 場景＝當下所在的地點。這則測試守的就是那句話：
-  // 先前這裡的規則是「戰鬥結束＝場景結束」，在場景有定義之後那是錯的。
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
-  一擊結束戰鬥(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(combat.forms.active.length, 1, "變身要撐得過一場戰鬥");
-  assert.equal(combat.forms.active[0].label, "進化形態");
-});
-
-test("舊存檔的 combat 沒有 forms 欄位時不會炸(型態是後來才加的)", () => {
-  const c = hero();
-  const legacy = { ...createEncounter(c) };
-  delete legacy.forms;
-  legacy.order = ["player", "enemy"];
-  legacy.turnIndex = 0;
-  assert.doesNotThrow(() => playerWeapons(legacy, c));
-  assert.doesNotThrow(() =>
-    resolvePlayerAttack(legacy, c, "unarmed", {
-      rollFn: () => ({ successes: 2, rolls: [], isFortuneDie: false, fumble: false }),
-    })
-  );
-});
-
 // ---------------------------------------------------------------------------
-// 真實商品：Orphnoch 從掛名轉正
+// [2026-08-29] 這一段原本有 13 則「透過戰鬥迴圈驗型態」的測試，走的是舊戰鬥系統的
+// createEncounter()／resolveFormActivation()／combatOptions()。舊系統整套移除之後，
+// 那個介面不存在了，但**它們驗的行為全部還在**，只是換了一個表面——所以這些測試
+// 是被搬走，不是被刪掉：
+//
+//   戰鬥中變身讓防御變高、天生武器可以打  -> test/combatV2Forms.test.js
+//   同一輪不能變身兩次                    -> test/combatV2Forms.test.js
+//   戰鬥結束收掉「輪」型態／留下「場景」型態 -> test/combatV2Forms.test.js
+//   買到的加骰商品真的進到戰鬥骰池          -> test/combatV2Forms.test.js
+//   買到的武器出現在行動選單               -> test/combatV2Forms.test.js
+//   型態的支付範圍與二選一交給前端          -> test/combatV2Forms.test.js
+//   維持成本在跨輪時真的收得到              -> test/combatV2Forms.test.js
+//   變身撐過一場戰鬥、換節點才結束          -> test/combatV2Forms.test.js（收兵那一則）
+//
+// 這個檔案保留的是**型態容器本身**的測試（activateForm／payUpkeep／期限／資源），
+// 那一層跟哪一套戰鬥系統無關。
 // ---------------------------------------------------------------------------
 
 test("Orphnoch 血統買下去之後，型態就在角色身上，而且可以啟動", async () => {
@@ -594,27 +510,6 @@ test("scope：攻擊限定的加值不會外溢到一般檢定，反之亦然", 
 
   assert.match(validateEffect({ kind: "檢定加骰", amount: 1, attribute: "力量", scope: "隨便" })[0], /scope/);
   assert.match(validateEffect({ kind: "防御", amount: 1, scope: "攻擊" })[0], /不該有 scope/);
-});
-
-test("攻擊加值真的進到戰鬥的骰池裡(不是只有查表函式知道)", () => {
-  const plain = hero();
-  const buffed = withAbility(plain, [{ kind: "檢定加骰", amount: 3, scope: "攻擊", skill: "格鬥" }]);
-
-  // 用同一個固定骰子函式打兩次，只有骰池大小不同
-  const seen = [];
-  const rollFn = (dp) => {
-    seen.push(dp);
-    return { successes: 5, rolls: [], isFortuneDie: false, fumble: false };
-  };
-
-  for (const character of [plain, buffed]) {
-    const combat = createEncounter(character);
-    combat.order = ["player", "enemy"];
-    combat.turnIndex = 0;
-    resolvePlayerAttack(combat, character, "unarmed", { rollFn });
-  }
-
-  assert.equal(seen[1] - seen[0], 3, "買了加格鬥的商品，肉搏攻擊的骰池就該大3");
 });
 
 test("EVOL 的『攻擊強化』撿回來之後，開了才有、只加在攻擊上、一輪後失效", async () => {
@@ -867,12 +762,16 @@ test("整條鏈：忍者 → 查克拉池 → 寫輪眼(第二個來源，上限
   assert.equal(attackModifiersFor(character, "肉搏").dp, 0);
   assert.equal(combatProfileFrom(character).equipmentDefense, 0);
 
-  // 開眼要花一個標準動作＋1點查克拉
-  const budget = createActionBudget();
-  const on = activateForm(character, createFormsState(), formId, { round: 1, budget });
+  // 開眼要花一個標準動作＋1點查克拉。動作那一半由戰鬥系統扣（見 test/combatV2Forms.test.js），
+  // 這裡驗的是資源那一半，以及「標準動作」這個要求有沒有留在資料裡讓戰鬥系統讀得到。
+  const on = activateForm(character, createFormsState(), formId, { round: 1 });
   assert.equal(on.ok, true, JSON.stringify(on.blockers));
   assert.equal(on.character.derived.energyPools.查克拉.current, 5, "支付1點查克拉");
-  assert.equal(on.budget.standardAvailable, false, "標準動作被用掉了");
+  assert.equal(
+    formsOf(character).find((f) => f.formId === formId).effect.activation.action,
+    "標準",
+    "動作等級要留在資料裡，戰鬥系統靠它決定扣哪一種動作"
+  );
 
   const extraSources = activeGrantSources(on.formsState);
   assert.equal(attackModifiersFor(character, "肉搏", { extraSources }).dp, 2, "開眼期間攻擊+2DP");
@@ -1002,79 +901,12 @@ test("endCombat 只收輪型態，場景型態撐得過收兵", () => {
   assert.equal(after.formsState.active[0].label, "進化形態", "變身撐得過一場戰鬥");
 });
 
-test("一整條戰鬥外的路徑：變身 → 打一場架 → 收兵仍在 → 換節點才結束", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const formId = formIdOf("test.血統", "進化形態");
-
-  // 1) 戰鬥外變身
-  const on = activateForm(c, createFormsState(), formId, { sceneKey: "恐怖片中:p1:n1" });
-  assert.equal(on.ok, true);
-
-  // 2) 帶著它開戰(這是 combat/start.js 現在做的事)
-  const combat = createEncounter(on.character, undefined, { forms: on.formsState });
-  assert.equal(combat.forms.active.length, 1, "開戰時型態要跟著進去");
-  assert.equal(playerCombatProfile(combat, on.character).equipmentDefense, 3, "戰鬥中吃得到加值");
-
-  // 3) 打完收兵(finalizeIfOver → endCombat)，型態還在
-  一擊結束戰鬥(combat, on.character, formIdOf("test.血統", "進化形態"), { alreadyActive: true });
-  assert.equal(combat.forms.active.length, 1, "收兵不該讓變身消失");
-
-  // 4) 推進節點才真的結束
-  const moved = formsForScene(combat.forms, "恐怖片中:p1:n2");
-  assert.equal(moved.expired.length, 1);
-});
-
-// ---------------------------------------------------------------------------
-// 戰鬥行動選單：引擎算、UI 畫（2026-08-17）
-//
-// 補的是兩個「引擎做得到、沒有人問它」的洞：戰鬥畫面的按鈕先前是 index.html 裡寫死的
-// 兩顆(徒手、手槍)，於是買到的武器按不到、身上的型態也變不了身
-// (resolveFormActivation() 當時是零呼叫端)。
-// ---------------------------------------------------------------------------
-
-test("combatOptions 把買到的武器也列進行動選單(不只寫死的兩顆)", () => {
-  const c = withAbility(hero(), [
-    { kind: "武器", label: "測試長劍", attackType: "白刃", weaponDamage: 4, severity: "L" },
-  ]);
-  const combat = createEncounter(c);
-  const { weapons } = combatOptions(combat, c);
-  assert.ok(weapons.some((w) => w.key === "unarmed"), "佔位武器還在");
-  const bought = weapons.find((w) => w.label === "測試長劍");
-  assert.ok(bought, "買到的武器要出現在行動選單裡");
-  assert.equal(bought.attackType, "白刃");
-  assert.equal(bought.weaponDamage, 4);
-});
-
-test("combatOptions 列出身上的型態，並標出哪些已經在進行中", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
-  const before = combatOptions(combat, c).forms;
-  assert.equal(before.length, 1);
-  assert.equal(before[0].label, "進化形態");
-  assert.equal(before[0].active, false);
-
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-  const activated = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
-
-  const after = combatOptions(combat, activated.character);
-  assert.equal(after.forms[0].active, true, "已經在進行中的型態要標出來，不然玩家會一直按");
-  // 型態授予的天生武器也要跟著出現在武器表裡
-  assert.ok(after.weapons.some((w) => w.fromForm), "型態給的天生武器要標成 fromForm");
-});
-
-test("戰鬥中啟動型態不推進行動順位(書上這類啟動花的是動作，不是整個回合)", () => {
-  const c = withAbility(hero(), [進化形態]);
-  const combat = createEncounter(c);
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-  const before = combat.turnIndex;
-  const r = resolveFormActivation(combat, c, formIdOf("test.血統", "進化形態"));
-  assert.equal(r.ok, true);
-  assert.equal(combat.turnIndex, before, "變身完還是玩家的回合，他本輪還可以出手");
-  assert.equal(combat.player.budget.moveAvailable, false, "但移動動作被用掉了");
-});
+function withPool(character, poolName, { current = null } = {}) {
+  const c = { ...character, derived: { ...character.derived } };
+  c.derived.energyPools = openPool({}, poolName, c.attributes, "測試來源");
+  if (current != null) c.derived.energyPools[poolName] = { ...c.derived.energyPools[poolName], current };
+  return c;
+}
 
 // ---------------------------------------------------------------------------
 // 可變量型態與維持成本（2026-08-17 第九輪）
@@ -1109,13 +941,6 @@ const 鬼魅身 = {
   duration: { unit: "輪", untilUpkeepFails: true },
   grants: [{ kind: "防御", amount: 3 }],
 };
-
-function withPool(character, poolName, { current = null } = {}) {
-  const c = { ...character, derived: { ...character.derived } };
-  c.derived.energyPools = openPool({}, poolName, c.attributes, "測試來源");
-  if (current != null) c.derived.energyPools[poolName] = { ...c.derived.energyPools[poolName], current };
-  return c;
-}
 
 test("可變量型態驗證：合法的寫法通過，缺了上限規則的擋下來", () => {
   assert.deepEqual(validateEffect(劍氣), []);
@@ -1242,16 +1067,13 @@ test("維持成本型態：付得出來就每輪真的扣，付不出來就當�
   assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
   assert.equal(activated.character.derived.energyPools.內力.current, 1);
 
-  const round2 = payUpkeep(activated.formsState, activated.character, 2, createActionBudget());
+  const round2 = payUpkeep(activated.formsState, activated.character, 2);
   assert.deepEqual(round2.ended, [], "還付得出來就繼續");
   assert.equal(round2.character.derived.energyPools.內力.current, 0, "維持成本是真的從池子裡扣的");
-  assert.deepEqual(
-    round2.budget.usedFreeActionKeys,
-    [`維持型態:${formIdOf("test.血統", "鬼魅身")}`],
-    "書上的『每輪需以一個自由動作支付』——那個自由動作要真的從這一輪的額度裡花掉"
-  );
+  // 「每輪需以一個自由動作支付」的**動作**那一半由戰鬥系統扣（見 test/combatV2Forms.test.js
+  // 的「維持成本在跨輪時真的收得到」）；這個模組只負責收資源那一半。
 
-  const round3 = payUpkeep(round2.formsState, round2.character, 3, createActionBudget());
+  const round3 = payUpkeep(round2.formsState, round2.character, 3);
   assert.equal(round3.ended.length, 1, "付不出來就結束，不是撐到時鐘走完");
   assert.match(round3.ended[0].endReason, /內力不足/);
   assert.deepEqual(round3.formsState.active, [], "結束的型態要離開進行中清單");
@@ -1275,57 +1097,8 @@ test("維持成本型態：一個斷氣不影響另一個(各付各的)", () => 
   assert.equal(b.ok, true, JSON.stringify(b.blockers));
 
   // 內力見底(啟動就用光了)，意志力還有——只有前者該斷
-  const next = payUpkeep(b.formsState, b.character, 2, createActionBudget());
+  const next = payUpkeep(b.formsState, b.character, 2);
   assert.deepEqual(next.ended.map((f) => f.label), ["鬼魅身"]);
   assert.deepEqual(next.formsState.active.map((f) => f.label), ["另一個維持型態"]);
   assert.equal(next.character.derived.willpower.current, 3, "另一個照常收1點意志力");
-});
-
-test("維持成本型態：戰鬥推進到下一輪時真的會收錢，收不到就在戰鬥紀錄裡結束", () => {
-  // 這一則是整條線的驗收：不是「payUpkeep 算得對」，而是「打一場架真的會被收錢」。
-  const c = withPool(withAbility(hero(), [鬼魅身]), "內力", { current: 2 });
-  const combat = createEncounter(c);
-  combat.order = ["player", "enemy"];
-  combat.turnIndex = 0;
-
-  const activated = resolveFormActivation(combat, c, formIdOf("test.血統", "鬼魅身"));
-  assert.equal(activated.ok, true, JSON.stringify(activated.blockers));
-  let character = activated.character;
-  assert.equal(combatProfileFrom(character, { extraSources: activeGrantSources(combat.forms) }).equipmentDefense, 3);
-
-  // 玩家打一拳→敵人打一拳→回到玩家，就跨過了一輪
-  const 玩家出手 = resolvePlayerAttack(combat, character, "unarmed", { rollFn: () => 1 });
-  character = 玩家出手.character;
-  const 敵人出手 = resolveEnemyAttack(combat, character, { rollFn: () => 1 });
-  character = 敵人出手.character;
-
-  assert.equal(combat.round, 2, "跨到第2輪");
-  assert.equal(character.derived.energyPools.內力.current, 0, "第2輪的維持成本被收走了");
-  assert.ok(combat.log.some((e) => e.event === "型態維持"), "收了錢要留下紀錄");
-
-  // 再跨一輪就付不出來了
-  const 第二拳 = resolvePlayerAttack(combat, character, "unarmed", { rollFn: () => 1 });
-  character = 第二拳.character;
-  const 敵人第二拳 = resolveEnemyAttack(combat, character, { rollFn: () => 1 });
-  character = 敵人第二拳.character;
-
-  assert.equal(combat.round, 3);
-  assert.deepEqual(combat.forms.active, [], "付不出維持成本，鬼魅身在戰鬥中斷氣");
-  assert.equal(
-    combatProfileFrom(character, { extraSources: activeGrantSources(combat.forms) }).equipmentDefense,
-    0,
-    "斷氣之後防御加值要跟著消失——這才是「型態真的結束了」"
-  );
-  assert.ok(
-    combat.log.some((e) => e.event === "型態到期" && /內力不足/.test(e.reason ?? "")),
-    "斷氣的理由要寫進戰鬥紀錄，不然玩家只會看到防御莫名其妙變低"
-  );
-});
-
-test("combatOptions 把「這次要決定什麼」一起交給前端(支付範圍與二選一的選項)", () => {
-  const c = withPool(withAbility(hero(), [劍氣]), "劍氣");
-  const combat = createEncounter(c);
-  const form = combatOptions(combat, c).forms[0];
-  assert.deepEqual(form.variable, { poolName: "劍氣", min: 1, max: 3 });
-  assert.deepEqual(form.modes.map((m) => m.key), ["攻", "防"]);
 });
