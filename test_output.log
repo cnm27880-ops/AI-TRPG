@@ -1,0 +1,7018 @@
+
+> wxh-engine@0.1.0 test
+> node --test test/*.test.js
+
+TAP version 13
+# Subtest: 分級表：好感度分數的門檻與判定加值都必須單調遞增
+ok 1 - 分級表：好感度分數的門檻與判定加值都必須單調遞增
+  ---
+  duration_ms: 2.763274
+  type: 'test'
+  ...
+# Subtest: tierForPoints：邊界值剛好等於門檻時，要落在較高的那一級
+ok 2 - tierForPoints：邊界值剛好等於門檻時，要落在較高的那一級
+  ---
+  duration_ms: 0.915177
+  type: 'test'
+  ...
+# Subtest: tierForPoints：極端值也要落在合法範圍內(不會超出表格兩端)
+ok 3 - tierForPoints：極端值也要落在合法範圍內(不會超出表格兩端)
+  ---
+  duration_ms: 1.845353
+  type: 'test'
+  ...
+# Subtest: applyAffectionDelta：好感度上升跨過門檻時，tierChanged 應為 true
+ok 4 - applyAffectionDelta：好感度上升跨過門檻時，tierChanged 應為 true
+  ---
+  duration_ms: 0.435627
+  type: 'test'
+  ...
+# Subtest: applyAffectionDelta：好感度變動沒有跨過門檻時，tierChanged 應為 false
+ok 5 - applyAffectionDelta：好感度變動沒有跨過門檻時，tierChanged 應為 false
+  ---
+  duration_ms: 0.263022
+  type: 'test'
+  ...
+# Subtest: applyArmor：護甲值從基礎傷害裡扣除
+ok 6 - applyArmor：護甲值從基礎傷害裡扣除
+  ---
+  duration_ms: 1.585833
+  type: 'test'
+  ...
+# Subtest: applyArmor：護甲值大於等於基礎傷害時，實質傷害歸零而不是負數
+ok 7 - applyArmor：護甲值大於等於基礎傷害時，實質傷害歸零而不是負數
+  ---
+  duration_ms: 0.280883
+  type: 'test'
+  ...
+# Subtest: applyArmor：沒有護甲值時，全部基礎傷害直接生效
+ok 8 - applyArmor：沒有護甲值時，全部基礎傷害直接生效
+  ---
+  duration_ms: 0.177022
+  type: 'test'
+  ...
+# Subtest: applyArmor：負的護甲值視為0，不會反過來增加傷害
+ok 9 - applyArmor：負的護甲值視為0，不會反過來增加傷害
+  ---
+  duration_ms: 0.18863
+  type: 'test'
+  ...
+# Subtest: applyArmor：基礎傷害是負數時丟出錯誤
+ok 10 - applyArmor：基礎傷害是負數時丟出錯誤
+  ---
+  duration_ms: 2.793387
+  type: 'test'
+  ...
+# Subtest: resolveAttack：effectiveDP = 攻擊DP - 距離減值（防御不再扣DP）
+ok 11 - resolveAttack：effectiveDP = 攻擊DP - 距離減值（防御不再扣DP）
+  ---
+  duration_ms: 2.434056
+  type: 'test'
+  ...
+# Subtest: resolveAttack：原始成功數必須大於等於防御DC才算命中（2026-08-18修正，原本要求嚴格大於）
+ok 12 - resolveAttack：原始成功數必須大於等於防御DC才算命中（2026-08-18修正，原本要求嚴格大於）
+  ---
+  duration_ms: 0.508723
+  type: 'test'
+  ...
+# Subtest: resolveAttack：命中時，基礎傷害 = 總成功數(原始+附加成功) - 防御DC
+ok 13 - resolveAttack：命中時，基礎傷害 = 總成功數(原始+附加成功) - 防御DC
+  ---
+  duration_ms: 0.417322
+  type: 'test'
+  ...
+# Subtest: resolveAttack：沒有武器別的傷害上限，基礎傷害可以超過過去舊版的封頂值
+ok 14 - resolveAttack：沒有武器別的傷害上限，基礎傷害可以超過過去舊版的封頂值
+  ---
+  duration_ms: 0.532653
+  type: 'test'
+  ...
+# Subtest: resolveAttack：原始成功數為0時，即使意外命中(防御DC為負)，附加成功也不生效
+ok 15 - resolveAttack：原始成功數為0時，即使意外命中(防御DC為負)，附加成功也不生效
+  ---
+  duration_ms: 0.440764
+  type: 'test'
+  ...
+# Subtest: resolveAttack：未命中時完全不計算基礎傷害，baseDamage固定為0
+ok 16 - resolveAttack：未命中時完全不計算基礎傷害，baseDamage固定為0
+  ---
+  duration_ms: 0.460426
+  type: 'test'
+  ...
+# Subtest: resolveAttack(真骰子)：DP很低時，統計上大多數情況打不穿較高的防御DC
+ok 17 - resolveAttack(真骰子)：DP很低時，統計上大多數情況打不穿較高的防御DC
+  ---
+  duration_ms: 5.904767
+  type: 'test'
+  ...
+# Subtest: resolveAttack(真骰子)：DP遠大於防御DC時，統計上大多數情況會命中
+ok 18 - resolveAttack(真骰子)：DP遠大於防御DC時，統計上大多數情況會命中
+  ---
+  duration_ms: 15.53226
+  type: 'test'
+  ...
+# Subtest: 肉搏：DP=力量+肉搏技能+天生武器傷害值，傷害上限同公式
+ok 19 - 肉搏：DP=力量+肉搏技能+天生武器傷害值，傷害上限同公式
+  ---
+  duration_ms: 8.614682
+  type: 'test'
+  ...
+# Subtest: 白刃：DP=力量+白刃技能+武器傷害值
+ok 20 - 白刃：DP=力量+白刃技能+武器傷害值
+  ---
+  duration_ms: 0.630016
+  type: 'test'
+  ...
+# Subtest: 投擲(輕)：DP用敏捷，傷害上限用力量(兩者不同屬性)
+ok 21 - 投擲(輕)：DP用敏捷，傷害上限用力量(兩者不同屬性)
+  ---
+  duration_ms: 0.562253
+  type: 'test'
+  ...
+# Subtest: 投擲(重)：DP跟傷害上限都用力量(跟投擲輕不同，兩者都不看敏捷)
+ok 22 - 投擲(重)：DP跟傷害上限都用力量(跟投擲輕不同，兩者都不看敏捷)
+  ---
+  duration_ms: 0.455441
+  type: 'test'
+  ...
+# Subtest: 弓箭：DP=敏捷+弓箭技能+武器傷害，傷害上限=武器傷害*2+弓箭技能+弓的力量要求(📖書中原文公式)
+ok 23 - 弓箭：DP=敏捷+弓箭技能+武器傷害，傷害上限=武器傷害*2+弓箭技能+弓的力量要求(📖書中原文公式)
+  ---
+  duration_ms: 0.606482
+  type: 'test'
+  ...
+# Subtest: 槍械：DP=敏捷+槍械技能+武器傷害，傷害上限=武器傷害*2+槍械技能(不含力量)
+ok 24 - 槍械：DP=敏捷+槍械技能+武器傷害，傷害上限=武器傷害*2+槍械技能(不含力量)
+  ---
+  duration_ms: 0.476793
+  type: 'test'
+  ...
+# Subtest: 炮：DP用智力而非敏捷(跟其他遠程武器不同，📖書中原文特別寫智力)
+ok 25 - 炮：DP用智力而非敏捷(跟其他遠程武器不同，📖書中原文特別寫智力)
+  ---
+  duration_ms: 1.02717
+  type: 'test'
+  ...
+# Subtest: getAttackType：不合法的攻擊方式要丟錯
+ok 26 - getAttackType：不合法的攻擊方式要丟錯
+  ---
+  duration_ms: 1.062461
+  type: 'test'
+  ...
+# Subtest: rangePenalty：距離在1倍射程內無減值
+ok 27 - rangePenalty：距離在1倍射程內無減值
+  ---
+  duration_ms: 2.230727
+  type: 'test'
+  ...
+# Subtest: rangePenalty：每超過1倍射程，多2DP減值(📖書中原文)
+ok 28 - rangePenalty：每超過1倍射程，多2DP減值(📖書中原文)
+  ---
+  duration_ms: 1.991662
+  type: 'test'
+  ...
+# Subtest: rangePenalty：射程必須是正數，距離不能是負數
+ok 29 - rangePenalty：射程必須是正數，距離不能是負數
+  ---
+  duration_ms: 1.000517
+  type: 'test'
+  ...
+# Subtest: isWithinMaxRange：弓箭最大距離=8倍射程單位(📖書中原文)
+ok 30 - isWithinMaxRange：弓箭最大距離=8倍射程單位(📖書中原文)
+  ---
+  duration_ms: 0.903092
+  type: 'test'
+  ...
+# Subtest: isWithinMaxRange：投擲武器最大距離=射程*力量值(📖書中原文，力量越高扔得越遠)
+ok 31 - isWithinMaxRange：投擲武器最大距離=射程*力量值(📖書中原文，力量越高扔得越遠)
+  ---
+  duration_ms: 1.505973
+  type: 'test'
+  ...
+# Subtest: isWithinMaxRange：近戰攻擊不適用射程上限判斷
+ok 32 - isWithinMaxRange：近戰攻擊不適用射程上限判斷
+  ---
+  duration_ms: 0.199941
+  type: 'test'
+  ...
+# Subtest: randomToken：每次都不一樣，而且夠長（拿來當state/verifier要能抗猜測）
+ok 33 - randomToken：每次都不一樣，而且夠長（拿來當state/verifier要能抗猜測）
+  ---
+  duration_ms: 8.171848
+  type: 'test'
+  ...
+# Subtest: deriveCodeChallenge：同一個verifier固定得到同一個challenge，不同的則不同
+ok 34 - deriveCodeChallenge：同一個verifier固定得到同一個challenge，不同的則不同
+  ---
+  duration_ms: 24.235642
+  type: 'test'
+  ...
+# Subtest: buildAuthorizeUrl：帶齊 PKCE 與 state，而且只要求最小權限
+ok 35 - buildAuthorizeUrl：帶齊 PKCE 與 state，而且只要求最小權限
+  ---
+  duration_ms: 1.207777
+  type: 'test'
+  ...
+# Subtest: buildAuthorizeUrl：少了 state 或 codeChallenge 一律丟錯（這兩條是安全防線，不可省略）
+ok 36 - buildAuthorizeUrl：少了 state 或 codeChallenge 一律丟錯（這兩條是安全防線，不可省略）
+  ---
+  duration_ms: 1.315295
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：正常的token可以通過，並回傳sub當主鍵
+ok 37 - verifyIdTokenClaims：正常的token可以通過，並回傳sub當主鍵
+  ---
+  duration_ms: 2.425138
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：aud 不符要擋下（否則任何人都能拿別的應用的Google token登入這裡）
+ok 38 - verifyIdTokenClaims：aud 不符要擋下（否則任何人都能拿別的應用的Google token登入這裡）
+  ---
+  duration_ms: 2.332842
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：iss 不是Google要擋下
+ok 39 - verifyIdTokenClaims：iss 不是Google要擋下
+  ---
+  duration_ms: 1.588977
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：過期的token要擋下（防重放）
+ok 40 - verifyIdTokenClaims：過期的token要擋下（防重放）
+  ---
+  duration_ms: 1.994068
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：容許小幅時鐘誤差（伺服器之間差幾秒是正常的）
+ok 41 - verifyIdTokenClaims：容許小幅時鐘誤差（伺服器之間差幾秒是正常的）
+  ---
+  duration_ms: 1.312855
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：缺 sub 要擋下（沒有唯一識別碼就沒辦法決定存檔屬於誰）
+ok 42 - verifyIdTokenClaims：缺 sub 要擋下（沒有唯一識別碼就沒辦法決定存檔屬於誰）
+  ---
+  duration_ms: 1.241251
+  type: 'test'
+  ...
+# Subtest: verifyIdTokenClaims：亂七八糟的字串不可以讓程式崩潰，要丟出看得懂的錯
+ok 43 - verifyIdTokenClaims：亂七八糟的字串不可以讓程式崩潰，要丟出看得懂的錯
+  ---
+  duration_ms: 0.778992
+  type: 'test'
+  ...
+# Subtest: 登入票：簽發之後驗得回來
+ok 44 - 登入票：簽發之後驗得回來
+  ---
+  duration_ms: 25.783493
+  type: 'test'
+  ...
+# Subtest: 登入票：被竄改過就驗不過（這是整套機制的核心）
+ok 45 - 登入票：被竄改過就驗不過（這是整套機制的核心）
+  ---
+  duration_ms: 7.990129
+  type: 'test'
+  ...
+# Subtest: 登入票：換一把secret就驗不過（防止別的部署簽的票拿來用）
+ok 46 - 登入票：換一把secret就驗不過（防止別的部署簽的票拿來用）
+  ---
+  duration_ms: 4.751053
+  type: 'test'
+  ...
+# Subtest: 登入票：過期就驗不過
+ok 47 - 登入票：過期就驗不過
+  ---
+  duration_ms: 10.716996
+  type: 'test'
+  ...
+# Subtest: 登入票：垃圾輸入一律回null而不是丟錯（訪客是正常狀態，不是錯誤路徑）
+ok 48 - 登入票：垃圾輸入一律回null而不是丟錯（訪客是正常狀態，不是錯誤路徑）
+  ---
+  duration_ms: 1.324319
+  type: 'test'
+  ...
+# Subtest: 登入票：沒設定 AUTH_SESSION_SECRET 時一律視為未登入，不可以讓整個網站爆掉
+ok 49 - 登入票：沒設定 AUTH_SESSION_SECRET 時一律視為未登入，不可以讓整個網站爆掉
+  ---
+  duration_ms: 0.243035
+  type: 'test'
+  ...
+# Subtest: buildCookie：一定要有 HttpOnly / Secure / SameSite（三個都是防線，不可少）
+ok 50 - buildCookie：一定要有 HttpOnly / Secure / SameSite（三個都是防線，不可少）
+  ---
+  duration_ms: 0.501897
+  type: 'test'
+  ...
+# Subtest: buildClearCookie：Max-Age=0 讓瀏覽器立刻丟掉
+ok 51 - buildClearCookie：Max-Age=0 讓瀏覽器立刻丟掉
+  ---
+  duration_ms: 0.265854
+  type: 'test'
+  ...
+# Subtest: readCookie：能從一整串 Cookie 標頭裡挑出正確那一個（不可以被前綴相同的騙到）
+ok 52 - readCookie：能從一整串 Cookie 標頭裡挑出正確那一個（不可以被前綴相同的騙到）
+  ---
+  duration_ms: 0.348456
+  type: 'test'
+  ...
+# Subtest: getCurrentUser：請求物件沒有headers時當成未登入，不可以丟錯
+ok 53 - getCurrentUser：請求物件沒有headers時當成未登入，不可以丟錯
+  ---
+  duration_ms: 0.500834
+  type: 'test'
+  ...
+# Subtest: getCurrentUser：帶著合法cookie就認得出來
+ok 54 - getCurrentUser：帶著合法cookie就認得出來
+  ---
+  duration_ms: 13.921443
+  type: 'test'
+  ...
+# Subtest: 匿名存檔：知道ID的人都能讀（沒登入也要能玩）
+ok 55 - 匿名存檔：知道ID的人都能讀（沒登入也要能玩）
+  ---
+  duration_ms: 1.19736
+  type: 'test'
+  ...
+# Subtest: 有主人的存檔：只有本人能讀，別人與訪客一律擋下
+ok 56 - 有主人的存檔：只有本人能讀，別人與訪客一律擋下
+  ---
+  duration_ms: 0.392325
+  type: 'test'
+  ...
+# Subtest: 認領：登入時把手上的匿名存檔綁到帳號（已經在玩的人進度不會不見）
+ok 57 - 認領：登入時把手上的匿名存檔綁到帳號（已經在玩的人進度不會不見）
+  ---
+  duration_ms: 0.244719
+  type: 'test'
+  ...
+# Subtest: 認領：已經有主人的存檔不可以被別人搶走
+ok 58 - 認領：已經有主人的存檔不可以被別人搶走
+  ---
+  duration_ms: 0.192722
+  type: 'test'
+  ...
+# Subtest: 認領：沒登入不能認領
+ok 59 - 認領：沒登入不能認領
+  ---
+  duration_ms: 0.343981
+  type: 'test'
+  ...
+# Subtest: 帳號存檔索引：登記、列出、移除都正確，而且不會重複登記
+ok 60 - 帳號存檔索引：登記、列出、移除都正確，而且不會重複登記
+  ---
+  duration_ms: 2.504764
+  type: 'test'
+  ...
+# Subtest: 帳號索引不可以混進一般存檔的列表裡
+ok 61 - 帳號索引不可以混進一般存檔的列表裡
+  ---
+  duration_ms: 0.485226
+  type: 'test'
+  ...
+# Subtest: 端對端：alice 登入後建立的存檔，bob 拿到ID也讀不到（回404不是403）
+ok 62 - 端對端：alice 登入後建立的存檔，bob 拿到ID也讀不到（回404不是403）
+  ---
+  duration_ms: 94.342678
+  type: 'test'
+  ...
+# Subtest: 端對端：bob 也不能拿別人的存檔去打 /api/turn 推進劇情
+ok 63 - 端對端：bob 也不能拿別人的存檔去打 /api/turn 推進劇情
+  ---
+  duration_ms: 33.040522
+  type: 'test'
+  ...
+# Subtest: 端對端：匿名時建立的存檔，登入後第一次讀取就被認領成自己的
+ok 64 - 端對端：匿名時建立的存檔，登入後第一次讀取就被認領成自己的
+  ---
+  duration_ms: 14.491109
+  type: 'test'
+  ...
+# Subtest: 存檔清單回傳的是摘要，前端才畫得出「我的存檔」
+ok 65 - 存檔清單回傳的是摘要，前端才畫得出「我的存檔」
+  ---
+  duration_ms: 4.74527
+  type: 'test'
+  ...
+# Subtest: 存檔清單：死亡狀態從 HP 即時計算，不依賴不存在的 hp.dead 欄位
+ok 66 - 存檔清單：死亡狀態從 HP 即時計算，不依賴不存在的 hp.dead 欄位
+  ---
+  duration_ms: 9.221791
+  type: 'test'
+  ...
+# Subtest: 沒登入時列不出任何存檔（匿名存檔的ID本身就是鑰匙，不能公開整串）
+ok 67 - 沒登入時列不出任何存檔（匿名存檔的ID本身就是鑰匙，不能公開整串）
+  ---
+  duration_ms: 2.816785
+  type: 'test'
+  ...
+# Subtest: 端對端：沒登入時一切照舊（匿名玩家仍然可以正常建立與讀取自己的存檔）
+ok 68 - 端對端：沒登入時一切照舊（匿名玩家仍然可以正常建立與讀取自己的存檔）
+  ---
+  duration_ms: 1.879614
+  type: 'test'
+  ...
+# Subtest: 固定分配：基礎經驗永遠是10，其餘欄位0分時總分等於10
+ok 69 - 固定分配：基礎經驗永遠是10，其餘欄位0分時總分等於10
+  ---
+  duration_ms: 6.114884
+  type: 'test'
+  ...
+# Subtest: 固定分配：RP表現各分級對照書中點數(0/1/2/3)
+ok 70 - 固定分配：RP表現各分級對照書中點數(0/1/2/3)
+  ---
+  duration_ms: 0.504745
+  type: 'test'
+  ...
+# Subtest: 固定分配：突出扮演表現(3~10點)級距邊界正確
+ok 71 - 固定分配：突出扮演表現(3~10點)級距邊界正確
+  ---
+  duration_ms: 2.488741
+  type: 'test'
+  ...
+# Subtest: 固定分配：九死一生逃生(1~3點，3級距)級距邊界正確，不會被錯誤內插
+ok 72 - 固定分配：九死一生逃生(1~3點，3級距)級距邊界正確，不會被錯誤內插
+  ---
+  duration_ms: 0.403663
+  type: 'test'
+  ...
+# Subtest: 固定分配：美德/惡德每次觸發分別+3/+1
+ok 73 - 固定分配：美德/惡德每次觸發分別+3/+1
+  ---
+  duration_ms: 0.300692
+  type: 'test'
+  ...
+# Subtest: 動態分配：基礎值——書中範例『6個PC，每個PC獲得1點基礎值』
+ok 74 - 動態分配：基礎值——書中範例『6個PC，每個PC獲得1點基礎值』
+  ---
+  duration_ms: 0.323107
+  type: 'test'
+  ...
+# Subtest: 動態分配：基礎值——5人或以下應該是0
+ok 75 - 動態分配：基礎值——5人或以下應該是0
+  ---
+  duration_ms: 0.390325
+  type: 'test'
+  ...
+# Subtest: 動態分配：表現獎勵——書中範例『4個PC，最好3點/2點/1點/最差0點』
+ok 76 - 動態分配：表現獎勵——書中範例『4個PC，最好3點/2點/1點/最差0點』
+  ---
+  duration_ms: 1.280005
+  type: 'test'
+  ...
+# Subtest: 動態分配：表現獎勵——書中範例『6個PC，第一名5點經驗』
+ok 77 - 動態分配：表現獎勵——書中範例『6個PC，第一名5點經驗』
+  ---
+  duration_ms: 0.481796
+  type: 'test'
+  ...
+# Subtest: 動態分配：單人遊戲下會附帶warning，提醒改用固定分配
+ok 78 - 動態分配：單人遊戲下會附帶warning，提醒改用固定分配
+  ---
+  duration_ms: 0.761568
+  type: 'test'
+  ...
+# Subtest: 每一題都有足夠的選項，每個選項都有小傳片段、掃描引用句與權重
+ok 79 - 每一題都有足夠的選項，每個選項都有小傳片段、掃描引用句與權重
+  ---
+  duration_ms: 9.09406
+  type: 'test'
+  ...
+# Subtest: 每一題的選項不可以有明顯的「最強解」：各選項總權重要在同一個量級
+ok 80 - 每一題的選項不可以有明顯的「最強解」：各選項總權重要在同一個量級
+  ---
+  duration_ms: 0.466808
+  type: 'test'
+  ...
+# Subtest: 送給前端的題目資料不含權重與美德惡德分表（看得到就會變成反推答案）
+ok 81 - 送給前端的題目資料不含權重與美德惡德分表（看得到就會變成反推答案）
+  ---
+  duration_ms: 0.542906
+  type: 'test'
+  ...
+# Subtest: 沒答完不會丟錯，只會列出還沒答的題目
+ok 82 - 沒答完不會丟錯，只會列出還沒答的題目
+  ---
+  duration_ms: 0.555105
+  type: 'test'
+  ...
+# Subtest: 不存在的選項會被擋下，不會靜靜地當成沒選
+ok 83 - 不存在的選項會被擋下，不會靜靜地當成沒選
+  ---
+  duration_ms: 0.999545
+  type: 'test'
+  ...
+# Subtest: 同樣的答案一定配出同樣的角色（不可以有隨機成分）
+ok 84 - 同樣的答案一定配出同樣的角色（不可以有隨機成分）
+  ---
+  duration_ms: 9.646026
+  type: 'test'
+  ...
+# Subtest: 所有 1024 種答案組合都配得出合法角色，且不超支、不極端、保證廣度
+ok 85 - 所有 1024 種答案組合都配得出合法角色，且不超支、不極端、保證廣度
+  ---
+  duration_ms: 268.364213
+  type: 'test'
+  ...
+# Subtest: 權重高的方向真的會拿到比較多點數（配點不是亂給的）
+ok 86 - 權重高的方向真的會拿到比較多點數（配點不是亂給的）
+  ---
+  duration_ms: 0.316155
+  type: 'test'
+  ...
+# Subtest: 完全沒有權重時也不會爆掉（回一張全基礎值但仍然合法的卡）
+ok 87 - 完全沒有權重時也不會爆掉（回一張全基礎值但仍然合法的卡）
+  ---
+  duration_ms: 0.609257
+  type: 'test'
+  ...
+# Subtest: 玩家的答案會變成一段小傳，而且真的寫進角色卡
+ok 88 - 玩家的答案會變成一段小傳，而且真的寫進角色卡
+  ---
+  duration_ms: 0.899694
+  type: 'test'
+  ...
+# Subtest: 三項起始專長會由 server 白名單重建成技能 +1 顆相關檢定骰
+ok 89 - 三項起始專長會由 server 白名單重建成技能 +1 顆相關檢定骰
+  ---
+  duration_ms: 1.001106
+  type: 'test'
+  ...
+# Subtest: 正式建立角色時沒有三項起始專長也會被拒絕
+ok 90 - 正式建立角色時沒有三項起始專長也會被拒絕
+  ---
+  duration_ms: 0.339488
+  type: 'test'
+  ...
+# Subtest: 起始專長 ID 不合法、重複或數量不對時會被拒絕
+ok 91 - 起始專長 ID 不合法、重複或數量不對時會被拒絕
+  ---
+  duration_ms: 0.443652
+  type: 'test'
+  ...
+# Subtest: 沒有名字就不算完成建卡
+ok 92 - 沒有名字就不算完成建卡
+  ---
+  duration_ms: 0.323943
+  type: 'test'
+  ...
+# Subtest: 題目沒答完時不會回傳半成品角色卡
+ok 93 - 題目沒答完時不會回傳半成品角色卡
+  ---
+  duration_ms: 0.216058
+  type: 'test'
+  ...
+# Subtest: buildCharacter 低階入口：專長清單會被查驗，壞掉的條目直接丟掉
+ok 94 - buildCharacter 低階入口：專長清單會被查驗，壞掉的條目直接丟掉
+  ---
+  duration_ms: 0.256764
+  type: 'test'
+  ...
+# Subtest: chargenRules：把題目與預算一起給前端，前端不用自己抄一份
+ok 95 - chargenRules：把題目與預算一起給前端，前端不用自己抄一份
+  ---
+  duration_ms: 0.547127
+  type: 'test'
+  ...
+# Subtest: 沒送重塑分配時只回預覽：屬性停在自動配點的結果，並附上甦醒那一幕
+ok 96 - 沒送重塑分配時只回預覽：屬性停在自動配點的結果，並附上甦醒那一幕
+  ---
+  duration_ms: 0.357145
+  type: 'test'
+  ...
+# Subtest: 重塑的點數不吃建卡預算，而且只有它能把屬性推到 5
+ok 97 - 重塑的點數不吃建卡預算，而且只有它能把屬性推到 5
+  ---
+  duration_ms: 0.803676
+  type: 'test'
+  ...
+# Subtest: 重塑沒用完、超支、或加到不存在的屬性，都會被擋下來
+ok 98 - 重塑沒用完、超支、或加到不存在的屬性，都會被擋下來
+  ---
+  duration_ms: 0.834353
+  type: 'test'
+  ...
+# Subtest: 美德/惡德與性格核心會寫進角色卡
+ok 99 - 美德/惡德與性格核心會寫進角色卡
+  ---
+  duration_ms: 0.65056
+  type: 'test'
+  ...
+# Subtest: 低階入口 buildCharacter 不給 morality 時，角色卡維持空殼而不是塞一個假的
+ok 100 - 低階入口 buildCharacter 不給 morality 時，角色卡維持空殼而不是塞一個假的
+  ---
+  duration_ms: 0.214349
+  type: 'test'
+  ...
+# Subtest: 對照表裡的每個屬性名都真的存在於規則書九維屬性表
+ok 101 - 對照表裡的每個屬性名都真的存在於規則書九維屬性表
+  ---
+  duration_ms: 1.631423
+  type: 'test'
+  ...
+# Subtest: 對照表裡的每個技能名都真的存在於規則書技能表
+ok 102 - 對照表裡的每個技能名都真的存在於規則書技能表
+  ---
+  duration_ms: 0.333818
+  type: 'test'
+  ...
+# Subtest: 對照表產生的每一組參數，都能被 performCheck() 實際吃下去而不丟錯
+ok 103 - 對照表產生的每一組參數，都能被 performCheck() 實際吃下去而不丟錯
+  ---
+  duration_ms: 16.925488
+  type: 'test'
+  ...
+# Subtest: 沒命中任何關鍵字時退回退路檢定，並標記 matched=false
+ok 104 - 沒命中任何關鍵字時退回退路檢定，並標記 matched=false
+  ---
+  duration_ms: 0.504448
+  type: 'test'
+  ...
+# Subtest: 命中關鍵字時標記 matched=true 並帶出對應技能
+ok 105 - 命中關鍵字時標記 matched=true 並帶出對應技能
+  ---
+  duration_ms: 0.239652
+  type: 'test'
+  ...
+# Subtest: 角色卡沒有登記該技能時，退回純屬性檢定而不是硬塞一個技能進去
+ok 106 - 角色卡沒有登記該技能時，退回純屬性檢定而不是硬塞一個技能進去
+  ---
+  duration_ms: 0.356491
+  type: 'test'
+  ...
+# Subtest: 輕量化規則不產生也不接受 specialization（決定不做，不是漏做）
+ok 107 - 輕量化規則不產生也不接受 specialization（決定不做，不是漏做）
+  ---
+  duration_ms: 1.45582
+  type: 'test'
+  ...
+# Subtest: defaultDc 可以被呼叫端覆蓋(難度該由劇本/場景決定，不是從玩家句子推出來的)
+ok 108 - defaultDc 可以被呼叫端覆蓋(難度該由劇本/場景決定，不是從玩家句子推出來的)
+  ---
+  duration_ms: 0.208896
+  type: 'test'
+  ...
+# Subtest: 空字串/undefined 不會丟錯，一律退回退路檢定
+ok 109 - 空字串/undefined 不會丟錯，一律退回退路檢定
+  ---
+  duration_ms: 4.803216
+  type: 'test'
+  ...
+# Subtest: 提到持槍 NPC 不會被誤判為玩家射擊
+ok 110 - 提到持槍 NPC 不會被誤判為玩家射擊
+  ---
+  duration_ms: 1.096153
+  type: 'test'
+  ...
+# Subtest: 環顧周遭與聆聽動靜屬於低風險免骰行動
+ok 111 - 環顧周遭與聆聽動靜屬於低風險免骰行動
+  ---
+  duration_ms: 0.646693
+  type: 'test'
+  ...
+# Subtest: 明確攻擊行動仍然進入射擊檢定
+ok 112 - 明確攻擊行動仍然進入射擊檢定
+  ---
+  duration_ms: 0.273281
+  type: 'test'
+  ...
+# Subtest: appendChronicle：不裁切、不修改舊陣列，並保存副本識別
+ok 113 - appendChronicle：不裁切、不修改舊陣列，並保存副本識別
+  ---
+  duration_ms: 2.308333
+  type: 'test'
+  ...
+# Subtest: appendChronicle：長局與超長欄位都受 server-side 資源界線保護
+ok 114 - appendChronicle：長局與超長欄位都受 server-side 資源界線保護
+  ---
+  duration_ms: 8.331539
+  type: 'test'
+  ...
+# Subtest: chronicle 不受短期 history 上限影響，AI 劇情包會保留完整十二回
+ok 115 - chronicle 不受短期 history 上限影響，AI 劇情包會保留完整十二回
+  ---
+  duration_ms: 1.701686
+  type: 'test'
+  ...
+# Subtest: buildStoryPackage：結構化事件事實會附在小說後，且輸出可重現
+ok 116 - buildStoryPackage：結構化事件事實會附在小說後，且輸出可重現
+  ---
+  duration_ms: 0.78143
+  type: 'test'
+  ...
+# Subtest: buildStoryPackage：scenario facts 不跨副本混入，且封存回合範圍固定內容
+ok 117 - buildStoryPackage：scenario facts 不跨副本混入，且封存回合範圍固定內容
+  ---
+  duration_ms: 0.904761
+  type: 'test'
+  ...
+# Subtest: buildCompactAiContext：只帶最近兩份封存副本，且長篇摘要會截斷
+ok 118 - buildCompactAiContext：只帶最近兩份封存副本，且長篇摘要會截斷
+  ---
+  duration_ms: 0.944969
+  type: 'test'
+  ...
+# Subtest: registerChroniclePackage：同一副本只建立一份 ready package
+ok 119 - registerChroniclePackage：同一副本只建立一份 ready package
+  ---
+  duration_ms: 0.331347
+  type: 'test'
+  ...
+# Subtest: registerChroniclePackage：封存索引也有總量上限
+ok 120 - registerChroniclePackage：封存索引也有總量上限
+  ---
+  duration_ms: 0.371585
+  type: 'test'
+  ...
+# Subtest: 舊 session 沒有 chronicle 時，以仍存在的 history 補出可讀回顧
+ok 121 - 舊 session 沒有 chronicle 時，以仍存在的 history 補出可讀回顧
+  ---
+  duration_ms: 0.84443
+  type: 'test'
+  ...
+# Subtest: Cloudflare Functions source does not use unsupported JSON import attributes
+ok 122 - Cloudflare Functions source does not use unsupported JSON import attributes
+  ---
+  duration_ms: 149.658666
+  type: 'test'
+  ...
+# Subtest: 11.1.1 每回合正確建立 1 swift、1 move、1 standard
+ok 123 - 11.1.1 每回合正確建立 1 swift、1 move、1 standard
+  ---
+  duration_ms: 2.598416
+  type: 'test'
+  ...
+# Subtest: 11.1.2 迅捷動作只能使用一次
+ok 124 - 11.1.2 迅捷動作只能使用一次
+  ---
+  duration_ms: 0.957228
+  type: 'test'
+  ...
+# Subtest: 11.1.3 移動動作只能使用一次（用完之後只剩下轉化來源）
+ok 125 - 11.1.3 移動動作只能使用一次（用完之後只剩下轉化來源）
+  ---
+  duration_ms: 0.358098
+  type: 'test'
+  ...
+# Subtest: 11.1.4 標準動作只能使用一次，而且沒有任何池子能轉出標準動作
+ok 126 - 11.1.4 標準動作只能使用一次，而且沒有任何池子能轉出標準動作
+  ---
+  duration_ms: 0.480838
+  type: 'test'
+  ...
+# Subtest: 11.1.5 move 可以轉化為 swift，原本的 swift 仍然保留
+ok 127 - 11.1.5 move 可以轉化為 swift，原本的 swift 仍然保留
+  ---
+  duration_ms: 0.392665
+  type: 'test'
+  ...
+# Subtest: 11.1.6 standard 可以轉化為 move，原本的 move 仍然保留
+ok 128 - 11.1.6 standard 可以轉化為 move，原本的 move 仍然保留
+  ---
+  duration_ms: 0.302159
+  type: 'test'
+  ...
+# Subtest: 11.1.7 standard 可以直接轉化為 swift，move 與 swift 都仍然保留
+ok 129 - 11.1.7 standard 可以直接轉化為 swift，move 與 swift 都仍然保留
+  ---
+  duration_ms: 0.293824
+  type: 'test'
+  ...
+# Subtest: 11.1.8 不允許 swift 轉 move
+ok 130 - 11.1.8 不允許 swift 轉 move
+  ---
+  duration_ms: 0.295071
+  type: 'test'
+  ...
+# Subtest: 11.1.9 不允許 move 轉 standard
+ok 131 - 11.1.9 不允許 move 轉 standard
+  ---
+  duration_ms: 0.54528
+  type: 'test'
+  ...
+# Subtest: 轉化只能由高階往低階，反向一律不成立
+ok 132 - 轉化只能由高階往低階，反向一律不成立
+  ---
+  duration_ms: 0.55534
+  type: 'test'
+  ...
+# Subtest: 規格第2.1節第5、6點：轉化後低階動作仍可再用一次（本回合可完成兩個移動類行動）
+ok 133 - 規格第2.1節第5、6點：轉化後低階動作仍可再用一次（本回合可完成兩個移動類行動）
+  ---
+  duration_ms: 0.296138
+  type: 'test'
+  ...
+# Subtest: 11.1.10 fullRound 同時消耗 move 與 standard，且不碰 swift
+ok 134 - 11.1.10 fullRound 同時消耗 move 與 standard，且不碰 swift
+  ---
+  duration_ms: 0.358842
+  type: 'test'
+  ...
+# Subtest: 11.1.11 fullTurn 同時消耗 swift、move 與 standard
+ok 135 - 11.1.11 fullTurn 同時消耗 swift、move 與 standard
+  ---
+  duration_ms: 0.174545
+  type: 'test'
+  ...
+# Subtest: 11.1.12 fullRound 條件不足時完全不消耗任何資源
+ok 136 - 11.1.12 fullRound 條件不足時完全不消耗任何資源
+  ---
+  duration_ms: 2.010371
+  type: 'test'
+  ...
+# Subtest: 11.1.13 fullTurn 條件不足時完全不消耗任何資源
+ok 137 - 11.1.13 fullTurn 條件不足時完全不消耗任何資源
+  ---
+  duration_ms: 0.176637
+  type: 'test'
+  ...
+# Subtest: 整輪/全回合不走轉化：沒有任何池子能生出一個 standard
+ok 138 - 整輪/全回合不走轉化：沒有任何池子能生出一個 standard
+  ---
+  duration_ms: 0.136402
+  type: 'test'
+  ...
+# Subtest: 11.1.14 fullRound 使用後仍能使用剩餘 swift
+ok 139 - 11.1.14 fullRound 使用後仍能使用剩餘 swift
+  ---
+  duration_ms: 0.1756
+  type: 'test'
+  ...
+# Subtest: 11.1.15 有額外動作來源時，fullRound／fullTurn 不會錯誤地強制結束整回合
+ok 140 - 11.1.15 有額外動作來源時，fullRound／fullTurn 不會錯誤地強制結束整回合
+  ---
+  duration_ms: 0.321032
+  type: 'test'
+  ...
+# Subtest: 11.1.16 所有轉化都留下來源紀錄
+ok 141 - 11.1.16 所有轉化都留下來源紀錄
+  ---
+  duration_ms: 0.324107
+  type: 'test'
+  ...
+# Subtest: 沒有轉化的消耗不會被誤記成轉化
+ok 142 - 沒有轉化的消耗不會被誤記成轉化
+  ---
+  duration_ms: 0.235448
+  type: 'test'
+  ...
+# Subtest: 一批選擇裡任何一項排不進去，整批都不扣（不得部分扣除）
+ok 143 - 一批選擇裡任何一項排不進去，整批都不扣（不得部分扣除）
+  ---
+  duration_ms: 0.303743
+  type: 'test'
+  ...
+# Subtest: 合法的一批選擇會依序扣完，並留下每一項的紀錄
+ok 144 - 合法的一批選擇會依序扣完，並留下每一項的紀錄
+  ---
+  duration_ms: 0.205993
+  type: 'test'
+  ...
+# Subtest: 整輪鎖住移動與標準，全回合鎖住三個（UI 的 locked 狀態來源）
+ok 145 - 整輪鎖住移動與標準，全回合鎖住三個（UI 的 locked 狀態來源）
+  ---
+  duration_ms: 0.162316
+  type: 'test'
+  ...
+# Subtest: 整輪與全回合不是額外的資源池：publicBudget 只給三個基礎池
+ok 146 - 整輪與全回合不是額外的資源池：publicBudget 只給三個基礎池
+  ---
+  duration_ms: 0.179515
+  type: 'test'
+  ...
+# Subtest: 額外動作來源會出現在公開額度裡，讓 UI 有辦法顯示「你多了一個標準動作」
+ok 147 - 額外動作來源會出現在公開額度裡，讓 UI 有辦法顯示「你多了一個標準動作」
+  ---
+  duration_ms: 0.189616
+  type: 'test'
+  ...
+# Subtest: 11.3.1 action generator 只回傳目前角色能看到的 action，而且每一條都有完整 schema
+ok 148 - 11.3.1 action generator 只回傳目前角色能看到的 action，而且每一條都有完整 schema
+  ---
+  duration_ms: 20.251842
+  type: 'test'
+  ...
+# Subtest: 選單順序是決定性的：同一份狀態連續問兩次得到同一份順序
+ok 149 - 選單順序是決定性的：同一份狀態連續問兩次得到同一份順序
+  ---
+  duration_ms: 1.193897
+  type: 'test'
+  ...
+# Subtest: 11.3.2 已消耗的動作不再被標示為可用
+ok 150 - 11.3.2 已消耗的動作不再被標示為可用
+  ---
+  duration_ms: 1.49374
+  type: 'test'
+  ...
+# Subtest: 11.3.3 不符合距離的 action 顯示公開原因（不是內部代碼）
+ok 151 - 11.3.3 不符合距離的 action 顯示公開原因（不是內部代碼）
+  ---
+  duration_ms: 0.795824
+  type: 'test'
+  ...
+# Subtest: 11.3.4 沒有武器或彈藥時，射擊不可用，而且兩者的原因不一樣
+ok 152 - 11.3.4 沒有武器或彈藥時，射擊不可用，而且兩者的原因不一樣
+  ---
+  duration_ms: 1.763423
+  type: 'test'
+  ...
+# Subtest: 彈藥不足以支撐壓制射擊時，單發射擊仍然可用
+ok 153 - 彈藥不足以支撐壓制射擊時，單發射擊仍然可用
+  ---
+  duration_ms: 0.994762
+  type: 'test'
+  ...
+# Subtest: 11.3.5 目標死亡後，針對該目標的 action 不可用
+ok 154 - 11.3.5 目標死亡後，針對該目標的 action 不可用
+  ---
+  duration_ms: 1.252857
+  type: 'test'
+  ...
+# Subtest: 敵人全部倒下時，針對敵人的 action 仍然出現，但標示「沒有可攻擊的目標」
+ok 155 - 敵人全部倒下時，針對敵人的 action 仍然出現，但標示「沒有可攻擊的目標」
+  ---
+  duration_ms: 0.917737
+  type: 'test'
+  ...
+# Subtest: 11.3.6 fullRound／fullTurn 選擇會鎖定正確的低階動作
+ok 156 - 11.3.6 fullRound／fullTurn 選擇會鎖定正確的低階動作
+  ---
+  duration_ms: 1.667079
+  type: 'test'
+  ...
+# Subtest: 11.3.7 action generator 不洩漏秘密 DC、AI 內部資料或敵人精確 HP
+ok 157 - 11.3.7 action generator 不洩漏秘密 DC、AI 內部資料或敵人精確 HP
+  ---
+  duration_ms: 2.802654
+  type: 'test'
+  ...
+# Subtest: 選單依動作類型分組，五類都在（分組也是伺服器算的）
+ok 158 - 選單依動作類型分組，五類都在（分組也是伺服器算的）
+  ---
+  duration_ms: 0.736438
+  type: 'test'
+  ...
+# Subtest: 每一條目錄定義都有結算函式與公開說明（資料完整性）
+ok 159 - 每一條目錄定義都有結算函式與公開說明（資料完整性）
+  ---
+  duration_ms: 0.33544
+  type: 'test'
+  ...
+# Subtest: 選了移動之後，選單用「移動後的距離」重算——不會讓玩家選到必定落空的組合
+ok 160 - 選了移動之後，選單用「移動後的距離」重算——不會讓玩家選到必定落空的組合
+  ---
+  duration_ms: 0.677681
+  type: 'test'
+  ...
+# Subtest: 環境物件用過一次之後就標記為已使用
+ok 161 - 環境物件用過一次之後就標記為已使用
+  ---
+  duration_ms: 3.623821
+  type: 'test'
+  ...
+# Subtest: 開戰回傳的 battle 是公開白名單形狀，不含 seed／敵人 HP／AI
+ok 162 - 開戰回傳的 battle 是公開白名單形狀，不含 seed／敵人 HP／AI
+  ---
+  duration_ms: 61.973896
+  type: 'test'
+  ...
+# Subtest: 11.4.1 前端竄改 action cost 時，server 仍使用 server 定義的 cost
+ok 163 - 11.4.1 前端竄改 action cost 時，server 仍使用 server 定義的 cost
+  ---
+  duration_ms: 15.149137
+  type: 'test'
+  ...
+# Subtest: 11.4.2 前端竄改命中結果與傷害時，server 忽略
+ok 164 - 11.4.2 前端竄改命中結果與傷害時，server 忽略
+  ---
+  duration_ms: 19.064511
+  type: 'test'
+  ...
+# Subtest: 11.4.3 前端竄改距離時，server 仍以 server state 為準
+ok 165 - 11.4.3 前端竄改距離時，server 仍以 server state 為準
+  ---
+  duration_ms: 8.671602
+  type: 'test'
+  ...
+# Subtest: 11.4.4 stateVersion 過期時回傳 409，並附上最新狀態
+ok 166 - 11.4.4 stateVersion 過期時回傳 409，並附上最新狀態
+  ---
+  duration_ms: 7.126619
+  type: 'test'
+  ...
+# Subtest: 缺少 stateVersion 的請求直接回 400，不猜測玩家的意思
+ok 167 - 缺少 stateVersion 的請求直接回 400，不猜測玩家的意思
+  ---
+  duration_ms: 3.671071
+  type: 'test'
+  ...
+# Subtest: 11.4.5 相同 requestId 重送不會重複結算（HP、彈藥、動作都不再被扣）
+ok 168 - 11.4.5 相同 requestId 重送不會重複結算（HP、彈藥、動作都不再被扣）
+  ---
+  duration_ms: 7.434263
+  type: 'test'
+  ...
+# Subtest: 11.4.7 結算途中重複按下確認不會造成雙重扣血或雙重扣彈藥（同時送兩次同一個 requestId）
+ok 169 - 11.4.7 結算途中重複按下確認不會造成雙重扣血或雙重扣彈藥（同時送兩次同一個 requestId）
+  ---
+  duration_ms: 10.954663
+  type: 'test'
+  ...
+# Subtest: 11.4.6 戰鬥結束後重送請求不會改變狀態
+ok 170 - 11.4.6 戰鬥結束後重送請求不會改變狀態
+  ---
+  duration_ms: 7.841187
+  type: 'test'
+  ...
+# Subtest: 不存在的 action 回 422 且不改變狀態（規格第10節）
+ok 171 - 不存在的 action 回 422 且不改變狀態（規格第10節）
+  ---
+  duration_ms: 5.659326
+  type: 'test'
+  ...
+# Subtest: 動作額度不足時回 422，而且不做部分扣除
+ok 172 - 動作額度不足時回 422，而且不做部分扣除
+  ---
+  duration_ms: 4.924236
+  type: 'test'
+  ...
+# Subtest: preview 模式只驗證、不改狀態，並回傳推算後的選單
+ok 173 - preview 模式只驗證、不改狀態，並回傳推算後的選單
+  ---
+  duration_ms: 7.021891
+  type: 'test'
+  ...
+# Subtest: preview 對不合法的選擇回 valid:false，而不是 HTTP 錯誤（那是預覽，不是失敗）
+ok 174 - preview 對不合法的選擇回 valid:false，而不是 HTTP 錯誤（那是預覽，不是失敗）
+  ---
+  duration_ms: 4.026404
+  type: 'test'
+  ...
+# Subtest: GET state 是斷線重連的權威來源，回的是同一份公開狀態
+ok 175 - GET state 是斷線重連的權威來源，回的是同一份公開狀態
+  ---
+  duration_ms: 7.836261
+  type: 'test'
+  ...
+# Subtest: 別人的 battleId 對不上時回 409，不洩漏其他戰鬥的資料
+ok 176 - 別人的 battleId 對不上時回 409，不洩漏其他戰鬥的資料
+  ---
+  duration_ms: 3.401157
+  type: 'test'
+  ...
+# Subtest: 同一場存檔不能同時開兩場 V2 戰鬥
+ok 177 - 同一場存檔不能同時開兩場 V2 戰鬥
+  ---
+  duration_ms: 6.632633
+  type: 'test'
+  ...
+# Subtest: V2 戰鬥寫的是 session.combatV2，完全不碰舊的 session.combat
+ok 178 - V2 戰鬥寫的是 session.combatV2，完全不碰舊的 session.combat
+  ---
+  duration_ms: 5.455861
+  type: 'test'
+  ...
+# Subtest: 敘事層拿到的 narrationContext 只有已裁定的結果，沒有可以改的數字
+ok 179 - 敘事層拿到的 narrationContext 只有已裁定的結果，沒有可以改的數字
+  ---
+  duration_ms: 5.19546
+  type: 'test'
+  ...
+# Subtest: 舊資料的六個動作等級都對映得出來，「自由」映成迅捷而不是零消耗
+ok 180 - 舊資料的六個動作等級都對映得出來，「自由」映成迅捷而不是零消耗
+  ---
+  duration_ms: 2.404981
+  type: 'test'
+  ...
+# Subtest: 對映不出來的動作等級回 null，不預設成某一種
+ok 181 - 對映不出來的動作等級回 null，不預設成某一種
+  ---
+  duration_ms: 0.271485
+  type: 'test'
+  ...
+# Subtest: 身上每一個型態都變成一張行動卡，二選一的型態一個選項一張
+ok 182 - 身上每一個型態都變成一張行動卡，二選一的型態一個選項一張
+  ---
+  duration_ms: 1.425434
+  type: 'test'
+  ...
+# Subtest: 型態行動卡的動作類型來自商品資料，不是寫死的
+ok 183 - 型態行動卡的動作類型來自商品資料，不是寫死的
+  ---
+  duration_ms: 0.533575
+  type: 'test'
+  ...
+# Subtest: action id 認得出來、也解得回 formId 與 mode
+ok 184 - action id 認得出來、也解得回 formId 與 mode
+  ---
+  duration_ms: 0.347172
+  type: 'test'
+  ...
+# Subtest: 沒有買任何型態的角色，選單裡就沒有特殊能力分類的卡（而不是一排空按鈕）
+ok 185 - 沒有買任何型態的角色，選單裡就沒有特殊能力分類的卡（而不是一排空按鈕）
+  ---
+  duration_ms: 17.431654
+  type: 'test'
+  ...
+# Subtest: 資源不足時型態不可用，而且原因指名是哪一種資源
+ok 186 - 資源不足時型態不可用，而且原因指名是哪一種資源
+  ---
+  duration_ms: 1.748635
+  type: 'test'
+  ...
+# Subtest: 意志力不足時型態不可用
+ok 187 - 意志力不足時型態不可用
+  ---
+  duration_ms: 1.276269
+  type: 'test'
+  ...
+# Subtest: 已經在進行中的型態不能重複啟動（書上的「每場景一次」就是靠這一條表達的）
+ok 188 - 已經在進行中的型態不能重複啟動（書上的「每場景一次」就是靠這一條表達的）
+  ---
+  duration_ms: 6.421575
+  type: 'test'
+  ...
+# Subtest: 動作額度用完時型態跟其他行動一樣不可用
+ok 189 - 動作額度用完時型態跟其他行動一樣不可用
+  ---
+  duration_ms: 1.464957
+  type: 'test'
+  ...
+# Subtest: 啟動型態會扣 V2 的動作額度、意志力與能量池，而且角色卡被接住
+ok 190 - 啟動型態會扣 V2 的動作額度、意志力與能量池，而且角色卡被接住
+  ---
+  duration_ms: 2.884489
+  type: 'test'
+  ...
+# Subtest: 同一輪可以先變身再出手（迅捷型態不吃掉標準動作）
+ok 191 - 同一輪可以先變身再出手（迅捷型態不吃掉標準動作）
+  ---
+  duration_ms: 2.773551
+  type: 'test'
+  ...
+# Subtest: 標準動作的型態跟標準攻擊互斥（額度只有一個）
+ok 192 - 標準動作的型態跟標準攻擊互斥（額度只有一個）
+  ---
+  duration_ms: 1.397637
+  type: 'test'
+  ...
+# Subtest: 可變量型態沒帶支付點數時整批拒絕，**不會**先扣掉動作額度
+ok 193 - 可變量型態沒帶支付點數時整批拒絕，**不會**先扣掉動作額度
+  ---
+  duration_ms: 1.066445
+  type: 'test'
+  ...
+# Subtest: 支付點數超出伺服器算的範圍時被拒絕
+ok 194 - 支付點數超出伺服器算的範圍時被拒絕
+  ---
+  duration_ms: 0.849057
+  type: 'test'
+  ...
+# Subtest: 支付範圍由伺服器算（「不超過敏捷或感知取低」），並公開給 UI 畫選單
+ok 195 - 支付範圍由伺服器算（「不超過敏捷或感知取低」），並公開給 UI 畫選單
+  ---
+  duration_ms: 0.75563
+  type: 'test'
+  ...
+# Subtest: 合法的支付點數會被真的扣掉，而且選擇會回顯在紀錄裡
+ok 196 - 合法的支付點數會被真的扣掉，而且選擇會回顯在紀錄裡
+  ---
+  duration_ms: 1.661968
+  type: 'test'
+  ...
+# Subtest: 維持成本在跨輪時真的收得到：付掉能量池，也花掉一個動作額度
+ok 197 - 維持成本在跨輪時真的收得到：付掉能量池，也花掉一個動作額度
+  ---
+  duration_ms: 2.628055
+  type: 'test'
+  ...
+# Subtest: 付不出維持成本時型態當場結束，並寫進公開紀錄
+ok 198 - 付不出維持成本時型態當場結束，並寫進公開紀錄
+  ---
+  duration_ms: 1.306143
+  type: 'test'
+  ...
+# Subtest: 以「輪」計時的型態會在時鐘走完時到期
+ok 199 - 以「輪」計時的型態會在時鐘走完時到期
+  ---
+  duration_ms: 1.029077
+  type: 'test'
+  ...
+# Subtest: 戰鬥結束時以「輪」計時的型態收掉，以「場景」計時的留著
+ok 200 - 戰鬥結束時以「輪」計時的型態收掉，以「場景」計時的留著
+  ---
+  duration_ms: 1.882212
+  type: 'test'
+  ...
+# Subtest: 公開狀態帶得出進行中的型態與資源，但不帶整張角色卡
+ok 201 - 公開狀態帶得出進行中的型態與資源，但不帶整張角色卡
+  ---
+  duration_ms: 2.98838
+  type: 'test'
+  ...
+# Subtest: 戰鬥中變身讓防御真的變高（不是只有查表函式知道）
+ok 202 - 戰鬥中變身讓防御真的變高（不是只有查表函式知道）
+  ---
+  duration_ms: 1.027401
+  type: 'test'
+  ...
+# Subtest: 買到的加骰商品真的進到戰鬥的攻擊骰池裡
+ok 203 - 買到的加骰商品真的進到戰鬥的攻擊骰池裡
+  ---
+  duration_ms: 0.618318
+  type: 'test'
+  ...
+# Subtest: 買到的武器出現在戰鬥裝備表與行動選單裡（不是寫死的兩把）
+ok 204 - 買到的武器出現在戰鬥裝備表與行動選單裡（不是寫死的兩把）
+  ---
+  duration_ms: 0.753665
+  type: 'test'
+  ...
+# Subtest: 戰鬥結束會收掉以「輪」計時的型態（戰鬥外沒有輪可以數）
+ok 205 - 戰鬥結束會收掉以「輪」計時的型態（戰鬥外沒有輪可以數）
+  ---
+  duration_ms: 1.879153
+  type: 'test'
+  ...
+# Subtest: 型態授予的天生武器在啟動後真的按得到（裝備表會重算）
+ok 206 - 型態授予的天生武器在啟動後真的按得到（裝備表會重算）
+  ---
+  duration_ms: 0.76672
+  type: 'test'
+  ...
+# Subtest: 11.2.1 close、medium、far 三段距離合法，其他一律不合法
+ok 207 - 11.2.1 close、medium、far 三段距離合法，其他一律不合法
+  ---
+  duration_ms: 2.223148
+  type: 'test'
+  ...
+# Subtest: 11.2.2 普通移動不能跨越兩格距離
+ok 208 - 11.2.2 普通移動不能跨越兩格距離
+  ---
+  duration_ms: 0.543549
+  type: 'test'
+  ...
+# Subtest: stepRange 走到底就停在底，不會走出三段之外
+ok 209 - stepRange 走到底就停在底，不會走出三段之外
+  ---
+  duration_ms: 0.189308
+  type: 'test'
+  ...
+# Subtest: 距離是對稱的：rangeKey(a,b) 與 rangeKey(b,a) 是同一格
+ok 210 - 距離是對稱的：rangeKey(a,b) 與 rangeKey(b,a) 是同一格
+  ---
+  duration_ms: 0.226497
+  type: 'test'
+  ...
+# Subtest: 11.2.3 近戰只能在 close 使用
+ok 211 - 11.2.3 近戰只能在 close 使用
+  ---
+  duration_ms: 17.803591
+  type: 'test'
+  ...
+# Subtest: 11.2.4 中遠程攻擊只能在允許距離使用
+ok 212 - 11.2.4 中遠程攻擊只能在允許距離使用
+  ---
+  duration_ms: 1.373
+  type: 'test'
+  ...
+# Subtest: 11.2.5 距離不符時 server 拒絕請求，即使前端硬送
+ok 213 - 11.2.5 距離不符時 server 拒絕請求，即使前端硬送
+  ---
+  duration_ms: 2.291403
+  type: 'test'
+  ...
+# Subtest: 11.2.6 環境條件可以限制某個 action（控制面板只能在近距離操作）
+ok 214 - 11.2.6 環境條件可以限制某個 action（控制面板只能在近距離操作）
+  ---
+  duration_ms: 1.351669
+  type: 'test'
+  ...
+# Subtest: 11.2.7 敵方移動後會重新計算距離
+ok 215 - 11.2.7 敵方移動後會重新計算距離
+  ---
+  duration_ms: 3.148882
+  type: 'test'
+  ...
+# Subtest: 敵人一輪只走一格：移動動作用完就沒有第二次
+ok 216 - 敵人一輪只走一格：移動動作用完就沒有第二次
+  ---
+  duration_ms: 1.577826
+  type: 'test'
+  ...
+# Subtest: 11.2.8 距離變更會進入公開紀錄，而且是玩家看得懂的文字
+ok 217 - 11.2.8 距離變更會進入公開紀錄，而且是玩家看得懂的文字
+  ---
+  duration_ms: 2.625454
+  type: 'test'
+  ...
+# Subtest: 移動會離開掩體：躲在貨櫃後面不能滿場跑
+ok 218 - 移動會離開掩體：躲在貨櫃後面不能滿場跑
+  ---
+  duration_ms: 3.427645
+  type: 'test'
+  ...
+# Subtest: 回合狀態機：結算後進入下一輪並重置額度，狀態版本遞增
+ok 219 - 回合狀態機：結算後進入下一輪並重置額度，狀態版本遞增
+  ---
+  duration_ms: 0.966894
+  type: 'test'
+  ...
+# Subtest: beginNextRound 會清掉只持續本輪的狀態
+ok 220 - beginNextRound 會清掉只持續本輪的狀態
+  ---
+  duration_ms: 0.899787
+  type: 'test'
+  ...
+# Subtest: rangeBlockReason 回的是人話，不是內部代碼
+ok 221 - rangeBlockReason 回的是人話，不是內部代碼
+  ---
+  duration_ms: 0.133499
+  type: 'test'
+  ...
+# [SCENARIO_SETTLEMENT_FAILED] {"where":"POST /api/combat/v2/turn","sessionId":"9256cbe3-c70a-425b-8e9d-34d3d3be2fd5","packId":"scenario.echo-institute-01","nodeId":"不存在的節點","reason":"副本包裡沒有節點「不存在的節點」"}
+# Subtest: 敘事 prompt 只含已裁定的結果，沒有骰點、DC 或精確 HP
+ok 222 - 敘事 prompt 只含已裁定的結果，沒有骰點、DC 或精確 HP
+  ---
+  duration_ms: 23.830483
+  type: 'test'
+  ...
+# Subtest: 敘事 prompt 把一整輪寫成一段，依實際結算順序列出玩家與敵方的行動
+ok 223 - 敘事 prompt 把一整輪寫成一段，依實際結算順序列出玩家與敵方的行動
+  ---
+  duration_ms: 1.710248
+  type: 'test'
+  ...
+# Subtest: 空的 context 不會炸，回空字串（沒有戰鬥就沒有戰鬥敘事）
+ok 224 - 空的 context 不會炸，回空字串（沒有戰鬥就沒有戰鬥敘事）
+  ---
+  duration_ms: 0.206082
+  type: 'test'
+  ...
+# Subtest: turn 端點會把組好的 prompt 一起回傳，呼叫端不用自己拼
+ok 225 - turn 端點會把組好的 prompt 一起回傳，呼叫端不用自己拼
+  ---
+  duration_ms: 43.578688
+  type: 'test'
+  ...
+# Subtest: V2 打贏最終戰會結算節點、發獎勵點數並跑通關結算（跟舊戰鬥系統同一段程式碼）
+ok 226 - V2 打贏最終戰會結算節點、發獎勵點數並跑通關結算（跟舊戰鬥系統同一段程式碼）
+  ---
+  duration_ms: 11.569333
+  type: 'test'
+  ...
+# Subtest: 最終戰結算失敗時不靜音：回應要帶出原因（跟舊戰鬥系統同一條保護）
+ok 227 - 最終戰結算失敗時不靜音：回應要帶出原因（跟舊戰鬥系統同一條保護）
+  ---
+  duration_ms: 9.723815
+  type: 'test'
+  ...
+# Subtest: 不是最終戰的普通遭遇打贏後不會亂結算任何節點
+ok 228 - 不是最終戰的普通遭遇打贏後不會亂結算任何節點
+  ---
+  duration_ms: 7.578233
+  type: 'test'
+  ...
+# Subtest: 戰鬥結束時型態會帶回戰鬥外那一份（收兵，跟舊流程同一個約定）
+ok 229 - 戰鬥結束時型態會帶回戰鬥外那一份（收兵，跟舊流程同一個約定）
+  ---
+  duration_ms: 9.327274
+  type: 'test'
+  ...
+# Subtest: 存檔裡不留第二份角色卡（battle.character 是暫時的工作參照）
+ok 230 - 存檔裡不留第二份角色卡（battle.character 是暫時的工作參照）
+  ---
+  duration_ms: 3.843882
+  type: 'test'
+  ...
+# Subtest: 結算順序由伺服器決定：前端送的陣列順序不影響結果
+ok 231 - 結算順序由伺服器決定：前端送的陣列順序不影響結果
+  ---
+  duration_ms: 26.644874
+  type: 'test'
+  ...
+# Subtest: 同一個行動不能在一輪內選兩次
+ok 232 - 同一個行動不能在一輪內選兩次
+  ---
+  duration_ms: 1.630613
+  type: 'test'
+  ...
+# Subtest: 前端送的 targetId 跟行動卡不符時被拒絕（不是靜默採用其中一個）
+ok 233 - 前端送的 targetId 跟行動卡不符時被拒絕（不是靜默採用其中一個）
+  ---
+  duration_ms: 0.945187
+  type: 'test'
+  ...
+# Subtest: 空的選擇被拒絕，不會產生一個什麼都沒做卻推進了一輪的回合
+ok 234 - 空的選擇被拒絕，不會產生一個什麼都沒做卻推進了一輪的回合
+  ---
+  duration_ms: 0.443716
+  type: 'test'
+  ...
+# Subtest: 一批選擇裡任何一項不合法，整批拒絕且戰鬥狀態完全不變
+ok 235 - 一批選擇裡任何一項不合法，整批拒絕且戰鬥狀態完全不變
+  ---
+  duration_ms: 1.161712
+  type: 'test'
+  ...
+# Subtest: 整輪動作扣掉移動與標準之後，同一輪仍然可以加一個迅捷行動
+ok 236 - 整輪動作扣掉移動與標準之後，同一輪仍然可以加一個迅捷行動
+  ---
+  duration_ms: 3.275485
+  type: 'test'
+  ...
+# Subtest: 全回合動作之後不能再加任何行動
+ok 237 - 全回合動作之後不能再加任何行動
+  ---
+  duration_ms: 0.822294
+  type: 'test'
+  ...
+# Subtest: 全力突擊是能力明確允許的跨格移動：從中距離直接撲進近距離
+ok 238 - 全力突擊是能力明確允許的跨格移動：從中距離直接撲進近距離
+  ---
+  duration_ms: 1.527279
+  type: 'test'
+  ...
+# Subtest: 同一輪內前一個行動打倒目標後，後續針對它的行動不會憑空生效
+ok 239 - 同一輪內前一個行動打倒目標後，後續針對它的行動不會憑空生效
+  ---
+  duration_ms: 2.365822
+  type: 'test'
+  ...
+# Subtest: 敵人的意圖是規則算的，不是 LLM 決定的：同一個狀態永遠得到同一份計畫
+ok 240 - 敵人的意圖是規則算的，不是 LLM 決定的：同一個狀態永遠得到同一份計畫
+  ---
+  duration_ms: 0.94557
+  type: 'test'
+  ...
+# Subtest: 近戰型敵人在中距離會先逼近再攻擊（移動與標準是兩個不同的額度）
+ok 241 - 近戰型敵人在中距離會先逼近再攻擊（移動與標準是兩個不同的額度）
+  ---
+  duration_ms: 0.423017
+  type: 'test'
+  ...
+# Subtest: 被壓制的敵人這一輪不推進也不出手
+ok 242 - 被壓制的敵人這一輪不推進也不出手
+  ---
+  duration_ms: 0.434658
+  type: 'test'
+  ...
+# Subtest: 被擒抱的敵人不能移動
+ok 243 - 被擒抱的敵人不能移動
+  ---
+  duration_ms: 0.370958
+  type: 'test'
+  ...
+# Subtest: 遠程型敵人被貼身時會拉開距離，而不是站著挨打
+ok 244 - 遠程型敵人被貼身時會拉開距離，而不是站著挨打
+  ---
+  duration_ms: 0.660502
+  type: 'test'
+  ...
+# Subtest: 敵人移動會清掉玩家針對它的側翼優勢
+ok 245 - 敵人移動會清掉玩家針對它的側翼優勢
+  ---
+  duration_ms: 1.049384
+  type: 'test'
+  ...
+# Subtest: 敵人全部倒下時戰鬥結束，而且不會再讓屍體打一輪
+ok 246 - 敵人全部倒下時戰鬥結束，而且不會再讓屍體打一輪
+  ---
+  duration_ms: 0.970031
+  type: 'test'
+  ...
+# Subtest: 玩家倒下時戰鬥結束並判敵方獲勝
+ok 247 - 玩家倒下時戰鬥結束並判敵方獲勝
+  ---
+  duration_ms: 0.427771
+  type: 'test'
+  ...
+# Subtest: 戰鬥結束後不接受任何新的選擇
+ok 248 - 戰鬥結束後不接受任何新的選擇
+  ---
+  duration_ms: 0.362142
+  type: 'test'
+  ...
+# Subtest: 公開狀態含三段距離帶，而且只有一格是 current
+ok 249 - 公開狀態含三段距離帶，而且只有一格是 current
+  ---
+  duration_ms: 1.377766
+  type: 'test'
+  ...
+# Subtest: 公開狀態把五類動作的文案一起給前端，UI 不自己翻譯（swift 絕不是「反應」）
+ok 250 - 公開狀態把五類動作的文案一起給前端，UI 不自己翻譯（swift 絕不是「反應」）
+  ---
+  duration_ms: 2.075304
+  type: 'test'
+  ...
+# Subtest: 整輪與全回合的消耗說明出現在行動卡上，不是額外的資源池
+ok 251 - 整輪與全回合的消耗說明出現在行動卡上，不是額外的資源池
+  ---
+  duration_ms: 0.499417
+  type: 'test'
+  ...
+# Subtest: 正式工廠（含商店/型態接線）開出來的戰鬥與測試夾具形狀一致
+ok 252 - 正式工廠（含商店/型態接線）開出來的戰鬥與測試夾具形狀一致
+  ---
+  duration_ms: 1.088717
+  type: 'test'
+  ...
+# Subtest: 同一個 seed 跑出完全相同的一場戰鬥（結算是可重播的）
+ok 253 - 同一個 seed 跑出完全相同的一場戰鬥（結算是可重播的）
+  ---
+  duration_ms: 2.434018
+  type: 'test'
+  ...
+# Subtest: 公開紀錄是短句，而且不含任何內部數值
+ok 254 - 公開紀錄是短句，而且不含任何內部數值
+  ---
+  duration_ms: 0.873142
+  type: 'test'
+  ...
+# Subtest: 戰鬥頁面存在，而且是唯一的一個戰鬥面板
+ok 255 - 戰鬥頁面存在，而且是唯一的一個戰鬥面板
+  ---
+  duration_ms: 2.67618
+  type: 'test'
+  ...
+# Subtest: 戰鬥由局勢觸發，不由按鈕觸發
+ok 256 - 戰鬥由局勢觸發，不由按鈕觸發
+  ---
+  duration_ms: 0.792698
+  type: 'test'
+  ...
+# Subtest: 11.5.1 玩家能看到目前距離：三段距離帶由伺服器的 distance.band 渲染
+ok 257 - 11.5.1 玩家能看到目前距離：三段距離帶由伺服器的 distance.band 渲染
+  ---
+  duration_ms: 0.347584
+  type: 'test'
+  ...
+# Subtest: 11.5.2 玩家能看到五類動作與剩餘額度（整輪/全回合不畫成第六、第七種資源）
+ok 258 - 11.5.2 玩家能看到五類動作與剩餘額度（整輪/全回合不畫成第六、第七種資源）
+  ---
+  duration_ms: 0.531387
+  type: 'test'
+  ...
+# Subtest: swift 在 UI 上一律是「迅捷」，絕不翻成「反應」（規格第3節注意事項）
+ok 259 - swift 在 UI 上一律是「迅捷」，絕不翻成「反應」（規格第3節注意事項）
+  ---
+  duration_ms: 0.391007
+  type: 'test'
+  ...
+# Subtest: 11.5.3 玩家能知道 action 的消耗：行動卡印伺服器給的 costHint，不自己算
+ok 260 - 11.5.3 玩家能知道 action 的消耗：行動卡印伺服器給的 costHint，不自己算
+  ---
+  duration_ms: 0.298086
+  type: 'test'
+  ...
+# Subtest: 11.5.4 玩家能知道 action 為何不可用：不可用的卡仍然顯示，並印出原因
+ok 261 - 11.5.4 玩家能知道 action 為何不可用：不可用的卡仍然顯示，並印出原因
+  ---
+  duration_ms: 0.403092
+  type: 'test'
+  ...
+# Subtest: 11.5.5 fullRound／fullTurn 選擇時 UI 正確鎖定其他動作（鎖定狀態由伺服器算）
+ok 262 - 11.5.5 fullRound／fullTurn 選擇時 UI 正確鎖定其他動作（鎖定狀態由伺服器算）
+  ---
+  duration_ms: 0.274059
+  type: 'test'
+  ...
+# Subtest: 11.5.6 確認中所有按鈕鎖定（避免重複送出）
+ok 263 - 11.5.6 確認中所有按鈕鎖定（避免重複送出）
+  ---
+  duration_ms: 0.499496
+  type: 'test'
+  ...
+# Subtest: 11.5.7 409 後顯示狀態已更新，要求玩家重新確認，且不靜默重送
+ok 264 - 11.5.7 409 後顯示狀態已更新，要求玩家重新確認，且不靜默重送
+  ---
+  duration_ms: 0.623626
+  type: 'test'
+  ...
+# Subtest: 11.5.8 手機尺寸下仍能操作：垂直堆疊，但距離與剩餘動作不被隱藏
+ok 265 - 11.5.8 手機尺寸下仍能操作：垂直堆疊，但距離與剩餘動作不被隱藏
+  ---
+  duration_ms: 0.544649
+  type: 'test'
+  ...
+# Subtest: 11.5.9 鍵盤焦點與 aria-label 正確
+ok 266 - 11.5.9 鍵盤焦點與 aria-label 正確
+  ---
+  duration_ms: 0.433791
+  type: 'test'
+  ...
+# Subtest: 11.5.10 戰鬥頁面不存在自由文字輸入框
+ok 267 - 11.5.10 戰鬥頁面不存在自由文字輸入框
+  ---
+  duration_ms: 0.430826
+  type: 'test'
+  ...
+# Subtest: 前端只送 actionId／targetId／玩家的選擇，不送 cost／actionType／距離／任何結果
+ok 268 - 前端只送 actionId／targetId／玩家的選擇，不送 cost／actionType／距離／任何結果
+  ---
+  duration_ms: 0.247659
+  type: 'test'
+  ...
+# Subtest: 前端不做任何規則判定：沒有距離比較、沒有命中/傷害運算
+ok 269 - 前端不做任何規則判定：沒有距離比較、沒有命中/傷害運算
+  ---
+  duration_ms: 0.345228
+  type: 'test'
+  ...
+# Subtest: 戰鬥中不得未經確認直接離開（規格第7.1節A區）
+ok 270 - 戰鬥中不得未經確認直接離開（規格第7.1節A區）
+  ---
+  duration_ms: 0.18701
+  type: 'test'
+  ...
+# Subtest: V2 的路由都有對應的 Cloudflare Function 檔（Pages 是檔案路徑即路由）
+ok 271 - V2 的路由都有對應的 Cloudflare Function 檔（Pages 是檔案路徑即路由）
+  ---
+  duration_ms: 2.475267
+  type: 'test'
+  ...
+# Subtest: 重整頁面回來時，續戰以伺服器狀態為準（不從存檔直接讀）
+ok 272 - 重整頁面回來時，續戰以伺服器狀態為準（不從存檔直接讀）
+  ---
+  duration_ms: 1.950071
+  type: 'test'
+  ...
+# Subtest: 戰鬥狀態只住在 combatV2.js 裡，app.js 透過具名函式問它
+ok 273 - 戰鬥狀態只住在 combatV2.js 裡，app.js 透過具名函式問它
+  ---
+  duration_ms: 0.506358
+  type: 'test'
+  ...
+# Subtest: 契約包：type「契約」已經是loader認得的合法type
+ok 274 - 契約包：type「契約」已經是loader認得的合法type
+  ---
+  duration_ms: 2.750875
+  type: 'test'
+  ...
+# Subtest: validateContractPack：草案契約包本身結構要驗證通過(即使price是null)
+ok 275 - validateContractPack：草案契約包本身結構要驗證通過(即使price是null)
+  ---
+  duration_ms: 0.291149
+  type: 'test'
+  ...
+# Subtest: validateContractPack：type不對要打回票
+ok 276 - validateContractPack：type不對要打回票
+  ---
+  duration_ms: 0.177301
+  type: 'test'
+  ...
+# Subtest: validateContractPack：contractType不合法要打回票
+ok 277 - validateContractPack：contractType不合法要打回票
+  ---
+  duration_ms: 0.32374
+  type: 'test'
+  ...
+# Subtest: validateContractPack：缺少requiredAffectionTier要打回票
+ok 278 - validateContractPack：缺少requiredAffectionTier要打回票
+  ---
+  duration_ms: 0.221907
+  type: 'test'
+  ...
+# Subtest: validateContractPack：完全省略price欄位(不是明確寫null)也要打回票，避免誤以為忘記填
+ok 279 - validateContractPack：完全省略price欄位(不是明確寫null)也要打回票，避免誤以為忘記填
+  ---
+  duration_ms: 0.206924
+  type: 'test'
+  ...
+# Subtest: computeRevivalCost：📖書中範例——D+1000未花+D+600血統+3000屬性=4600
+ok 280 - computeRevivalCost：📖書中範例——D+1000未花+D+600血統+3000屬性=4600
+  ---
+  duration_ms: 1.480879
+  type: 'test'
+  ...
+# Subtest: computeRevivalCost：未花分數為負數要丟錯(資料錯誤，不該默默算出負費用)
+ok 281 - computeRevivalCost：未花分數為負數要丟錯(資料錯誤，不該默默算出負費用)
+  ---
+  duration_ms: 0.387036
+  type: 'test'
+  ...
+# Subtest: computeRevivalCost：已花分數明細裡有負數也要丟錯
+ok 282 - computeRevivalCost：已花分數明細裡有負數也要丟錯
+  ---
+  duration_ms: 0.36763
+  type: 'test'
+  ...
+# Subtest: attemptRevival：付得起就復活成功，reviveCount+1
+ok 283 - attemptRevival：付得起就復活成功，reviveCount+1
+  ---
+  duration_ms: 2.050678
+  type: 'test'
+  ...
+# Subtest: attemptRevival：付不起就是真死(permaDeath)，並回報缺口金額
+ok 284 - attemptRevival：付不起就是真死(permaDeath)，並回報缺口金額
+  ---
+  duration_ms: 0.264066
+  type: 'test'
+  ...
+# Subtest: attemptRevival：已經復活滿 2 次的角色，無論身上有多少錢都無法再復活
+ok 285 - attemptRevival：已經復活滿 2 次的角色，無論身上有多少錢都無法再復活
+  ---
+  duration_ms: 0.461144
+  type: 'test'
+  ...
+# Subtest: attemptRevival：兩次復活機會都是同一個公式收費(依使用者決定，不要求特定劇情道具)
+ok 286 - attemptRevival：兩次復活機會都是同一個公式收費(依使用者決定，不要求特定劇情道具)
+  ---
+  duration_ms: 0.253536
+  type: 'test'
+  ...
+# Subtest: clearTemporaryEffectsOnRevival：非永久效果清空，永久效果保留
+ok 287 - clearTemporaryEffectsOnRevival：非永久效果清空，永久效果保留
+  ---
+  duration_ms: 2.796322
+  type: 'test'
+  ...
+# Subtest: computeDefenseDC：基礎防御是敏捷與感知較低者
+ok 288 - computeDefenseDC：基礎防御是敏捷與感知較低者
+  ---
+  duration_ms: 1.09796
+  type: 'test'
+  ...
+# Subtest: computeDefenseDC：技能補正與裝備防御會疊加到基礎防御上
+ok 289 - computeDefenseDC：技能補正與裝備防御會疊加到基礎防御上
+  ---
+  duration_ms: 0.280379
+  type: 'test'
+  ...
+# Subtest: computeDefenseDC：技能補正/裝備防御預設為0
+ok 290 - computeDefenseDC：技能補正/裝備防御預設為0
+  ---
+  duration_ms: 0.174606
+  type: 'test'
+  ...
+# Subtest: 生命值上限 = 耐力 + 體積（預設5）
+ok 291 - 生命值上限 = 耐力 + 體積（預設5）
+  ---
+  duration_ms: 1.501923
+  type: 'test'
+  ...
+# Subtest: 普通成年人體積預設為5
+ok 292 - 普通成年人體積預設為5
+  ---
+  duration_ms: 0.282569
+  type: 'test'
+  ...
+# Subtest: 意志值 = 意志 × 2（六維輕量版，不再是決心+沉著+傳奇加值）
+ok 293 - 意志值 = 意志 × 2（六維輕量版，不再是決心+沉著+傳奇加值）
+  ---
+  duration_ms: 0.236023
+  type: 'test'
+  ...
+# Subtest: 先攻值 = 敏捷 + 感知
+ok 294 - 先攻值 = 敏捷 + 感知
+  ---
+  duration_ms: 0.172012
+  type: 'test'
+  ...
+# Subtest: 基礎防御 = 敏捷和感知中較低者
+ok 295 - 基礎防御 = 敏捷和感知中較低者
+  ---
+  duration_ms: 0.378624
+  type: 'test'
+  ...
+# Subtest: 🔧 基礎防御必須跟 core/combat/defense.js 算出同一個值(兩邊不可以只改一邊)
+ok 296 - 🔧 基礎防御必須跟 core/combat/defense.js 算出同一個值(兩邊不可以只改一邊)
+  ---
+  duration_ms: 0.346709
+  type: 'test'
+  ...
+# Subtest: 敏感範圍 = 感知 × 10 米
+ok 297 - 敏感範圍 = 感知 × 10 米
+  ---
+  duration_ms: 0.252316
+  type: 'test'
+  ...
+# Subtest: computeDerivedStats：組出完整的衍生屬性，傷勢軌初始為全部完好
+ok 298 - computeDerivedStats：組出完整的衍生屬性，傷勢軌初始為全部完好
+  ---
+  duration_ms: 0.33801
+  type: 'test'
+  ...
+# Subtest: computeDerivedStats：生命值總量守恆(intact+B+L+A=max)，接得上 core/health.js
+ok 299 - computeDerivedStats：生命值總量守恆(intact+B+L+A=max)，接得上 core/health.js
+  ---
+  duration_ms: 0.499645
+  type: 'test'
+  ...
+# Subtest: computeDerivedStats：體積可以自訂(例如大型/小型角色的HP上限跟著變)
+ok 300 - computeDerivedStats：體積可以自訂(例如大型/小型角色的HP上限跟著變)
+  ---
+  duration_ms: 0.61149
+  type: 'test'
+  ...
+# Subtest: computeDerivedStats：缺少的屬性一律退回基準值1，不會算出NaN
+ok 301 - computeDerivedStats：缺少的屬性一律退回基準值1，不會算出NaN
+  ---
+  duration_ms: 0.3362
+  type: 'test'
+  ...
+# Subtest: 分級表：扭轉度越高，獎勵倍率與難度加值都必須單調遞增(不能出現扭轉越大反而獎勵變少的情況)
+ok 302 - 分級表：扭轉度越高，獎勵倍率與難度加值都必須單調遞增(不能出現扭轉越大反而獎勵變少的情況)
+  ---
+  duration_ms: 1.176228
+  type: 'test'
+  ...
+# Subtest: computeNodeReward/computeNodeDC：完全遵循原劇情(tier0)應該不改變基礎值
+ok 303 - computeNodeReward/computeNodeDC：完全遵循原劇情(tier0)應該不改變基礎值
+  ---
+  duration_ms: 0.410217
+  type: 'test'
+  ...
+# Subtest: computeNodeReward/computeNodeDC：手算範例——大幅偏離(tier3, 1.8倍/+4難度)
+ok 304 - computeNodeReward/computeNodeDC：手算範例——大幅偏離(tier3, 1.8倍/+4難度)
+  ---
+  duration_ms: 0.243283
+  type: 'test'
+  ...
+# Subtest: computeNodeReward：不合法的分級要直接丟錯，不能默默當作tier0處理
+ok 305 - computeNodeReward：不合法的分級要直接丟錯，不能默默當作tier0處理
+  ---
+  duration_ms: 0.342999
+  type: 'test'
+  ...
+# Subtest: summarizeChapter：手算範例——3個節點，2個完成，扭轉度分別是0與2，平均應為1
+ok 306 - summarizeChapter：手算範例——3個節點，2個完成，扭轉度分別是0與2，平均應為1
+  ---
+  duration_ms: 0.56044
+  type: 'test'
+  ...
+# Subtest: summarizeCampaign：單章節時，整體完成度跟章節完成度一致
+ok 307 - summarizeCampaign：單章節時，整體完成度跟章節完成度一致
+  ---
+  duration_ms: 0.345802
+  type: 'test'
+  ...
+# Subtest: 範例副本包(審判者1)：pack結構與副本專屬結構都要驗證通過
+ok 308 - 範例副本包(審判者1)：pack結構與副本專屬結構都要驗證通過
+  ---
+  duration_ms: 0.646013
+  type: 'test'
+  ...
+# Subtest: getDownState：完好的角色可以行動
+ok 309 - getDownState：完好的角色可以行動
+  ---
+  duration_ms: 1.616037
+  type: 'test'
+  ...
+# Subtest: getDownState：intact歸零且有傷勢時判定為昏迷，不能行動
+ok 310 - getDownState：intact歸零且有傷勢時判定為昏迷，不能行動
+  ---
+  duration_ms: 0.600721
+  type: 'test'
+  ...
+# Subtest: getDownState：全惡性傷判定為死亡
+ok 311 - getDownState：全惡性傷判定為死亡
+  ---
+  duration_ms: 0.389232
+  type: 'test'
+  ...
+# Subtest: reviveCharacter：付得起就復活，扣款、記次數、傷勢清空三件事都要發生
+ok 312 - reviveCharacter：付得起就復活，扣款、記次數、傷勢清空三件事都要發生
+  ---
+  duration_ms: 0.465054
+  type: 'test'
+  ...
+# Subtest: reviveCharacter：付不起時什麼都不改，並回報還差多少
+ok 313 - reviveCharacter：付不起時什麼都不改，並回報還差多少
+  ---
+  duration_ms: 0.420955
+  type: 'test'
+  ...
+# Subtest: reviveCharacter：復活次數用完之後是真死，理由要跟『付不起』分得開
+ok 314 - reviveCharacter：復活次數用完之後是真死，理由要跟『付不起』分得開
+  ---
+  duration_ms: 0.335915
+  type: 'test'
+  ...
+# Subtest: revivalQuote：不改任何狀態，純查詢
+ok 315 - revivalQuote：不改任何狀態，純查詢
+  ---
+  duration_ms: 0.393301
+  type: 'test'
+  ...
+# Subtest: /api/turn：昏迷的角色送出行動時要被擋下(409)，不能繼續照常擲骰推劇情
+ok 316 - /api/turn：昏迷的角色送出行動時要被擋下(409)，不能繼續照常擲骰推劇情
+  ---
+  duration_ms: 38.116502
+  type: 'test'
+  ...
+# Subtest: /api/turn：開場/接續敘事不受閘門影響(玩家重整回來要看得到自己倒下的處境)
+ok 317 - /api/turn：開場/接續敘事不受閘門影響(玩家重整回來要看得到自己倒下的處境)
+  ---
+  duration_ms: 8.078352
+  type: 'test'
+  ...
+# Subtest: /api/turn：健康的角色每回合都會帶回 downState(前端才能持續顯示)
+ok 318 - /api/turn：健康的角色每回合都會帶回 downState(前端才能持續顯示)
+  ---
+  duration_ms: 3.914107
+  type: 'test'
+  ...
+# Subtest: /api/combat/v2/start：昏迷/死亡的角色不能開新戰鬥
+ok 319 - /api/combat/v2/start：昏迷/死亡的角色不能開新戰鬥
+  ---
+  duration_ms: 2.727099
+  type: 'test'
+  ...
+# Subtest: /api/session GET：帶回 downState 與 revival，玩家重整回來立刻知道自己倒下了
+ok 320 - /api/session GET：帶回 downState 與 revival，玩家重整回來立刻知道自己倒下了
+  ---
+  duration_ms: 4.569316
+  type: 'test'
+  ...
+# Subtest: /api/revive：死亡→復活→可以繼續玩，而且事件日誌留下紀錄
+ok 321 - /api/revive：死亡→復活→可以繼續玩，而且事件日誌留下紀錄
+  ---
+  duration_ms: 20.539848
+  type: 'test'
+  ...
+# Subtest: /api/revive：沒死的角色呼叫復活要被拒絕，不能拿來當免費補血
+ok 322 - /api/revive：沒死的角色呼叫復活要被拒絕，不能拿來當免費補血
+  ---
+  duration_ms: 1.265651
+  type: 'test'
+  ...
+# Subtest: rollD10 只會出現 1~10 之間的整數
+ok 323 - rollD10 只會出現 1~10 之間的整數
+  ---
+  duration_ms: 5.194425
+  type: 'test'
+  ...
+# Subtest: rollDicePool: DP=0 或負數會改用機運骰(最多只擲出很少的骰子)
+ok 324 - rollDicePool: DP=0 或負數會改用機運骰(最多只擲出很少的骰子)
+  ---
+  duration_ms: 0.591405
+  type: 'test'
+  ...
+# Subtest: rollDicePool: 骰池統計特性——大量骰子時成功率應接近理論值(8/9/10共30%基礎成功率，含加骰會略高)
+ok 325 - rollDicePool: 骰池統計特性——大量骰子時成功率應接近理論值(8/9/10共30%基礎成功率，含加骰會略高)
+  ---
+  duration_ms: 9.949032
+  type: 'test'
+  ...
+# Subtest: legendaryAttributeBonus: 對應規則書「傳奇屬性」舉例 n=floor((值-1)/5)
+ok 326 - legendaryAttributeBonus: 對應規則書「傳奇屬性」舉例 n=floor((值-1)/5)
+  ---
+  duration_ms: 0.23252
+  type: 'test'
+  ...
+# Subtest: skillBonusSuccesses: 技能等級5/10/11/13/15為門檻，最多5個附加成功
+ok 327 - skillBonusSuccesses: 技能等級5/10/11/13/15為門檻，最多5個附加成功
+  ---
+  duration_ms: 0.319115
+  type: 'test'
+  ...
+# Subtest: resolveCheck: 擲骰成功數為0時，附加成功不生效(核心規則「附加成功的使用」)
+ok 328 - resolveCheck: 擲骰成功數為0時，附加成功不生效(核心規則「附加成功的使用」)
+  ---
+  duration_ms: 0.79122
+  type: 'test'
+  ...
+# Subtest: XP花費公式：屬性/技能/專業/專長
+ok 329 - XP花費公式：屬性/技能/專業/專長
+  ---
+  duration_ms: 0.314524
+  type: 'test'
+  ...
+# Subtest: performCheck: 心智系技能為0時自動失敗
+ok 330 - performCheck: 心智系技能為0時自動失敗
+  ---
+  duration_ms: 0.525153
+  type: 'test'
+  ...
+# Subtest: performCheck: 戰鬥/身手系技能為0仍可嘗試，但損失1個成功數
+ok 331 - performCheck: 戰鬥/身手系技能為0仍可嘗試，但損失1個成功數
+  ---
+  duration_ms: 0.65029
+  type: 'test'
+  ...
+# Subtest: performCheck: 沒有登記過專業的技能，不套用減半規則(視為泛用技能)
+ok 332 - performCheck: 沒有登記過專業的技能，不套用減半規則(視為泛用技能)
+  ---
+  duration_ms: 0.692919
+  type: 'test'
+  ...
+# Subtest: performCheck: 專業欄位不影響任何計算（輕量化規則不實作專業）
+ok 333 - performCheck: 專業欄位不影響任何計算（輕量化規則不實作專業）
+  ---
+  duration_ms: 0.396115
+  type: 'test'
+  ...
+# Subtest: appendEvent：合法事件會被加入，seq 依序遞增
+ok 334 - appendEvent：合法事件會被加入，seq 依序遞增
+  ---
+  duration_ms: 1.261436
+  type: 'test'
+  ...
+# Subtest: appendEvent：不合法的事件類型要直接丟錯，不能默默塞進日誌
+ok 335 - appendEvent：不合法的事件類型要直接丟錯，不能默默塞進日誌
+  ---
+  duration_ms: 0.567872
+  type: 'test'
+  ...
+# Subtest: 日誌是 append-only：appendEvent 不會修改已存在的事件
+ok 336 - 日誌是 append-only：appendEvent 不會修改已存在的事件
+  ---
+  duration_ms: 0.972803
+  type: 'test'
+  ...
+# Subtest: queryEvents：可以用 type 過濾
+ok 337 - queryEvents：可以用 type 過濾
+  ---
+  duration_ms: 0.447304
+  type: 'test'
+  ...
+# Subtest: queryEvents：可以用 sinceSeq 過濾出某個時間點之後的事件
+ok 338 - queryEvents：可以用 sinceSeq 過濾出某個時間點之後的事件
+  ---
+  duration_ms: 0.484189
+  type: 'test'
+  ...
+# Subtest: summarizeForJournal：EVENT_TYPES 裡的每一種都要有摘要，新增類型忘了補摘要要當場失敗
+ok 339 - summarizeForJournal：EVENT_TYPES 裡的每一種都要有摘要，新增類型忘了補摘要要當場失敗
+  ---
+  duration_ms: 1.058853
+  type: 'test'
+  ...
+# Subtest: summarizeForJournal：手寫的八種基本事件摘要維持原樣（回歸保護）
+ok 340 - summarizeForJournal：手寫的八種基本事件摘要維持原樣（回歸保護）
+  ---
+  duration_ms: 0.28668
+  type: 'test'
+  ...
+# Subtest: /api/forms 把「這次要決定什麼」一起交出去(支付範圍、二選一選項、維持成本)
+ok 341 - /api/forms 把「這次要決定什麼」一起交出去(支付範圍、二選一選項、維持成本)
+  ---
+  duration_ms: 37.358723
+  type: 'test'
+  ...
+# Subtest: /api/forms 擋下來的時候一定要回 ok:false(這是端對端實測抓到的bug)
+ok 342 - /api/forms 擋下來的時候一定要回 ok:false(這是端對端實測抓到的bug)
+  ---
+  duration_ms: 4.690619
+  type: 'test'
+  ...
+# Subtest: /api/combat/v2/turn：可變量型態付幾點，攻擊加值就是幾點(而且池子真的少了)
+ok 343 - /api/combat/v2/turn：可變量型態付幾點，攻擊加值就是幾點(而且池子真的少了)
+  ---
+  duration_ms: 40.805186
+  type: 'test'
+  ...
+# Subtest: /api/combat/v2/turn：維持成本斷氣時，公開紀錄要說得出是哪一個型態、為什麼
+ok 344 - /api/combat/v2/turn：維持成本斷氣時，公開紀錄要說得出是哪一個型態、為什麼
+  ---
+  duration_ms: 10.224761
+  type: 'test'
+  ...
+# Subtest: bounded free action contract 第一版固定為 attempt_only 且沒有 authorizedChanges
+ok 345 - bounded free action contract 第一版固定為 attempt_only 且沒有 authorizedChanges
+  ---
+  duration_ms: 2.302398
+  type: 'test'
+  ...
+# Subtest: narration guard 攔截高風險完成式，但放行保留不確定性的沉浸描寫
+ok 346 - narration guard 攔截高風險完成式，但放行保留不確定性的沉浸描寫
+  ---
+  duration_ms: 5.057923
+  type: 'test'
+  ...
+# Subtest: narration guard 會攔截未授權 NPC 武器或裝備主張
+ok 347 - narration guard 會攔截未授權 NPC 武器或裝備主張
+  ---
+  duration_ms: 0.352456
+  type: 'test'
+  ...
+# Subtest: engine-safe narration 只使用 contract facts，不會帶入 unsafe 原文
+ok 348 - engine-safe narration 只使用 contract facts，不會帶入 unsafe 原文
+  ---
+  duration_ms: 1.104675
+  type: 'test'
+  ...
+# Subtest: engine-safe narration 不會回顯秘密或控制指令 token
+ok 349 - engine-safe narration 不會回顯秘密或控制指令 token
+  ---
+  duration_ms: 0.644496
+  type: 'test'
+  ...
+# Subtest: engine-safe narration 不會完整回顯過長的玩家自由輸入
+ok 350 - engine-safe narration 不會完整回顯過長的玩家自由輸入
+  ---
+  duration_ms: 0.671036
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"8f6c702d-2d3a-4ff0-a30b-1a86c14801ef","stThought":"第1輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"8f6c702d-2d3a-4ff0-a30b-1a86c14801ef","stThought":"第2輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"3390c92f-b16d-4fea-ac22-621cae8cf93b","stThought":"第1輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"3390c92f-b16d-4fea-ac22-621cae8cf93b","stThought":"第2輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"ee0e12e2-2744-4a7a-9a0d-0228b8882999","stThought":"第1輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"ee0e12e2-2744-4a7a-9a0d-0228b8882999","stThought":"第2輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"f1144d14-d1a3-4671-b8eb-3c7d488baa5e","stThought":"第1輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# [ST_THOUGHT] {"sessionId":"18a1242e-bf1c-412c-88c9-dad334e2ce3b","stThought":"第1輪盤算：這次沒有判定，讓玩家多知道一件事，並指名下一個目標物。"}
+# Subtest: 玩家選純敘事選項時：引擎完全不擲骰，但敘事照樣產生、下一輪選項照樣給
+ok 351 - 玩家選純敘事選項時：引擎完全不擲骰，但敘事照樣產生、下一輪選項照樣給
+  ---
+  duration_ms: 47.394246
+  type: 'test'
+  ...
+# Subtest: 純敘事回合送出的 prompt 帶著玩家的行動，且明講這回合不擲骰
+ok 352 - 純敘事回合送出的 prompt 帶著玩家的行動，且明講這回合不擲骰
+  ---
+  duration_ms: 5.736629
+  type: 'test'
+  ...
+# Subtest: 純敘事選項的 requiresCheck 以伺服器查驗為準：前端把有風險的選項改成 false 也擋得住
+ok 353 - 純敘事選項的 requiresCheck 以伺服器查驗為準：前端把有風險的選項改成 false 也擋得住
+  ---
+  duration_ms: 6.495139
+  type: 'test'
+  ...
+# Subtest: 面具會進到系統提示，且規則契約仍然完整、優先序宣告仍在最後
+ok 354 - 面具會進到系統提示，且規則契約仍然完整、優先序宣告仍在最後
+  ---
+  duration_ms: 2.993597
+  type: 'test'
+  ...
+# Subtest: 未知的面具要在最前面就擋下來(400)，不要等到組系統提示才爆
+ok 355 - 未知的面具要在最前面就擋下來(400)，不要等到組系統提示才爆
+  ---
+  duration_ms: 1.736132
+  type: 'test'
+  ...
+# Subtest: [安全] 思維鏈(st_thought)不會被印進敘事，也不會出現在公開API回應的任何欄位
+ok 356 - [安全] 思維鏈(st_thought)不會被印進敘事，也不會出現在公開API回應的任何欄位
+  ---
+  duration_ms: 3.866026
+  type: 'test'
+  ...
+# Subtest: 主畫面移除近期現場標題並保留頂端劇情回顧提示契約
+ok 357 - 主畫面移除近期現場標題並保留頂端劇情回顧提示契約
+  ---
+  duration_ms: 1.92641
+  type: 'test'
+  ...
+# Subtest: Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference 隱藏契約
+ok 358 - Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference 隱藏契約
+  ---
+  duration_ms: 1.173175
+  type: 'test'
+  ...
+# Subtest: 玩家行動、命運判定與說書人 pending 使用不同視覺層級
+ok 359 - 玩家行動、命運判定與說書人 pending 使用不同視覺層級
+  ---
+  duration_ms: 0.574292
+  type: 'test'
+  ...
+# Subtest: V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容資料流
+ok 360 - V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容資料流
+  ---
+  duration_ms: 1.544807
+  type: 'test'
+  ...
+# Subtest: 探索終端顯示內容包的空間、感官、地標、危險與回訪變化
+ok 361 - 探索終端顯示內容包的空間、感官、地標、危險與回訪變化
+  ---
+  duration_ms: 0.455249
+  type: 'test'
+  ...
+# Subtest: 回合輸出使用安全 NDJSON lifecycle 與 narration fallback
+ok 362 - 回合輸出使用安全 NDJSON lifecycle 與 narration fallback
+  ---
+  duration_ms: 1.050413
+  type: 'test'
+  ...
+# Subtest: 建卡以十選三起始專長取代純敘事特性
+ok 363 - 建卡以十選三起始專長取代純敘事特性
+  ---
+  duration_ms: 0.769238
+  type: 'test'
+  ...
+# Subtest: portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全黑祝福過場
+ok 364 - portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全黑祝福過場
+  ---
+  duration_ms: 1.504978
+  type: 'test'
+  ...
+# Subtest: C1 主神空間以安全區導引串起結算、整備與出發
+ok 365 - C1 主神空間以安全區導引串起結算、整備與出發
+  ---
+  duration_ms: 1.179457
+  type: 'test'
+  ...
+# Subtest: C1 導引卡依 server steps 動態呈現 active／ready 流程並拒絕未知 action
+ok 366 - C1 導引卡依 server steps 動態呈現 active／ready 流程並拒絕未知 action
+  ---
+  duration_ms: 0.772114
+  type: 'test'
+  ...
+# Subtest: 設定 modal 的 light theme 會覆蓋原生表單 dark appearance
+ok 367 - 設定 modal 的 light theme 會覆蓋原生表單 dark appearance
+  ---
+  duration_ms: 0.27457
+  type: 'test'
+  ...
+# Subtest: 手機 modal 有安全區域、高度上限與內部觸控捲動
+ok 368 - 手機 modal 有安全區域、高度上限與內部觸控捲動
+  ---
+  duration_ms: 0.234553
+  type: 'test'
+  ...
+# Subtest: PWA 在 iOS 與 Android 沒有自動 prompt 時仍提供安裝指引入口
+ok 369 - PWA 在 iOS 與 Android 沒有自動 prompt 時仍提供安裝指引入口
+  ---
+  duration_ms: 0.578447
+  type: 'test'
+  ...
+# Subtest: 輪迴者檔案文案區分接續目前角色與建立新角色
+ok 370 - 輪迴者檔案文案區分接續目前角色與建立新角色
+  ---
+  duration_ms: 0.571336
+  type: 'test'
+  ...
+# Subtest: PWA metadata、Service Worker 與前端 cache-bust 保持有效
+ok 371 - PWA metadata、Service Worker 與前端 cache-bust 保持有效
+  ---
+  duration_ms: 0.554208
+  type: 'test'
+  ...
+# Subtest: 前端呼叫的每一個 /api 路徑都有對應的 Cloudflare Function 檔
+ok 372 - 前端呼叫的每一個 /api 路徑都有對應的 Cloudflare Function 檔
+  ---
+  duration_ms: 5.928569
+  type: 'test'
+  ...
+# Subtest: POST /api/godspace/enter 有自己的路由檔，不是只靠 /api/godspace 那一份
+ok 373 - POST /api/godspace/enter 有自己的路由檔，不是只靠 /api/godspace 那一份
+  ---
+  duration_ms: 0.585388
+  type: 'test'
+  ...
+# Subtest: 輪迴者檔案清單的接續與刪除按鈕有委派監聽器接著
+ok 374 - 輪迴者檔案清單的接續與刪除按鈕有委派監聽器接著
+  ---
+  duration_ms: 0.541142
+  type: 'test'
+  ...
+# Subtest: 回合與移動的重試是事件資料的一部分，不是事後插進 DOM 的裝飾
+ok 375 - 回合與移動的重試是事件資料的一部分，不是事後插進 DOM 的裝飾
+  ---
+  duration_ms: 1.026205
+  type: 'test'
+  ...
+# Subtest: 最近五則故事用增量比對更新，不整片重建 DOM
+ok 376 - 最近五則故事用增量比對更新，不整片重建 DOM
+  ---
+  duration_ms: 0.63286
+  type: 'test'
+  ...
+# Subtest: 還沒有任何一則時保留故事區的佔位文字
+ok 377 - 還沒有任何一則時保留故事區的佔位文字
+  ---
+  duration_ms: 0.419015
+  type: 'test'
+  ...
+# Subtest: 離開戰鬥畫面只有一份實作，且一定會拿掉 is-combat-v2-view
+ok 378 - 離開戰鬥畫面只有一份實作，且一定會拿掉 is-combat-v2-view
+  ---
+  duration_ms: 0.510068
+  type: 'test'
+  ...
+# Subtest: escapeHtml 跳脫引號，跟 index.html 的 escapeAttr 同一個標準
+ok 379 - escapeHtml 跳脫引號，跟 index.html 的 escapeAttr 同一個標準
+  ---
+  duration_ms: 0.31666
+  type: 'test'
+  ...
+# Subtest: showToast 只用 TOAST_STYLES 認得的種類
+ok 380 - showToast 只用 TOAST_STYLES 認得的種類
+  ---
+  duration_ms: 3.83959
+  type: 'test'
+  ...
+# Subtest: 輪迴者檔案清單同時間只發一個請求
+ok 381 - 輪迴者檔案清單同時間只發一個請求
+  ---
+  duration_ms: 0.718375
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：組出來的文字包含判定分級指令與玩家行動
+ok 382 - buildTurnPrompt：組出來的文字包含判定分級指令與玩家行動
+  ---
+  duration_ms: 1.995657
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：沒有sceneContext跟recentEvents時仍可正常組裝(都是選填)
+ok 383 - buildTurnPrompt：沒有sceneContext跟recentEvents時仍可正常組裝(都是選填)
+  ---
+  duration_ms: 0.338654
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：有recentEvents時會把摘要條列進去
+ok 384 - buildTurnPrompt：有recentEvents時會把摘要條列進去
+  ---
+  duration_ms: 0.237312
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：缺少必要參數要丟錯，不能靜默組出殘缺的prompt
+ok 385 - buildTurnPrompt：缺少必要參數要丟錯，不能靜默組出殘缺的prompt
+  ---
+  duration_ms: 1.675628
+  type: 'test'
+  ...
+# Subtest: callGemini：正確組裝request body(system_instruction+contents)並帶上API金鑰header
+ok 386 - callGemini：正確組裝request body(system_instruction+contents)並帶上API金鑰header
+  ---
+  duration_ms: 1.555475
+  type: 'test'
+  ...
+# Subtest: callGemini：API回傳非2xx時要丟出明確錯誤，不是靜默失敗
+ok 387 - callGemini：API回傳非2xx時要丟出明確錯誤，不是靜默失敗
+  ---
+  duration_ms: 0.963728
+  type: 'test'
+  ...
+# Subtest: callGemini：回應結構不符預期時要丟出明確錯誤，不是回傳undefined讓呼叫端誤用
+ok 388 - callGemini：回應結構不符預期時要丟出明確錯誤，不是回傳undefined讓呼叫端誤用
+  ---
+  duration_ms: 0.378377
+  type: 'test'
+  ...
+# Subtest: callGemini：缺少apiKey或prompt要丟錯
+ok 389 - callGemini：缺少apiKey或prompt要丟錯
+  ---
+  duration_ms: 0.344315
+  type: 'test'
+  ...
+# Subtest: SYSTEM_INSTRUCTION：思維鏈(st_thought)是硬性規定，而且明講玩家看不到
+ok 390 - SYSTEM_INSTRUCTION：思維鏈(st_thought)是硬性規定，而且明講玩家看不到
+  ---
+  duration_ms: 0.618591
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：各段落用XML標籤隔開，歷史紀錄明講自己不是本回合指令
+ok 391 - buildTurnPrompt：各段落用XML標籤隔開，歷史紀錄明講自己不是本回合指令
+  ---
+  duration_ms: 0.625119
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：專長成功演出指令只以獨立區塊注入，且禁止直說名稱
+ok 392 - buildTurnPrompt：專長成功演出指令只以獨立區塊注入，且禁止直說名稱
+  ---
+  duration_ms: 0.347781
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：帶 personaKey 時把面具原文注入，且宣告面具不能蓋掉引擎結果
+ok 393 - buildTurnPrompt：帶 personaKey 時把面具原文注入，且宣告面具不能蓋掉引擎結果
+  ---
+  duration_ms: 0.233158
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：沒帶 personaKey 就不放面具區塊(系統提示裡已經有一份)
+ok 394 - buildTurnPrompt：沒帶 personaKey 就不放面具區塊(系統提示裡已經有一份)
+  ---
+  duration_ms: 0.129384
+  type: 'test'
+  ...
+# Subtest: buildTurnPrompt：未知的面具key要丟錯，不可以靜靜略過
+ok 395 - buildTurnPrompt：未知的面具key要丟錯，不可以靜靜略過
+  ---
+  duration_ms: 0.152233
+  type: 'test'
+  ...
+# Subtest: buildFreeActionPrompt：明確禁止描寫成敗，但要求場景照樣推進
+ok 396 - buildFreeActionPrompt：明確禁止描寫成敗，但要求場景照樣推進
+  ---
+  duration_ms: 0.289704
+  type: 'test'
+  ...
+# Subtest: buildFreeActionPrompt：缺 playerAction 要丟錯
+ok 397 - buildFreeActionPrompt：缺 playerAction 要丟錯
+  ---
+  duration_ms: 0.127614
+  type: 'test'
+  ...
+# Subtest: buildCombatNarrationPrompt：把傷害標籤與「描寫視覺聽覺細節」的要求一起送出去
+ok 398 - buildCombatNarrationPrompt：把傷害標籤與「描寫視覺聽覺細節」的要求一起送出去
+  ---
+  duration_ms: 0.242957
+  type: 'test'
+  ...
+# Subtest: buildCombatNarrationPrompt：有意圖預告時，要求這一輪必須承接它
+ok 399 - buildCombatNarrationPrompt：有意圖預告時，要求這一輪必須承接它
+  ---
+  duration_ms: 0.123242
+  type: 'test'
+  ...
+# Subtest: buildCombatNarrationPrompt：沒有預告就不放那一段(不要留一個空標題)
+ok 400 - buildCombatNarrationPrompt：沒有預告就不放那一段(不要留一個空標題)
+  ---
+  duration_ms: 0.167182
+  type: 'test'
+  ...
+# Subtest: GET godspace：settled session 回傳 whitelist debrief、aftercare 與 server action metadata
+ok 401 - GET godspace：settled session 回傳 whitelist debrief、aftercare 與 server action metadata
+  ---
+  duration_ms: 44.507646
+  type: 'test'
+  ...
+# Subtest: POST godspace/enter：active session 被擋下，settled session 可重複合法返回且不重複入帳
+ok 402 - POST godspace/enter：active session 被擋下，settled session 可重複合法返回且不重複入帳
+  ---
+  duration_ms: 9.516964
+  type: 'test'
+  ...
+# Subtest: GET godspace：沒有副本的 session 回傳 no_scenario hub，且 owner 仍受 session 存取規則保護
+ok 403 - GET godspace：沒有副本的 session 回傳 no_scenario hub，且 owner 仍受 session 存取規則保護
+  ---
+  duration_ms: 2.567394
+  type: 'test'
+  ...
+# Subtest: POST rest：死亡角色不能用主神完全恢復繞過 revival API
+ok 404 - POST rest：死亡角色不能用主神完全恢復繞過 revival API
+  ---
+  duration_ms: 4.265513
+  type: 'test'
+  ...
+# Subtest: B0 godspace profile：新建與舊存檔 migration 都有固定 schema 與 server flags
+ok 405 - B0 godspace profile：新建與舊存檔 migration 都有固定 schema 與 server flags
+  ---
+  duration_ms: 2.631097
+  type: 'test'
+  ...
+# Subtest: B0 payload：公開 contract 有版本與 profile，但不原樣暴露 godspace 內部欄位或 referenceState
+ok 406 - B0 payload：公開 contract 有版本與 profile，但不原樣暴露 godspace 內部欄位或 referenceState
+  ---
+  duration_ms: 4.214807
+  type: 'test'
+  ...
+# Subtest: B0 gate：active 副本不能進主神空間，B0 未開放功能回傳固定 disabled code
+ok 407 - B0 gate：active 副本不能進主神空間，B0 未開放功能回傳固定 disabled code
+  ---
+  duration_ms: 0.70543
+  type: 'test'
+  ...
+# Subtest: B0 gate：pending combat、combat、terminal unsettled 與 settled 各自停在正確邊界
+ok 408 - B0 gate：pending combat、combat、terminal unsettled 與 settled 各自停在正確邊界
+  ---
+  duration_ms: 0.801734
+  type: 'test'
+  ...
+# Subtest: B0 gate：死亡角色在主神空間只能走 revive，不能用 rest 或 start scenario 繞過
+ok 409 - B0 gate：死亡角色在主神空間只能走 revive，不能用 rest 或 start scenario 繞過
+  ---
+  duration_ms: 0.872441
+  type: 'test'
+  ...
+# Subtest: 規則書生命值範例：完整重現逐步結果
+ok 410 - 規則書生命值範例：完整重現逐步結果
+  ---
+  duration_ms: 2.306438
+  type: 'test'
+  ...
+# Subtest: 生理.htm 範例：A傷可以跳過L直接把B轉成A
+ok 411 - 生理.htm 範例：A傷可以跳過L直接把B轉成A
+  ---
+  duration_ms: 0.245954
+  type: 'test'
+  ...
+# Subtest: evaluateStatus：全惡性視為死亡，最壞狀態為A時視為傷勢惡化中
+ok 412 - evaluateStatus：全惡性視為死亡，最壞狀態為A時視為傷勢惡化中
+  ---
+  duration_ms: 0.4628
+  type: 'test'
+  ...
+# Subtest: 整合：建立一個測試角色、做幾次判定、受傷、升級技能，全程狀態合理
+ok 413 - 整合：建立一個測試角色、做幾次判定、受傷、升級技能，全程狀態合理
+  ---
+  duration_ms: 2.556499
+  type: 'test'
+  ...
+# Subtest: 整合：心智技能為0時，performCheck直接回autoFail，不會誤觸發後續的傷害/骰子邏輯
+ok 414 - 整合：心智技能為0時，performCheck直接回autoFail，不會誤觸發後續的傷害/骰子邏輯
+  ---
+  duration_ms: 0.299302
+  type: 'test'
+  ...
+# Subtest: 不變量：生命值四個欄位的總和永遠等於max(傷害只是搬動點數，不會憑空增減)
+ok 415 - 不變量：生命值四個欄位的總和永遠等於max(傷害只是搬動點數，不會憑空增減)
+  ---
+  duration_ms: 26.670164
+  type: 'test'
+  ...
+# Subtest: 不變量：傷害套用後，intact 只會減少或不變，不會無故增加
+ok 416 - 不變量：傷害套用後，intact 只會減少或不變，不會無故增加
+  ---
+  duration_ms: 0.292833
+  type: 'test'
+  ...
+# Subtest: 不變量：XP花費公式對任何合法輸入都不應該是負數
+ok 417 - 不變量：XP花費公式對任何合法輸入都不應該是負數
+  ---
+  duration_ms: 0.374347
+  type: 'test'
+  ...
+# Subtest: 不變量：技能升級越高總花費越貴(單調遞增，不會出現升級反而變便宜的情況)
+ok 418 - 不變量：技能升級越高總花費越貴(單調遞增，不會出現升級反而變便宜的情況)
+  ---
+  duration_ms: 0.273718
+  type: 'test'
+  ...
+# Subtest: 不變量：傳奇屬性/技能附加成功都是「數值越高，加值只會持平或變高」的單調函式
+ok 419 - 不變量：傳奇屬性/技能附加成功都是「數值越高，加值只會持平或變高」的單調函式
+  ---
+  duration_ms: 0.469382
+  type: 'test'
+  ...
+# Subtest: /api/journal：把存檔裡的事件日誌變成看得懂的條目回傳
+ok 420 - /api/journal：把存檔裡的事件日誌變成看得懂的條目回傳
+  ---
+  duration_ms: 41.674017
+  type: 'test'
+  ...
+# Subtest: /api/journal：實際玩過一輪之後日誌就長得出來（休息會留下紀錄）
+ok 421 - /api/journal：實際玩過一輪之後日誌就長得出來（休息會留下紀錄）
+  ---
+  duration_ms: 4.842783
+  type: 'test'
+  ...
+# Subtest: /api/journal：limit 只回最近幾筆，順序仍然是由舊到新
+ok 422 - /api/journal：limit 只回最近幾筆，順序仍然是由舊到新
+  ---
+  duration_ms: 2.524613
+  type: 'test'
+  ...
+# Subtest: /api/journal：沒指定 sessionId 回 400，找不到存檔回 404
+ok 423 - /api/journal：沒指定 sessionId 回 400，找不到存檔回 404
+  ---
+  duration_ms: 1.311111
+  type: 'test'
+  ...
+# Subtest: /api/session?view=runtime：只回傳最近五則 preview，不把完整 chronicle 帶進主畫面
+ok 424 - /api/session?view=runtime：只回傳最近五則 preview，不把完整 chronicle 帶進主畫面
+  ---
+  duration_ms: 7.585999
+  type: 'test'
+  ...
+# Subtest: /api/chronicle：按需回傳完整長期敘事、章節索引與 AI-ready 文字
+ok 425 - /api/chronicle：按需回傳完整長期敘事、章節索引與 AI-ready 文字
+  ---
+  duration_ms: 3.756966
+  type: 'test'
+  ...
+# Subtest: /api/chronicle：一般分頁不生成完整 package，避免長期故事重複傳輸
+ok 426 - /api/chronicle：一般分頁不生成完整 package，避免長期故事重複傳輸
+  ---
+  duration_ms: 1.838375
+  type: 'test'
+  ...
+# Subtest: /api/chronicle：指定不存在的已分章副本時不回退到其他章節
+ok 427 - /api/chronicle：指定不存在的已分章副本時不回退到其他章節
+  ---
+  duration_ms: 2.333775
+  type: 'test'
+  ...
+# Subtest: /api/chronicle：沒指定 sessionId 回 400，找不到存檔回 404
+ok 428 - /api/chronicle：沒指定 sessionId 回 400，找不到存檔回 404
+  ---
+  duration_ms: 0.900015
+  type: 'test'
+  ...
+# Subtest: /api/chronicle：別人名下的存檔讀不到（跟其他端點同一套門禁）
+ok 429 - /api/chronicle：別人名下的存檔讀不到（跟其他端點同一套門禁）
+  ---
+  duration_ms: 2.020042
+  type: 'test'
+  ...
+# Subtest: 副本包通過 validateScenarioPack，並保有時間預算與最終戰節點
+ok 430 - 副本包通過 validateScenarioPack，並保有時間預算與最終戰節點
+  ---
+  duration_ms: 2.483237
+  type: 'test'
+  ...
+# Subtest: 固定開場的四個選項全部通過 validateOption，不需要退回預設值
+ok 431 - 固定開場的四個選項全部通過 validateOption，不需要退回預設值
+  ---
+  duration_ms: 0.859279
+  type: 'test'
+  ...
+# Subtest: authoring JSON 與 Cloudflare runtime sidecar 保持同步
+ok 432 - authoring JSON 與 Cloudflare runtime sidecar 保持同步
+  ---
+  duration_ms: 4.730948
+  type: 'test'
+  ...
+# Subtest: registry 同時提供副本包與對應的 GM reference
+ok 433 - registry 同時提供副本包與對應的 GM reference
+  ---
+  duration_ms: 0.390412
+  type: 'test'
+  ...
+# Subtest: 起始狀態沿用 reference 宣告的狀態軸與初始物資
+ok 434 - 起始狀態沿用 reference 宣告的狀態軸與初始物資
+  ---
+  duration_ms: 1.441221
+  type: 'test'
+  ...
+# Subtest: 主線可以走完：n1 → n2 → n3 依序結算，最終戰由登機完成
+ok 435 - 主線可以走完：n1 → n2 → n3 依序結算，最終戰由登機完成
+  ---
+  duration_ms: 7.263731
+  type: 'test'
+  ...
+# Subtest: 六個結局全部能由 server state 推導，且沒有無法推導的登機狀態
+ok 436 - 六個結局全部能由 server state 推導，且沒有無法推導的登機狀態
+  ---
+  duration_ms: 0.728908
+  type: 'test'
+  ...
+# Subtest: 戰鬥勝利的最終戰收尾由 reference 資料決定，不再寫死異形副本的狀態
+ok 437 - 戰鬥勝利的最終戰收尾由 reference 資料決定，不再寫死異形副本的狀態
+  ---
+  duration_ms: 0.911457
+  type: 'test'
+  ...
+# Subtest: 探索移動：只走地圖相鄰路線，未達成前置的路線會被鎖住
+ok 438 - 探索移動：只走地圖相鄰路線，未達成前置的路線會被鎖住
+  ---
+  duration_ms: 2.165905
+  type: 'test'
+  ...
+# Subtest: 路線風險由 reference 的 travelRiskRules 決定：開車衝山路比爬管廊危險
+ok 439 - 路線風險由 reference 的 travelRiskRules 決定：開車衝山路比爬管廊危險
+  ---
+  duration_ms: 0.895849
+  type: 'test'
+  ...
+# Subtest: 沒有照明時，露天與管廊路線的風險會上升
+ok 440 - 沒有照明時，露天與管廊路線的風險會上升
+  ---
+  duration_ms: 0.536259
+  type: 'test'
+  ...
+# Subtest: 公開探索視圖只給玩家可見資料，不洩漏 gmTruth 與 NPC 秘密
+ok 441 - 公開探索視圖只給玩家可見資料，不洩漏 gmTruth 與 NPC 秘密
+  ---
+  duration_ms: 2.274055
+  type: 'test'
+  ...
+# Subtest: NPC 只有在 reference 宣告的接觸條件成立後才會出現在名冊
+ok 442 - NPC 只有在 reference 宣告的接觸條件成立後才會出現在名冊
+  ---
+  duration_ms: 0.911679
+  type: 'test'
+  ...
+# Subtest: 帶出事故證據會計入品質分數（結算旗標不再只認異形副本）
+ok 443 - 帶出事故證據會計入品質分數（結算旗標不再只認異形副本）
+  ---
+  duration_ms: 0.403855
+  type: 'test'
+  ...
+# Subtest: NPC 演出素材包已貼入三名 NPC 的 Gemini 對白，並且會出現在已接觸 NPC 的 prompt block
+ok 444 - NPC 演出素材包已貼入三名 NPC 的 Gemini 對白，並且會出現在已接觸 NPC 的 prompt block
+  ---
+  duration_ms: 1.33145
+  type: 'test'
+  ...
+# Subtest: 回歸：異形副本沒有宣告 endingRules，仍走內建判定
+ok 445 - 回歸：異形副本沒有宣告 endingRules，仍走內建判定
+  ---
+  duration_ms: 0.170285
+  type: 'test'
+  ...
+# Subtest: Lambert profile 使用恐慌／壓力／群體安全模型，不複製陸遠威脅欄位
+ok 446 - Lambert profile 使用恐慌／壓力／群體安全模型，不複製陸遠威脅欄位
+  ---
+  duration_ms: 2.322918
+  type: 'test'
+  ...
+# Subtest: Lambert 新狀態與舊存檔正規化保留 bounded 欄位並允許負 trust
+ok 447 - Lambert 新狀態與舊存檔正規化保留 bounded 欄位並允許負 trust
+  ---
+  duration_ms: 0.638978
+  type: 'test'
+  ...
+# Subtest: Lambert 的正常提問會提供導航／處境事實與低壓下一步
+ok 448 - Lambert 的正常提問會提供導航／處境事實與低壓下一步
+  ---
+  duration_ms: 1.979833
+  type: 'test'
+  ...
+# Subtest: 安撫與可見陪同會降低恐慌，但不宣稱危險已消失
+ok 449 - 安撫與可見陪同會降低恐慌，但不宣稱危險已消失
+  ---
+  duration_ms: 0.480339
+  type: 'test'
+  ...
+# Subtest: Lambert 第一次被大吼進入 panic，第二次施壓改為 withdrawn
+ok 450 - Lambert 第一次被大吼進入 panic，第二次施壓改為 withdrawn
+  ---
+  duration_ms: 0.613745
+  type: 'test'
+  ...
+# Subtest: 連續異形聲音只提高 Lambert 壓力，不宣稱異形定位、攻擊或失去行動能力
+ok 451 - 連續異形聲音只提高 Lambert 壓力，不宣稱異形定位、攻擊或失去行動能力
+  ---
+  duration_ms: 0.469985
+  type: 'test'
+  ...
+# Subtest: 降壓後 Lambert 可以恢復有限溝通，但不抹除恐慌記憶
+ok 452 - 降壓後 Lambert 可以恢復有限溝通，但不抹除恐慌記憶
+  ---
+  duration_ms: 2.876622
+  type: 'test'
+  ...
+# Subtest: Lambert 明確被問到 Ripley 時不誤更新她的恐慌 state
+ok 453 - Lambert 明確被問到 Ripley 時不誤更新她的恐慌 state
+  ---
+  duration_ms: 0.250121
+  type: 'test'
+  ...
+# Subtest: Lambert cooperation prompt 只在相關場景／目標出現，且 exact-turn 與公開安全規則有效
+ok 454 - Lambert cooperation prompt 只在相關場景／目標出現，且 exact-turn 與公開安全規則有效
+  ---
+  duration_ms: 1.243605
+  type: 'test'
+  ...
+# Subtest: 力量：傷害上限提升是三角形數列(1/3/6/10/15)，不是線性(1/2/3/4/5)
+ok 455 - 力量：傷害上限提升是三角形數列(1/3/6/10/15)，不是線性(1/2/3/4/5)
+  ---
+  duration_ms: 2.166532
+  type: 'test'
+  ...
+# Subtest: 力量：負重增加是每級翻倍查表(500/1000/2000/4000/8000)
+ok 456 - 力量：負重增加是每級翻倍查表(500/1000/2000/4000/8000)
+  ---
+  duration_ms: 0.298575
+  type: 'test'
+  ...
+# Subtest: 力量：投擲距離倍數=n+1(2/3/4/5/6倍)
+ok 457 - 力量：投擲距離倍數=n+1(2/3/4/5/6倍)
+  ---
+  duration_ms: 0.200315
+  type: 'test'
+  ...
+# Subtest: 耐力：生命值額外增加也是三角形數列(1/3/6/10/15)
+ok 458 - 耐力：生命值額外增加也是三角形數列(1/3/6/10/15)
+  ---
+  duration_ms: 0.276102
+  type: 'test'
+  ...
+# Subtest: 耐力：不吃不喝不睡週數是翻倍查表(1/2/4/8/16週)
+ok 459 - 耐力：不吃不喝不睡週數是翻倍查表(1/2/4/8/16週)
+  ---
+  duration_ms: 0.20065
+  type: 'test'
+  ...
+# Subtest: 耐力：屏息時間倍數照書中原文列出(2/4/8/12/32)，不強行修順成漂亮公式
+ok 460 - 耐力：屏息時間倍數照書中原文列出(2/4/8/12/32)，不強行修順成漂亮公式
+  ---
+  duration_ms: 0.24583
+  type: 'test'
+  ...
+# Subtest: 敏捷：閃避防御與防御附加成功是同一個n，但是分開的兩個欄位
+ok 461 - 敏捷：閃避防御與防御附加成功是同一個n，但是分開的兩個欄位
+  ---
+  duration_ms: 0.309279
+  type: 'test'
+  ...
+# Subtest: 感知：洞察防御與防御附加成功也是同一個n，這是之前defense.js漏算的來源
+ok 462 - 感知：洞察防御與防御附加成功也是同一個n，這是之前defense.js漏算的來源
+  ---
+  duration_ms: 0.177081
+  type: 'test'
+  ...
+# Subtest: 沉著：先攻加值=2n(2/4/6/8/10)
+ok 463 - 沉著：先攻加值=2n(2/4/6/8/10)
+  ---
+  duration_ms: 0.487961
+  type: 'test'
+  ...
+# Subtest: 智力：每部影片經驗紅利=3n(3/6/9/12/15)
+ok 464 - 智力：每部影片經驗紅利=3n(3/6/9/12/15)
+  ---
+  duration_ms: 0.64854
+  type: 'test'
+  ...
+# Subtest: getLegendaryEffects：依屬性值自動算出n，再查出全部效果(📖書中11->2、16->3範例)
+ok 465 - getLegendaryEffects：依屬性值自動算出n，再查出全部效果(📖書中11->2、16->3範例)
+  ---
+  duration_ms: 0.424728
+  type: 'test'
+  ...
+# Subtest: getLegendaryEffects：屬性值低於6時n=0，所有效果都應該是0或對應的0級查表值
+ok 466 - getLegendaryEffects：屬性值低於6時n=0，所有效果都應該是0或對應的0級查表值
+  ---
+  duration_ms: 0.175178
+  type: 'test'
+  ...
+# Subtest: getLegendaryEffects：不合法的屬性名稱要丟錯
+ok 467 - getLegendaryEffects：不合法的屬性名稱要丟錯
+  ---
+  duration_ms: 0.365433
+  type: 'test'
+  ...
+# [LLM_FALLBACK] {"failedProvider":"groq","failedModel":"openai/gpt-oss-120b","stage":"http","status":429,"nextProvider":"mistral"}
+# [LLM_FALLBACK] {"failedProvider":"groq","failedModel":"openai/gpt-oss-120b","stage":"http","status":429,"nextProvider":"workers-ai"}
+# [LLM_JSON_MODE_UNSUPPORTED] {"provider":"deepseek","model":"deepseek-v4-flash","detail":"HTTP 400：unknown field response_format","hint":"這個端點不接受結構化輸出欄位，已自動退回純prompt模式。要省下這一次重試請設 LLM_JSON_MODE=off"}
+# Subtest: 每個供應商的設定都完整(有label/protocol/docs)，避免新增時漏填欄位
+ok 468 - 每個供應商的設定都完整(有label/protocol/docs)，避免新增時漏填欄位
+  ---
+  duration_ms: 2.010465
+  type: 'test'
+  ...
+# Subtest: resolveProvider：優先序是 呼叫端傳入 > 環境變數 > 供應商預設值
+ok 469 - resolveProvider：優先序是 呼叫端傳入 > 環境變數 > 供應商預設值
+  ---
+  duration_ms: 0.642706
+  type: 'test'
+  ...
+# Subtest: resolveProvider：baseUrl結尾的斜線會被去掉，避免組出 //chat/completions
+ok 470 - resolveProvider：baseUrl結尾的斜線會被去掉，避免組出 //chat/completions
+  ---
+  duration_ms: 0.222199
+  type: 'test'
+  ...
+# Subtest: resolveProvider：未知供應商要丟出有幫助的錯誤(列出可用選項與custom的走法)
+ok 471 - resolveProvider：未知供應商要丟出有幫助的錯誤(列出可用選項與custom的走法)
+  ---
+  duration_ms: 0.58062
+  type: 'test'
+  ...
+# Subtest: pickProvider：依環境自動挑選，明確指定的LLM_PROVIDER最優先
+ok 472 - pickProvider：依環境自動挑選，明確指定的LLM_PROVIDER最優先
+  ---
+  duration_ms: 0.586642
+  type: 'test'
+  ...
+# Subtest: pickProvider：什麼金鑰都沒有但有AI binding時，退到免金鑰的Workers AI
+ok 473 - pickProvider：什麼金鑰都沒有但有AI binding時，退到免金鑰的Workers AI
+  ---
+  duration_ms: 0.205711
+  type: 'test'
+  ...
+# Subtest: pickProvider：什麼都沒有時回傳null(讓呼叫端明確報錯，不是偷偷用假資料)
+ok 474 - pickProvider：什麼都沒有時回傳null(讓呼叫端明確報錯，不是偷偷用假資料)
+  ---
+  duration_ms: 0.170267
+  type: 'test'
+  ...
+# Subtest: server fallback chain：免費 provider 按 Groq → Workers AI → SiliconFlow → NVIDIA → Mistral，付費 provider 預設不加入
+ok 475 - server fallback chain：免費 provider 按 Groq → Workers AI → SiliconFlow → NVIDIA → Mistral，付費 provider 預設不加入
+  ---
+  duration_ms: 1.265084
+  type: 'test'
+  ...
+# Subtest: server fallback chain：每個 fallback 可指定模型，且不沿用 primary 的 LLM_MODEL
+ok 476 - server fallback chain：每個 fallback 可指定模型，且不沿用 primary 的 LLM_MODEL
+  ---
+  duration_ms: 0.74515
+  type: 'test'
+  ...
+# Subtest: callLlmWithFallback：primary 429 時切到下一家，回傳實際成功 provider
+ok 477 - callLlmWithFallback：primary 429 時切到下一家，回傳實際成功 provider
+  ---
+  duration_ms: 3.222258
+  type: 'test'
+  ...
+# Subtest: callLlmWithFallback：Groq 429 後可退到免金鑰 Workers AI
+ok 478 - callLlmWithFallback：Groq 429 後可退到免金鑰 Workers AI
+  ---
+  duration_ms: 1.305491
+  type: 'test'
+  ...
+# Subtest: server fallback chain：明確列出付費 provider 但未開閘門時拒絕設定
+ok 479 - server fallback chain：明確列出付費 provider 但未開閘門時拒絕設定
+  ---
+  duration_ms: 0.285588
+  type: 'test'
+  ...
+# Subtest: server fallback chain：自動挑選內建 provider 時不繼承 custom 的 LLM_BASE_URL
+ok 480 - server fallback chain：自動挑選內建 provider 時不繼承 custom 的 LLM_BASE_URL
+  ---
+  duration_ms: 0.28656
+  type: 'test'
+  ...
+# Subtest: callLlmWithFallback：401 不切換 provider，避免掩蓋錯誤金鑰或錯誤設定
+ok 481 - callLlmWithFallback：401 不切換 provider，避免掩蓋錯誤金鑰或錯誤設定
+  ---
+  duration_ms: 0.649312
+  type: 'test'
+  ...
+# Subtest: callLlmWithFallback：不接受 provider／apiKey/baseUrl override，避免 BYOK 混入 server chain
+ok 482 - callLlmWithFallback：不接受 provider／apiKey/baseUrl override，避免 BYOK 混入 server chain
+  ---
+  duration_ms: 0.273565
+  type: 'test'
+  ...
+# Subtest: DeepSeek：打到 /chat/completions，帶Bearer金鑰與system/user兩則訊息
+ok 483 - DeepSeek：打到 /chat/completions，帶Bearer金鑰與system/user兩則訊息
+  ---
+  duration_ms: 0.410868
+  type: 'test'
+  ...
+# Subtest: Groq：打到官方 OpenAI-compatible endpoint，使用預設 structured-output 模型
+ok 484 - Groq：打到官方 OpenAI-compatible endpoint，使用預設 structured-output 模型
+  ---
+  duration_ms: 0.312286
+  type: 'test'
+  ...
+# Subtest: Mistral：打到官方 chat completions endpoint，帶Bearer金鑰
+ok 485 - Mistral：打到官方 chat completions endpoint，帶Bearer金鑰
+  ---
+  duration_ms: 0.232716
+  type: 'test'
+  ...
+# Subtest: NVIDIA NIM：打到 /chat/completions，帶Bearer金鑰，走OpenAI相容線路
+ok 486 - NVIDIA NIM：打到 /chat/completions，帶Bearer金鑰，走OpenAI相容線路
+  ---
+  duration_ms: 1.813286
+  type: 'test'
+  ...
+# Subtest: OpenRouter：帶上官方建議的HTTP-Referer/X-Title，LLM_MODEL 蓋得過預設模型
+ok 487 - OpenRouter：帶上官方建議的HTTP-Referer/X-Title，LLM_MODEL 蓋得過預設模型
+  ---
+  duration_ms: 0.387119
+  type: 'test'
+  ...
+# Subtest: 沒有預設模型的供應商(custom)：沒指定模型時要報錯而不是亂猜一個
+ok 488 - 沒有預設模型的供應商(custom)：沒指定模型時要報錯而不是亂猜一個
+  ---
+  duration_ms: 0.381207
+  type: 'test'
+  ...
+# Subtest: 金鑰環境變數：舊名稱(別名)也讀得到，已經照舊名設好secret的部署不會斷掉
+ok 489 - 金鑰環境變數：舊名稱(別名)也讀得到，已經照舊名設好secret的部署不會斷掉
+  ---
+  duration_ms: 0.303411
+  type: 'test'
+  ...
+# Subtest: pickProvider：金鑰用舊名稱設的部署也要挑得到同一家
+ok 490 - pickProvider：金鑰用舊名稱設的部署也要挑得到同一家
+  ---
+  duration_ms: 0.14281
+  type: 'test'
+  ...
+# Subtest: custom：任意第三方OpenAI相容接口只靠環境變數就能接上，不用改程式碼
+ok 491 - custom：任意第三方OpenAI相容接口只靠環境變數就能接上，不用改程式碼
+  ---
+  duration_ms: 0.284582
+  type: 'test'
+  ...
+# Subtest: custom：沒設定baseUrl時錯誤訊息要講清楚該設哪個環境變數
+ok 492 - custom：沒設定baseUrl時錯誤訊息要講清楚該設哪個環境變數
+  ---
+  duration_ms: 0.281919
+  type: 'test'
+  ...
+# Subtest: OpenAI相容線路：缺金鑰要指名該設哪個環境變數
+ok 493 - OpenAI相容線路：缺金鑰要指名該設哪個環境變數
+  ---
+  duration_ms: 0.23033
+  type: 'test'
+  ...
+# Subtest: OpenAI相容線路：回應格式不符時要點出「第三方中轉可能沒真的相容」這個常見原因
+ok 494 - OpenAI相容線路：回應格式不符時要點出「第三方中轉可能沒真的相容」這個常見原因
+  ---
+  duration_ms: 0.662406
+  type: 'test'
+  ...
+# Subtest: OpenAI相容線路：非2xx要丟出含HTTP狀態碼的錯誤，不是靜默失敗
+ok 495 - OpenAI相容線路：非2xx要丟出含HTTP狀態碼的錯誤，不是靜默失敗
+  ---
+  duration_ms: 0.453076
+  type: 'test'
+  ...
+# Subtest: isRetryableLlmError：只把暫時性 provider failure 判為可切換
+ok 496 - isRetryableLlmError：只把暫時性 provider failure 判為可切換
+  ---
+  duration_ms: 0.227052
+  type: 'test'
+  ...
+# Subtest: bounded retry 設定：重試 timeout 不超過原始 timeout，且 delay 有硬上限
+ok 497 - bounded retry 設定：重試 timeout 不超過原始 timeout，且 delay 有硬上限
+  ---
+  duration_ms: 0.459076
+  type: 'test'
+  ...
+# Subtest: Gemini：打到 models/{model}:generateContent，用x-goog-api-key而不是Bearer
+ok 498 - Gemini：打到 models/{model}:generateContent，用x-goog-api-key而不是Bearer
+  ---
+  duration_ms: 0.766632
+  type: 'test'
+  ...
+# Subtest: Workers AI：透過env.AI.run呼叫，不需要任何API金鑰
+ok 499 - Workers AI：透過env.AI.run呼叫，不需要任何API金鑰
+  ---
+  duration_ms: 0.403177
+  type: 'test'
+  ...
+# Subtest: Workers AI：沒有binding時要明確說出該怎麼修，不是丟undefined錯誤
+ok 500 - Workers AI：沒有binding時要明確說出該怎麼修，不是丟undefined錯誤
+  ---
+  duration_ms: 0.325785
+  type: 'test'
+  ...
+# Subtest: callLlm：沒有prompt要丟錯
+ok 501 - callLlm：沒有prompt要丟錯
+  ---
+  duration_ms: 0.239729
+  type: 'test'
+  ...
+# Subtest: LlmError：HTTP錯誤要帶出 provider / model / status / 回應本文，不能只剩一句message
+ok 502 - LlmError：HTTP錯誤要帶出 provider / model / status / 回應本文，不能只剩一句message
+  ---
+  duration_ms: 0.378264
+  type: 'test'
+  ...
+# Subtest: LlmError：缺金鑰屬於設定問題(stage=config)，不是HTTP錯誤，status要是null
+ok 503 - LlmError：缺金鑰屬於設定問題(stage=config)，不是HTTP錯誤，status要是null
+  ---
+  duration_ms: 0.319814
+  type: 'test'
+  ...
+# Subtest: LlmError：回應形狀不符(stage=shape)也要帶出原始回應，才能判斷是不是第三方中轉不相容
+ok 504 - LlmError：回應形狀不符(stage=shape)也要帶出原始回應，才能判斷是不是第三方中轉不相容
+  ---
+  duration_ms: 0.295001
+  type: 'test'
+  ...
+# Subtest: LlmError：Workers AI 的 binding 自己丟錯(例如模型被下架)時也要包成 LlmError 帶出模型名
+ok 505 - LlmError：Workers AI 的 binding 自己丟錯(例如模型被下架)時也要包成 LlmError 帶出模型名
+  ---
+  duration_ms: 0.517912
+  type: 'test'
+  ...
+# Subtest: max_tokens：OpenAI相容格式要把上限放進請求body，不能讓端點用它自己的預設值
+ok 506 - max_tokens：OpenAI相容格式要把上限放進請求body，不能讓端點用它自己的預設值
+  ---
+  duration_ms: 0.215717
+  type: 'test'
+  ...
+# Subtest: max_tokens：Gemini用的欄位是 generationConfig.maxOutputTokens(名字跟OpenAI不一樣)
+ok 507 - max_tokens：Gemini用的欄位是 generationConfig.maxOutputTokens(名字跟OpenAI不一樣)
+  ---
+  duration_ms: 0.21267
+  type: 'test'
+  ...
+# Subtest: max_tokens：Workers AI 也要帶上（這就是線上真的被截斷的那一條路）
+ok 508 - max_tokens：Workers AI 也要帶上（這就是線上真的被截斷的那一條路）
+  ---
+  duration_ms: 0.260524
+  type: 'test'
+  ...
+# Subtest: max_tokens：環境變數 LLM_MAX_TOKENS 可以覆寫，呼叫端傳入又贏過環境變數
+ok 509 - max_tokens：環境變數 LLM_MAX_TOKENS 可以覆寫，呼叫端傳入又贏過環境變數
+  ---
+  duration_ms: 0.328802
+  type: 'test'
+  ...
+# Subtest: max_tokens：環境變數是垃圾值時退回預設，不可以把 NaN 送給供應商
+ok 510 - max_tokens：環境變數是垃圾值時退回預設，不可以把 NaN 送給供應商
+  ---
+  duration_ms: 0.205484
+  type: 'test'
+  ...
+# Subtest: max_tokens：request與環境變數都不能超過server硬上限
+ok 511 - max_tokens：request與環境變數都不能超過server硬上限
+  ---
+  duration_ms: 0.1961
+  type: 'test'
+  ...
+# Subtest: prompt資源界線：system instruction與prompt超長時會按Unicode字元截斷後才送出
+ok 512 - prompt資源界線：system instruction與prompt超長時會按Unicode字元截斷後才送出
+  ---
+  duration_ms: 52.893446
+  type: 'test'
+  ...
+# Subtest: Workers AI：response 是字串時照舊直接使用
+ok 513 - Workers AI：response 是字串時照舊直接使用
+  ---
+  duration_ms: 0.17907
+  type: 'test'
+  ...
+# Subtest: Workers AI：response 是物件時(輸出剛好是合法JSON)要轉回JSON字串，不能當成格式錯誤
+ok 514 - Workers AI：response 是物件時(輸出剛好是合法JSON)要轉回JSON字串，不能當成格式錯誤
+  ---
+  duration_ms: 0.267833
+  type: 'test'
+  ...
+# Subtest: Workers AI：新的OpenAI形狀envelope(choices[])也要認得
+ok 515 - Workers AI：新的OpenAI形狀envelope(choices[])也要認得
+  ---
+  duration_ms: 0.143315
+  type: 'test'
+  ...
+# Subtest: Workers AI：三種來源同時存在時，優先用最接近模型原始輸出的那一個
+ok 516 - Workers AI：三種來源同時存在時，優先用最接近模型原始輸出的那一個
+  ---
+  duration_ms: 0.126237
+  type: 'test'
+  ...
+# Subtest: Workers AI：真的取不出文字時回 null(由呼叫端丟出帶原始回應的錯誤)
+ok 517 - Workers AI：真的取不出文字時回 null(由呼叫端丟出帶原始回應的錯誤)
+  ---
+  duration_ms: 0.118395
+  type: 'test'
+  ...
+# Subtest: Workers AI 端對端：response 是物件時 callLlm 要成功回傳，不是丟 shape 錯誤
+ok 518 - Workers AI 端對端：response 是物件時 callLlm 要成功回傳，不是丟 shape 錯誤
+  ---
+  duration_ms: 0.502305
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：OpenAI相容格式用 response_format.json_schema
+ok 519 - 結構化輸出：OpenAI相容格式用 response_format.json_schema
+  ---
+  duration_ms: 0.312753
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：Gemini 用 generationConfig 的 responseMimeType + responseSchema
+ok 520 - 結構化輸出：Gemini 用 generationConfig 的 responseMimeType + responseSchema
+  ---
+  duration_ms: 0.381818
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：Gemini 會補上 propertyOrdering(欄位順序在它眼裡不是靠 properties 決定的)
+ok 521 - 結構化輸出：Gemini 會補上 propertyOrdering(欄位順序在它眼裡不是靠 properties 決定的)
+  ---
+  duration_ms: 0.471685
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：OpenAI 相容端點不加 propertyOrdering(多餘關鍵字有機會被直接回400)
+ok 522 - 結構化輸出：OpenAI 相容端點不加 propertyOrdering(多餘關鍵字有機會被直接回400)
+  ---
+  duration_ms: 0.349005
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：Workers AI 用 response_format.json_schema
+ok 523 - 結構化輸出：Workers AI 用 response_format.json_schema
+  ---
+  duration_ms: 0.406102
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：供應商標記為不支援(custom/nvidia)時不可以送出去，免得把能動的設定弄壞
+ok 524 - 結構化輸出：供應商標記為不支援(custom/nvidia)時不可以送出去，免得把能動的設定弄壞
+  ---
+  duration_ms: 0.243936
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：LLM_JSON_MODE=on 可以替自訂端點強制打開
+ok 525 - 結構化輸出：LLM_JSON_MODE=on 可以替自訂端點強制打開
+  ---
+  duration_ms: 0.364608
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：LLM_JSON_MODE=off 是逃生門，支援的供應商也要停用
+ok 526 - 結構化輸出：LLM_JSON_MODE=off 是逃生門，支援的供應商也要停用
+  ---
+  duration_ms: 0.306806
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：端點回400時要退回不帶schema再試一次，不能讓整個回合失敗
+ok 527 - 結構化輸出：端點回400時要退回不帶schema再試一次，不能讓整個回合失敗
+  ---
+  duration_ms: 0.765228
+  type: 'test'
+  ...
+# Subtest: 結構化輸出：沒帶schema時的400不可以觸發重試(那是真的錯誤)
+ok 528 - 結構化輸出：沒帶schema時的400不可以觸發重試(那是真的錯誤)
+  ---
+  duration_ms: 0.37308
+  type: 'test'
+  ...
+# Subtest: SiliconFlow：走OpenAI相容格式，Bearer認證，打到 .com 站的 /chat/completions
+ok 529 - SiliconFlow：走OpenAI相容格式，Bearer認證，打到 .com 站的 /chat/completions
+  ---
+  duration_ms: 0.236057
+  type: 'test'
+  ...
+# Subtest: SiliconFlow：.cn 站的使用者可以用 LLM_BASE_URL 切換(兩站帳號金鑰是分開的)
+ok 530 - SiliconFlow：.cn 站的使用者可以用 LLM_BASE_URL 切換(兩站帳號金鑰是分開的)
+  ---
+  duration_ms: 0.288075
+  type: 'test'
+  ...
+# Subtest: SiliconFlow：支援結構化輸出(官方JSON schema頁)，所以要送出 response_format
+ok 531 - SiliconFlow：支援結構化輸出(官方JSON schema頁)，所以要送出 response_format
+  ---
+  duration_ms: 0.404716
+  type: 'test'
+  ...
+# Subtest: pickProvider：有 SILICONFLOW_API_KEY 時自動選 siliconflow
+ok 532 - pickProvider：有 SILICONFLOW_API_KEY 時自動選 siliconflow
+  ---
+  duration_ms: 0.226937
+  type: 'test'
+  ...
+# Subtest: validatePackStructure：合法的pack(金剛狼範例包)應該通過結構驗證
+ok 533 - validatePackStructure：合法的pack(金剛狼範例包)應該通過結構驗證
+  ---
+  duration_ms: 1.336507
+  type: 'test'
+  ...
+# Subtest: validatePackStructure：缺欄位、未知type、重複entry name都要被抓出來
+ok 534 - validatePackStructure：缺欄位、未知type、重複entry name都要被抓出來
+  ---
+  duration_ms: 1.523796
+  type: 'test'
+  ...
+# Subtest: mergePacks：同type下跨包撞名會被擋下並記錄成錯誤，不會靜默覆蓋
+ok 535 - mergePacks：同type下跨包撞名會被擋下並記錄成錯誤，不會靜默覆蓋
+  ---
+  duration_ms: 0.430549
+  type: 'test'
+  ...
+# Subtest: mergePacks：重複載入同一個pack id要被擋下
+ok 536 - mergePacks：重複載入同一個pack id要被擋下
+  ---
+  duration_ms: 0.476702
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：金剛狼D級的實際定價(500)跟目前血統模板(應為600)不符——重現使用者提醒過的『舊資源亂寫』情況
+ok 537 - auditAgainstTemplate：金剛狼D級的實際定價(500)跟目前血統模板(應為600)不符——重現使用者提醒過的『舊資源亂寫』情況
+  ---
+  duration_ms: 0.402273
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：金剛狼的定價其實完美符合『改造模板』——顯示這條資源可能該被歸類為改造而非血統
+ok 538 - auditAgainstTemplate：金剛狼的定價其實完美符合『改造模板』——顯示這條資源可能該被歸類為改造而非血統
+  ---
+  duration_ms: 0.265067
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：完全符合模板定價的條目應該回報matches=true、無差異
+ok 539 - auditAgainstTemplate：完全符合模板定價的條目應該回報matches=true、無差異
+  ---
+  duration_ms: 0.320872
+  type: 'test'
+  ...
+# Subtest: 極端多 NPC 壓力：同一回合威脅 Parker 與大吼 Lambert，各自進入專屬第一階段
+ok 540 - 極端多 NPC 壓力：同一回合威脅 Parker 與大吼 Lambert，各自進入專屬第一階段
+  ---
+  duration_ms: 6.344121
+  type: 'test'
+  ...
+# Subtest: 極端多 NPC 壓力續行：第二次施壓升級各自策略，不會互相覆蓋 state
+ok 541 - 極端多 NPC 壓力續行：第二次施壓升級各自策略，不會互相覆蓋 state
+  ---
+  duration_ms: 1.581016
+  type: 'test'
+  ...
+# Subtest: 多 NPC 優先級：威脅分類優先於一般合作，但降壓分類優先於恐慌／壓力
+ok 542 - 多 NPC 優先級：威脅分類優先於一般合作，但降壓分類優先於恐慌／壓力
+  ---
+  duration_ms: 1.01651
+  type: 'test'
+  ...
+# Subtest: 跨 NPC 協調：安撫 Lambert 並請 Ripley 指揮時，兩個 decision 會依序保存
+ok 543 - 跨 NPC 協調：安撫 Lambert 並請 Ripley 指揮時，兩個 decision 會依序保存
+  ---
+  duration_ms: 1.496233
+  type: 'test'
+  ...
+# Subtest: turn.js 與 reference prompt 共同維持明確的四位 NPC 順序
+ok 544 - turn.js 與 reference prompt 共同維持明確的四位 NPC 順序
+  ---
+  duration_ms: 6.175383
+  type: 'test'
+  ...
+# Subtest: 四位 NPC 同回合 public response 仍不暴露 cooperation metadata
+ok 545 - 四位 NPC 同回合 public response 仍不暴露 cooperation metadata
+  ---
+  duration_ms: 2.238607
+  type: 'test'
+  ...
+# Subtest: margin掃描：-20到+20之間每個整數都必須落在剛好一個分級，不會有漏網或重疊
+ok 546 - margin掃描：-20到+20之間每個整數都必須落在剛好一個分級，不會有漏網或重疊
+  ---
+  duration_ms: 3.406313
+  type: 'test'
+  ...
+# Subtest: margin分級邊界：0是驚險成功、1是成功、-1不是些微失敗以外的東西
+ok 547 - margin分級邊界：0是驚險成功、1是成功、-1不是些微失敗以外的東西
+  ---
+  duration_ms: 0.352959
+  type: 'test'
+  ...
+# Subtest: autoFail旗標優先於margin，且不會意外沿用上一次呼叫的分級
+ok 548 - autoFail旗標優先於margin，且不會意外沿用上一次呼叫的分級
+  ---
+  duration_ms: 0.252306
+  type: 'test'
+  ...
+# Subtest: fumble旗標優先於一般margin分級
+ok 549 - fumble旗標優先於一般margin分級
+  ---
+  duration_ms: 0.224818
+  type: 'test'
+  ...
+# Subtest: toPromptDirective：輸出是一段包含分級名稱與指令的字串，可以直接塞進prompt
+ok 550 - toPromptDirective：輸出是一段包含分級名稱與指令的字串，可以直接塞進prompt
+  ---
+  duration_ms: 0.280424
+  type: 'test'
+  ...
+# Subtest: OUTCOME_TIERS 有被導出，且六級的 id/minMargin 沒有重複或亂序
+ok 551 - OUTCOME_TIERS 有被導出，且六級的 id/minMargin 沒有重複或亂序
+  ---
+  duration_ms: 0.210219
+  type: 'test'
+  ...
+# Subtest: 三個失敗分級都帶著「嚴禁原地重試」這條禁令
+ok 552 - 三個失敗分級都帶著「嚴禁原地重試」這條禁令
+  ---
+  duration_ms: 0.373064
+  type: 'test'
+  ...
+# Subtest: 失敗指令要求「位置/方法/在場的人」三者至少改變一樣(可檢查的要求)
+ok 553 - 失敗指令要求「位置/方法/在場的人」三者至少改變一樣(可檢查的要求)
+  ---
+  duration_ms: 0.214942
+  type: 'test'
+  ...
+# Subtest: 失敗指令把失敗寫成兩種形狀：完成但引發更糟後果 / 徹底失敗且更危險
+ok 554 - 失敗指令把失敗寫成兩種形狀：完成但引發更糟後果 / 徹底失敗且更危險
+  ---
+  duration_ms: 0.721157
+  type: 'test'
+  ...
+# Subtest: 「失敗」這一級明確跟迫近度機制呼應(threat.js 會在同一回合把威脅推近)
+ok 555 - 「失敗」這一級明確跟迫近度機制呼應(threat.js 會在同一回合把威脅推近)
+  ---
+  duration_ms: 0.54963
+  type: 'test'
+  ...
+# Subtest: 「慘烈失敗」要求把玩家物理上移出原本的位置
+ok 556 - 「慘烈失敗」要求把玩家物理上移出原本的位置
+  ---
+  duration_ms: 0.335414
+  type: 'test'
+  ...
+# Subtest: 自動失敗與大失敗(命定)也吃到同一條原地重試禁令
+ok 557 - 自動失敗與大失敗(命定)也吃到同一條原地重試禁令
+  ---
+  duration_ms: 0.18289
+  type: 'test'
+  ...
+# Subtest: 成功那一側**不吃**失敗禁令(不要把成功也寫成必須換地方)
+ok 558 - 成功那一側**不吃**失敗禁令(不要把成功也寫成必須換地方)
+  ---
+  duration_ms: 0.169003
+  type: 'test'
+  ...
+# Subtest: classifyOutcome 回傳的 directive 跟 OUTCOME_TIERS 裡那一級是同一份文字
+ok 559 - classifyOutcome 回傳的 directive 跟 OUTCOME_TIERS 裡那一級是同一份文字
+  ---
+  duration_ms: 0.145137
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"b5a25990-cde8-4e0d-b8d3-43b5c13c6309","stThought":"不應被採用的測試思路"}
+# Subtest: unmatched free input：不合格 narration 只重寫一次，且不接受 nodeComplete／第二次 threatAssessment
+ok 560 - unmatched free input：不合格 narration 只重寫一次，且不接受 nodeComplete／第二次 threatAssessment
+  ---
+  duration_ms: 91.843575
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"17f991fc-f6c5-4bd8-97f0-c51a82a2c2b1","stThought":"不應被採用的測試思路"}
+# Subtest: unmatched free input：安全重寫仍不合格時使用 engine-safe narration，不把原始幻覺寫入 history
+ok 561 - unmatched free input：安全重寫仍不合格時使用 engine-safe narration，不把原始幻覺寫入 history
+  ---
+  duration_ms: 35.097627
+  type: 'test'
+  ...
+# Subtest: 每個文筆設定檔都有label/description/instruction
+ok 562 - 每個文筆設定檔都有label/description/instruction
+  ---
+  duration_ms: 1.713648
+  type: 'test'
+  ...
+# Subtest: 預設文筆設定檔真的存在
+ok 563 - 預設文筆設定檔真的存在
+  ---
+  duration_ms: 0.396587
+  type: 'test'
+  ...
+# Subtest: 不管用哪個文筆設定檔，規則契約都會被完整保留
+ok 564 - 不管用哪個文筆設定檔，規則契約都會被完整保留
+  ---
+  duration_ms: 0.526098
+  type: 'test'
+  ...
+# Subtest: 規則契約排在文筆之後，且最後一段是優先序宣告
+ok 565 - 規則契約排在文筆之後，且最後一段是優先序宣告
+  ---
+  duration_ms: 0.442973
+  type: 'test'
+  ...
+# Subtest: 使用者自訂文筆(customStyle)一樣蓋不掉規則契約
+ok 566 - 使用者自訂文筆(customStyle)一樣蓋不掉規則契約
+  ---
+  duration_ms: 1.567595
+  type: 'test'
+  ...
+# Subtest: 通用敘事守則預設會附上，可以關掉
+ok 567 - 通用敘事守則預設會附上，可以關掉
+  ---
+  duration_ms: 0.32601
+  type: 'test'
+  ...
+# Subtest: 通用敘事守則含有「不可替玩家決定行動/情緒」這條(單人TRPG最容易被違反的一條)
+ok 568 - 通用敘事守則含有「不可替玩家決定行動/情緒」這條(單人TRPG最容易被違反的一條)
+  ---
+  duration_ms: 0.192572
+  type: 'test'
+  ...
+# Subtest: 通用敘事守則把內心獨白限定在NPC身上(玩家角色的想法是玩家的權利)
+ok 569 - 通用敘事守則把內心獨白限定在NPC身上(玩家角色的想法是玩家的權利)
+  ---
+  duration_ms: 0.239118
+  type: 'test'
+  ...
+# Subtest: 通用敘事守則含有劇情推進規則(每回合的情境必須跟開頭有實質差異)
+ok 570 - 通用敘事守則含有劇情推進規則(每回合的情境必須跟開頭有實質差異)
+  ---
+  duration_ms: 0.472377
+  type: 'test'
+  ...
+# Subtest: 劇情推進規則附上開門的具體範例(抽象規則光靠描述模型常常抓不到)
+ok 571 - 劇情推進規則附上開門的具體範例(抽象規則光靠描述模型常常抓不到)
+  ---
+  duration_ms: 0.597895
+  type: 'test'
+  ...
+# Subtest: 劇情推進規則只放在敘事風格層，不可以混進規則契約層
+ok 572 - 劇情推進規則只放在敘事風格層，不可以混進規則契約層
+  ---
+  duration_ms: 0.225759
+  type: 'test'
+  ...
+# Subtest: 通用敘事守則不再指定「生理反應」當替代寫法(會跟白描檔的過度生理化黑名單打架)
+ok 573 - 通用敘事守則不再指定「生理反應」當替代寫法(會跟白描檔的過度生理化黑名單打架)
+  ---
+  duration_ms: 0.159588
+  type: 'test'
+  ...
+# Subtest: 白描檔：使用者提供的黑名單詞彙都有進到指令裡
+ok 574 - 白描檔：使用者提供的黑名單詞彙都有進到指令裡
+  ---
+  duration_ms: 0.216137
+  type: 'test'
+  ...
+# Subtest: 白描檔宣告的『凌駕』只限文筆層，不會延伸到規則契約
+ok 575 - 白描檔宣告的『凌駕』只限文筆層，不會延伸到規則契約
+  ---
+  duration_ms: 0.22497
+  type: 'test'
+  ...
+# Subtest: 角色性格提示放在文筆層(規則契約之前)，且明講自己不是規則
+ok 576 - 角色性格提示放在文筆層(規則契約之前)，且明講自己不是規則
+  ---
+  duration_ms: 0.203118
+  type: 'test'
+  ...
+# Subtest: 沒有角色性格提示時不會多出空的提示區塊
+ok 577 - 沒有角色性格提示時不會多出空的提示區塊
+  ---
+  duration_ms: 0.136534
+  type: 'test'
+  ...
+# Subtest: 未知的文筆設定檔要丟錯並列出可用選項
+ok 578 - 未知的文筆設定檔要丟錯並列出可用選項
+  ---
+  duration_ms: 0.56785
+  type: 'test'
+  ...
+# Subtest: 缺rulesContract要丟錯(絕不允許只有文筆、沒有規則契約的系統提示)
+ok 579 - 缺rulesContract要丟錯(絕不允許只有文筆、沒有規則契約的系統提示)
+  ---
+  duration_ms: 0.157686
+  type: 'test'
+  ...
+# Subtest: 三個內建面具都存在，且各自有 label/description/instruction
+ok 580 - 三個內建面具都存在，且各自有 label/description/instruction
+  ---
+  duration_ms: 1.125488
+  type: 'test'
+  ...
+# Subtest: 三個面具的指令內容確實不同（不然換面具等於沒換）
+ok 581 - 三個面具的指令內容確實不同（不然換面具等於沒換）
+  ---
+  duration_ms: 0.137752
+  type: 'test'
+  ...
+# Subtest: 面具各自帶著自己的關鍵調性字眼
+ok 582 - 面具各自帶著自己的關鍵調性字眼
+  ---
+  duration_ms: 0.163477
+  type: 'test'
+  ...
+# Subtest: 每個面具都自帶「不可以扭曲判定結果／不替玩家決定」的但書
+ok 583 - 每個面具都自帶「不可以扭曲判定結果／不替玩家決定」的但書
+  ---
+  duration_ms: 0.272032
+  type: 'test'
+  ...
+# Subtest: getPersona：省略 key 用預設，未知 key 丟錯並列出可用選項
+ok 584 - getPersona：省略 key 用預設，未知 key 丟錯並列出可用選項
+  ---
+  duration_ms: 0.173508
+  type: 'test'
+  ...
+# Subtest: buildStylePrompt：面具排在文筆設定檔之前（先決定誰在說話，再決定怎麼寫）
+ok 585 - buildStylePrompt：面具排在文筆設定檔之前（先決定誰在說話，再決定怎麼寫）
+  ---
+  duration_ms: 0.128272
+  type: 'test'
+  ...
+# Subtest: buildStylePrompt：預設會附上活場法/防全知、通用守則與定向要求
+ok 586 - buildStylePrompt：預設會附上活場法/防全知、通用守則與定向要求
+  ---
+  duration_ms: 0.125555
+  type: 'test'
+  ...
+# Subtest: buildStylePrompt：兩個開關可以各自關掉對應的區塊
+ok 587 - buildStylePrompt：兩個開關可以各自關掉對應的區塊
+  ---
+  duration_ms: 0.223562
+  type: 'test'
+  ...
+# Subtest: buildStylePrompt：自訂文筆可以蓋掉內建設定檔，但蓋不掉面具
+ok 588 - buildStylePrompt：自訂文筆可以蓋掉內建設定檔，但蓋不掉面具
+  ---
+  duration_ms: 0.15888
+  type: 'test'
+  ...
+# Subtest: 定向要求「玩家人在哪／為什麼在這裡／下一步往哪去」三條都還在
+ok 589 - 定向要求「玩家人在哪／為什麼在這裡／下一步往哪去」三條都還在
+  ---
+  duration_ms: 0.15983
+  type: 'test'
+  ...
+# Subtest: 活場法/防全知：不准用旁白貼標籤、不准提前暴雷
+ok 590 - 活場法/防全知：不准用旁白貼標籤、不准提前暴雷
+  ---
+  duration_ms: 0.101785
+  type: 'test'
+  ...
+# Subtest: 換上任何一個面具，規則契約都必須完整保留、且優先序宣告仍在最後
+ok 591 - 換上任何一個面具，規則契約都必須完整保留、且優先序宣告仍在最後
+  ---
+  duration_ms: 0.239068
+  type: 'test'
+  ...
+# Subtest: composeSystemInstruction 沒指定面具時用預設面具（不會變成沒有面具）
+ok 592 - composeSystemInstruction 沒指定面具時用預設面具（不會變成沒有面具）
+  ---
+  duration_ms: 1.179247
+  type: 'test'
+  ...
+# Subtest: composeSystemInstruction：未知面具要丟錯，不可以靜靜退回預設
+ok 593 - composeSystemInstruction：未知面具要丟錯，不可以靜靜退回預設
+  ---
+  duration_ms: 0.259519
+  type: 'test'
+  ...
+# Subtest: buildNodeGuidance：一般節點會要求AI在完成時回傳nodeComplete
+ok 594 - buildNodeGuidance：一般節點會要求AI在完成時回傳nodeComplete
+  ---
+  duration_ms: 1.323231
+  type: 'test'
+  ...
+# Subtest: buildNodeGuidance：最終戰節點明確禁止AI用nodeComplete結算
+ok 595 - buildNodeGuidance：最終戰節點明確禁止AI用nodeComplete結算
+  ---
+  duration_ms: 0.337991
+  type: 'test'
+  ...
+# Subtest: buildNodeGuidance：主線全部完成(node=null)時給出收尾指引，不要求nodeComplete
+ok 596 - buildNodeGuidance：主線全部完成(node=null)時給出收尾指引，不要求nodeComplete
+  ---
+  duration_ms: 0.171717
+  type: 'test'
+  ...
+# Subtest: validateNodeComplete：null/undefined 一律視為「這回合沒有完成」
+ok 597 - validateNodeComplete：null/undefined 一律視為「這回合沒有完成」
+  ---
+  duration_ms: 1.774807
+  type: 'test'
+  ...
+# Subtest: validateNodeComplete：合法整數分級(0~4)通過查驗
+ok 598 - validateNodeComplete：合法整數分級(0~4)通過查驗
+  ---
+  duration_ms: 1.060435
+  type: 'test'
+  ...
+# Subtest: validateNodeComplete：超出範圍/非整數/非物件一律當作沒有信號，不丟錯
+ok 599 - validateNodeComplete：超出範圍/非整數/非物件一律當作沒有信號，不丟錯
+  ---
+  duration_ms: 0.228088
+  type: 'test'
+  ...
+# Subtest: Pilot Pack 保留 8 類各 4 筆 entry，所有 runtime action 均沒有 statePatch
+ok 600 - Pilot Pack 保留 8 類各 4 筆 entry，所有 runtime action 均沒有 statePatch
+  ---
+  duration_ms: 2.483374
+  type: 'test'
+  ...
+# Subtest: 新狀態與舊存檔正規化會建立 bounded 陸遠 cooperation state
+ok 601 - 新狀態與舊存檔正規化會建立 bounded 陸遠 cooperation state
+  ---
+  duration_ms: 2.770203
+  type: 'test'
+  ...
+# Subtest: 求生提問會得到 briefing directive，而非只有空泛喝斥
+ok 602 - 求生提問會得到 briefing directive，而非只有空泛喝斥
+  ---
+  duration_ms: 3.735232
+  type: 'test'
+  ...
+# Subtest: 詢問陸遠手上的槍不會被分類成搶槍
+ok 603 - 詢問陸遠手上的槍不會被分類成搶槍
+  ---
+  duration_ms: 0.446091
+  type: 'test'
+  ...
+# Subtest: 第一次搶槍進入 strained 警告，第二次撲向進入 self_preserving 合作降級
+ok 604 - 第一次搶槍進入 strained 警告，第二次撲向進入 self_preserving 合作降級
+  ---
+  duration_ms: 0.760248
+  type: 'test'
+  ...
+# Subtest: 第三次持續威脅會切斷協作，但不授權傷害、死亡或戰鬥結果
+ok 605 - 第三次持續威脅會切斷協作，但不授權傷害、死亡或戰鬥結果
+  ---
+  duration_ms: 0.83609
+  type: 'test'
+  ...
+# Subtest: 玩家退後或道歉會降低當下緊張，但不把 trust 恢復成初始值
+ok 606 - 玩家退後或道歉會降低當下緊張，但不把 trust 恢復成初始值
+  ---
+  duration_ms: 0.766107
+  type: 'test'
+  ...
+# Subtest: 相同 action 在較晚回合不會重播之前回合的 entry narration
+ok 607 - 相同 action 在較晚回合不會重播之前回合的 entry narration
+  ---
+  duration_ms: 0.394316
+  type: 'test'
+  ...
+# Subtest: policy 只對 Alien V2 的陸遠生效，普通自由行動與其他 NPC 不會被改寫
+ok 608 - policy 只對 Alien V2 的陸遠生效，普通自由行動與其他 NPC 不會被改寫
+  ---
+  duration_ms: 0.817924
+  type: 'test'
+  ...
+# Subtest: reference public response 不暴露 npcCooperation 或 policy 私密欄位
+ok 609 - reference public response 不暴露 npcCooperation 或 policy 私密欄位
+  ---
+  duration_ms: 4.788178
+  type: 'test'
+  ...
+# Subtest: Parker profile 使用機械工程／可靠工作模型，不複製陸遠威脅欄位
+ok 610 - Parker profile 使用機械工程／可靠工作模型，不複製陸遠威脅欄位
+  ---
+  duration_ms: 2.159932
+  type: 'test'
+  ...
+# Subtest: Parker 新狀態與舊存檔正規化保留 bounded 欄位並允許負 trust
+ok 611 - Parker 新狀態與舊存檔正規化保留 bounded 欄位並允許負 trust
+  ---
+  duration_ms: 0.584169
+  type: 'test'
+  ...
+# Subtest: 工程區求生提問會提供 Parker 身分、工程事實與可執行下一步
+ok 612 - 工程區求生提問會提供 Parker 身分、工程事實與可執行下一步
+  ---
+  duration_ms: 2.476795
+  type: 'test'
+  ...
+# Subtest: 具體維修提議會提高工程可靠度並分派可回報工作
+ok 613 - 具體維修提議會提高工程可靠度並分派可回報工作
+  ---
+  duration_ms: 0.506493
+  type: 'test'
+  ...
+# Subtest: 工具要求會進入 Parker 的資源邊界，而非自行發放或扣除物品
+ok 614 - 工具要求會進入 Parker 的資源邊界，而非自行發放或扣除物品
+  ---
+  duration_ms: 0.314053
+  type: 'test'
+  ...
+# Subtest: Parker 第一次施壓直率拒絕，第二次施壓改為撤回工程支援
+ok 615 - Parker 第一次施壓直率拒絕，第二次施壓改為撤回工程支援
+  ---
+  duration_ms: 0.436964
+  type: 'test'
+  ...
+# Subtest: 未說明的亂動閥門會被標成工程干擾風險，但不創造設備結果
+ok 616 - 未說明的亂動閥門會被標成工程干擾風險，但不創造設備結果
+  ---
+  duration_ms: 0.43731
+  type: 'test'
+  ...
+# Subtest: 停止施壓並回報工作可恢復有限合作，但不抹除既有事件
+ok 617 - 停止施壓並回報工作可恢復有限合作，但不抹除既有事件
+  ---
+  duration_ms: 2.527753
+  type: 'test'
+  ...
+# Subtest: 相同 Parker action 在晚回合不會重播舊 directive，且 prompt 不含私密欄位
+ok 618 - 相同 Parker action 在晚回合不會重播舊 directive，且 prompt 不含私密欄位
+  ---
+  duration_ms: 1.048731
+  type: 'test'
+  ...
+# Subtest: Parker 不會在其他副本、其他 NPC 或無關地點誤觸發
+ok 619 - Parker 不會在其他副本、其他 NPC 或無關地點誤觸發
+  ---
+  duration_ms: 0.89857
+  type: 'test'
+  ...
+# Subtest: 《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping
+ok 620 - 《包.txt》轉換後內容包保留完整 P0 內容與 canonical mapping
+  ---
+  duration_ms: 2.793468
+  type: 'test'
+  ...
+# Subtest: 內容包的地點、轉場與 NPC 素材只在明確 mapping／接觸條件成立時進入 runtime
+ok 621 - 內容包的地點、轉場與 NPC 素材只在明確 mapping／接觸條件成立時進入 runtime
+  ---
+  duration_ms: 4.282902
+  type: 'test'
+  ...
+# Subtest: 補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端點
+ok 622 - 補充二的 canonical route mapping 修正兩條接駁艇氣閘路線端點
+  ---
+  duration_ms: 0.221956
+  type: 'test'
+  ...
+# Subtest: 補充二未核准的 clue 仍不會進入 approved runtime lookup，重大變體則已完成核准
+ok 623 - 補充二未核准的 clue 仍不會進入 approved runtime lookup，重大變體則已完成核准
+  ---
+  duration_ms: 0.183301
+  type: 'test'
+  ...
+# Subtest: 15 個重大變體只在 canonical scene／approach／正式 tier 完全匹配時提供 overlay
+ok 624 - 15 個重大變體只在 canonical scene／approach／正式 tier 完全匹配時提供 overlay
+  ---
+  duration_ms: 0.694565
+  type: 'test'
+  ...
+# Subtest: canonical narrative resolver 只組合已裁定 result、核准 overlay 與一次性 scene entry
+ok 625 - canonical narrative resolver 只組合已裁定 result、核准 overlay 與一次性 scene entry
+  ---
+  duration_ms: 4.552146
+  type: 'test'
+  ...
+# Subtest: reference prompt 只把重大變體當成 canonical result 之上的 server overlay
+ok 626 - reference prompt 只把重大變體當成 canonical result 之上的 server overlay
+  ---
+  duration_ms: 3.041954
+  type: 'test'
+  ...
+# Subtest: 補充二的 approved exploration gap 會提供所有 14 條 canonical route 與地點回訪素材
+ok 627 - 補充二的 approved exploration gap 會提供所有 14 條 canonical route 與地點回訪素材
+  ---
+  duration_ms: 0.717166
+  type: 'test'
+  ...
+# Subtest: Ash 的內容包 Voice Bible 在身分旗標前後維持分層公開
+ok 628 - Ash 的內容包 Voice Bible 在身分旗標前後維持分層公開
+  ---
+  duration_ms: 0.880879
+  type: 'test'
+  ...
+# Subtest: reference public response exposes bounded DM hints without internal rule data
+ok 629 - reference public response exposes bounded DM hints without internal rule data
+  ---
+  duration_ms: 2.039414
+  type: 'test'
+  ...
+# Subtest: reference adapter builds opening approaches and matches a chosen option
+ok 630 - reference adapter builds opening approaches and matches a chosen option
+  ---
+  duration_ms: 0.640529
+  type: 'test'
+  ...
+# Subtest: 英文 system injection 不會因拉丁字母短片段誤命中 Ripley approach
+ok 631 - 英文 system injection 不會因拉丁字母短片段誤命中 Ripley approach
+  ---
+  duration_ms: 1.179037
+  type: 'test'
+  ...
+# Subtest: free input can match a reference approach without keyword checkIntent
+ok 632 - free input can match a reference approach without keyword checkIntent
+  ---
+  duration_ms: 1.106937
+  type: 'test'
+  ...
+# Subtest: reference success stays in cryo, then enters A deck before Ash
+ok 633 - reference success stays in cryo, then enters A deck before Ash
+  ---
+  duration_ms: 3.480039
+  type: 'test'
+  ...
+# Subtest: multi-turn Ash scene stays in place and advances only on an explicit exit result
+ok 634 - multi-turn Ash scene stays in place and advances only on an explicit exit result
+  ---
+  duration_ms: 2.220759
+  type: 'test'
+  ...
+# Subtest: free action uses the automatic result and preserves zero time cost
+ok 635 - free action uses the automatic result and preserves zero time cost
+  ---
+  duration_ms: 0.488763
+  type: 'test'
+  ...
+# Subtest: final purge produces a finale completion signal only after secured airlock and killed flag
+ok 636 - final purge produces a finale completion signal only after secured airlock and killed flag
+  ---
+  duration_ms: 0.610806
+  type: 'test'
+  ...
+# Subtest: threatAssessment is bounded by scene policy and narrative mode follows action scale
+ok 637 - threatAssessment is bounded by scene policy and narrative mode follows action scale
+  ---
+  duration_ms: 0.953194
+  type: 'test'
+  ...
+# Subtest: public reference response only exposes contacted NPCs and safe relationship labels
+ok 638 - public reference response only exposes contacted NPCs and safe relationship labels
+  ---
+  duration_ms: 1.990236
+  type: 'test'
+  ...
+# Subtest: exploration response exposes current location and known adjacent routes only
+ok 639 - exploration response exposes current location and known adjacent routes only
+  ---
+  duration_ms: 0.66357
+  type: 'test'
+  ...
+# Subtest: known reference injuries affect the existing B/L/A hp tracks
+ok 640 - known reference injuries affect the existing B/L/A hp tracks
+  ---
+  duration_ms: 0.473632
+  type: 'test'
+  ...
+# Subtest: old or mismatched reference state is safely reinitialized
+ok 641 - old or mismatched reference state is safely reinitialized
+  ---
+  duration_ms: 0.39499
+  type: 'test'
+  ...
+# Subtest: reference state shape remains independent from the generic threat track
+ok 642 - reference state shape remains independent from the generic threat track
+  ---
+  duration_ms: 0.276825
+  type: 'test'
+  ...
+# Subtest: reference results create public discoveries and unresolved questions without leaking GM truth
+ok 643 - reference results create public discoveries and unresolved questions without leaking GM truth
+  ---
+  duration_ms: 1.057294
+  type: 'test'
+  ...
+# Subtest: q_order_937 uses mapped progress text before the canonical reveal answer
+ok 644 - q_order_937 uses mapped progress text before the canonical reveal answer
+  ---
+  duration_ms: 1.552454
+  type: 'test'
+  ...
+# Subtest: 四個 canonical clue 使用嚴格 source binding 與 tier 分級演出
+ok 645 - 四個 canonical clue 使用嚴格 source binding 與 tier 分級演出
+  ---
+  duration_ms: 0.530236
+  type: 'test'
+  ...
+# Subtest: Ash question resolves only after the reference flag confirms the identity
+ok 646 - Ash question resolves only after the reference flag confirms the identity
+  ---
+  duration_ms: 0.718141
+  type: 'test'
+  ...
+# Subtest: travel resolver only authorizes adjacent forward routes with fixed gates
+ok 647 - travel resolver only authorizes adjacent forward routes with fixed gates
+  ---
+  duration_ms: 0.730551
+  type: 'test'
+  ...
+# Subtest: canonical narrative source replaces player text without changing reference effects
+ok 648 - canonical narrative source replaces player text without changing reference effects
+  ---
+  duration_ms: 0.450942
+  type: 'test'
+  ...
+# Subtest: canonical scene entry is returned by an authorized travel action
+ok 649 - canonical scene entry is returned by an authorized travel action
+  ---
+  duration_ms: 1.721276
+  type: 'test'
+  ...
+# Subtest: Ash canonical result remains progressive while the server controls disclosure flags
+ok 650 - Ash canonical result remains progressive while the server controls disclosure flags
+  ---
+  duration_ms: 0.467605
+  type: 'test'
+  ...
+# Subtest: remaining scenes preserve original event sources and safe public boundaries
+ok 651 - remaining scenes preserve original event sources and safe public boundaries
+  ---
+  duration_ms: 0.626843
+  type: 'test'
+  ...
+# Subtest: remaining outcome mappings use original text while keeping current V2 action IDs
+ok 652 - remaining outcome mappings use original text while keeping current V2 action IDs
+  ---
+  duration_ms: 0.372596
+  type: 'test'
+  ...
+# Subtest: Narcissus travel includes original undock passage before the shadow-wake scene
+ok 653 - Narcissus travel includes original undock passage before the shadow-wake scene
+  ---
+  duration_ms: 0.372732
+  type: 'test'
+  ...
+# Subtest: playable medical route exposes canonical scene and applies medkit or frostbite effects
+ok 654 - playable medical route exposes canonical scene and applies medkit or frostbite effects
+  ---
+  duration_ms: 0.815956
+  type: 'test'
+  ...
+# Subtest: cargo stalk unlocks tool cabinet as a separate scene and does not bypass the event
+ok 655 - cargo stalk unlocks tool cabinet as a separate scene and does not bypass the event
+  ---
+  duration_ms: 0.919255
+  type: 'test'
+  ...
+# Subtest: Ripley and Lambert are public only at the contact scene, then the bridge route closes
+ok 656 - Ripley and Lambert are public only at the contact scene, then the bridge route closes
+  ---
+  duration_ms: 1.103922
+  type: 'test'
+  ...
+# Subtest: travel flagsAbsent gate blocks completed medical and Ripley routes
+ok 657 - travel flagsAbsent gate blocks completed medical and Ripley routes
+  ---
+  duration_ms: 0.234836
+  type: 'test'
+  ...
+# Subtest: core infiltration is a playable predecessor before the 937 reveal
+ok 658 - core infiltration is a playable predecessor before the 937 reveal
+  ---
+  duration_ms: 0.822785
+  type: 'test'
+  ...
+# Subtest: engineering preparation is a playable predecessor and cannot bypass overload preparation
+ok 659 - engineering preparation is a playable predecessor and cannot bypass overload preparation
+  ---
+  duration_ms: 0.70474
+  type: 'test'
+  ...
+# Subtest: new session without scenarioId defaults to Alien V2 and seeds reference state
+ok 660 - new session without scenarioId defaults to Alien V2 and seeds reference state
+  ---
+  duration_ms: 41.41245
+  type: 'test'
+  ...
+# Subtest: Ripley cooperation state is persisted before an unavailable LLM response
+ok 661 - Ripley cooperation state is persisted before an unavailable LLM response
+  ---
+  duration_ms: 25.555097
+  type: 'test'
+  ...
+# Subtest: 同一回合的 Ripley／Lambert cooperation state 會依序合併而不互相覆蓋
+ok 662 - 同一回合的 Ripley／Lambert cooperation state 會依序合併而不互相覆蓋
+  ---
+  duration_ms: 16.771569
+  type: 'test'
+  ...
+# Subtest: 極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPending 不重複累計
+ok 663 - 極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPending 不重複累計
+  ---
+  duration_ms: 11.080795
+  type: 'test'
+  ...
+# Subtest: V2 reference action uses canonical direct-send without an LLM response
+ok 664 - V2 reference action uses canonical direct-send without an LLM response
+  ---
+  duration_ms: 8.935245
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_solo_survivor（孤獨生還者）
+ok 665 - C0 結局矩陣：end_solo_survivor（孤獨生還者）
+  ---
+  duration_ms: 47.93566
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_heroic_rescue（帶著證人離開）
+ok 666 - C0 結局矩陣：end_heroic_rescue（帶著證人離開）
+  ---
+  duration_ms: 6.214437
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_corporate_agent（公司的新鑰匙）
+ok 667 - C0 結局矩陣：end_corporate_agent（公司的新鑰匙）
+  ---
+  duration_ms: 5.025196
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_dark_infection（沉睡的感染）
+ok 668 - C0 結局矩陣：end_dark_infection（沉睡的感染）
+  ---
+  duration_ms: 4.169469
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_expire_ruins（倒數中的殘骸）
+ok 669 - C0 結局矩陣：end_expire_ruins（倒數中的殘骸）
+  ---
+  duration_ms: 4.406367
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_death_alien_feast（通風管裡的名字）
+ok 670 - C0 結局矩陣：end_death_alien_feast（通風管裡的名字）
+  ---
+  duration_ms: 3.569861
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_death_overload_vaporized（高溫抹除）
+ok 671 - C0 結局矩陣：end_death_overload_vaporized（高溫抹除）
+  ---
+  duration_ms: 7.155928
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣：end_death_vacuum_breach（深空失壓）
+ok 672 - C0 結局矩陣：end_death_vacuum_breach（深空失壓）
+  ---
+  duration_ms: 3.457388
+  type: 'test'
+  ...
+# Subtest: C0 結局矩陣總數：8 個 canonical ending 均有明確測試案例
+ok 673 - C0 結局矩陣總數：8 個 canonical ending 均有明確測試案例
+  ---
+  duration_ms: 1.122744
+  type: 'test'
+  ...
+# Subtest: V2 完整成功路線：從休眠室走到水仙號休眠結算場景
+ok 674 - V2 完整成功路線：從休眠室走到水仙號休眠結算場景
+  ---
+  duration_ms: 11.267188
+  type: 'test'
+  ...
+# Subtest: V2 最終戰勝利後仍保留感染與樣本分支，不能在擊殺當下提前結算
+ok 675 - V2 最終戰勝利後仍保留感染與樣本分支，不能在擊殺當下提前結算
+  ---
+  duration_ms: 0.834491
+  type: 'test'
+  ...
+# Subtest: V2 死亡與感染結局由固定狀態推導，不依賴 AI 敘事
+ok 676 - V2 死亡與感染結局由固定狀態推導，不依賴 AI 敘事
+  ---
+  duration_ms: 0.383763
+  type: 'test'
+  ...
+# Subtest: V2 reference 會初始化標準起始裝備，並提供焊槍替代逃生路線
+ok 677 - V2 reference 會初始化標準起始裝備，並提供焊槍替代逃生路線
+  ---
+  duration_ms: 0.648019
+  type: 'test'
+  ...
+# Subtest: V2 Ash 交火的樣本狀態會同步成可保存的組織物品
+ok 678 - V2 Ash 交火的樣本狀態會同步成可保存的組織物品
+  ---
+  duration_ms: 0.6045
+  type: 'test'
+  ...
+# {
+#   "sessionId": "df2a7fa9-ebd8-418b-a645-8f11c755c1e6",
+#   "llmCalls": 0,
+#   "openingEvent": "evt_cryo_clearance",
+#   "afterReconEvent": "evt_cryo_clearance",
+#   "afterLeaveEvent": "evt_deck_a_recon",
+#   "afterLuyuanEvent": "evt_deck_a_recon",
+#   "afterScienceEvent": "evt_meet_ash",
+#   "afterAshEvent": "evt_meet_ash",
+#   "afterAshSceneTurnCount": 1,
+#   "checkOutcomes": [
+#     "自動失敗",
+#     "失敗"
+#   ],
+#   "referenceFlags": [
+#     "flag_cryo_recon_done",
+#     "flag_cryo_cleared",
+#     "flag_noise_made",
+#     "flag_cryo_left",
+#     "flag_luyuan_met",
+#     "flag_deck_science_route",
+#     "flag_ash_hostile_pending"
+#   ],
+#   "referenceClues": [],
+#   "referenceActions": [
+#     {
+#       "sceneId": "evt_cryo_clearance",
+#       "approachId": "app_cryo_recon",
+#       "outcomeTier": "自動失敗",
+#       "resultKey": "失敗"
+#     },
+#     {
+#       "sceneId": "evt_cryo_clearance",
+#       "approachId": "app_cryo_leave",
+#       "outcomeTier": "些微失敗",
+#       "resultKey": "些微失敗"
+#     },
+#     {
+#       "sceneId": "evt_deck_a_recon",
+#       "approachId": "app_deck_luyuan_contact",
+#       "outcomeTier": "自動",
+#       "resultKey": "自動"
+#     },
+#     {
+#       "sceneId": "evt_deck_a_recon",
+#       "approachId": "app_deck_to_science",
+#       "outcomeTier": "自動",
+#       "resultKey": "自動"
+#     },
+#     {
+#       "sceneId": "evt_meet_ash",
+#       "approachId": "app_ash_talk_quarantine",
+#       "outcomeTier": "失敗",
+#       "resultKey": "失敗"
+#     }
+#   ]
+# }
+# Subtest: V2 smoke: canonical direct-send runs from opening through Ash and preserves reference facts
+ok 679 - V2 smoke: canonical direct-send runs from opening through Ash and preserves reference facts
+  ---
+  duration_ms: 74.100026
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"27ff0b31-702c-4a6f-843d-a53d261d611c","stThought":"固定測試模型第1回合：只描述 adapter 已裁定的結果。"}
+# Subtest: V2 reference free input accepts bounded threatAssessment and keeps reference options server-owned
+ok 680 - V2 reference free input accepts bounded threatAssessment and keeps reference options server-owned
+  ---
+  duration_ms: 47.438457
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"bcd00aaa-d156-44ee-9a32-c6c7815f4ced","stThought":"固定測試模型第1回合：只描述 adapter 已裁定的結果。"}
+# Subtest: V2 low-risk conversation does not force a combat-style check
+ok 681 - V2 low-risk conversation does not force a combat-style check
+  ---
+  duration_ms: 28.622623
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"37fe518c-6cc5-4c6e-b7a1-478b6cae5cf8","stThought":"固定測試模型第1回合：只描述 adapter 已裁定的結果。"}
+# Subtest: V2 free action accepts exactly 1000 Unicode characters and rejects 1001 before mutation
+ok 682 - V2 free action accepts exactly 1000 Unicode characters and rejects 1001 before mutation
+  ---
+  duration_ms: 18.088287
+  type: 'test'
+  ...
+# Subtest: V2 travel endpoint is server-authoritative and does not call the LLM
+ok 683 - V2 travel endpoint is server-authoritative and does not call the LLM
+  ---
+  duration_ms: 27.532619
+  type: 'test'
+  ...
+# Subtest: V2 travel endpoint refuses pending combat, pending turn, and expired time
+ok 684 - V2 travel endpoint refuses pending combat, pending turn, and expired time
+  ---
+  duration_ms: 3.58937
+  type: 'test'
+  ...
+# Subtest: V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playable and server-owned
+ok 685 - V2 API smoke: medical, cargo, tool cabinet, and Ripley routes remain playable and server-owned
+  ---
+  duration_ms: 48.251401
+  type: 'test'
+  ...
+# Subtest: V2 API smoke: core infiltration and engineering prep precede 937 and overload
+ok 686 - V2 API smoke: core infiltration and engineering prep precede 937 and overload
+  ---
+  duration_ms: 18.885447
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"bd8eedc8-a303-4ea1-b5b9-54c8a1c1ee60","stThought":"固定測試模型第1回合：只描述 adapter 已裁定的結果。"}
+# Subtest: V2 turn settlement returns the same public canonical ending presentation as Godspace
+ok 687 - V2 turn settlement returns the same public canonical ending presentation as Godspace
+  ---
+  duration_ms: 37.370864
+  type: 'test'
+  ...
+# Subtest: V2 combat settlement also returns the canonical ending presentation
+ok 688 - V2 combat settlement also returns the canonical ending presentation
+  ---
+  duration_ms: 35.991711
+  type: 'test'
+  ...
+# Subtest: 第一次與第二次用同一招都不罰（重複一次是合理的戰術，不該被懲罰）
+ok 689 - 第一次與第二次用同一招都不罰（重複一次是合理的戰術，不該被懲罰）
+  ---
+  duration_ms: 1.541392
+  type: 'test'
+  ...
+# Subtest: 連續第三次開始加難度，而且愈用愈難
+ok 690 - 連續第三次開始加難度，而且愈用愈難
+  ---
+  duration_ms: 0.527566
+  type: 'test'
+  ...
+# Subtest: 懲罰有封頂，不會把只練一條線的玩家鎖死
+ok 691 - 懲罰有封頂，不會把只練一條線的玩家鎖死
+  ---
+  duration_ms: 1.494948
+  type: 'test'
+  ...
+# Subtest: 換一個做法就立刻歸零——這是這個機制真正要引導的行為
+ok 692 - 換一個做法就立刻歸零——這是這個機制真正要引導的行為
+  ---
+  duration_ms: 0.270445
+  type: 'test'
+  ...
+# Subtest: 同一個技能配不同屬性算兩種做法（摸黑繞路 vs 硬撐著不動是兩件事）
+ok 693 - 同一個技能配不同屬性算兩種做法（摸黑繞路 vs 硬撐著不動是兩件事）
+  ---
+  duration_ms: 0.212963
+  type: 'test'
+  ...
+# Subtest: 純屬性檢定也有指紋，不能靠「不帶技能」繞過這個機制
+ok 694 - 純屬性檢定也有指紋，不能靠「不帶技能」繞過這個機制
+  ---
+  duration_ms: 0.199382
+  type: 'test'
+  ...
+# Subtest: 沒有屬性的殘缺參數不會炸，也不會產生懲罰
+ok 695 - 沒有屬性的殘缺參數不會炸，也不會產生懲罰
+  ---
+  duration_ms: 1.115361
+  type: 'test'
+  ...
+# Subtest: 舊存檔沒有這個欄位、或資料壞掉時，一律當成全新紀錄
+ok 696 - 舊存檔沒有這個欄位、或資料壞掉時，一律當成全新紀錄
+  ---
+  duration_ms: 0.221638
+  type: 'test'
+  ...
+# Subtest: 給AI的指令要求把難度寫成「世界學會了這一招」，而不是玩家變弱
+ok 697 - 給AI的指令要求把難度寫成「世界學會了這一招」，而不是玩家變弱
+  ---
+  duration_ms: 0.640971
+  type: 'test'
+  ...
+# Subtest: 前端標籤只在真的有懲罰時才出現
+ok 698 - 前端標籤只在真的有懲罰時才出現
+  ---
+  duration_ms: 0.562415
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：命中時，基礎傷害=成功數-防御DC，直接扣血（無護甲時全額生效）
+ok 699 - resolveCombatAction：命中時，基礎傷害=成功數-防御DC，直接扣血（無護甲時全額生效）
+  ---
+  duration_ms: 2.07725
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：未命中時完全不扣血，hpState原封不動回傳
+ok 700 - resolveCombatAction：未命中時完全不扣血，hpState原封不動回傳
+  ---
+  duration_ms: 0.361575
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：護甲值會在傷害送進health.js之前先扣掉
+ok 701 - resolveCombatAction：護甲值會在傷害送進health.js之前先扣掉
+  ---
+  duration_ms: 0.393944
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：護甲值大於等於基礎傷害時，實質傷害歸零但仍算命中
+ok 702 - resolveCombatAction：護甲值大於等於基礎傷害時，實質傷害歸零但仍算命中
+  ---
+  duration_ms: 0.229839
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：沒有武器別傷害上限，高附加成功可以造成很高的基礎傷害
+ok 703 - resolveCombatAction：沒有武器別傷害上限，高附加成功可以造成很高的基礎傷害
+  ---
+  duration_ms: 2.038697
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：距離減值會反映在遠程攻擊的effectiveDP上，但防御DC不再扣DP
+ok 704 - resolveCombatAction：距離減值會反映在遠程攻擊的effectiveDP上，但防御DC不再扣DP
+  ---
+  duration_ms: 0.422779
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：defenderCombatProfile缺欄位時全部視為0(空手空防具仍可正常運作)
+ok 705 - resolveCombatAction：defenderCombatProfile缺欄位時全部視為0(空手空防具仍可正常運作)
+  ---
+  duration_ms: 0.246862
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction(真骰子)：跑得動、回傳結構完整
+ok 706 - resolveCombatAction(真骰子)：跑得動、回傳結構完整
+  ---
+  duration_ms: 0.76577
+  type: 'test'
+  ...
+# Subtest: damageSeverityTag：未命中與「命中但被護甲吃光」是兩個不同的標籤
+ok 707 - damageSeverityTag：未命中與「命中但被護甲吃光」是兩個不同的標籤
+  ---
+  duration_ms: 0.632176
+  type: 'test'
+  ...
+# Subtest: damageSeverityTag：1~2點是輕傷、3~4點是重傷、5點以上是致命
+ok 708 - damageSeverityTag：1~2點是輕傷、3~4點是重傷、5點以上是致命
+  ---
+  duration_ms: 0.759768
+  type: 'test'
+  ...
+# Subtest: damageSeverityTag：惡性傷(A)不論點數多少都算致命重創
+ok 709 - damageSeverityTag：惡性傷(A)不論點數多少都算致命重創
+  ---
+  duration_ms: 0.252183
+  type: 'test'
+  ...
+# Subtest: damageSeverityTag 的文字就是 DAMAGE_SEVERITY_TAGS 那張表(不要有第二份字串)
+ok 710 - damageSeverityTag 的文字就是 DAMAGE_SEVERITY_TAGS 那張表(不要有第二份字串)
+  ---
+  duration_ms: 0.183153
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：命中時回傳的結果帶著標籤，且跟實質傷害對得上
+ok 711 - resolveCombatAction：命中時回傳的結果帶著標籤，且跟實質傷害對得上
+  ---
+  duration_ms: 0.390238
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：護甲把傷害吃光時是「火花四濺」，不是「未命中」
+ok 712 - resolveCombatAction：護甲把傷害吃光時是「火花四濺」，不是「未命中」
+  ---
+  duration_ms: 0.220077
+  type: 'test'
+  ...
+# Subtest: resolveCombatAction：未命中時也帶標籤(前端/AI 兩條路都不用自己判斷 null)
+ok 713 - resolveCombatAction：未命中時也帶標籤(前端/AI 兩條路都不用自己判斷 null)
+  ---
+  duration_ms: 0.178788
+  type: 'test'
+  ...
+# Subtest: 標籤完全不影響傷害運算：同一次攻擊的 HP 結果跟只看數字時一模一樣
+ok 714 - 標籤完全不影響傷害運算：同一次攻擊的 HP 結果跟只看數字時一模一樣
+  ---
+  duration_ms: 0.234825
+  type: 'test'
+  ...
+# Subtest: 7個D級範例包的結構都合法(id/type/version/entries齊全，entries內name不重複)
+ok 715 - 7個D級範例包的結構都合法(id/type/version/entries齊全，entries內name不重複)
+  ---
+  duration_ms: 1.726622
+  type: 'test'
+  ...
+# Subtest: 7個D級範例包每個都剛好有3個entries
+ok 716 - 7個D級範例包每個都剛好有3個entries
+  ---
+  duration_ms: 0.306222
+  type: 'test'
+  ...
+# Subtest: mergePacks：7個包合併不會互相撞名，也不會跟現有的金剛狼血統範例撞名
+ok 717 - mergePacks：7個包合併不會互相撞名，也不會跟現有的金剛狼血統範例撞名
+  ---
+  duration_ms: 1.52015
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：血統-阿蘭斯的4點屬性分配跟模板(D級4點)一致
+ok 718 - auditAgainstTemplate：血統-阿蘭斯的4點屬性分配跟模板(D級4點)一致
+  ---
+  duration_ms: 0.401262
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：血統-Orphnoch的D級價格(600)跟模板(D級600)一致
+ok 719 - auditAgainstTemplate：血統-Orphnoch的D級價格(600)跟模板(D級600)一致
+  ---
+  duration_ms: 0.252179
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：改造3個D級範例的價格(1000)都跟模板(D級應為500)不符——真實存在的落差
+ok 720 - auditAgainstTemplate：改造3個D級範例的價格(1000)都跟模板(D級應為500)不符——真實存在的落差
+  ---
+  duration_ms: 0.271094
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：瞳術-審判眼與毀滅之眼的D級價格(600)跟模板一致
+ok 721 - auditAgainstTemplate：瞳術-審判眼與毀滅之眼的D級價格(600)跟模板一致
+  ---
+  duration_ms: 0.198339
+  type: 'test'
+  ...
+# Subtest: 瞳術-寫輪眼的D級段落書中原文沒有標價格，如實記錄成null而不是猜一個數字
+ok 722 - 瞳術-寫輪眼的D級段落書中原文沒有標價格，如實記錄成null而不是猜一個數字
+  ---
+  duration_ms: 0.159403
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：稱號3個D級範例的價格(1000)都跟模板一致
+ok 723 - auditAgainstTemplate：稱號3個D級範例的價格(1000)都跟模板一致
+  ---
+  duration_ms: 0.558757
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：流派3個D級範例的價格(1000)都跟模板一致
+ok 724 - auditAgainstTemplate：流派3個D級範例的價格(1000)都跟模板一致
+  ---
+  duration_ms: 0.633723
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：技藝-太玄鑲華劍譜的價格(600)跟模板(D級應為500)不符——真實存在的落差
+ok 725 - auditAgainstTemplate：技藝-太玄鑲華劍譜的價格(600)跟模板(D級應為500)不符——真實存在的落差
+  ---
+  duration_ms: 0.287568
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：技藝-葵花寶典第一重與饕餮盛宴的價格(500)跟模板一致
+ok 726 - auditAgainstTemplate：技藝-葵花寶典第一重與饕餮盛宴的價格(500)跟模板一致
+  ---
+  duration_ms: 0.256531
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：法術-阿尼馬格斯的價格(1000)跟模板(D級應為500)不符——真實存在的落差
+ok 727 - auditAgainstTemplate：法術-阿尼馬格斯的價格(1000)跟模板(D級應為500)不符——真實存在的落差
+  ---
+  duration_ms: 0.178842
+  type: 'test'
+  ...
+# Subtest: auditAgainstTemplate：法術-變身術與暗示術的價格(500)跟模板一致
+ok 728 - auditAgainstTemplate：法術-變身術與暗示術的價格(500)跟模板一致
+  ---
+  duration_ms: 0.156802
+  type: 'test'
+  ...
+# Subtest: 主神空間完全恢復：生命、意志力、所有能量池一次全滿
+ok 729 - 主神空間完全恢復：生命、意志力、所有能量池一次全滿
+  ---
+  duration_ms: 2.666568
+  type: 'test'
+  ...
+# Subtest: 完全恢復不改動傳入的角色卡(跟商店與型態同一個不可變約定)
+ok 730 - 完全恢復不改動傳入的角色卡(跟商店與型態同一個不可變約定)
+  ---
+  duration_ms: 0.591383
+  type: 'test'
+  ...
+# Subtest: 完全恢復的池子上限仍然照關鍵屬性重算(買了屬性之後上限會變大)
+ok 731 - 完全恢復的池子上限仍然照關鍵屬性重算(買了屬性之後上限會變大)
+  ---
+  duration_ms: 0.497667
+  type: 'test'
+  ...
+# Subtest: 打坐的骰池＝這個池子的兩個關鍵屬性之和(跟決定上限的是同一個和)
+ok 732 - 打坐的骰池＝這個池子的兩個關鍵屬性之和(跟決定上限的是同一個和)
+  ---
+  duration_ms: 2.112616
+  type: 'test'
+  ...
+# Subtest: 打坐擲不出任何成功數時，真的什麼都沒恢復(這是書上的規則，不是bug)
+ok 733 - 打坐擲不出任何成功數時，真的什麼都沒恢復(這是書上的規則，不是bug)
+  ---
+  duration_ms: 0.506456
+  type: 'test'
+  ...
+# Subtest: 打坐恢復的量等於成功數，而且不會超過上限
+ok 734 - 打坐恢復的量等於成功數，而且不會超過上限
+  ---
+  duration_ms: 2.018984
+  type: 'test'
+  ...
+# Subtest: 打坐恢復1點沖擊傷害(走既有的 shortRest)，但**不恢復意志力**
+ok 735 - 打坐恢復1點沖擊傷害(走既有的 shortRest)，但**不恢復意志力**
+  ---
+  duration_ms: 0.489669
+  type: 'test'
+  ...
+# Subtest: 打坐的時間代價是使用者決定的3回合
+ok 736 - 打坐的時間代價是使用者決定的3回合
+  ---
+  duration_ms: 0.408557
+  type: 'test'
+  ...
+# Subtest: 身上沒有能量池的角色也能打坐(只是只有生命會動)
+ok 737 - 身上沒有能量池的角色也能打坐(只是只有生命會動)
+  ---
+  duration_ms: 0.695332
+  type: 'test'
+  ...
+# Subtest: 存檔裡有沒登錄關鍵屬性的池子時，說得出「無法打坐」而不是靜靜跳過
+ok 738 - 存檔裡有沒登錄關鍵屬性的池子時，說得出「無法打坐」而不是靜靜跳過
+  ---
+  duration_ms: 0.94261
+  type: 'test'
+  ...
+# Subtest: describeRest 講得出人看得懂的一句話
+ok 739 - describeRest 講得出人看得懂的一句話
+  ---
+  duration_ms: 0.662989
+  type: 'test'
+  ...
+# Subtest: Ripley profile 有獨立的 evidence／生物安全模型，不複製陸遠威脅欄位
+ok 740 - Ripley profile 有獨立的 evidence／生物安全模型，不複製陸遠威脅欄位
+  ---
+  duration_ms: 2.565238
+  type: 'test'
+  ...
+# Subtest: reference state 會同時建立並保留陸遠與 Ripley 的獨立 state
+ok 741 - reference state 會同時建立並保留陸遠與 Ripley 的獨立 state
+  ---
+  duration_ms: 2.453889
+  type: 'test'
+  ...
+# Subtest: Ripley 的正常提問會提供必要事實與下一步
+ok 742 - Ripley 的正常提問會提供必要事實與下一步
+  ---
+  duration_ms: 4.701096
+  type: 'test'
+  ...
+# Subtest: Ripley 會根據可驗證證據提升合作，而不是直接給完全信任
+ok 743 - Ripley 會根據可驗證證據提升合作，而不是直接給完全信任
+  ---
+  duration_ms: 0.524078
+  type: 'test'
+  ...
+# Subtest: Ripley 對未知樣本採用生物安全邊界，不自行宣稱感染或沒收物品
+ok 744 - Ripley 對未知樣本採用生物安全邊界，不自行宣稱感染或沒收物品
+  ---
+  duration_ms: 0.533913
+  type: 'test'
+  ...
+# Subtest: Ripley 對第一次與第二次強闖採用 angry 到 withdrawn，不使用陸遠的三次威脅階梯
+ok 745 - Ripley 對第一次與第二次強闖採用 angry 到 withdrawn，不使用陸遠的三次威脅階梯
+  ---
+  duration_ms: 0.569116
+  type: 'test'
+  ...
+# Subtest: Ripley 在降溫與遵守檢疫後恢復有限程序合作，但不抹除過去事件
+ok 746 - Ripley 在降溫與遵守檢疫後恢復有限程序合作，但不抹除過去事件
+  ---
+  duration_ms: 0.744566
+  type: 'test'
+  ...
+# Subtest: Ripley classifier 不會把 Lambert 或一般環境行動誤判成 Ripley 互動
+ok 747 - Ripley classifier 不會把 Lambert 或一般環境行動誤判成 Ripley 互動
+  ---
+  duration_ms: 0.239559
+  type: 'test'
+  ...
+# Subtest: evt_meet_ripley 允許明確二人稱指揮請求使用 Ripley 隱含目標
+ok 748 - evt_meet_ripley 允許明確二人稱指揮請求使用 Ripley 隱含目標
+  ---
+  duration_ms: 0.58124
+  type: 'test'
+  ...
+# Subtest: Ripley 隱含指揮規則只在 evt_meet_ripley 生效
+ok 749 - Ripley 隱含指揮規則只在 evt_meet_ripley 生效
+  ---
+  duration_ms: 0.703778
+  type: 'test'
+  ...
+# Subtest: 隱含 Ripley 指揮不會攔截明確指向其他 NPC 的請求
+ok 750 - 隱含 Ripley 指揮不會攔截明確指向其他 NPC 的請求
+  ---
+  duration_ms: 0.280945
+  type: 'test'
+  ...
+# Subtest: 隱含 Ripley 指揮仍讓 server 選擇 command directive，而不是只改分類
+ok 751 - 隱含 Ripley 指揮仍讓 server 選擇 command directive，而不是只改分類
+  ---
+  duration_ms: 0.820106
+  type: 'test'
+  ...
+# Subtest: Ripley 隱含指揮處理換行、全形標點與同句 NPC 分派
+ok 752 - Ripley 隱含指揮處理換行、全形標點與同句 NPC 分派
+  ---
+  duration_ms: 0.222451
+  type: 'test'
+  ...
+# Subtest: Ripley 隱含指揮辨識否定／質疑句，不把拒絕誤當成 request_command
+ok 753 - Ripley 隱含指揮辨識否定／質疑句，不把拒絕誤當成 request_command
+  ---
+  duration_ms: 0.529288
+  type: 'test'
+  ...
+# Subtest: Ripley 隱含指揮不會取代明確 targetNpcId，也不會跳過既有安全優先級
+ok 754 - Ripley 隱含指揮不會取代明確 targetNpcId，也不會跳過既有安全優先級
+  ---
+  duration_ms: 0.269105
+  type: 'test'
+  ...
+# Subtest: Ripley cooperation prompt 僅在 Ripley 場景／明確目標時出現，且 public response 不洩漏內部 state
+ok 755 - Ripley cooperation prompt 僅在 Ripley 場景／明確目標時出現，且 public response 不洩漏內部 state
+  ---
+  duration_ms: 5.60404
+  type: 'test'
+  ...
+# Subtest: 相同 Ripley action 在晚回合不會重播舊 directive
+ok 756 - 相同 Ripley action 在晚回合不會重播舊 directive
+  ---
+  duration_ms: 0.294553
+  type: 'test'
+  ...
+# Subtest: Ripley 會以指揮信心與隊伍凝聚設定可回報的生存優先順序
+ok 757 - Ripley 會以指揮信心與隊伍凝聚設定可回報的生存優先順序
+  ---
+  duration_ms: 0.543462
+  type: 'test'
+  ...
+# Subtest: Ripley 對指揮質疑會要求具體依據，重複無新資料才撤回指揮辯論
+ok 758 - Ripley 對指揮質疑會要求具體依據，重複無新資料才撤回指揮辯論
+  ---
+  duration_ms: 0.354617
+  type: 'test'
+  ...
+# Subtest: 玩家支持 Ripley 指揮時可恢復隊伍協調，但不抹除先前的信任損失
+ok 759 - 玩家支持 Ripley 指揮時可恢復隊伍協調，但不抹除先前的信任損失
+  ---
+  duration_ms: 0.362471
+  type: 'test'
+  ...
+# Subtest: Ripley command directive 只在本回合命中，晚回合不重播且不暴露 raw state
+ok 760 - Ripley command directive 只在本回合命中，晚回合不重播且不暴露 raw state
+  ---
+  duration_ms: 0.574456
+  type: 'test'
+  ...
+# Subtest: generic 副本整合：三個主線節點依序完成，最終戰只能透過戰鬥結算
+ok 761 - generic 副本整合：三個主線節點依序完成，最終戰只能透過戰鬥結算
+  ---
+  duration_ms: 88.867362
+  type: 'test'
+  ...
+# Subtest: 副本整合：沒有指定scenarioId時預設用內建範例副本，且會用開場場景當作sceneContext
+ok 762 - 副本整合：沒有指定scenarioId時預設用內建範例副本，且會用開場場景當作sceneContext
+  ---
+  duration_ms: 2.23592
+  type: 'test'
+  ...
+# Subtest: 副本整合：指定不存在的scenarioId要被明確擋下，不會靜默退回預設
+ok 763 - 副本整合：指定不存在的scenarioId要被明確擋下，不會靜默退回預設
+  ---
+  duration_ms: 2.21267
+  type: 'test'
+  ...
+# Subtest: 退役 V1 存檔不能再進入舊文字流程，必須重新開始 V2
+ok 764 - 退役 V1 存檔不能再進入舊文字流程，必須重新開始 V2
+  ---
+  duration_ms: 4.35272
+  type: 'test'
+  ...
+# Subtest: 副本整合：讀取存檔時就要一起回副本HUD，不能等到玩家再打一個回合才長出來
+ok 765 - 副本整合：讀取存檔時就要一起回副本HUD，不能等到玩家再打一個回合才長出來
+  ---
+  duration_ms: 9.385485
+  type: 'test'
+  ...
+# Subtest: 回合數：頂欄那個「回合」要數敘事推進了幾輪，不是事件日誌有幾筆
+ok 766 - 回合數：頂欄那個「回合」要數敘事推進了幾輪，不是事件日誌有幾筆
+  ---
+  duration_ms: 19.817844
+  type: 'test'
+  ...
+# Subtest: demoPack 本身要通過 validateScenarioPack(避免測試在驗證不合法的資料)
+ok 767 - demoPack 本身要通過 validateScenarioPack(避免測試在驗證不合法的資料)
+  ---
+  duration_ms: 1.841106
+  type: 'test'
+  ...
+# Subtest: initScenarioProgress：所有節點初始都是未完成，第一章有時間預算就建立
+ok 768 - initScenarioProgress：所有節點初始都是未完成，第一章有時間預算就建立
+  ---
+  duration_ms: 1.37023
+  type: 'test'
+  ...
+# Subtest: findActiveNode：依序回傳前置條件都滿足的第一個未完成節點
+ok 769 - findActiveNode：依序回傳前置條件都滿足的第一個未完成節點
+  ---
+  duration_ms: 0.519254
+  type: 'test'
+  ...
+# Subtest: findActiveNode：劣化結局節點(onExpireNodeId)不會被當成正常可推進節點回傳
+ok 770 - findActiveNode：劣化結局節點(onExpireNodeId)不會被當成正常可推進節點回傳
+  ---
+  duration_ms: 0.211456
+  type: 'test'
+  ...
+# Subtest: findActiveNode：主線節點全部完成後回傳null，不會誤回傳劣化結局節點
+ok 771 - findActiveNode：主線節點全部完成後回傳null，不會誤回傳劣化結局節點
+  ---
+  duration_ms: 0.424898
+  type: 'test'
+  ...
+# Subtest: isChapterComplete：劣化結局節點不計入「章節是否完成」的判斷
+ok 772 - isChapterComplete：劣化結局節點不計入「章節是否完成」的判斷
+  ---
+  duration_ms: 0.430049
+  type: 'test'
+  ...
+# Subtest: completeNode：前置節點沒完成時擋下，不能跳著結算
+ok 773 - completeNode：前置節點沒完成時擋下，不能跳著結算
+  ---
+  duration_ms: 0.431091
+  type: 'test'
+  ...
+# Subtest: completeNode：同一個節點不能重複結算
+ok 774 - completeNode：同一個節點不能重複結算
+  ---
+  duration_ms: 0.239394
+  type: 'test'
+  ...
+# Subtest: completeNode：扭轉度分級影響獎勵(查 divergence.js 的表，不是引擎自己編)
+ok 775 - completeNode：扭轉度分級影響獎勵(查 divergence.js 的表，不是引擎自己編)
+  ---
+  duration_ms: 0.712652
+  type: 'test'
+  ...
+# Subtest: completeNodeAndAdvance：章節內節點全部完成時自動進下一章節
+ok 776 - completeNodeAndAdvance：章節內節點全部完成時自動進下一章節
+  ---
+  duration_ms: 0.772584
+  type: 'test'
+  ...
+# Subtest: completeNodeAndAdvance：沒有下一章節時停在原地，不會丟錯
+ok 777 - completeNodeAndAdvance：沒有下一章節時停在原地，不會丟錯
+  ---
+  duration_ms: 0.287578
+  type: 'test'
+  ...
+# Subtest: spendChapterTime：章節沒有時間限制時原樣傳回，不丟錯
+ok 778 - spendChapterTime：章節沒有時間限制時原樣傳回，不丟錯
+  ---
+  duration_ms: 0.414577
+  type: 'test'
+  ...
+# Subtest: justExpired：只在「這一次花費」讓狀態從未逾時變逾時時才回傳true
+ok 779 - justExpired：只在「這一次花費」讓狀態從未逾時變逾時時才回傳true
+  ---
+  duration_ms: 1.755636
+  type: 'test'
+  ...
+# Subtest: getProgressSummary：完成所有主線節點後進度應該是100%，不被劣化結局節點卡住
+ok 780 - getProgressSummary：完成所有主線節點後進度應該是100%，不被劣化結局節點卡住
+  ---
+  duration_ms: 0.574763
+  type: 'test'
+  ...
+# Subtest: getProgressSummary：回報時間狀態，供前端HUD直接顯示
+ok 781 - getProgressSummary：回報時間狀態，供前端HUD直接顯示
+  ---
+  duration_ms: 0.163062
+  type: 'test'
+  ...
+# Subtest: 內建範例副本本身要通過 validateScenarioPack
+ok 782 - 內建範例副本本身要通過 validateScenarioPack
+  ---
+  duration_ms: 1.435757
+  type: 'test'
+  ...
+# Subtest: 內建範例副本結構符合這次的需求：初始場景 + 三個重大節點 + 最終戰
+ok 783 - 內建範例副本結構符合這次的需求：初始場景 + 三個重大節點 + 最終戰
+  ---
+  duration_ms: 0.249543
+  type: 'test'
+  ...
+# Subtest: V2 是唯一異形預設，退役 V1 不得重新進入 registry
+ok 784 - V2 是唯一異形預設，退役 V1 不得重新進入 registry
+  ---
+  duration_ms: 0.347693
+  type: 'test'
+  ...
+# Subtest: Alien V2 authoring JSON 與 Cloudflare runtime sidecar 保持同步
+ok 785 - Alien V2 authoring JSON 與 Cloudflare runtime sidecar 保持同步
+  ---
+  duration_ms: 9.848328
+  type: 'test'
+  ...
+# Subtest: Alien V2 所有事件都是單向道，不允許回返旗標
+ok 786 - Alien V2 所有事件都是單向道，不允許回返旗標
+  ---
+  duration_ms: 0.292398
+  type: 'test'
+  ...
+# Subtest: getScenarioPack：查無此ID回傳null，不丟錯
+ok 787 - getScenarioPack：查無此ID回傳null，不丟錯
+  ---
+  duration_ms: 0.147541
+  type: 'test'
+  ...
+# Subtest: listScenarios：回傳的摘要不含canonSummary(避免劇透節點內容)
+ok 788 - listScenarios：回傳的摘要不含canonSummary(避免劇透節點內容)
+  ---
+  duration_ms: 0.342804
+  type: 'test'
+  ...
+# Subtest: SCENARIO_REGISTRY：每個註冊的包都能用自己的id查到自己
+ok 789 - SCENARIO_REGISTRY：每個註冊的包都能用自己的id查到自己
+  ---
+  duration_ms: 0.197214
+  type: 'test'
+  ...
+# Subtest: 開場回合完全不呼叫AI，直接回傳副本寫好的固定開頭
+ok 790 - 開場回合完全不呼叫AI，直接回傳副本寫好的固定開頭
+  ---
+  duration_ms: 43.865977
+  type: 'test'
+  ...
+# Subtest: 固定開頭的選項要標成 scripted，不是保底(fallback)
+ok 791 - 固定開頭的選項要標成 scripted，不是保底(fallback)
+  ---
+  duration_ms: 3.427463
+  type: 'test'
+  ...
+# Subtest: 固定開頭的選項一樣要通過規則查驗(屬性/技能/難度都要是規則書裡的合法值)
+ok 792 - 固定開頭的選項一樣要通過規則查驗(屬性/技能/難度都要是規則書裡的合法值)
+  ---
+  duration_ms: 4.294135
+  type: 'test'
+  ...
+# Subtest: canonical 玩家行動不呼叫AI，而且讀檔續玩不會再播一次開場
+ok 793 - canonical 玩家行動不呼叫AI，而且讀檔續玩不會再播一次開場
+  ---
+  duration_ms: 21.288274
+  type: 'test'
+  ...
+# Subtest: 沒有固定開頭的副本行為完全不變(開場照樣交給AI)
+ok 794 - 沒有固定開頭的副本行為完全不變(開場照樣交給AI)
+  ---
+  duration_ms: 5.805637
+  type: 'test'
+  ...
+# Subtest: 新手副本的固定開頭本身要符合它自己訂的寫作要求
+ok 795 - 新手副本的固定開頭本身要符合它自己訂的寫作要求
+  ---
+  duration_ms: 0.293154
+  type: 'test'
+  ...
+# [LLM_FAILURE] {"where":"POST /api/narrate","provider":"custom","model":"any-model","stage":"ssrf-blocked","httpStatus":null,"message":"outbound請求只能用https，收到「http:」（http://169.254.169.254/latest/meta-data/iam/security-credentials/chat/completions）","bodySnippet":null}
+# [LLM_FAILURE] {"where":"POST /api/narrate","provider":"custom","model":"any-model","stage":"ssrf-blocked","httpStatus":null,"message":"這個目標位址不被允許（內網/loopback/link-local/metadata endpoint）：127.0.0.1","bodySnippet":null}
+# [LLM_FAILURE] {"where":"POST /api/turn","sessionId":"33cc19fa-44b0-48e0-88bc-a6a8180adc97","provider":"custom","model":"any-model","stage":"ssrf-blocked","httpStatus":null,"message":"outbound請求只能用https，收到「http:」（http://10.0.0.5/v1/chat/completions）","bodySnippet":null}
+# [LLM_OVERRIDE_IGNORED] {"where":"POST /api/turn","reason":"baseUrl只在provider=custom時生效","bodyProvider":null}
+# [LLM_OVERRIDE_IGNORED] {"where":"POST /api/turn","reason":"baseUrl只在provider=custom時生效","bodyProvider":"gemini"}
+# [LLM_OVERRIDE_IGNORED] {"where":"POST /api/narrate","reason":"baseUrl只在provider=custom時生效","bodyProvider":null}
+# [TURN_PARSE_FAILED] {"sessionId":"1f5de889-8196-4453-91f9-f1c720d29de3","truncated":false,"finishReason":null,"rawSnippet":"{\\"st_thought\\": \\"只有說書人看得到的內部盤算-機密ABC123\\", \\"narration\\": \\"你推開門，走進一片黑"}
+# [LLM_DEGRADED] {"where":"POST /api/turn","sessionId":"1f5de889-8196-4453-91f9-f1c720d29de3","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","parseFailed":true,"aiOptionCount":0,"fallbackOptionCount":4,"allOptionsAreFallback":true,"rawTextSnippet":"{\\"st_thought\\": \\"只有說書人看得到的內部盤算-機密ABC123\\", \\"narration\\": \\"你推開門，走進一片黑"}
+# Subtest: assertSafeOutboundUrl：擋掉HTTP、內網IP、loopback、link-local/metadata endpoint
+ok 796 - assertSafeOutboundUrl：擋掉HTTP、內網IP、loopback、link-local/metadata endpoint
+  ---
+  duration_ms: 3.960155
+  type: 'test'
+  ...
+# Subtest: assertSafeOutboundUrl：正常的公開https端點都放行(不能誤傷正常供應商)
+ok 797 - assertSafeOutboundUrl：正常的公開https端點都放行(不能誤傷正常供應商)
+  ---
+  duration_ms: 0.592046
+  type: 'test'
+  ...
+# Subtest: assertSafeOutboundUrl：十進位/十六進位/短寫法的IPv4也擋得到(URL正規化之後才檢查)
+ok 798 - assertSafeOutboundUrl：十進位/十六進位/短寫法的IPv4也擋得到(URL正規化之後才檢查)
+  ---
+  duration_ms: 0.274735
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：body 指定的 baseUrl 指向內網位址時要被擋下，不能發出SSRF請求
+ok 799 - [安全] /api/narrate：body 指定的 baseUrl 指向內網位址時要被擋下，不能發出SSRF請求
+  ---
+  duration_ms: 37.463101
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：body 指定 https 但目標是 127.0.0.1 一樣要被擋下
+ok 800 - [安全] /api/narrate：body 指定 https 但目標是 127.0.0.1 一樣要被擋下
+  ---
+  duration_ms: 2.472967
+  type: 'test'
+  ...
+# Subtest: [安全] /api/turn：body 指定的 baseUrl 是內網位址時，同一套SSRF防護也要生效
+ok 801 - [安全] /api/turn：body 指定的 baseUrl 是內網位址時，同一套SSRF防護也要生效
+  ---
+  duration_ms: 19.633027
+  type: 'test'
+  ...
+# Subtest: [安全] /api/session：偽造的 attributes/xp/derived/reviveCount 全部被伺服器重建，不是原樣存進去
+ok 802 - [安全] /api/session：偽造的 attributes/xp/derived/reviveCount 全部被伺服器重建，不是原樣存進去
+  ---
+  duration_ms: 2.400432
+  type: 'test'
+  ...
+# Subtest: [安全] /api/session：合法範圍內(符合總預算)的屬性/技能原樣保留(不誤傷正常用例)
+ok 803 - [安全] /api/session：合法範圍內(符合總預算)的屬性/技能原樣保留(不誤傷正常用例)
+  ---
+  duration_ms: 1.416343
+  type: 'test'
+  ...
+# Subtest: [安全] /api/session：總花費超支的角色(每項都合法、但總和超過建卡預算)要被整組重置，不能靠疊加單項合法值繞過總預算
+ok 804 - [安全] /api/session：總花費超支的角色(每項都合法、但總和超過建卡預算)要被整組重置，不能靠疊加單項合法值繞過總預算
+  ---
+  duration_ms: 1.583749
+  type: 'test'
+  ...
+# Subtest: [安全] /api/session：公開 providedCharacter 不得授予 catalog abilities 或注入 energyPools
+ok 805 - [安全] /api/session：公開 providedCharacter 不得授予 catalog abilities 或注入 energyPools
+  ---
+  duration_ms: 1.479696
+  type: 'test'
+  ...
+# Subtest: [併發] memorySessionStore.put：expectedRev 對不上時要丟 SessionConflictError，不能默默覆蓋別人的寫入
+ok 806 - [併發] memorySessionStore.put：expectedRev 對不上時要丟 SessionConflictError，不能默默覆蓋別人的寫入
+  ---
+  duration_ms: 0.957481
+  type: 'test'
+  ...
+# Subtest: [併發] /api/revive：兩個真正並行的請求同時搶著復活同一張角色卡，只有一個成功，復活次數只增加一次
+ok 807 - [併發] /api/revive：兩個真正並行的請求同時搶著復活同一張角色卡，只有一個成功，復活次數只增加一次
+  ---
+  duration_ms: 8.204361
+  type: 'test'
+  ...
+# Subtest: [冪等] /api/revive：同一個 requestId 重送要回放同一個結果，不能再扣一次復活費用或次數
+ok 808 - [冪等] /api/revive：同一個 requestId 重送要回放同一個結果，不能再扣一次復活費用或次數
+  ---
+  duration_ms: 2.45174
+  type: 'test'
+  ...
+# Subtest: [冪等] /api/rest：同一個 requestId 重送不會重複恢復生命值
+ok 809 - [冪等] /api/rest：同一個 requestId 重送不會重複恢復生命值
+  ---
+  duration_ms: 4.965252
+  type: 'test'
+  ...
+# Subtest: [併發] /api/combat/act：兩個真正並行的攻擊請求同時送出，只有一個真的結算，另一個拿到明確衝突
+ok 810 - [併發] /api/combat/act：兩個真正並行的攻擊請求同時送出，只有一個真的結算，另一個拿到明確衝突
+  ---
+  duration_ms: 31.781766
+  type: 'test'
+  ...
+# Subtest: [效能] /api/chronicle：limit 會被夾在合理範圍內，超大limit不會整包回傳
+ok 811 - [效能] /api/chronicle：limit 會被夾在合理範圍內，超大limit不會整包回傳
+  ---
+  duration_ms: 2.999294
+  type: 'test'
+  ...
+# Subtest: [效能] /api/chronicle：非法limit(負數/非數字)要安全退回預設值，不能500或回傳垃圾
+ok 812 - [效能] /api/chronicle：非法limit(負數/非數字)要安全退回預設值，不能500或回傳垃圾
+  ---
+  duration_ms: 2.137347
+  type: 'test'
+  ...
+# Subtest: [效能] /api/chronicle：cursor 分頁可以走完全部資料，且 nextCursor 在結尾時是 null
+ok 813 - [效能] /api/chronicle：cursor 分頁可以走完全部資料，且 nextCursor 在結尾時是 null
+  ---
+  duration_ms: 2.696761
+  type: 'test'
+  ...
+# Subtest: [效能] /api/chronicle：非法 cursor(負數/非數字/超出範圍) 安全退回，不報錯也不洩漏其他資料
+ok 814 - [效能] /api/chronicle：非法 cursor(負數/非數字/超出範圍) 安全退回，不報錯也不洩漏其他資料
+  ---
+  duration_ms: 2.522893
+  type: 'test'
+  ...
+# Subtest: [安全] /api/chronicle：拿著A存檔的cursor去讀B存檔，只會影響B自己的分頁位置，不會讀到A的資料或繞過門禁
+ok 815 - [安全] /api/chronicle：拿著A存檔的cursor去讀B存檔，只會影響B自己的分頁位置，不會讀到A的資料或繞過門禁
+  ---
+  duration_ms: 2.587414
+  type: 'test'
+  ...
+# Subtest: [效能] /api/turn：超長 sceneContext 會被安全截斷，不會整段原樣存進存檔
+ok 816 - [效能] /api/turn：超長 sceneContext 會被安全截斷，不會整段原樣存進存檔
+  ---
+  duration_ms: 8.211653
+  type: 'test'
+  ...
+# Subtest: [效能] /api/turn：沒有提供 sceneContext 時，仍然沿用上一輪存好的場景背景(截斷邏輯不能破壞既有 fallback)
+ok 817 - [效能] /api/turn：沒有提供 sceneContext 時，仍然沿用上一輪存好的場景背景(截斷邏輯不能破壞既有 fallback)
+  ---
+  duration_ms: 2.870806
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：未明確開放時，不可匿名消耗 server-managed LLM
+ok 818 - [安全] /api/narrate：未明確開放時，不可匿名消耗 server-managed LLM
+  ---
+  duration_ms: 0.591299
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：playerAction 超過1000字要回422，且不會產生任何LLM呼叫
+ok 819 - [安全] /api/narrate：playerAction 超過1000字要回422，且不會產生任何LLM呼叫
+  ---
+  duration_ms: 0.40598
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：剛好1000個Unicode字元(含中文與emoji)要能通過長度檢查
+ok 820 - [安全] /api/narrate：剛好1000個Unicode字元(含中文與emoji)要能通過長度檢查
+  ---
+  duration_ms: 0.505093
+  type: 'test'
+  ...
+# Subtest: resolveLlmRequestOverrides：沒有指定provider時，apiKey/baseUrl/model全部忽略
+ok 821 - resolveLlmRequestOverrides：沒有指定provider時，apiKey/baseUrl/model全部忽略
+  ---
+  duration_ms: 0.239281
+  type: 'test'
+  ...
+# Subtest: resolveLlmRequestOverrides：指定了非custom的provider時，baseUrl被忽略，apiKey/model仍然套用
+ok 822 - resolveLlmRequestOverrides：指定了非custom的provider時，baseUrl被忽略，apiKey/model仍然套用
+  ---
+  duration_ms: 0.120308
+  type: 'test'
+  ...
+# Subtest: resolveLlmRequestOverrides：provider=custom時，baseUrl/apiKey/model全部套用(這是BYOK功能本身)
+ok 823 - resolveLlmRequestOverrides：provider=custom時，baseUrl/apiKey/model全部套用(這是BYOK功能本身)
+  ---
+  duration_ms: 0.189021
+  type: 'test'
+  ...
+# Subtest: [安全] /api/turn：沒有指定provider時，帶baseUrl也不會被套用——伺服器金鑰不會被送到呼叫端指定的網域
+ok 824 - [安全] /api/turn：沒有指定provider時，帶baseUrl也不會被套用——伺服器金鑰不會被送到呼叫端指定的網域
+  ---
+  duration_ms: 8.168991
+  type: 'test'
+  ...
+# Subtest: [安全] /api/turn：指定內建provider(非custom)並帶baseUrl時，baseUrl被忽略，仍打到內建端點
+ok 825 - [安全] /api/turn：指定內建provider(非custom)並帶baseUrl時，baseUrl被忽略，仍打到內建端點
+  ---
+  duration_ms: 4.765228
+  type: 'test'
+  ...
+# Subtest: [安全] /api/narrate：跟/api/turn同一套規則——沒帶provider時baseUrl/apiKey全部忽略
+ok 826 - [安全] /api/narrate：跟/api/turn同一套規則——沒帶provider時baseUrl/apiKey全部忽略
+  ---
+  duration_ms: 1.331995
+  type: 'test'
+  ...
+# Subtest: [安全] /api/turn：解析失敗時，含st_thought的模型原文不會出現在回應JSON的任何地方
+ok 827 - [安全] /api/turn：解析失敗時，含st_thought的模型原文不會出現在回應JSON的任何地方
+  ---
+  duration_ms: 3.957298
+  type: 'test'
+  ...
+# Subtest: [併發] /api/combat/start：兩個真正並行的開戰請求，只有一個真的開戰，另一個拿到明確衝突
+ok 828 - [併發] /api/combat/start：兩個真正並行的開戰請求，只有一個真的開戰，另一個拿到明確衝突
+  ---
+  duration_ms: 4.460493
+  type: 'test'
+  ...
+# Subtest: [併發] /api/forms：兩個真正並行的型態啟動請求，池子只被扣一次
+ok 829 - [併發] /api/forms：兩個真正並行的型態啟動請求，池子只被扣一次
+  ---
+  duration_ms: 4.895744
+  type: 'test'
+  ...
+# Subtest: [併發] /api/shop：兩個真正並行的購買請求，錢包只被扣一次，商品只拿到一份
+ok 830 - [併發] /api/shop：兩個真正並行的購買請求，錢包只被扣一次，商品只拿到一份
+  ---
+  duration_ms: 10.663605
+  type: 'test'
+  ...
+# Subtest: createSession：新存檔有空的事件日誌與空的敘事記憶
+ok 831 - createSession：新存檔有空的事件日誌與空的敘事記憶
+  ---
+  duration_ms: 2.797713
+  type: 'test'
+  ...
+# Subtest: pushHistory：只保留最近N輪，超過的舊紀錄會被裁掉
+ok 832 - pushHistory：只保留最近N輪，超過的舊紀錄會被裁掉
+  ---
+  duration_ms: 0.409397
+  type: 'test'
+  ...
+# Subtest: pushHistory：不修改傳入的陣列(避免共用同一份而互相污染)
+ok 833 - pushHistory：不修改傳入的陣列(避免共用同一份而互相污染)
+  ---
+  duration_ms: 0.159405
+  type: 'test'
+  ...
+# Subtest: historyToPromptText：沒有紀錄時回傳null(讓呼叫端知道這是第一輪)
+ok 834 - historyToPromptText：沒有紀錄時回傳null(讓呼叫端知道這是第一輪)
+  ---
+  duration_ms: 0.334282
+  type: 'test'
+  ...
+# Subtest: historyToPromptText：把玩家行動與敘事都組進去
+ok 835 - historyToPromptText：把玩家行動與敘事都組進去
+  ---
+  duration_ms: 0.415536
+  type: 'test'
+  ...
+# Subtest: KV版：存進去再讀出來，內容一致
+ok 836 - KV版：存進去再讀出來，內容一致
+  ---
+  duration_ms: 0.873587
+  type: 'test'
+  ...
+# Subtest: KV版：讀不存在的存檔回傳null，不丟錯
+ok 837 - KV版：讀不存在的存檔回傳null，不丟錯
+  ---
+  duration_ms: 0.41501
+  type: 'test'
+  ...
+# Subtest: KV版：刪除後就讀不到了
+ok 838 - KV版：刪除後就讀不到了
+  ---
+  duration_ms: 0.337404
+  type: 'test'
+  ...
+# Subtest: KV版：list列出存檔ID
+ok 839 - KV版：list列出存檔ID
+  ---
+  duration_ms: 0.916108
+  type: 'test'
+  ...
+# Subtest: KV版：put會更新updatedAt
+ok 840 - KV版：put會更新updatedAt
+  ---
+  duration_ms: 12.703569
+  type: 'test'
+  ...
+# Subtest: 記憶體版：存進去再讀出來，內容一致
+ok 841 - 記憶體版：存進去再讀出來，內容一致
+  ---
+  duration_ms: 0.679143
+  type: 'test'
+  ...
+# Subtest: 記憶體版：讀不存在的存檔回傳null，不丟錯
+ok 842 - 記憶體版：讀不存在的存檔回傳null，不丟錯
+  ---
+  duration_ms: 0.110868
+  type: 'test'
+  ...
+# Subtest: 記憶體版：刪除後就讀不到了
+ok 843 - 記憶體版：刪除後就讀不到了
+  ---
+  duration_ms: 0.216752
+  type: 'test'
+  ...
+# Subtest: 記憶體版：list列出存檔ID
+ok 844 - 記憶體版：list列出存檔ID
+  ---
+  duration_ms: 0.437328
+  type: 'test'
+  ...
+# Subtest: 記憶體版：put會更新updatedAt
+ok 845 - 記憶體版：put會更新updatedAt
+  ---
+  duration_ms: 4.773309
+  type: 'test'
+  ...
+# Subtest: 記憶體版必須標記 persistent:false(呼叫端要顯示警告給使用者)
+ok 846 - 記憶體版必須標記 persistent:false(呼叫端要顯示警告給使用者)
+  ---
+  duration_ms: 0.255921
+  type: 'test'
+  ...
+# Subtest: resolveSessionStore：有KV binding就用KV，沒有就退到記憶體版
+ok 847 - resolveSessionStore：有KV binding就用KV，沒有就退到記憶體版
+  ---
+  duration_ms: 0.183583
+  type: 'test'
+  ...
+# Subtest: buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎算
+ok 848 - buildCharacter：合法草稿組出完整角色卡，衍生屬性由引擎算
+  ---
+  duration_ms: 1.047748
+  type: 'test'
+  ...
+# Subtest: buildCharacter：超出預算要擋下來並說清楚超了多少
+ok 849 - buildCharacter：超出預算要擋下來並說清楚超了多少
+  ---
+  duration_ms: 0.214702
+  type: 'test'
+  ...
+# Subtest: buildCharacter：沒有名字要擋下來
+ok 850 - buildCharacter：沒有名字要擋下來
+  ---
+  duration_ms: 0.155167
+  type: 'test'
+  ...
+# Subtest: buildCharacter：範圍外的屬性/技能欄位會被忽略，不影響驗證結果
+ok 851 - buildCharacter：範圍外的屬性/技能欄位會被忽略，不影響驗證結果
+  ---
+  duration_ms: 0.457242
+  type: 'test'
+  ...
+# Subtest: buildCharacter：技能等級不能小於0或大於3
+ok 852 - buildCharacter：技能等級不能小於0或大於3
+  ---
+  duration_ms: 0.214407
+  type: 'test'
+  ...
+# Subtest: buildCharacter：驗證失敗時仍回傳budgets，讓UI能顯示還剩幾點
+ok 853 - buildCharacter：驗證失敗時仍回傳budgets，讓UI能顯示還剩幾點
+  ---
+  duration_ms: 0.21391
+  type: 'test'
+  ...
+# Subtest: deriveSpeedBonus uses server timeBudget and caps the V2 speed policy
+ok 854 - deriveSpeedBonus uses server timeBudget and caps the V2 speed policy
+  ---
+  duration_ms: 2.29222
+  type: 'test'
+  ...
+# Subtest: settleScenario credits XP and speed points once and stores an immutable-shaped runSummary
+ok 855 - settleScenario credits XP and speed points once and stores an immutable-shaped runSummary
+  ---
+  duration_ms: 2.060974
+  type: 'test'
+  ...
+# Subtest: deriveEvaluation uses only fixed quality thresholds
+ok 856 - deriveEvaluation uses only fixed quality thresholds
+  ---
+  duration_ms: 0.342043
+  type: 'test'
+  ...
+# Subtest: buildRunSummary remains deterministic when no referenceState is available
+ok 857 - buildRunSummary remains deterministic when no referenceState is available
+  ---
+  duration_ms: 0.303005
+  type: 'test'
+  ...
+# Subtest: 新存檔一開始就有錢包與型態欄位，版本是2
+ok 858 - 新存檔一開始就有錢包與型態欄位，版本是2
+  ---
+  duration_ms: 47.738625
+  type: 'test'
+  ...
+# Subtest: 舊存檔(version 1，沒有錢包)讀出來會就地補上欄位，不會炸也不會蓋掉既有資料
+ok 859 - 舊存檔(version 1，沒有錢包)讀出來會就地補上欄位，不會炸也不會蓋掉既有資料
+  ---
+  duration_ms: 0.503341
+  type: 'test'
+  ...
+# Subtest: 沒有副本 = 在主神空間
+ok 860 - 沒有副本 = 在主神空間
+  ---
+  duration_ms: 0.387703
+  type: 'test'
+  ...
+# Subtest: 副本進行中 = 恐怖片中；主線全完成 = 回到主神空間
+ok 861 - 副本進行中 = 恐怖片中；主線全完成 = 回到主神空間
+  ---
+  duration_ms: 0.81075
+  type: 'test'
+  ...
+# Subtest: 副本包查不到時保守視為仍在副本中(不要因為一個壞掉的id就把商店打開)
+ok 862 - 副本包查不到時保守視為仍在副本中(不要因為一個壞掉的id就把商店打開)
+  ---
+  duration_ms: 0.493795
+  type: 'test'
+  ...
+# Subtest: 場景鑰匙：主神空間整個算一個地點
+ok 863 - 場景鑰匙：主神空間整個算一個地點
+  ---
+  duration_ms: 1.203276
+  type: 'test'
+  ...
+# Subtest: 場景鑰匙：副本裡的地點是「活動節點」，推進節點就是換場
+ok 864 - 場景鑰匙：副本裡的地點是「活動節點」，推進節點就是換場
+  ---
+  duration_ms: 0.703189
+  type: 'test'
+  ...
+# Subtest: 場景鑰匙：同一個地點連續問兩次要是同一把鑰匙(否則型態一啟動就過期)
+ok 865 - 場景鑰匙：同一個地點連續問兩次要是同一把鑰匙(否則型態一啟動就過期)
+  ---
+  duration_ms: 0.297187
+  type: 'test'
+  ...
+# Subtest: 場景鑰匙：進出戰鬥不算換場(打一場架不會改變你站在哪裡)
+ok 866 - 場景鑰匙：進出戰鬥不算換場(打一場架不會改變你站在哪裡)
+  ---
+  duration_ms: 0.660397
+  type: 'test'
+  ...
+# Subtest: 戰鬥中會被標記出來，而且描述文字說得出為什麼買不了
+ok 867 - 戰鬥中會被標記出來，而且描述文字說得出為什麼買不了
+  ---
+  duration_ms: 0.634239
+  type: 'test'
+  ...
+# Subtest: 副本中：支線與獎勵點數的商品買不了
+ok 868 - 副本中：支線與獎勵點數的商品買不了
+  ---
+  duration_ms: 0.900419
+  type: 'test'
+  ...
+# Subtest: 副本中：XP 商品買得到，但要付兩倍
+ok 869 - 副本中：XP 商品買得到，但要付兩倍
+  ---
+  duration_ms: 0.198172
+  type: 'test'
+  ...
+# Subtest: 主神空間：什麼都不加價、什麼都不擋
+ok 870 - 主神空間：什麼都不加價、什麼都不擋
+  ---
+  duration_ms: 0.265969
+  type: 'test'
+  ...
+# Subtest: 副本中而且在戰鬥：連 XP 商品都擋下(這是實作限制，理由要寫清楚)
+ok 871 - 副本中而且在戰鬥：連 XP 商品都擋下(這是實作限制，理由要寫清楚)
+  ---
+  duration_ms: 0.154925
+  type: 'test'
+  ...
+# Subtest: evaluatePurchase 吃得到地點：同一件商品在兩個地點結果不同
+ok 872 - evaluatePurchase 吃得到地點：同一件商品在兩個地點結果不同
+  ---
+  duration_ms: 1.035873
+  type: 'test'
+  ...
+# Subtest: 執行期的貨架註冊表跟 content/packs 的 JSON 逐件一致(忘記同步就會紅)
+ok 873 - 執行期的貨架註冊表跟 content/packs 的 JSON 逐件一致(忘記同步就會紅)
+  ---
+  duration_ms: 4.116304
+  type: 'test'
+  ...
+# Subtest: 服務類商品要傳角色卡才算得出來(療傷價格取決於身上有幾點傷)
+ok 874 - 服務類商品要傳角色卡才算得出來(療傷價格取決於身上有幾點傷)
+  ---
+  duration_ms: 0.488855
+  type: 'test'
+  ...
+# Subtest: GET /api/shop：回貨架、錢包與現在人在哪
+ok 875 - GET /api/shop：回貨架、錢包與現在人在哪
+  ---
+  duration_ms: 7.815165
+  type: 'test'
+  ...
+# Subtest: GET /api/shop：新建的存檔在副本裡，所以點數商品是買不了的狀態
+ok 876 - GET /api/shop：新建的存檔在副本裡，所以點數商品是買不了的狀態
+  ---
+  duration_ms: 5.664743
+  type: 'test'
+  ...
+# Subtest: POST /api/shop：副本中買點數商品被擋，而且理由指名是地點
+ok 877 - POST /api/shop：副本中買點數商品被擋，而且理由指名是地點
+  ---
+  duration_ms: 2.677177
+  type: 'test'
+  ...
+# Subtest: POST /api/shop：回到主神空間之後就買得到，而且角色卡與錢包都寫回存檔
+ok 878 - POST /api/shop：回到主神空間之後就買得到，而且角色卡與錢包都寫回存檔
+  ---
+  duration_ms: 9.325338
+  type: 'test'
+  ...
+# Subtest: POST /api/shop：買不存在的商品回404，不是靜靜地什麼都不做
+ok 879 - POST /api/shop：買不存在的商品回404，不是靜靜地什麼都不做
+  ---
+  duration_ms: 1.970552
+  type: 'test'
+  ...
+# Subtest: 掛名商品在貨架上看得到，但買不了
+ok 880 - 掛名商品在貨架上看得到，但買不了
+  ---
+  duration_ms: 4.452991
+  type: 'test'
+  ...
+# Subtest: 效果驗證：kind 必須在詞彙表內
+ok 881 - 效果驗證：kind 必須在詞彙表內
+  ---
+  duration_ms: 2.600862
+  type: 'test'
+  ...
+# Subtest: 效果驗證：檢定類效果沒有匹配鍵一律擋下(這是不讓AI決定加值何時生效的那道閘門)
+ok 882 - 效果驗證：檢定類效果沒有匹配鍵一律擋下(這是不讓AI決定加值何時生效的那道閘門)
+  ---
+  duration_ms: 0.360125
+  type: 'test'
+  ...
+# Subtest: 效果驗證：屬性/技能名必須是六維十技能，寫原始九維或22技能會被擋
+ok 883 - 效果驗證：屬性/技能名必須是六維十技能，寫原始九維或22技能會被擋
+  ---
+  duration_ms: 0.252235
+  type: 'test'
+  ...
+# Subtest: 效果詞彙表的每一個 kind 都要標明它接到引擎的哪個欄位
+ok 884 - 效果詞彙表的每一個 kind 都要標明它接到引擎的哪個欄位
+  ---
+  duration_ms: 0.402506
+  type: 'test'
+  ...
+# Subtest: 『檢定加骰』真的改變 performCheck 的骰池，而且只對匹配的技能生效
+ok 885 - 『檢定加骰』真的改變 performCheck 的骰池，而且只對匹配的技能生效
+  ---
+  duration_ms: 2.789402
+  type: 'test'
+  ...
+# Subtest: 『附加成功』接到 performCheck 的 otherBonusSuccesses
+ok 886 - 『附加成功』接到 performCheck 的 otherBonusSuccesses
+  ---
+  duration_ms: 0.343144
+  type: 'test'
+  ...
+# Subtest: 『防御』與『護甲』真的改變 computeDefenseDC / applyArmor 的結果
+ok 887 - 『防御』與『護甲』真的改變 computeDefenseDC / applyArmor 的結果
+  ---
+  duration_ms: 0.477375
+  type: 'test'
+  ...
+# Subtest: 『武器』的形狀直接對齊戰鬥引擎吃得下的武器物件
+ok 888 - 『武器』的形狀直接對齊戰鬥引擎吃得下的武器物件
+  ---
+  duration_ms: 0.944864
+  type: 'test'
+  ...
+# Subtest: 『屬性』『技能』是購買當下就寫進角色卡的永久效果
+ok 889 - 『屬性』『技能』是購買當下就寫進角色卡的永久效果
+  ---
+  duration_ms: 2.090546
+  type: 'test'
+  ...
+# Subtest: 『治療』真的把傷勢軌上的點數轉回完好
+ok 890 - 『治療』真的把傷勢軌上的點數轉回完好
+  ---
+  duration_ms: 1.120611
+  type: 'test'
+  ...
+# Subtest: 『敘事』效果明確不帶數值：套用之後角色卡任何數字都不變
+ok 891 - 『敘事』效果明確不帶數值：套用之後角色卡任何數字都不變
+  ---
+  duration_ms: 0.442955
+  type: 'test'
+  ...
+# Subtest: 餘額不足時擋下，而且說得出還差多少
+ok 892 - 餘額不足時擋下，而且說得出還差多少
+  ---
+  duration_ms: 0.341499
+  type: 'test'
+  ...
+# Subtest: 前提不足時擋下(屬性與技能分開報)
+ok 893 - 前提不足時擋下(屬性與技能分開報)
+  ---
+  duration_ms: 0.464207
+  type: 'test'
+  ...
+# Subtest: 阻擋理由一次列齊，不是遇到第一個就回傳
+ok 894 - 阻擋理由一次列齊，不是遇到第一個就回傳
+  ---
+  duration_ms: 0.369292
+  type: 'test'
+  ...
+# Subtest: 模板能力五類排他：買了血統就不能再買第二個血統，但可以升級同一個
+ok 895 - 模板能力五類排他：買了血統就不能再買第二個血統，但可以升級同一個
+  ---
+  duration_ms: 0.967691
+  type: 'test'
+  ...
+# Subtest: exclusiveGroup 只能是書上寫的那五類
+ok 896 - exclusiveGroup 只能是書上寫的那五類
+  ---
+  duration_ms: 0.418099
+  type: 'test'
+  ...
+# Subtest: 依序購買：沒有D級不能直接買B級
+ok 897 - 依序購買：沒有D級不能直接買B級
+  ---
+  duration_ms: 0.312148
+  type: 'test'
+  ...
+# Subtest: 專長依序學習：不能跳級，而且等級不得超過關鍵屬性數值
+ok 898 - 專長依序學習：不能跳級，而且等級不得超過關鍵屬性數值
+  ---
+  duration_ms: 0.413955
+  type: 'test'
+  ...
+# Subtest: 非消耗品不可重複購買，消耗品可以
+ok 899 - 非消耗品不可重複購買，消耗品可以
+  ---
+  duration_ms: 0.467681
+  type: 'test'
+  ...
+# Subtest: 血統的自由屬性點：分配必須剛好用完、單項不得超過模板上限，而且由呼叫端指定不是AI決定
+ok 900 - 血統的自由屬性點：分配必須剛好用完、單項不得超過模板上限，而且由呼叫端指定不是AI決定
+  ---
+  duration_ms: 0.777479
+  type: 'test'
+  ...
+# Subtest: 成交後錢包與角色卡都是新物件，原本的不動
+ok 901 - 成交後錢包與角色卡都是新物件，原本的不動
+  ---
+  duration_ms: 0.259799
+  type: 'test'
+  ...
+# Subtest: 貨架把買不起的商品也列出來，並附上阻擋理由
+ok 902 - 貨架把買不起的商品也列出來，並附上阻擋理由
+  ---
+  duration_ms: 0.38967
+  type: 'test'
+  ...
+# Subtest: validateGood：缺 sourceRef / 空 effects / 丟掉特性沒寫理由，都要擋
+ok 903 - validateGood：缺 sourceRef / 空 effects / 丟掉特性沒寫理由，都要擋
+  ---
+  duration_ms: 0.809015
+  type: 'test'
+  ...
+# Subtest: auditGoodPricing：拿商品價格去對模板，落差只回報不覆蓋
+ok 904 - auditGoodPricing：拿商品價格去對模板，落差只回報不覆蓋
+  ---
+  duration_ms: 0.356477
+  type: 'test'
+  ...
+# Subtest: formatPrice 與商品定價的往返一致(商店UI顯示的價格就是書上的寫法)
+ok 905 - formatPrice 與商品定價的往返一致(商店UI顯示的價格就是書上的寫法)
+  ---
+  duration_ms: 0.202184
+  type: 'test'
+  ...
+# Subtest: 型態驗證：合法的型態通過
+ok 906 - 型態驗證：合法的型態通過
+  ---
+  duration_ms: 3.48007
+  type: 'test'
+  ...
+# Subtest: 型態驗證：沒有任何啟動成本的型態被擋下(沒有代價就沒有理由不永遠開著)
+ok 907 - 型態驗證：沒有任何啟動成本的型態被擋下(沒有代價就沒有理由不永遠開著)
+  ---
+  duration_ms: 0.634029
+  type: 'test'
+  ...
+# Subtest: 型態驗證：持續時間單位只接受引擎真的在遞減的那兩個
+ok 908 - 型態驗證：持續時間單位只接受引擎真的在遞減的那兩個
+  ---
+  duration_ms: 0.316368
+  type: 'test'
+  ...
+# Subtest: 型態驗證：grants 不能塞會寫進角色卡的效果(型態結束時收不回來)
+ok 909 - 型態驗證：grants 不能塞會寫進角色卡的效果(型態結束時收不回來)
+  ---
+  duration_ms: 0.737487
+  type: 'test'
+  ...
+# Subtest: 型態驗證：型態不可以巢狀
+ok 910 - 型態驗證：型態不可以巢狀
+  ---
+  duration_ms: 0.225009
+  type: 'test'
+  ...
+# Subtest: 型態驗證：grants 是空陣列的型態不該存在
+ok 911 - 型態驗證：grants 是空陣列的型態不該存在
+  ---
+  duration_ms: 0.332568
+  type: 'test'
+  ...
+# Subtest: 型態內部的檢定加骰可以沒有匹配鍵，型態外面的不行(閘門從AI換成引擎，不是拆掉閘門)
+ok 912 - 型態內部的檢定加骰可以沒有匹配鍵，型態外面的不行(閘門從AI換成引擎，不是拆掉閘門)
+  ---
+  duration_ms: 0.27281
+  type: 'test'
+  ...
+# Subtest: 啟動型態真的扣意志力——這是 character.derived.willpower 的第一個消費端
+ok 913 - 啟動型態真的扣意志力——這是 character.derived.willpower 的第一個消費端
+  ---
+  duration_ms: 1.239243
+  type: 'test'
+  ...
+# Subtest: 意志力不夠就啟動不了，而且理由講得出數字
+ok 914 - 意志力不夠就啟動不了，而且理由講得出數字
+  ---
+  duration_ms: 0.618472
+  type: 'test'
+  ...
+# Subtest: 型態的啟動動作等級是資料的一部分，戰鬥系統靠它決定要扣哪一種動作
+ok 915 - 型態的啟動動作等級是資料的一部分，戰鬥系統靠它決定要扣哪一種動作
+  ---
+  duration_ms: 0.891436
+  type: 'test'
+  ...
+# Subtest: 啟動失敗時意志力不會被扣掉(所有阻擋一次列齊，然後整筆不成立)
+ok 916 - 啟動失敗時意志力不會被扣掉(所有阻擋一次列齊，然後整筆不成立)
+  ---
+  duration_ms: 0.520838
+  type: 'test'
+  ...
+# Subtest: 同一個型態不能疊加——書上的「每場景一次」就是靠這一條表達的
+ok 917 - 同一個型態不能疊加——書上的「每場景一次」就是靠這一條表達的
+  ---
+  duration_ms: 0.251022
+  type: 'test'
+  ...
+# Subtest: 身上沒有的型態啟動不了
+ok 918 - 身上沒有的型態啟動不了
+  ---
+  duration_ms: 0.163177
+  type: 'test'
+  ...
+# Subtest: 型態開啟後 combatProfileFrom() 的防御真的變高，結束後真的變回來
+ok 919 - 型態開啟後 combatProfileFrom() 的防御真的變高，結束後真的變回來
+  ---
+  duration_ms: 0.554935
+  type: 'test'
+  ...
+# Subtest: 型態開啟後 weaponsFrom() 才拿得到天生武器
+ok 920 - 型態開啟後 weaponsFrom() 才拿得到天生武器
+  ---
+  duration_ms: 0.363504
+  type: 'test'
+  ...
+# Subtest: 型態授予的無匹配鍵加骰對任何檢定都成立，而且真的改變 performCheck 的骰池
+ok 921 - 型態授予的無匹配鍵加骰對任何檢定都成立，而且真的改變 performCheck 的骰池
+  ---
+  duration_ms: 1.629757
+  type: 'test'
+  ...
+# Subtest: 以輪計時的型態：啟動當輪算第1輪，撐滿指定輪數後才失效
+ok 922 - 以輪計時的型態：啟動當輪算第1輪，撐滿指定輪數後才失效
+  ---
+  duration_ms: 0.485679
+  type: 'test'
+  ...
+# Subtest: 以場景計時的型態不會被輪數帶走(那是另一個時鐘)
+ok 923 - 以場景計時的型態不會被輪數帶走(那是另一個時鐘)
+  ---
+  duration_ms: 0.238701
+  type: 'test'
+  ...
+# Subtest: 場景結束會把以輪計時的型態一起收掉(戰鬥輪不會再前進，留著等於永不過期)
+ok 924 - 場景結束會把以輪計時的型態一起收掉(戰鬥輪不會再前進，留著等於永不過期)
+  ---
+  duration_ms: 0.224416
+  type: 'test'
+  ...
+# Subtest: 以輪計時卻沒告訴它現在第幾輪，啟動會被擋下(不然它永遠不會到期)
+ok 925 - 以輪計時卻沒告訴它現在第幾輪，啟動會被擋下(不然它永遠不會到期)
+  ---
+  duration_ms: 0.19717
+  type: 'test'
+  ...
+# Subtest: 主動結束型態：加值立刻消失，意志力不退
+ok 926 - 主動結束型態：加值立刻消失，意志力不退
+  ---
+  duration_ms: 0.284319
+  type: 'test'
+  ...
+# Subtest: formsOf/describeActiveForms：貨架與敘事拿得到人看得懂的描述
+ok 927 - formsOf/describeActiveForms：貨架與敘事拿得到人看得懂的描述
+  ---
+  duration_ms: 0.416182
+  type: 'test'
+  ...
+# Subtest: Orphnoch 血統買下去之後，型態就在角色身上，而且可以啟動
+ok 928 - Orphnoch 血統買下去之後，型態就在角色身上，而且可以啟動
+  ---
+  duration_ms: 3.671607
+  type: 'test'
+  ...
+# Subtest: 阿蘭斯的『帝國子民』從 droppedTraits 撿回來，變成一個真的會生效的型態
+ok 929 - 阿蘭斯的『帝國子民』從 droppedTraits 撿回來，變成一個真的會生效的型態
+  ---
+  duration_ms: 0.879793
+  type: 'test'
+  ...
+# Subtest: applyCheckModifiers：把持有能力的加值加上去，而不是覆蓋呼叫端原本的情境調整
+ok 930 - applyCheckModifiers：把持有能力的加值加上去，而不是覆蓋呼叫端原本的情境調整
+  ---
+  duration_ms: 0.384885
+  type: 'test'
+  ...
+# Subtest: POST /api/check：買了加求生的專長之後，同一個檢定的骰池真的變大
+ok 931 - POST /api/check：買了加求生的專長之後，同一個檢定的骰池真的變大
+  ---
+  duration_ms: 33.161456
+  type: 'test'
+  ...
+# Subtest: ATTACK_CHECK_KEYS：七種攻擊方式都指得出自己算的是哪一組屬性＋技能
+ok 932 - ATTACK_CHECK_KEYS：七種攻擊方式都指得出自己算的是哪一組屬性＋技能
+  ---
+  duration_ms: 0.340899
+  type: 'test'
+  ...
+# Subtest: attackModifiersFor：匹配規則跟一般檢定完全一樣，只是鍵來自攻擊方式
+ok 933 - attackModifiersFor：匹配規則跟一般檢定完全一樣，只是鍵來自攻擊方式
+  ---
+  duration_ms: 0.277824
+  type: 'test'
+  ...
+# Subtest: 複數匹配鍵：「生理系屬性」寫得出來，而且只命中那三個
+ok 934 - 複數匹配鍵：「生理系屬性」寫得出來，而且只命中那三個
+  ---
+  duration_ms: 0.280038
+  type: 'test'
+  ...
+# Subtest: scope：攻擊限定的加值不會外溢到一般檢定，反之亦然
+ok 935 - scope：攻擊限定的加值不會外溢到一般檢定，反之亦然
+  ---
+  duration_ms: 1.630216
+  type: 'test'
+  ...
+# Subtest: EVOL 的『攻擊強化』撿回來之後，開了才有、只加在攻擊上、一輪後失效
+ok 936 - EVOL 的『攻擊強化』撿回來之後，開了才有、只加在攻擊上、一輪後失效
+  ---
+  duration_ms: 1.379285
+  type: 'test'
+  ...
+# Subtest: 能量池上限＝關鍵屬性之和(書上原文的公式)
+ok 937 - 能量池上限＝關鍵屬性之和(書上原文的公式)
+  ---
+  duration_ms: 0.699392
+  type: 'test'
+  ...
+# Subtest: 重複開啟同一個池子的補償是 +5/+3/+1/+1，而且同一個來源不算重複
+ok 938 - 重複開啟同一個池子的補償是 +5/+3/+1/+1，而且同一個來源不算重複
+  ---
+  duration_ms: 0.404326
+  type: 'test'
+  ...
+# Subtest: 上限變大時多出來的是空的，不是免費補滿(容器變大，內容物沒變)
+ok 939 - 上限變大時多出來的是空的，不是免費補滿(容器變大，內容物沒變)
+  ---
+  duration_ms: 0.333746
+  type: 'test'
+  ...
+# Subtest: 能量不夠就整筆不成立，不扣一半
+ok 940 - 能量不夠就整筆不成立，不扣一半
+  ---
+  duration_ms: 0.228487
+  type: 'test'
+  ...
+# Subtest: 買混元劍經真的會在角色卡上開出劍氣池
+ok 941 - 買混元劍經真的會在角色卡上開出劍氣池
+  ---
+  duration_ms: 1.722276
+  type: 'test'
+  ...
+# Subtest: 整條鏈：混元劍經 → 劍氣池 → 青蓮劍歌總決 → 支付1點劍氣變出6L的劍
+ok 942 - 整條鏈：混元劍經 → 劍氣池 → 青蓮劍歌總決 → 支付1點劍氣變出6L的劍
+  ---
+  duration_ms: 1.713224
+  type: 'test'
+  ...
+# Subtest: 劍氣用完就變不出劍了(能量池是真的會見底的)
+ok 943 - 劍氣用完就變不出劍了(能量池是真的會見底的)
+  ---
+  duration_ms: 1.114235
+  type: 'test'
+  ...
+# Subtest: 內力也登錄了關鍵屬性，而且跟查克拉是同一組(書上說兩者運作方式幾乎一致)
+ok 944 - 內力也登錄了關鍵屬性，而且跟查克拉是同一組(書上說兩者運作方式幾乎一致)
+  ---
+  duration_ms: 0.162693
+  type: 'test'
+  ...
+# Subtest: 查過但收不了的池子留在 REJECTED_POOLS，每一筆都說得出行號與『為什麼不可能』
+ok 945 - 查過但收不了的池子留在 REJECTED_POOLS，每一筆都說得出行號與『為什麼不可能』
+  ---
+  duration_ms: 0.322127
+  type: 'test'
+  ...
+# Subtest: REJECTED_POOLS 指名擋住的商品，確實還掛在掛名狀態(否決清單不是寫爽的)
+ok 946 - REJECTED_POOLS 指名擋住的商品，確實還掛在掛名狀態(否決清單不是寫爽的)
+  ---
+  duration_ms: 0.467236
+  type: 'test'
+  ...
+# Subtest: 忍者的技能前提真的擋得住(六項原文前提對映成五項十技能)
+ok 947 - 忍者的技能前提真的擋得住(六項原文前提對映成五項十技能)
+  ---
+  duration_ms: 0.874787
+  type: 'test'
+  ...
+# Subtest: 整條鏈：忍者 → 查克拉池 → 寫輪眼(第二個來源，上限+5) → 洞察眼開眼
+ok 948 - 整條鏈：忍者 → 查克拉池 → 寫輪眼(第二個來源，上限+5) → 洞察眼開眼
+  ---
+  duration_ms: 3.33106
+  type: 'test'
+  ...
+# Subtest: 查克拉見底時開不了眼(洞察眼跟劍氣化碧受同一條約定管)
+ok 949 - 查克拉見底時開不了眼(洞察眼跟劍氣化碧受同一條約定管)
+  ---
+  duration_ms: 0.53692
+  type: 'test'
+  ...
+# Subtest: 內力鏈：內力心法開池，葵花寶典是第二個來源——書上寫的+5就是通則算出來的+5
+ok 950 - 內力鏈：內力心法開池，葵花寶典是第二個來源——書上寫的+5就是通則算出來的+5
+  ---
+  duration_ms: 1.514041
+  type: 'test'
+  ...
+# Subtest: 戰鬥外啟動場景型態會記下當下的地點
+ok 951 - 戰鬥外啟動場景型態會記下當下的地點
+  ---
+  duration_ms: 0.189436
+  type: 'test'
+  ...
+# Subtest: 換地點 → 場景型態到期；留在原地 → 繼續有效
+ok 952 - 換地點 → 場景型態到期；留在原地 → 繼續有效
+  ---
+  duration_ms: 0.479755
+  type: 'test'
+  ...
+# Subtest: 回到主神空間也是一次換場(副本裡開的眼會關掉)
+ok 953 - 回到主神空間也是一次換場(副本裡開的眼會關掉)
+  ---
+  duration_ms: 0.168912
+  type: 'test'
+  ...
+# Subtest: 以「輪」計時的型態不歸換場管(它由戰鬥的輪時鐘收)
+ok 954 - 以「輪」計時的型態不歸換場管(它由戰鬥的輪時鐘收)
+  ---
+  duration_ms: 0.181932
+  type: 'test'
+  ...
+# Subtest: endCombat 只收輪型態，場景型態撐得過收兵
+ok 955 - endCombat 只收輪型態，場景型態撐得過收兵
+  ---
+  duration_ms: 0.591958
+  type: 'test'
+  ...
+# Subtest: 可變量型態驗證：合法的寫法通過，缺了上限規則的擋下來
+ok 956 - 可變量型態驗證：合法的寫法通過，缺了上限規則的擋下來
+  ---
+  duration_ms: 0.329976
+  type: 'test'
+  ...
+# Subtest: 可變量型態驗證：amountPerPoint 只能寫在真的有可變量支付的型態裡
+ok 957 - 可變量型態驗證：amountPerPoint 只能寫在真的有可變量支付的型態裡
+  ---
+  duration_ms: 0.154395
+  type: 'test'
+  ...
+# Subtest: 型態驗證：grants 與 modes 必須恰好二選一，modes 至少要有兩個選項
+ok 958 - 型態驗證：grants 與 modes 必須恰好二選一，modes 至少要有兩個選項
+  ---
+  duration_ms: 0.29175
+  type: 'test'
+  ...
+# Subtest: 可變量型態：支付上限是「敏捷或感知取低」，由角色卡算出來
+ok 959 - 可變量型態：支付上限是「敏捷或感知取低」，由角色卡算出來
+  ---
+  duration_ms: 0.208101
+  type: 'test'
+  ...
+# Subtest: 可變量型態：沒報支付點數不會偷偷用最小值，超出上限也擋下來
+ok 960 - 可變量型態：沒報支付點數不會偷偷用最小值，超出上限也擋下來
+  ---
+  duration_ms: 0.360591
+  type: 'test'
+  ...
+# Subtest: 可變量型態：付幾點就扣幾點，攻擊骰池就多幾顆(付3點跟付1點真的差2顆)
+ok 961 - 可變量型態：付幾點就扣幾點，攻擊骰池就多幾顆(付3點跟付1點真的差2顆)
+  ---
+  duration_ms: 0.327835
+  type: 'test'
+  ...
+# Subtest: 可變量型態：二選一選「防」的時候，加的是防御而不是攻擊
+ok 962 - 可變量型態：二選一選「防」的時候，加的是防御而不是攻擊
+  ---
+  duration_ms: 0.305144
+  type: 'test'
+  ...
+# Subtest: 可變量型態：付幾點、選哪一種，都要看得見(不然同一個型態強度不同卻長得一樣)
+ok 963 - 可變量型態：付幾點、選哪一種，都要看得見(不然同一個型態強度不同卻長得一樣)
+  ---
+  duration_ms: 0.210796
+  type: 'test'
+  ...
+# Subtest: 維持成本驗證：upkeep 只能掛在「輪」上，untilUpkeepFails 一定要有 upkeep
+ok 964 - 維持成本驗證：upkeep 只能掛在「輪」上，untilUpkeepFails 一定要有 upkeep
+  ---
+  duration_ms: 0.387076
+  type: 'test'
+  ...
+# Subtest: 維持成本型態：靠維持活著的型態不會被時鐘收走(它沒有 expiresAfterRound)
+ok 965 - 維持成本型態：靠維持活著的型態不會被時鐘收走(它沒有 expiresAfterRound)
+  ---
+  duration_ms: 0.228714
+  type: 'test'
+  ...
+# Subtest: 維持成本型態：付得出來就每輪真的扣，付不出來就當場結束
+ok 966 - 維持成本型態：付得出來就每輪真的扣，付不出來就當場結束
+  ---
+  duration_ms: 0.658014
+  type: 'test'
+  ...
+# Subtest: 維持成本型態：一個斷氣不影響另一個(各付各的)
+ok 967 - 維持成本型態：一個斷氣不影響另一個(各付各的)
+  ---
+  duration_ms: 0.421169
+  type: 'test'
+  ...
+# Subtest: 所有商品包都通過 loader 的結構驗證，type 是新登記的「商品」
+ok 968 - 所有商品包都通過 loader 的結構驗證，type 是新登記的「商品」
+  ---
+  duration_ms: 4.217289
+  type: 'test'
+  ...
+# Subtest: 每一件商品都通過 validateGood(效果詞彙合法、有出處、丟掉的特性有理由)
+ok 969 - 每一件商品都通過 validateGood(效果詞彙合法、有出處、丟掉的特性有理由)
+  ---
+  duration_ms: 3.530191
+  type: 'test'
+  ...
+# Subtest: goodId 全域唯一
+ok 970 - goodId 全域唯一
+  ---
+  duration_ms: 0.217596
+  type: 'test'
+  ...
+# Subtest: 每一個 droppedTraits 的理由都指得出具體機制(對得上 UNSUPPORTED_MECHANICS 或指名模組)
+ok 971 - 每一個 droppedTraits 的理由都指得出具體機制(對得上 UNSUPPORTED_MECHANICS 或指名模組)
+  ---
+  duration_ms: 0.497036
+  type: 'test'
+  ...
+# Subtest: 每一個商品的 sourceRef 都指得出 rules-2.35.txt 的行號
+ok 972 - 每一個商品的 sourceRef 都指得出 rules-2.35.txt 的行號
+  ---
+  duration_ms: 0.512629
+  type: 'test'
+  ...
+# Subtest: 物品包：7件商品，全部給得出可用的武器或檢定效果(不是只有敘事)
+ok 973 - 物品包：7件商品，全部給得出可用的武器或檢定效果(不是只有敘事)
+  ---
+  duration_ms: 0.203737
+  type: 'test'
+  ...
+# Subtest: 物品包：書上寫 200 的就是 200，寫 D+500 的就是 D+500(不自行調價)
+ok 974 - 物品包：書上寫 200 的就是 200，寫 D+500 的就是 D+500(不自行調價)
+  ---
+  duration_ms: 0.335776
+  type: 'test'
+  ...
+# Subtest: 專長包：每一級的價格都等於 core/xp.js 的 featCost(等級)
+ok 975 - 專長包：每一級的價格都等於 core/xp.js 的 featCost(等級)
+  ---
+  duration_ms: 0.271887
+  type: 'test'
+  ...
+# Subtest: 專長包：多級專長的中間級不可以缺號(缺號會讓上面那一級永遠買不到)
+ok 976 - 專長包：多級專長的中間級不可以缺號(缺號會讓上面那一級永遠買不到)
+  ---
+  duration_ms: 0.773558
+  type: 'test'
+  ...
+# Subtest: 專長包：買齊荒野求生1~3級，求生檢定共 +3DP 與 +1 附加成功(跟書上等級加值一致)
+ok 977 - 專長包：買齊荒野求生1~3級，求生檢定共 +3DP 與 +1 附加成功(跟書上等級加值一致)
+  ---
+  duration_ms: 2.451558
+  type: 'test'
+  ...
+# Subtest: 專長包：買齊精通先攻1~3級，先攻+5、防御+3(跟書上一致)
+ok 978 - 專長包：買齊精通先攻1~3級，先攻+5、防御+3(跟書上一致)
+  ---
+  duration_ms: 0.878465
+  type: 'test'
+  ...
+# Subtest: 專長包：examinedButRejected 是刻意留下的紀錄，不可以是空的
+ok 979 - 專長包：examinedButRejected 是刻意留下的紀錄，不可以是空的
+  ---
+  duration_ms: 0.167154
+  type: 'test'
+  ...
+# Subtest: 模板能力包：阿蘭斯D級的價格與屬性點數都對得上血統模板
+ok 980 - 模板能力包：阿蘭斯D級的價格與屬性點數都對得上血統模板
+  ---
+  duration_ms: 0.280512
+  type: 'test'
+  ...
+# Subtest: 模板能力包：阿蘭斯買下去之後，四點屬性真的進了角色卡
+ok 981 - 模板能力包：阿蘭斯買下去之後，四點屬性真的進了角色卡
+  ---
+  duration_ms: 0.7925
+  type: 'test'
+  ...
+# Subtest: 同一張角色卡買下多件商品後，武器/檢定加值/戰鬥檔案能一起正確結算
+ok 982 - 同一張角色卡買下多件商品後，武器/檢定加值/戰鬥檔案能一起正確結算
+  ---
+  duration_ms: 1.073035
+  type: 'test'
+  ...
+# Subtest: 角色卡上沒有前提時，需要前提的商品確實買不到(手杖劍需要格鬥3/交涉2)
+ok 983 - 角色卡上沒有前提時，需要前提的商品確實買不到(手杖劍需要格鬥3/交涉2)
+  ---
+  duration_ms: 0.293857
+  type: 'test'
+  ...
+# Subtest: 七個模板化資源分類，每一類的起始貨架都有3件商品(能量池來源另計)
+ok 984 - 七個模板化資源分類，每一類的起始貨架都有3件商品(能量池來源另計)
+  ---
+  duration_ms: 0.383966
+  type: 'test'
+  ...
+# Subtest: 能量池來源包裡的條目，每一件都真的開得出一個登錄過關鍵屬性的池子
+ok 985 - 能量池來源包裡的條目，每一件都真的開得出一個登錄過關鍵屬性的池子
+  ---
+  duration_ms: 0.216964
+  type: 'test'
+  ...
+# Subtest: 這一輪不放 D 級以上的商品：所有商品的 rank 只會是 D 或無分級
+ok 986 - 這一輪不放 D 級以上的商品：所有商品的 rank 只會是 D 或無分級
+  ---
+  duration_ms: 0.242086
+  type: 'test'
+  ...
+# Subtest: 一整套資源的更高級數只登錄名字，不帶效果也不帶價格
+ok 987 - 一整套資源的更高級數只登錄名字，不帶效果也不帶價格
+  ---
+  duration_ms: 0.575877
+  type: 'test'
+  ...
+# Subtest: 掛名商品：貨架看得到、但買不了，而且說得出還缺什麼機制
+ok 988 - 掛名商品：貨架看得到、但買不了，而且說得出還缺什麼機制
+  ---
+  duration_ms: 0.642837
+  type: 'test'
+  ...
+# Subtest: 掛名商品保留了原文特性，之後補效果時不用回頭再翻一次規則書
+ok 989 - 掛名商品保留了原文特性，之後補效果時不用回頭再翻一次規則書
+  ---
+  duration_ms: 0.215054
+  type: 'test'
+  ...
+# Subtest: 上架商品一定給得出至少一個數值效果(不能只有敘事)
+ok 990 - 上架商品一定給得出至少一個數值效果(不能只有敘事)
+  ---
+  duration_ms: 0.24265
+  type: 'test'
+  ...
+# Subtest: 貨架摘要算得出每個分類的上架/掛名件數(掛名數字就是待辦清單)
+ok 991 - 貨架摘要算得出每個分類的上架/掛名件數(掛名數字就是待辦清單)
+  ---
+  duration_ms: 0.282893
+  type: 'test'
+  ...
+# Subtest: buildStorefront 把掛名狀態與後續級數一起帶給UI
+ok 992 - buildStorefront 把掛名狀態與後續級數一起帶給UI
+  ---
+  duration_ms: 0.632729
+  type: 'test'
+  ...
+# Subtest: 改造/技藝/法術的已知定價落差如實保留，不自行改成模板價
+ok 993 - 改造/技藝/法術的已知定價落差如實保留，不自行改成模板價
+  ---
+  duration_ms: 0.386162
+  type: 'test'
+  ...
+# Subtest: 價格與模板一致的類別確實通過稽核(稱號/流派 D+1000、瞳術 D+600)
+ok 994 - 價格與模板一致的類別確實通過稽核(稱號/流派 D+1000、瞳術 D+600)
+  ---
+  duration_ms: 0.243409
+  type: 'test'
+  ...
+# Subtest: 審判眼的龍骨炮是唯一的遠程武器，形狀吃得下 attackTypes 的『炮』公式
+ok 995 - 審判眼的龍骨炮是唯一的遠程武器，形狀吃得下 attackTypes 的『炮』公式
+  ---
+  duration_ms: 0.41142
+  type: 'test'
+  ...
+# Subtest: 港漫強者一次動到四種效果(技能/意志上限/防御/天生武器)，全部真的生效
+ok 996 - 港漫強者一次動到四種效果(技能/意志上限/防御/天生武器)，全部真的生效
+  ---
+  duration_ms: 0.582099
+  type: 'test'
+  ...
+# Subtest: 葵花寶典是唯一帶負面數值的商品：買了力量檢定會變差
+ok 997 - 葵花寶典是唯一帶負面數值的商品：買了力量檢定會變差
+  ---
+  duration_ms: 0.506872
+  type: 'test'
+  ...
+# Subtest: 模板能力五類排他在真實商品資料上也成立(買了血統就不能買改造以外的第二個血統)
+ok 998 - 模板能力五類排他在真實商品資料上也成立(買了血統就不能買改造以外的第二個血統)
+  ---
+  duration_ms: 0.413697
+  type: 'test'
+  ...
+# Subtest: 貨架上的每一個型態都啟動得起來，而且啟動後真的改變某個引擎函式的輸出
+ok 999 - 貨架上的每一個型態都啟動得起來，而且啟動後真的改變某個引擎函式的輸出
+  ---
+  duration_ms: 3.210065
+  type: 'test'
+  ...
+# Subtest: 平衡偏差：每一筆都說得出「差在哪／為什麼補不了／重新平衡時該看什麼」
+ok 1000 - 平衡偏差：每一筆都說得出「差在哪／為什麼補不了／重新平衡時該看什麼」
+  ---
+  duration_ms: 0.497933
+  type: 'test'
+  ...
+# Subtest: 平衡偏差：寫輪眼是目前唯一一件「丟掉的是限制而不是好處」的商品
+ok 1001 - 平衡偏差：寫輪眼是目前唯一一件「丟掉的是限制而不是好處」的商品
+  ---
+  duration_ms: 0.405257
+  type: 'test'
+  ...
+# Subtest: 平衡偏差：conversionNote 裡講到放寬/變強的商品，都要有結構化的 balanceNote
+ok 1002 - 平衡偏差：conversionNote 裡講到放寬/變強的商品，都要有結構化的 balanceNote
+  ---
+  duration_ms: 0.470567
+  type: 'test'
+  ...
+# Subtest: 屬性直購：書中範例『將力量從1提升到5需要200+400+600+800=2000分』
+ok 1003 - 屬性直購：書中範例『將力量從1提升到5需要200+400+600+800=2000分』
+  ---
+  duration_ms: 2.145731
+  type: 'test'
+  ...
+# Subtest: 屬性直購(經驗)：書中範例『將力量從1提升到5需要4+8+12+16=40XP』
+ok 1004 - 屬性直購(經驗)：書中範例『將力量從1提升到5需要4+8+12+16=40XP』
+  ---
+  duration_ms: 0.323525
+  type: 'test'
+  ...
+# Subtest: 屬性直購：0買到1的價格與1買到2相同(第674行的規則4)
+ok 1005 - 屬性直購：0買到1的價格與1買到2相同(第674行的規則4)
+  ---
+  duration_ms: 0.177037
+  type: 'test'
+  ...
+# Subtest: 技能直購：0→1是3XP，1→2受『最低為1點』的下限保護
+ok 1006 - 技能直購：0→1是3XP，1→2受『最低為1點』的下限保護
+  ---
+  duration_ms: 0.192582
+  type: 'test'
+  ...
+# Subtest: 特殊兌換價目表逐字對得上書中原文
+ok 1007 - 特殊兌換價目表逐字對得上書中原文
+  ---
+  duration_ms: 0.262347
+  type: 'test'
+  ...
+# Subtest: 解除超自然效果依等級收費，S級以上與S級同價
+ok 1008 - 解除超自然效果依等級收費，S級以上與S級同價
+  ---
+  duration_ms: 0.280095
+  type: 'test'
+  ...
+# Subtest: 療傷帳單只跟惡性傷害有關(沖擊/嚴重免費是書上寫的)
+ok 1009 - 療傷帳單只跟惡性傷害有關(沖擊/嚴重免費是書上寫的)
+  ---
+  duration_ms: 0.546218
+  type: 'test'
+  ...
+# Subtest: healDamage 是治療語意(單軌直接回完好)，不是 applyDamage 的反向層疊
+ok 1010 - healDamage 是治療語意(單軌直接回完好)，不是 applyDamage 的反向層疊
+  ---
+  duration_ms: 0.397131
+  type: 'test'
+  ...
+# Subtest: 服務貨架：受了惡性傷害才會出現療傷商品，而且價格照傷勢算
+ok 1011 - 服務貨架：受了惡性傷害才會出現療傷商品，而且價格照傷勢算
+  ---
+  duration_ms: 0.903839
+  type: 'test'
+  ...
+# Subtest: 服務貨架上的每一件都通過 validateGood
+ok 1012 - 服務貨架上的每一件都通過 validateGood
+  ---
+  duration_ms: 1.566612
+  type: 'test'
+  ...
+# Subtest: 價格標記法：書中出現過的每一種寫法都要解析得出來
+ok 1013 - 價格標記法：書中出現過的每一種寫法都要解析得出來
+  ---
+  duration_ms: 4.563385
+  type: 'test'
+  ...
+# Subtest: 價格標記法：看不懂的寫法要吵，不可以默默當成0元
+ok 1014 - 價格標記法：看不懂的寫法要吵，不可以默默當成0元
+  ---
+  duration_ms: 0.881425
+  type: 'test'
+  ...
+# Subtest: 支線拆組是3進位且無損：3D=1C，3C=1B，3B=1A，3A=1S
+ok 1015 - 支線拆組是3進位且無損：3D=1C，3C=1B，3B=1A，3A=1S
+  ---
+  duration_ms: 0.513493
+  type: 'test'
+  ...
+# Subtest: 拆組無損直接決定了付款行為：手上1個C可以買3件D級商品
+ok 1016 - 拆組無損直接決定了付款行為：手上1個C可以買3件D級商品
+  ---
+  duration_ms: 0.713447
+  type: 'test'
+  ...
+# Subtest: 付款不改動原本的錢包，並把花費記進 spentLedger
+ok 1017 - 付款不改動原本的錢包，並把花費記進 spentLedger
+  ---
+  duration_ms: 0.420933
+  type: 'test'
+  ...
+# Subtest: 同一個名目付兩次，帳本要累加而不是覆蓋
+ok 1018 - 同一個名目付兩次，帳本要累加而不是覆蓋
+  ---
+  duration_ms: 0.283466
+  type: 'test'
+  ...
+# Subtest: XP 是獨立的第三種貨幣，買專長只扣XP不扣分數
+ok 1019 - XP 是獨立的第三種貨幣，買專長只扣XP不扣分數
+  ---
+  duration_ms: 0.294959
+  type: 'test'
+  ...
+# Subtest: formatPrice 印回書上的寫法(先攤成最大面額)
+ok 1020 - formatPrice 印回書上的寫法(先攤成最大面額)
+  ---
+  duration_ms: 0.449954
+  type: 'test'
+  ...
+# Subtest: earn 入帳
+ok 1021 - earn 入帳
+  ---
+  duration_ms: 0.534644
+  type: 'test'
+  ...
+# Subtest: 復活費用：書中的 D+1000未花 + D+600血統 + 3000屬性 = DD+4600 範例
+ok 1022 - 復活費用：書中的 D+1000未花 + D+600血統 + 3000屬性 = DD+4600 範例
+  ---
+  duration_ms: 0.843608
+  type: 'test'
+  ...
+# [SCENARIO_SETTLEMENT_FAILED] {"where":"POST /api/combat/v2/turn","sessionId":"5a2f9a7d-edca-4336-8092-fe8bce9560e5","packId":"scenario.echo-institute-01","nodeId":"不存在的節點","reason":"副本包裡沒有節點「不存在的節點」"}
+# [COMBAT_V2_START_FAILED] {"where":"POST /api/combat/v2/start","sessionId":"45b91689-f1ed-4335-8047-d6088c0080f5","encounterId":null,"enemyTemplate":"(內建佔位遭遇)","message":"角色卡沒有可用的生命值狀態（character.derived.hp）——無法建立戰鬥。這通常代表存檔的衍生數值沒有算過，見 core/derivedStats.js 的 computeDerivedStats()。"}
+# [LLM_FAILURE] {"where":"POST /api/narrate","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","httpStatus":null,"fallbackAttempts":[{"provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null}],"message":"Workers AI 呼叫失敗（模型 @cf/qwen/qwen3-30b-a3b-fp8）：模型被下架","bodySnippet":"模型被下架"}
+# Subtest: 戰鬥中的存檔，GET /api/session 要告訴前端有仗在打(前端才知道要還原戰鬥畫面)
+ok 1023 - 戰鬥中的存檔，GET /api/session 要告訴前端有仗在打(前端才知道要還原戰鬥畫面)
+  ---
+  duration_ms: 74.044353
+  type: 'test'
+  ...
+# Subtest: 最終戰結算失敗時，回應要帶出原因，不能讓玩家以為自己沒打贏
+ok 1024 - 最終戰結算失敗時，回應要帶出原因，不能讓玩家以為自己沒打贏
+  ---
+  duration_ms: 15.391817
+  type: 'test'
+  ...
+# Subtest: 敵人樣板的 weaponKey 不在型錄裡時，要指名問題並列出可用值
+ok 1025 - 敵人樣板的 weaponKey 不在型錄裡時，要指名問題並列出可用值
+  ---
+  duration_ms: 1.090502
+  type: 'test'
+  ...
+# Subtest: 敵人樣板缺 attributes 時也要指名問題(推導不出生命值與先攻)
+ok 1026 - 敵人樣板缺 attributes 時也要指名問題(推導不出生命值與先攻)
+  ---
+  duration_ms: 0.312878
+  type: 'test'
+  ...
+# Subtest: /api/combat/v2/start：角色/敵人資料壞掉時回400並說明，不是沒有內容的500
+ok 1027 - /api/combat/v2/start：角色/敵人資料壞掉時回400並說明，不是沒有內容的500
+  ---
+  duration_ms: 3.320086
+  type: 'test'
+  ...
+# Subtest: /api/narrate：選了供應商卻沒帶金鑰時要擋下，不可以偷偷改用伺服器的金鑰
+ok 1028 - /api/narrate：選了供應商卻沒帶金鑰時要擋下，不可以偷偷改用伺服器的金鑰
+  ---
+  duration_ms: 1.667733
+  type: 'test'
+  ...
+# Subtest: /api/narrate：前端指定的供應商要真的生效(先前這個端點完全不看body裡的provider)
+ok 1029 - /api/narrate：前端指定的供應商要真的生效(先前這個端點完全不看body裡的provider)
+  ---
+  duration_ms: 4.733688
+  type: 'test'
+  ...
+# Subtest: /api/narrate：LLM失敗時要帶出 stage/httpStatus，跟 /api/turn 同一個形狀
+ok 1030 - /api/narrate：LLM失敗時要帶出 stage/httpStatus，跟 /api/turn 同一個形狀
+  ---
+  duration_ms: 3.226963
+  type: 'test'
+  ...
+# Subtest: 十項起始專長使用指定名稱、描述並一對一覆蓋 canonical skills
+ok 1031 - 十項起始專長使用指定名稱、描述並一對一覆蓋 canonical skills
+  ---
+  duration_ms: 2.337459
+  type: 'test'
+  ...
+# Subtest: 專長敘事只在成功／大成功且實際 skill 對應已選 feat 時產生
+ok 1032 - 專長敘事只在成功／大成功且實際 skill 對應已選 feat 時產生
+  ---
+  duration_ms: 0.58376
+  type: 'test'
+  ...
+# Subtest: 專長敘事不會在失敗、驚險成功、未選或無關技能時觸發
+ok 1033 - 專長敘事不會在失敗、驚險成功、未選或無關技能時觸發
+  ---
+  duration_ms: 0.396762
+  type: 'test'
+  ...
+# Subtest: 專長敘事只認 server 生成的起始專長 feat，不接受同技能的自造名稱
+ok 1034 - 專長敘事只認 server 生成的起始專長 feat，不接受同技能的自造名稱
+  ---
+  duration_ms: 0.24151
+  type: 'test'
+  ...
+# Subtest: 骰池統計：大樣本下，每顆初始骰的平均成功數應收斂到理論值 1/3
+ok 1035 - 骰池統計：大樣本下，每顆初始骰的平均成功數應收斂到理論值 1/3
+  ---
+  duration_ms: 34.272643
+  type: 'test'
+  ...
+# Subtest: 骰池統計：不合法的低門檻會被夾到8，其期望值應符合『8再骰』的理論值 3/7
+ok 1036 - 骰池統計：不合法的低門檻會被夾到8，其期望值應符合『8再骰』的理論值 3/7
+  ---
+  duration_ms: 32.029298
+  type: 'test'
+  ...
+# Subtest: 骰池統計：不合法的高門檻(>10)會被夾回10，其期望值符合預設的1/3
+ok 1037 - 骰池統計：不合法的高門檻(>10)會被夾回10，其期望值符合預設的1/3
+  ---
+  duration_ms: 31.664542
+  type: 'test'
+  ...
+# Subtest: 骰池統計：機運骰(DP<=0)整條加骰鏈只認天然10，期望成功數應收斂到理論值 1/9
+ok 1038 - 骰池統計：機運骰(DP<=0)整條加骰鏈只認天然10，期望成功數應收斂到理論值 1/9
+  ---
+  duration_ms: 73.432648
+  type: 'test'
+  ...
+# Subtest: 骰池統計：成功數不會是負數，且不會超過理論上限(每顆骰最多不斷加骰的極端情況仍是有限次數內的合理範圍)
+ok 1039 - 骰池統計：成功數不會是負數，且不會超過理論上限(每顆骰最多不斷加骰的極端情況仍是有限次數內的合理範圍)
+  ---
+  duration_ms: 0.751481
+  type: 'test'
+  ...
+# Subtest: 成功會拉開距離、失敗會逼近：兩者一定走向不同的迫近度
+ok 1040 - 成功會拉開距離、失敗會逼近：兩者一定走向不同的迫近度
+  ---
+  duration_ms: 3.113166
+  type: 'test'
+  ...
+# Subtest: 分級表的每一個分級都要有對應的迫近度增減條目(漏一個就等於那個分級沒有後果)
+ok 1041 - 分級表的每一個分級都要有對應的迫近度增減條目(漏一個就等於那個分級沒有後果)
+  ---
+  duration_ms: 0.476053
+  type: 'test'
+  ...
+# Subtest: 只有低於DC(margin<0)的分級才會讓迫近度上升；margin>=0一律不上升
+ok 1042 - 只有低於DC(margin<0)的分級才會讓迫近度上升；margin>=0一律不上升
+  ---
+  duration_ms: 0.241278
+  type: 'test'
+  ...
+# Subtest: 連續兩次普通失敗就會跨一個階段(失敗是會累積的，不是每次重來)
+ok 1043 - 連續兩次普通失敗就會跨一個階段(失敗是會累積的，不是每次重來)
+  ---
+  duration_ms: 0.333158
+  type: 'test'
+  ...
+# Subtest: 迫近度不會超出 0~THREAT_MAX，也不會因為連續大成功變成負數
+ok 1044 - 迫近度不會超出 0~THREAT_MAX，也不會因為連續大成功變成負數
+  ---
+  duration_ms: 0.506297
+  type: 'test'
+  ...
+# Subtest: 撞到上限時回報 contact，呼叫端才知道要開放/強制戰鬥
+ok 1045 - 撞到上限時回報 contact，呼叫端才知道要開放/強制戰鬥
+  ---
+  duration_ms: 0.190947
+  type: 'test'
+  ...
+# Subtest: 沒有判定的回合(開場/純敘事)不會動到迫近度
+ok 1046 - 沒有判定的回合(開場/純敘事)不會動到迫近度
+  ---
+  duration_ms: 0.347476
+  type: 'test'
+  ...
+# Subtest: 開戰之後迫近度回落但不歸零(追兵還在，只是變成正面衝突)
+ok 1047 - 開戰之後迫近度回落但不歸零(追兵還在，只是變成正面衝突)
+  ---
+  duration_ms: 0.22344
+  type: 'test'
+  ...
+# Subtest: 階段表覆蓋 0~THREAT_MAX 每一格，不會有查不到階段的數字
+ok 1048 - 階段表覆蓋 0~THREAT_MAX 每一格，不會有查不到階段的數字
+  ---
+  duration_ms: 0.49252
+  type: 'test'
+  ...
+# Subtest: 舊存檔沒有 threat 欄位時自動補一條全新軌道，不會壞掉
+ok 1049 - 舊存檔沒有 threat 欄位時自動補一條全新軌道，不會壞掉
+  ---
+  duration_ms: 1.565949
+  type: 'test'
+  ...
+# Subtest: buildThreatDirective：副本自己的風味文字會被帶進去，且不會把數字以外的規則交給AI決定
+ok 1050 - buildThreatDirective：副本自己的風味文字會被帶進去，且不會把數字以外的規則交給AI決定
+  ---
+  duration_ms: 0.936975
+  type: 'test'
+  ...
+# Subtest: threatSummary：給前端的摘要不含給AI的指令原文
+ok 1051 - threatSummary：給前端的摘要不含給AI的指令原文
+  ---
+  duration_ms: 0.32047
+  type: 'test'
+  ...
+# Subtest: createTimeBudget：非正數要丟錯
+ok 1052 - createTimeBudget：非正數要丟錯
+  ---
+  duration_ms: 1.490687
+  type: 'test'
+  ...
+# Subtest: spendTime：花費會正確累加，且不修改原本的 budget 物件(不可變)
+ok 1053 - spendTime：花費會正確累加，且不修改原本的 budget 物件(不可變)
+  ---
+  duration_ms: 0.387527
+  type: 'test'
+  ...
+# Subtest: spendTime：主線推進與NPC好感度養成共用同一筆預算——這是核心需求
+ok 1054 - spendTime：主線推進與NPC好感度養成共用同一筆預算——這是核心需求
+  ---
+  duration_ms: 0.199937
+  type: 'test'
+  ...
+# Subtest: spendTime：花費非正數要丟錯
+ok 1055 - spendTime：花費非正數要丟錯
+  ---
+  duration_ms: 1.84783
+  type: 'test'
+  ...
+# Subtest: isExpired：花費達到或超過總預算時視為逾時
+ok 1056 - isExpired：花費達到或超過總預算時視為逾時
+  ---
+  duration_ms: 0.247435
+  type: 'test'
+  ...
+# Subtest: timeStatus：狀態分級表門檻必須嚴格遞減(由充裕到逾時)
+ok 1057 - timeStatus：狀態分級表門檻必須嚴格遞減(由充裕到逾時)
+  ---
+  duration_ms: 0.273594
+  type: 'test'
+  ...
+# Subtest: timeStatus：手算範例——10回合預算，花4回合剩60%應為充裕
+ok 1058 - timeStatus：手算範例——10回合預算，花4回合剩60%應為充裕
+  ---
+  duration_ms: 0.218924
+  type: 'test'
+  ...
+# Subtest: timeStatus：手算範例——10回合預算，花9回合剩10%應為危急
+ok 1059 - timeStatus：手算範例——10回合預算，花9回合剩10%應為危急
+  ---
+  duration_ms: 0.231509
+  type: 'test'
+  ...
+# Subtest: timeStatus：花完全部預算應為逾時
+ok 1060 - timeStatus：花完全部預算應為逾時
+  ---
+  duration_ms: 0.486427
+  type: 'test'
+  ...
+# [LLM_FALLBACK] {"failedProvider":"groq","failedModel":"openai/gpt-oss-120b","stage":"http","status":429,"nextProvider":"mistral"}
+# [TURN_PARSE_FAILED] {"sessionId":"b5f1c696-d6b3-4a60-b2a0-6b0c39a415d2","truncated":false,"finishReason":null,"rawSnippet":"你推開門，鏽味嗆進喉嚨。走廊盡頭有一盞燈在閃。"}
+# [LLM_DEGRADED] {"where":"POST /api/turn","sessionId":"b5f1c696-d6b3-4a60-b2a0-6b0c39a415d2","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","parseFailed":true,"aiOptionCount":0,"fallbackOptionCount":4,"allOptionsAreFallback":true,"rawTextSnippet":"你推開門，鏽味嗆進喉嚨。走廊盡頭有一盞燈在閃。"}
+# [LLM_DEGRADED] {"where":"POST /api/turn","sessionId":"5a0f45c0-7b2e-4cad-8a17-2a05be83081c","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","parseFailed":false,"aiOptionCount":3,"fallbackOptionCount":1,"allOptionsAreFallback":false}
+# [LLM_JSON_MODE_UNSUPPORTED] {"provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","detail":"was deprecated on 2026-05-30","hint":"這個端點不接受結構化輸出欄位，已自動退回純prompt模式。要省下這一次重試請設 LLM_JSON_MODE=off"}
+# [LLM_FAILURE] {"where":"POST /api/turn","sessionId":"96236d59-d18c-4b87-af94-15efbd01c441","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","httpStatus":null,"fallbackAttempts":[{"provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null}],"message":"Workers AI 呼叫失敗（模型 @cf/qwen/qwen3-30b-a3b-fp8）：was deprecated on 2026-05-30","bodySnippet":"was deprecated on 2026-05-30"}
+# [LLM_AUTO_RETRY] {"where":"POST /api/turn","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null,"delayMs":0,"retryTimeoutMs":1000}
+# [LLM_AUTO_RETRY] {"where":"POST /api/turn","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null,"delayMs":0,"retryTimeoutMs":1000}
+# [LLM_FAILURE] {"where":"POST /api/turn","sessionId":"fe4563e4-29e2-4c33-b1de-77c60c8336bd","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","httpStatus":null,"fallbackAttempts":[{"provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null}],"message":"Workers AI 呼叫失敗（模型 @cf/qwen/qwen3-30b-a3b-fp8）：temporary upstream timeout again","bodySnippet":"temporary upstream timeout again"}
+# [LLM_FAILURE] {"where":"POST /api/turn","sessionId":"266eafd7-18b0-4016-a3bd-7cd1db043347","provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","httpStatus":null,"fallbackAttempts":[{"provider":"workers-ai","model":"@cf/qwen/qwen3-30b-a3b-fp8","stage":"binding","status":null}],"message":"Workers AI 呼叫失敗（模型 @cf/qwen/qwen3-30b-a3b-fp8）：upstream 429","bodySnippet":"upstream 429"}
+# Subtest: /api/turn：server-managed primary 429 時切到下一家，規則層只執行一次且公開實際 provider
+ok 1061 - /api/turn：server-managed primary 429 時切到下一家，規則層只執行一次且公開實際 provider
+  ---
+  duration_ms: 46.757779
+  type: 'test'
+  ...
+# Subtest: AI回散文(不是JSON)時：選項確實整組退回保底，但回應必須明確標示出來
+ok 1062 - AI回散文(不是JSON)時：選項確實整組退回保底，但回應必須明確標示出來
+  ---
+  duration_ms: 5.918682
+  type: 'test'
+  ...
+# Subtest: AI回合法JSON時：degraded 不能誤報，選項要標成 ai
+ok 1063 - AI回合法JSON時：degraded 不能誤報，選項要標成 ai
+  ---
+  duration_ms: 7.137522
+  type: 'test'
+  ...
+# Subtest: AI只給3個選項時：要跟『整組保底』分得開(aiOptionCount=3，不是0)
+ok 1064 - AI只給3個選項時：要跟『整組保底』分得開(aiOptionCount=3，不是0)
+  ---
+  duration_ms: 3.075626
+  type: 'test'
+  ...
+# Subtest: 連續5輪都拿到合法JSON時，選項不會逐字重複(這是修好之後應該看到的樣子)
+ok 1065 - 連續5輪都拿到合法JSON時，選項不會逐字重複(這是修好之後應該看到的樣子)
+  ---
+  duration_ms: 14.8073
+  type: 'test'
+  ...
+# Subtest: LLM呼叫失敗時回502，並帶出 stage/httpStatus 讓前端決定要不要建議重試
+ok 1066 - LLM呼叫失敗時回502，並帶出 stage/httpStatus 讓前端決定要不要建議重試
+  ---
+  duration_ms: 5.362059
+  type: 'test'
+  ...
+# Subtest: V2 unmatched bridge：暫時性 provider failure 會在同一請求內自動重試一次
+ok 1067 - V2 unmatched bridge：暫時性 provider failure 會在同一請求內自動重試一次
+  ---
+  duration_ms: 18.851949
+  type: 'test'
+  ...
+# Subtest: V2 unmatched bridge：兩次暫時性失敗後保留 pending，新行動回傳409且不重骰
+ok 1068 - V2 unmatched bridge：兩次暫時性失敗後保留 pending，新行動回傳409且不重骰
+  ---
+  duration_ms: 6.834519
+  type: 'test'
+  ...
+# Subtest: LLM在規則層後失敗：retryPending 必須沿用同一骰面且只結算一次
+ok 1069 - LLM在規則層後失敗：retryPending 必須沿用同一骰面且只結算一次
+  ---
+  duration_ms: 6.453421
+  type: 'test'
+  ...
+# Subtest: 明確 retryPending 但沒有待完成回合時，回傳清楚的409而不執行新規則
+ok 1070 - 明確 retryPending 但沒有待完成回合時，回傳清楚的409而不執行新規則
+  ---
+  duration_ms: 1.648339
+  type: 'test'
+  ...
+# Subtest: 前端送來供應商但沒帶金鑰時，直接擋在最前面並指名缺什麼，不會偷偷改用伺服器的金鑰
+ok 1071 - 前端送來供應商但沒帶金鑰時，直接擋在最前面並指名缺什麼，不會偷偷改用伺服器的金鑰
+  ---
+  duration_ms: 1.042622
+  type: 'test'
+  ...
+# Subtest: workers-ai 不需要金鑰，不可以被上面那道檢查誤擋
+ok 1072 - workers-ai 不需要金鑰，不可以被上面那道檢查誤擋
+  ---
+  duration_ms: 1.490006
+  type: 'test'
+  ...
+# Subtest: 沒有選供應商(用伺服器預設)時，一切照舊，不受新檢查影響
+ok 1073 - 沒有選供應商(用伺服器預設)時，一切照舊，不受新檢查影響
+  ---
+  duration_ms: 1.482258
+  type: 'test'
+  ...
+# Subtest: custom 供應商：前端填的 baseUrl / model 要一路傳到實際的HTTP請求上
+ok 1074 - custom 供應商：前端填的 baseUrl / model 要一路傳到實際的HTTP請求上
+  ---
+  duration_ms: 2.552585
+  type: 'test'
+  ...
+# Subtest: custom 供應商沒填 baseUrl 時要在最前面擋下，錯誤訊息要指名該去哪裡填
+ok 1075 - custom 供應商沒填 baseUrl 時要在最前面擋下，錯誤訊息要指名該去哪裡填
+  ---
+  duration_ms: 0.839118
+  type: 'test'
+  ...
+# Subtest: 沒有預設模型的供應商，沒填模型名稱時要擋下並附上型錄連結
+ok 1076 - 沒有預設模型的供應商，沒填模型名稱時要擋下並附上型錄連結
+  ---
+  duration_ms: 2.425885
+  type: 'test'
+  ...
+# Subtest: 一直用同一個「屬性＋技能」，實際擲骰的DC會被引擎調高
+ok 1077 - 一直用同一個「屬性＋技能」，實際擲骰的DC會被引擎調高
+  ---
+  duration_ms: 70.229268
+  type: 'test'
+  ...
+# Subtest: 換一個技能就立刻歸零（機制的目的是引導換手，不是懲罰專精）
+ok 1078 - 換一個技能就立刻歸零（機制的目的是引導換手，不是懲罰專精）
+  ---
+  duration_ms: 18.347873
+  type: 'test'
+  ...
+# Subtest: 懲罰要在玩家按下去之前就標在選項上（按完才知道等於是在罰他）
+ok 1079 - 懲罰要在玩家按下去之前就標在選項上（按完才知道等於是在罰他）
+  ---
+  duration_ms: 6.536041
+  type: 'test'
+  ...
+# Subtest: 套路懲罰會寫進prompt，讓AI把難度變化寫成劇情而不是憑空變難
+ok 1080 - 套路懲罰會寫進prompt，讓AI把難度變化寫成劇情而不是憑空變難
+  ---
+  duration_ms: 7.204061
+  type: 'test'
+  ...
+# Subtest: 回應要帶上玩家看得懂的目標與副本簡介（不是只有節點標題那句謎語）
+ok 1081 - 回應要帶上玩家看得懂的目標與副本簡介（不是只有節點標題那句謎語）
+  ---
+  duration_ms: 6.620667
+  type: 'test'
+  ...
+# Subtest: 每個選項都要帶 hint（玩家判斷該按哪個的主要依據）
+ok 1082 - 每個選項都要帶 hint（玩家判斷該按哪個的主要依據）
+  ---
+  duration_ms: 2.747002
+  type: 'test'
+  ...
+# Subtest: 難度分級的DC隨等級單調遞增，且都是正整數
+ok 1083 - 難度分級的DC隨等級單調遞增，且都是正整數
+  ---
+  duration_ms: 1.919444
+  type: 'test'
+  ...
+# Subtest: difficultyToDc：未知分級退回預設，不丟錯(AI偶爾會寫出量表外的字串)
+ok 1084 - difficultyToDc：未知分級退回預設，不丟錯(AI偶爾會寫出量表外的字串)
+  ---
+  duration_ms: 0.421866
+  type: 'test'
+  ...
+# Subtest: buildOptionsSpec：會列出角色真正練過的技能與等級(避免AI四個選項全挑0級技能)
+ok 1085 - buildOptionsSpec：會列出角色真正練過的技能與等級(避免AI四個選項全挑0級技能)
+  ---
+  duration_ms: 0.724622
+  type: 'test'
+  ...
+# Subtest: buildOptionsSpec：會警告心智系技能0級是自動失敗
+ok 1086 - buildOptionsSpec：會警告心智系技能0級是自動失敗
+  ---
+  duration_ms: 0.377003
+  type: 'test'
+  ...
+# Subtest: parseTurnResponse：純JSON可以解析
+ok 1087 - parseTurnResponse：純JSON可以解析
+  ---
+  duration_ms: 0.855246
+  type: 'test'
+  ...
+# Subtest: parseTurnResponse：包在markdown程式碼區塊裡也要能解析(模型很常這樣做)
+ok 1088 - parseTurnResponse：包在markdown程式碼區塊裡也要能解析(模型很常這樣做)
+  ---
+  duration_ms: 0.389762
+  type: 'test'
+  ...
+# Subtest: parseTurnResponse：前後多了廢話也要能挖出JSON
+ok 1089 - parseTurnResponse：前後多了廢話也要能挖出JSON
+  ---
+  duration_ms: 0.328346
+  type: 'test'
+  ...
+# Subtest: parseTurnResponse：真的不是JSON時要明確回報失敗，不能假裝成功
+ok 1090 - parseTurnResponse：真的不是JSON時要明確回報失敗，不能假裝成功
+  ---
+  duration_ms: 0.211144
+  type: 'test'
+  ...
+# Subtest: parseTurnResponse：空白內容要回報失敗
+ok 1091 - parseTurnResponse：空白內容要回報失敗
+  ---
+  duration_ms: 0.413605
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：JSON被截斷(缺結尾括號)時仍能挖出narration純文字
+ok 1092 - extractNarrationFallback：JSON被截斷(缺結尾括號)時仍能挖出narration純文字
+  ---
+  duration_ms: 0.705101
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：還原跳脫字元(換行、引號)
+ok 1093 - extractNarrationFallback：還原跳脫字元(換行、引號)
+  ---
+  duration_ms: 0.369223
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：完全沒有narration欄位時回傳null，交由呼叫端退回原始文字
+ok 1094 - extractNarrationFallback：完全沒有narration欄位時回傳null，交由呼叫端退回原始文字
+  ---
+  duration_ms: 0.304017
+  type: 'test'
+  ...
+# Subtest: 合法選項可以通過，並算出對應的DC
+ok 1095 - 合法選項可以通過，並算出對應的DC
+  ---
+  duration_ms: 1.111152
+  type: 'test'
+  ...
+# Subtest: AI幻覺出不存在的技能時，降級成純屬性檢定並留下警告(不採用自創技能)
+ok 1096 - AI幻覺出不存在的技能時，降級成純屬性檢定並留下警告(不採用自創技能)
+  ---
+  duration_ms: 0.203317
+  type: 'test'
+  ...
+# Subtest: AI用了不存在的屬性時，整個選項被捨棄(沒有屬性就組不出骰池)
+ok 1097 - AI用了不存在的屬性時，整個選項被捨棄(沒有屬性就組不出骰池)
+  ---
+  duration_ms: 0.24021
+  type: 'test'
+  ...
+# Subtest: AI自己編一個DC數字時不予採用，難度一律走分級量表
+ok 1098 - AI自己編一個DC數字時不予採用，難度一律走分級量表
+  ---
+  duration_ms: 0.187611
+  type: 'test'
+  ...
+# Subtest: 前端/AI直接塞一個dc數字進來時完全不予採用，DC一律從難度分級查表
+ok 1099 - 前端/AI直接塞一個dc數字進來時完全不予採用，DC一律從難度分級查表
+  ---
+  duration_ms: 0.193342
+  type: 'test'
+  ...
+# Subtest: 專業欄位一律被丟棄，就算角色真的登記過（輕量化規則不實作專業）
+ok 1100 - 專業欄位一律被丟棄，就算角色真的登記過（輕量化規則不實作專業）
+  ---
+  duration_ms: 0.1862
+  type: 'test'
+  ...
+# Subtest: 缺label的選項要被捨棄(沒有文字就沒辦法顯示給玩家看)
+ok 1101 - 缺label的選項要被捨棄(沒有文字就沒辦法顯示給玩家看)
+  ---
+  duration_ms: 0.278453
+  type: 'test'
+  ...
+# Subtest: 角色卡上沒有該技能欄位時降級成純屬性檢定(否則performCheck會丟錯)
+ok 1102 - 角色卡上沒有該技能欄位時降級成純屬性檢定(否則performCheck會丟錯)
+  ---
+  duration_ms: 1.00818
+  type: 'test'
+  ...
+# Subtest: validateOptions：壞的被剔除、好的保留，數量不符時回報警告並用通用選項墊滿
+ok 1103 - validateOptions：壞的被剔除、好的保留，數量不符時回報警告並用通用選項墊滿
+  ---
+  duration_ms: 0.560786
+  type: 'test'
+  ...
+# Subtest: validateOptions：options不是陣列時不丟錯，回報警告並用通用選項墊滿四個
+ok 1104 - validateOptions：options不是陣列時不丟錯，回報警告並用通用選項墊滿四個
+  ---
+  duration_ms: 0.187763
+  type: 'test'
+  ...
+# Subtest: validateOptions：AI給的數量不足時，用FALLBACK_OPTIONS墊到OPTION_COUNT個(2026-08-15決策變更，見函式註解)
+ok 1105 - validateOptions：AI給的數量不足時，用FALLBACK_OPTIONS墊到OPTION_COUNT個(2026-08-15決策變更，見函式註解)
+  ---
+  duration_ms: 0.229378
+  type: 'test'
+  ...
+# Subtest: validateOptions：AI完全沒給任何合法選項時，也要墊滿四個通用選項(不能讓玩家看到空版面)
+ok 1106 - validateOptions：AI完全沒給任何合法選項時，也要墊滿四個通用選項(不能讓玩家看到空版面)
+  ---
+  duration_ms: 1.390726
+  type: 'test'
+  ...
+# Subtest: validateOptions：AI給的選項標 source=ai，引擎墊的標 source=fallback
+ok 1107 - validateOptions：AI給的選項標 source=ai，引擎墊的標 source=fallback
+  ---
+  duration_ms: 0.226101
+  type: 'test'
+  ...
+# Subtest: validateOptions：回傳 aiOptionCount / fallbackCount，讓呼叫端分得出『少1個』與『整組都是保底』
+ok 1108 - validateOptions：回傳 aiOptionCount / fallbackCount，讓呼叫端分得出『少1個』與『整組都是保底』
+  ---
+  duration_ms: 0.271374
+  type: 'test'
+  ...
+# Subtest: validateOptions：整組都退回保底時，警告文字要跟『只是少幾個』的警告明顯不同
+ok 1109 - validateOptions：整組都退回保底時，警告文字要跟『只是少幾個』的警告明顯不同
+  ---
+  duration_ms: 0.305289
+  type: 'test'
+  ...
+# Subtest: 查驗過的選項一定能被 performCheck() 實際吃下去而不丟錯
+ok 1110 - 查驗過的選項一定能被 performCheck() 實際吃下去而不丟錯
+  ---
+  duration_ms: 1.273465
+  type: 'test'
+  ...
+# Subtest: optionToCheckParams：純屬性選項不帶skill欄位
+ok 1111 - optionToCheckParams：純屬性選項不帶skill欄位
+  ---
+  duration_ms: 0.139702
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：narration字串沒有收尾引號(輸出被切斷)時，仍要挖得出文字
+ok 1112 - extractNarrationFallback：narration字串沒有收尾引號(輸出被切斷)時，仍要挖得出文字
+  ---
+  duration_ms: 0.277829
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：完整的JSON仍然照舊優先用有收尾引號的那一條路
+ok 1113 - extractNarrationFallback：完整的JSON仍然照舊優先用有收尾引號的那一條路
+  ---
+  duration_ms: 0.134027
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：被切斷的內容裡有跳脫字元也要正確還原
+ok 1114 - extractNarrationFallback：被切斷的內容裡有跳脫字元也要正確還原
+  ---
+  duration_ms: 0.162018
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：結尾剛好斷在一個落單的反斜線上時，仍要挖得出文字
+ok 1115 - extractNarrationFallback：結尾剛好斷在一個落單的反斜線上時，仍要挖得出文字
+  ---
+  duration_ms: 0.124414
+  type: 'test'
+  ...
+# Subtest: extractNarrationFallback：完全沒有narration欄位時還是回 null
+ok 1116 - extractNarrationFallback：完全沒有narration欄位時還是回 null
+  ---
+  duration_ms: 0.165314
+  type: 'test'
+  ...
+# Subtest: requiresCheck:false 的選項直接放行，且屬性/技能/難度/DC 一律被清成 null
+ok 1117 - requiresCheck:false 的選項直接放行，且屬性/技能/難度/DC 一律被清成 null
+  ---
+  duration_ms: 0.228362
+  type: 'test'
+  ...
+# Subtest: requiresCheck:false 時，連完全不存在的屬性/技能都不再被查驗(但會留警告)
+ok 1118 - requiresCheck:false 時，連完全不存在的屬性/技能都不再被查驗(但會留警告)
+  ---
+  duration_ms: 0.222592
+  type: 'test'
+  ...
+# Subtest: 沒有 requiresCheck 欄位時當成「要檢定」(舊AI/舊存檔的相容行為完全不變)
+ok 1119 - 沒有 requiresCheck 欄位時當成「要檢定」(舊AI/舊存檔的相容行為完全不變)
+  ---
+  duration_ms: 0.141824
+  type: 'test'
+  ...
+# Subtest: requiresCheck 只認 === false：字串 "false" 之類的東西一律當成要檢定
+ok 1120 - requiresCheck 只認 === false：字串 "false" 之類的東西一律當成要檢定
+  ---
+  duration_ms: 0.119397
+  type: 'test'
+  ...
+# Subtest: 純敘事選項缺 label 一樣要被打回票(label 是唯一無條件必填的欄位)
+ok 1121 - 純敘事選項缺 label 一樣要被打回票(label 是唯一無條件必填的欄位)
+  ---
+  duration_ms: 0.112793
+  type: 'test'
+  ...
+# Subtest: optionToCheckParams 對純敘事選項要丟錯，不可以湊一組檢定參數出來
+ok 1122 - optionToCheckParams 對純敘事選項要丟錯，不可以湊一組檢定參數出來
+  ---
+  duration_ms: 0.575666
+  type: 'test'
+  ...
+# Subtest: validateOptions：一輪最多兩個純敘事選項，多的丟掉並用保底檢定選項補滿
+ok 1123 - validateOptions：一輪最多兩個純敘事選項，多的丟掉並用保底檢定選項補滿
+  ---
+  duration_ms: 0.224392
+  type: 'test'
+  ...
+# Subtest: validateOptions：正常的一輪(3檢定+1純敘事)會原樣全部保留
+ok 1124 - validateOptions：正常的一輪(3檢定+1純敘事)會原樣全部保留
+  ---
+  duration_ms: 0.157664
+  type: 'test'
+  ...
+# Subtest: 保底選項全部都是檢定選項(保底不可以是不擲骰的行動)
+ok 1125 - 保底選項全部都是檢定選項(保底不可以是不擲骰的行動)
+  ---
+  duration_ms: 0.237122
+  type: 'test'
+  ...
+# Subtest: buildOptionsSpec：明確告訴AI可以給1~2個 requiresCheck:false 的無風險選項
+ok 1126 - buildOptionsSpec：明確告訴AI可以給1~2個 requiresCheck:false 的無風險選項
+  ---
+  duration_ms: 0.305104
+  type: 'test'
+  ...
+# Subtest: V2 reference prompt 以 DM 開放問句取代編號選項，且 schema 不要求 options
+ok 1127 - V2 reference prompt 以 DM 開放問句取代編號選項，且 schema 不要求 options
+  ---
+  duration_ms: 0.201677
+  type: 'test'
+  ...
+# Subtest: TURN_RESPONSE_SCHEMA：requiresCheck 是必填布林值，attribute/difficulty 改為選填
+ok 1128 - TURN_RESPONSE_SCHEMA：requiresCheck 是必填布林值，attribute/difficulty 改為選填
+  ---
+  duration_ms: 0.122714
+  type: 'test'
+  ...
+# Subtest: TURN_RESPONSE_SCHEMA：思維鏈 st_thought 是必填，而且排在 narration 之前
+ok 1129 - TURN_RESPONSE_SCHEMA：思維鏈 st_thought 是必填，而且排在 narration 之前
+  ---
+  duration_ms: 0.18836
+  type: 'test'
+  ...
+# Subtest: 純敘事選項不會被前端的骰池顯示邏輯誤讀(attribute 是 null，不是空字串或未定義)
+ok 1130 - 純敘事選項不會被前端的骰池顯示邏輯誤讀(attribute 是 null，不是空字串或未定義)
+  ---
+  duration_ms: 0.446716
+  type: 'test'
+  ...
+# Subtest: determineTurnOrder：先攻權高的先動(📖對照書中範例：蘇子20>時月19>字母15>影牙巨龍14>白夜6)
+ok 1131 - determineTurnOrder：先攻權高的先動(📖對照書中範例：蘇子20>時月19>字母15>影牙巨龍14>白夜6)
+  ---
+  duration_ms: 2.115297
+  type: 'test'
+  ...
+# Subtest: determineTurnOrder：突襲輪發起者必定第一個行動，無視先攻結果高低
+ok 1132 - determineTurnOrder：突襲輪發起者必定第一個行動，無視先攻結果高低
+  ---
+  duration_ms: 0.303363
+  type: 'test'
+  ...
+# Subtest: determineTurnOrder：先攻同分時，沉著較高者先動
+ok 1133 - determineTurnOrder：先攻同分時，沉著較高者先動
+  ---
+  duration_ms: 0.204983
+  type: 'test'
+  ...
+# Subtest: determineTurnOrder：先攻與沉著都同分時，敏捷較高者先動
+ok 1134 - determineTurnOrder：先攻與沉著都同分時，敏捷較高者先動
+  ---
+  duration_ms: 0.262151
+  type: 'test'
+  ...
+# Subtest: determineTurnOrder：先攻/沉著/敏捷全部同分時，回報需要額外決定順序，不擅自擲骰決定
+ok 1135 - determineTurnOrder：先攻/沉著/敏捷全部同分時，回報需要額外決定順序，不擅自擲骰決定
+  ---
+  duration_ms: 0.226398
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"59054ecb-1919-4c21-b0f2-87d8d94b0a41","stThought":"這是 private thought，不得進入公開 response。"}
+# Subtest: /api/turn NDJSON：先送 lifecycle，最後才送完整安全 payload 與 narration delta
+ok 1136 - /api/turn NDJSON：先送 lifecycle，最後才送完整安全 payload 與 narration delta
+  ---
+  duration_ms: 64.379979
+  type: 'test'
+  ...
+# [ST_THOUGHT] {"sessionId":"0a0121ed-bbc0-402f-9098-f52dfdc3b5a4","stThought":"這是 private thought，不得進入公開 response。"}
+# Subtest: V2 canonical direct-send 的 NDJSON 仍完成完整 lifecycle 且不呼叫 AI
+ok 1137 - V2 canonical direct-send 的 NDJSON 仍完成完整 lifecycle 且不呼叫 AI
+  ---
+  duration_ms: 534.609018
+  type: 'test'
+  ...
+# Subtest: 普通 JSON Accept 仍維持既有 JSON response 相容性
+ok 1138 - 普通 JSON Accept 仍維持既有 JSON response 相容性
+  ---
+  duration_ms: 3.809005
+  type: 'test'
+  ...
+# Subtest: 名單就是規則書「以身作則」那張表的十四項，各七個且不重複
+ok 1139 - 名單就是規則書「以身作則」那張表的十四項，各七個且不重複
+  ---
+  duration_ms: 2.42354
+  type: 'test'
+  ...
+# Subtest: 每一項美德惡德都至少有三題餵得到分
+ok 1140 - 每一項美德惡德都至少有三題餵得到分
+  ---
+  duration_ms: 1.832111
+  type: 'test'
+  ...
+# Subtest: 窮舉全部 1024 種答案：十四項每一項都抽得到，而且沒有一項壟斷
+ok 1141 - 窮舉全部 1024 種答案：十四項每一項都抽得到，而且沒有一項壟斷
+  ---
+  duration_ms: 56.633735
+  type: 'test'
+  ...
+# Subtest: 同樣的答案一定算出同樣的美德惡德（不可以有隨機成分）
+ok 1142 - 同樣的答案一定算出同樣的美德惡德（不可以有隨機成分）
+  ---
+  duration_ms: 62.11296
+  type: 'test'
+  ...
+# Subtest: 平手時照明講的四層規則判，不依賴物件屬性的列舉順序
+ok 1143 - 平手時照明講的四層規則判，不依賴物件屬性的列舉順序
+  ---
+  duration_ms: 0.584982
+  type: 'test'
+  ...
+# Subtest: 亞軍不會跟冠軍是同一個，而且冠軍的分數一定不低於亞軍
+ok 1144 - 亞軍不會跟冠軍是同一個，而且冠軍的分數一定不低於亞軍
+  ---
+  duration_ms: 49.78457
+  type: 'test'
+  ...
+# Subtest: 不在十四項裡的字會被忽略，不會偷偷長出第八個美德
+ok 1145 - 不在十四項裡的字會被忽略，不會偷偷長出第八個美德
+  ---
+  duration_ms: 0.443575
+  type: 'test'
+  ...
+# Subtest: 任何一組美德×惡德都組得出性格核心（彩蛋走手寫，其餘走模板）
+ok 1146 - 任何一組美德×惡德都組得出性格核心（彩蛋走手寫，其餘走模板）
+  ---
+  duration_ms: 0.535404
+  type: 'test'
+  ...
+# Subtest: 全部 1024 種答案配出來的卡，都湊得出剛好 5 點的重塑
+ok 1147 - 全部 1024 種答案配出來的卡，都湊得出剛好 5 點的重塑
+  ---
+  duration_ms: 103.661584
+  type: 'test'
+  ...
+# Subtest: 重塑只能加不能減，而且不可以超過建卡上限
+ok 1148 - 重塑只能加不能減，而且不可以超過建卡上限
+  ---
+  duration_ms: 1.028926
+  type: 'test'
+  ...
+# Subtest: 價目表會把已經到頂的屬性標成不能再加
+ok 1149 - 價目表會把已經到頂的屬性標成不能再加
+  ---
+  duration_ms: 0.328276
+  type: 'test'
+  ...
+# Subtest: 甦醒那一幕：過場通用、房間交給副本、掃描要引用玩家的每一個選擇
+ok 1150 - 甦醒那一幕：過場通用、房間交給副本、掃描要引用玩家的每一個選擇
+  ---
+  duration_ms: 0.793644
+  type: 'test'
+  ...
+# Subtest: 副本沒寫 arrivalNarration 時退回通用的房間，不是留一段空白
+ok 1151 - 副本沒寫 arrivalNarration 時退回通用的房間，不是留一段空白
+  ---
+  duration_ms: 0.418246
+  type: 'test'
+  ...
+1..1151
+# tests 1151
+# suites 0
+# pass 1151
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5520.195958
