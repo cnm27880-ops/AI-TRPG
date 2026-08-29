@@ -1666,7 +1666,7 @@ async function attemptRevive() {
       `花費 <span class="fe-num">${res.cost}</span> 點 · 這是第 <span class="fe-num">${res.reviveCount}</span> 次復活`
     );
     // 復活後那場戰鬥已經在後端標記結束了，把畫面切回故事流。
-    if (currentCombat) leaveCombatView();
+    if (typeof window.leaveCombatV2View === "function") window.leaveCombatV2View();
     await runTurn({ opening: true });
   } catch (err) {
     console.error("[REVIVE_FAILURE]", err);
@@ -2102,32 +2102,26 @@ function updateScenarioHud(scenario) {
     }
   }
 
-  // 「遭遇戰鬥」按鈕只在最終戰節點才顯示：一般敘事節點顯示這顆按鈕，玩家隨時可能
-  // 在毫無劇情鋪陳的情況下手滑點下去，憑空跳出一隻佔位怪物，破壞AI辛苦營造的沉浸感。
-  // 迫近度到頂(接觸)時也要開放這顆按鈕：那一刻威脅已經站在玩家面前了，
-  // 後端會直接用副本自己的追兵樣板開戰（見 functions/api/combat/start.js），
-  // 不是憑空跳出一隻佔位怪物，所以不違反上面那個「不要破壞沉浸感」的原則。
-  const combatBtn = document.getElementById("combat-start-btn");
-  const cornered = Boolean(scenario.threat?.contact);
-  if (combatBtn) {
-    const isFinale = Boolean(node?.isFinale);
-    const canFight = isFinale || cornered;
-    combatBtn.style.display = canFight ? "" : "none";
-    combatBtn.classList.toggle("pulse-glow", canFight);
-  }
-
-  // [2026-08-18] 迫近度到頂時自動切進戰鬥畫面，不再只讓玩家自己注意到右上角那顆小按鈕。
+  // 戰鬥由**局勢**觸發，不由按鈕觸發（2026-08-29 起沒有「遭遇戰鬥」按鈕）。
   //
-  // 起因：實際測玩回報「遭遇戰鬥不要只有出現在右上方」——「接觸」代表威脅已經欺到臉前，
-  // 這種時候還要玩家自己發現角落多了一顆按鈕、手動點下去才會進戰鬥畫面，等同於系統已經
-  // 知道玩家被逮到了，卻假裝沒事、繼續顯示敘事選項。上面那顆按鈕保留不拿掉——玩家仍然
-  // 可以在最終戰節點手動觸發，這裡只是多加一條「不用等他自己按」的路徑。
-  // 用 combatInFlight 跟 currentCombat.active 擋兩層重複觸發：同一次 contact 只會開一次戰，
-  // 戰鬥開始後 functions/api/combat/start.js 會呼叫 dischargeThreat() 把迫近度降回去，
-  // 之後的畫面就不會再帶著 contact:true 回來，不需要在前端額外記一個「這次打過了」的旗標。
-  if (cornered && !combatInFlight && !(currentCombat && currentCombat.active)) {
-    startCombat();
+  // 兩個進戰鬥的時機：
+  //   迫近度到頂（接觸）—— 威脅已經欺到臉前，這時候還要玩家自己去點一顆按鈕，
+  //     等同於系統知道玩家被逮到了卻假裝沒事、繼續顯示敘事選項。
+  //   最終戰節點      —— 主線推到最後一格，那場仗本來就是節點本身。
+  //
+  // 開戰後 /api/combat/v2/start 會呼叫 dischargeThreat() 把迫近度降回去，之後的畫面
+  // 就不會再帶著 contact:true 回來，所以不需要在前端記一個「這次打過了」的旗標。
+  // 打誰也由後端依副本進度決定（最終戰的 boss／副本自己的追兵樣板），不是前端指定。
+  const cornered = Boolean(scenario.threat?.contact);
+  const isFinale = Boolean(node?.isFinale);
+  if ((cornered || isFinale) && !inCombat() && typeof window.startCombatV2 === "function") {
+    window.startCombatV2();
   }
+}
+
+/** 現在是不是在戰鬥中。唯一的答案來源是 combatV2.js，app.js 不自己記一份。 */
+function inCombat() {
+  return typeof window.isInCombatV2 === "function" && window.isInCombatV2();
 }
 
 /**
@@ -2402,7 +2396,7 @@ async function enterGodspaceFromSettlement(source = "settlement") {
       layer.setAttribute("aria-hidden", "true");
     }
     document.body.classList.remove("is-settlement-open");
-    currentCombat = null;
+    if (typeof window.leaveCombatV2View === "function") window.leaveCombatV2View();
     showScreen("portal");
     document.getElementById("portal-subtitle").textContent = "上一場副本已封存。你可以查看結果、整理角色，或準備下一場副本。";
     finishPortalReveal("resume");
@@ -3099,7 +3093,7 @@ let restBusy = false;
 
 async function doRest() {
   if (!currentSessionId || restBusy) return;
-  if (currentCombat?.active) {
+  if (inCombat()) {
     appendFeedEvent("respite", "沒辦法休息", "戰鬥中不能休息。");
     return;
   }
@@ -3429,7 +3423,7 @@ async function resumeSession(id) {
     lastThreatStage = null;
     adoptCharacter(res.session.character);
     renderPersistenceWarning(res.persistent);
-    currentCombat = null;
+    if (typeof window.leaveCombatV2View === "function") window.leaveCombatV2View();
     await loadGodspace(id, { reveal: true });
     return true;
   }
@@ -3462,25 +3456,14 @@ async function resumeSession(id) {
   //
   // 舊行為：這裡只還原故事流與選項，完全不看 session.combat。可是存檔裡那場戰鬥的
   // active 仍然是 true，於是玩家重整之後戰鬥面板消失、再按「遭遇戰鬥」永遠拿到
-  // 409「已經有進行中的戰鬥」——那個節點如果是最終戰，這張存檔的主線就再也推不完了。
-  // 戰鬥狀態本來就完整存在 session.combat 裡，只是沒有人把它讀回來。
-  if (res.session.combat?.active) {
-    currentCombat = res.session.combat;
-    // 續戰的行動列由伺服器算好一起送來(2026-08-17 第九輪)。先前這裡是 null，
-    // 於是重整之後只剩 index.html 裡寫死的兩顆按鈕——買到的武器與型態全部按不到。
-    currentCombatOptions = res.combatOptions ?? null;
-    enterCombatView();
-    document.getElementById("combat-log").innerHTML = "";
-    (currentCombat.log || []).forEach((entry) => appendCombatLog({
-      actor: entry.actor,
-      weaponKey: entry.weaponKey,
-      hit: entry.hit,
-      damage: entry.damage ?? 0,
-      damageSeverity: entry.damageSeverity,
-      damageSeverityTag: entry.damageSeverityTag,
-    }));
-    appendCombatSystemLine("已還原重整前進行中的戰鬥。", "text-zinc-400");
-    renderCombat();
+  // 重整頁面時人在戰鬥中：戰鬥狀態完整存在存檔裡，一定要把它讀回來——沒讀回來的話
+  // 玩家重整之後戰鬥畫面消失，而後端那場戰鬥的 active 仍然是 true，這張存檔的主線
+  // 就再也推不完了。
+  //
+  // 不從 res.session 直接讀，而是回頭問 /api/combat/v2/state：斷線重連一律以伺服器
+  // 為準，前端不重播任何本地狀態。
+  if (res.session.combat?.active && typeof window.restoreCombatV2 === "function") {
+    await window.restoreCombatV2({ quiet: true });
   } else if (res.session.pendingTurn) {
     const pending = res.session.pendingTurn;
     appendFeedEvent(
@@ -3502,387 +3485,23 @@ async function resumeSession(id) {
   return true;
 }
 
-// --- 戰鬥（單敵人 MVP，見 content/combat/encounterState.js） ---
-let currentCombat = null;
-// 這一輪按得下去的東西(武器＋型態)，由 /api/combat/start 與 act 回傳，前端不自己算。
-let currentCombatOptions = null;
-let combatInFlight = false;
-
-const COMBAT_WEAPON_LABELS = { unarmed: "徒手", pistol: "手槍" };
-
-/** 切換到戰鬥畫面。開新戰鬥與「重整後還原戰鬥」共用同一段，避免兩邊的顯示狀態走鐘。 */
-function enterCombatView() {
-  document.body.classList.add("is-combat-view");
-  document.getElementById("combat-over-banner").style.display = "none";
-  closeModal("chronicleModal");
-  document.getElementById("story-current").style.display = "none";
-  document.getElementById("story-action-panel").style.display = "none";
-  document.getElementById("combat-panel").style.display = "flex";
-}
+// --- 戰鬥 -------------------------------------------------------------------
+//
+// [2026-08-29] 舊的單敵人戰鬥面板整段移除，戰鬥改由 public/combatV2.js 負責
+// （#combat-v2-panel）。這裡只留下兩個「戰鬥結束之後回到故事流」要用的東西：
+// endCombatReturn() 與 refreshDownStateThenContinue()，combatV2.js 會呼叫它們。
 
 /**
- * 離開戰鬥畫面、回到故事流。
- *
- * [2026-08-27 修正] 這段以前被抄在兩個地方（endCombat 與 attemptRevive），而且抄過去的
- * 那一份漏掉了把 body 上的 is-combat-view 拿掉。那不是可有可無的一行：
- * index.html 裡的
- *   body.is-game-screen.is-combat-view #story-current      { display: none !important; }
- *   body.is-game-screen.is-combat-view #story-action-panel { display: none !important; }
- * 帶 !important，會直接蓋掉下面那兩行 inline style。結果就是「在戰鬥中被打死 → 按下復活」
- * 之後，戰鬥面板收起來了、故事流與行動列卻仍然被 CSS 壓著不顯示，玩家看到一片空白，
- * 而且沒有任何辦法回到遊戲。現在只留這一份實作，兩邊都叫它。
+ * 戰鬥結束、玩家關掉戰鬥畫面之後回到主敘事迴圈。
+ * @param {{ won: boolean, enemyName: string }} outcome
  */
-function leaveCombatView() {
-  currentCombat = null;
-  document.body.classList.remove("is-combat-view");
-  document.getElementById("combat-panel").style.display = "none";
-  document.getElementById("story-current").style.display = "flex";
-  document.getElementById("story-action-panel").style.display = "block";
-}
-
-/** 在戰鬥紀錄裡插一行系統訊息（錯誤、還原提示…），跟攻擊紀錄用不同顏色區分。 */
-function appendCombatSystemLine(text, colorClass = "text-red-300") {
-  const log = document.getElementById("combat-log");
-  if (!log) return;
-  const block = document.createElement("div");
-  block.className = `feed-block-enter p-2 rounded bg-panel/70 border hairline-border text-[11px] font-mono ${colorClass}`;
-  block.textContent = text;
-  log.appendChild(block);
-  log.scrollTop = log.scrollHeight;
-}
-
-async function startCombat() {
-  if (!currentSessionId || combatInFlight) return;
-  combatInFlight = true;
-  try {
-    const res = await (await fetch("/api/combat/start", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: currentSessionId }),
-    })).json();
-
-    if (!res.ok) {
-      appendFeedEvent("fault", "無法開始戰鬥", escapeHtml(res.error));
-      return;
-    }
-
-    currentCombat = res.combat;
-    currentCombatOptions = res.options ?? currentCombatOptions;
-    document.getElementById("combat-log").innerHTML = "";
-    enterCombatView();
-
-    // 敵人若贏得先攻，開戰當下就已經打了第一擊（見 functions/api/combat/start.js）
-    (res.openingEnemyAttacks || []).forEach((atk) => {
-      appendCombatLog({
-        actor: "enemy",
-        weaponKey: currentCombat.enemy.weaponKey,
-        hit: atk.hit,
-        damage: atk.finalDamage ?? 0,
-        damageSeverity: atk.damageSeverity,
-        damageSeverityTag: atk.damageSeverityTag,
-      });
-    });
-    if (res.character) adoptCharacter(res.character);
-    renderPersistenceWarning(res.persistent);
-  } catch (err) {
-    // [2026-08-16 修正] 這裡以前只有 finally、沒有 catch：網路錯誤會變成 unhandled
-    // rejection，按鈕解鎖但畫面毫無反應，玩家不知道自己按了到底有沒有用。
-    console.error("[COMBAT_FAILURE] /api/combat/start 呼叫失敗", err);
-    appendFeedEvent(
-      "fault",
-      "無法開始戰鬥（連線失敗）",
-      escapeHtml(err.message),
-      { note: "請確認網路後再試一次。" }
-    );
-  } finally {
-    combatInFlight = false;
-    renderCombat();
-  }
-}
-
-function renderCombat() {
-  if (!currentCombat) return;
-  const c = currentCombat;
-
-  document.getElementById("combat-enemy-name").textContent = c.enemy.name;
-  document.getElementById("combat-round").textContent = c.round;
-
-  renderCombatHpBar("combat-enemy-hp-bar", "combat-enemy-hp-text", c.enemy.hpState);
-  renderCombatHpBar("combat-player-hp-bar", "combat-player-hp-text", c.player.hpState);
-
-  const turnLabel = c.order[c.turnIndex] === "player" ? "輪到你行動" : `輪到${c.enemy.name}行動`;
-  document.getElementById("combat-turn-indicator").textContent = c.active ? turnLabel : "戰鬥結束";
-
-  // 敵人這一輪的意圖預告。戰鬥結束後就不再顯示——那時候「牠正在做什麼」已經沒有意義了。
-  const telegraphBox = document.getElementById("combat-telegraph");
-  if (telegraphBox) {
-    const telegraph = c.active ? c.currentTelegraph : null;
-    telegraphBox.style.display = telegraph ? "flex" : "none";
-    if (telegraph) document.getElementById("combat-telegraph-text").textContent = telegraph;
-  }
-
-  const actionsEnabled = c.active && c.order[c.turnIndex] === "player" && !combatInFlight;
-  renderCombatActions(actionsEnabled);
-  document.querySelectorAll("[data-combat-attack],[data-combat-form]").forEach((btn) => {
-    btn.disabled = !actionsEnabled;
-    btn.classList.toggle("opacity-40", !actionsEnabled);
-  });
-
-  if (!c.active) {
-    const banner = document.getElementById("combat-over-banner");
-    const text = document.getElementById("combat-over-text");
-    if (c.winner === "player") {
-      text.textContent = `擊敗了${c.enemy.name}`;
-      text.className = "text-lg font-bold text-emerald-400";
-    } else {
-      text.textContent = "戰鬥失利";
-      text.className = "text-lg font-bold text-red-400";
-    }
-    banner.style.display = "block";
-  }
-}
-
-function renderCombatHpBar(barId, textId, hpState) {
-  document.getElementById(textId).textContent = `${hpState.intact} / ${hpState.max}`;
-  const changed = renderHpBar(barId, hpState);
-  if (changed) {
-    const wrap = document.getElementById(barId === "combat-enemy-hp-bar" ? "combat-enemy-hp-wrap" : "combat-player-hp-wrap");
-    if (wrap) {
-      wrap.classList.remove("shake-hit");
-      void wrap.offsetWidth; // 強制重排以重新觸發動畫
-      wrap.classList.add("shake-hit");
-    }
-  }
-}
-
-function appendCombatLog(entry) {
-  const log = document.getElementById("combat-log");
-  const actorLabel = entry.actor === "player" ? "你" : currentCombat.enemy.name;
-  const weaponLabel = COMBAT_WEAPON_LABELS[entry.weaponKey] ?? entry.weaponKey;
-  const outcome = entry.hit ? `命中，造成 ${entry.damage} 點傷害` : "未命中";
-  const color = entry.actor === "player" ? "text-emerald-300" : "text-red-300";
-  // 傷害嚴重度標籤由引擎產生（見 core/combat/resolveCombatAction.js）。它同時也被送給AI
-  // 當描寫強度的依據，所以畫面上也給玩家看——玩家與說書人看到的是同一件事。
-  const severityColor = {
-    critical: "text-red-400",
-    serious: "text-orange-300",
-    light: "text-yellow-200/80",
-    absorbed: "text-sky-300",
-    miss: "text-zinc-500",
-  }[entry.damageSeverity] ?? "text-zinc-400";
-  const tagHtml = entry.damageSeverityTag
-    ? ` <span class="${severityColor}">${escapeHtml(entry.damageSeverityTag)}</span>`
-    : "";
-  const block = document.createElement("div");
-  block.className = "feed-block-enter p-2 rounded bg-panel/70 border hairline-border text-[11px] text-zinc-300";
-  block.innerHTML = `<span class="${color} font-bold">${escapeHtml(actorLabel)}</span> 使用${escapeHtml(weaponLabel)} → ${escapeHtml(outcome)}${tagHtml}`;
-  log.appendChild(block);
-  log.scrollTop = log.scrollHeight;
-}
-
-/**
- * 戰鬥行動按鈕。**整排都是伺服器算出來的**（`options` 由 /api/combat/start 與 act 回傳）。
- *
- * [2026-08-17] 在這之前，index.html 裡是寫死的兩顆按鈕（徒手、手槍），於是：
- * 買到的武器在戰鬥裡按不到（引擎其實吃得下），身上的型態也變不了身
- * （`resolveFormActivation()` 當時沒有任何呼叫端）。兩件事是同一個病：引擎做得到、
- * 沒有人問它。現在按鈕從 `combatOptions()` 長出來，買什麼就按得到什麼。
- */
-function renderCombatActions(enabled) {
-  const box = document.getElementById("combat-actions");
-  if (!box) return;
-  const opts = currentCombatOptions;
-  // 還沒拿到 options（舊存檔續戰、或伺服器版本較舊）就保留原本畫面，不要把按鈕清空
-  if (!opts) return;
-
-  const weaponBtn = (w) => `
-    <button data-combat-attack="${escapeHtml(w.key)}" class="action-tile !p-2.5 !flex-row justify-center">
-      <i class="fas ${w.ranged ? "fa-crosshairs" : "fa-hand-fist"} action-tile-icon !text-base"></i>
-      <span class="flex flex-col items-start leading-tight">
-        <span class="action-tile-label">${escapeHtml(w.label)}${w.fromForm ? "（型態）" : ""}</span>
-        <span class="action-tile-sub">${escapeHtml(w.attackType)}${w.weaponDamage ? ` · 傷害${w.weaponDamage}` : ""}</span>
-      </span>
-    </button>`;
-
-  // 可變量型態的支付點數選單。範圍是伺服器算的(「不超過敏捷或感知取低」是規則，
-  // 不是介面細節)，這裡只把 min~max 攤成選項。
-  const amountPicker = (f) => {
-    if (!f.variable || f.active) return "";
-    const options = [];
-    for (let n = f.variable.min; n <= f.variable.max; n++) {
-      options.push(`<option value="${n}">${n}</option>`);
-    }
-    return `
-      <label class="flex items-center gap-1 text-[10px] font-mono text-zinc-400 px-1">
-        支付
-        <select data-form-amount="${escapeHtml(f.formId)}"
-          class="bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-violet-200">${options.join("")}</select>
-        點${escapeHtml(f.variable.poolName)}
-      </label>`;
-  };
-
-  // 二選一的型態(書上的「由你自己選擇」)一個選項畫一顆按鈕：選擇點在啟動的那一瞬間，
-  // 所以它就是按下去的那一下，不需要另外一層「先選模式再啟動」的狀態。
-  const formBtn = (f) => {
-    const upkeepNote = f.upkeep ? `，每輪${escapeHtml(costText(f.upkeep))}維持` : "";
-    const one = (mode) => `
-    <button data-combat-form="${escapeHtml(f.formId)}" ${mode ? `data-combat-form-mode="${escapeHtml(mode.key)}"` : ""}
-      ${f.active ? "disabled" : ""}
-      class="action-tile !p-2.5 !flex-row justify-center ${f.active ? "opacity-50" : "!border-violet-500/50"}">
-      <i class="fas fa-wand-magic-sparkles action-tile-icon !text-base ${f.active ? "" : "!text-violet-300"}"></i>
-      <span class="flex flex-col items-start leading-tight">
-        <span class="action-tile-label">${escapeHtml(f.label)}${mode ? `·${escapeHtml(mode.label)}` : ""}${f.active ? "（進行中）" : ""}</span>
-        <span class="action-tile-sub">${escapeHtml(costText(f.activation))}${upkeepNote}</span>
-      </span>
-    </button>`;
-    const buttons = f.modes?.length ? f.modes.map(one).join("") : one(null);
-    return amountPicker(f) + buttons;
-  };
-
-  box.innerHTML = [...opts.weapons.map(weaponBtn), ...opts.forms.map(formBtn)].join("");
-  box.querySelectorAll("button,select").forEach((b) => {
-    if (!enabled) b.disabled = true;
-  });
-}
-
-/**
- * 戰鬥中啟動型態。跟攻擊走同一個端點，差在 action="型態"——它不推進行動順位。
- * @param {string} formId
- * @param {{ mode?: string|null }} [opts] mode：書上「由你自己選擇」的那個選擇，
- *   支付點數則直接從同一個型態的選單讀(可變量型態才有那個選單)。
- */
-async function combatActivateForm(formId, { mode = null } = {}) {
-  if (!currentCombat?.active || combatInFlight) return;
-  if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
-  const picker = document.querySelector(`[data-form-amount="${CSS.escape(formId)}"]`);
-  const amount = picker ? Number(picker.value) : null;
-  combatInFlight = true;
-  renderCombat();
-  try {
-    const res = await (await fetch("/api/combat/act", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: currentSessionId, formId, action: "型態", amount, mode }),
-    })).json();
-
-    if (!res.ok) {
-      appendCombatSystemLine(
-        `變身失敗：${(res.blockers ?? []).map((b) => b.message).join("；") || res.error || "未知原因"}`,
-        "text-yellow-300"
-      );
-      if (res.options) currentCombatOptions = res.options;
-      return;
-    }
-    currentCombat = res.combat;
-    currentCombatOptions = res.options ?? currentCombatOptions;
-    if (res.character) adoptCharacter(res.character);
-    // 玩家在啟動當下做的兩個決定要回顯出來：同一個型態付3點跟付1點強度差三倍，
-    // 畫面上只寫「劍氣 啟動」的話，玩家看不出這次到底變多強。
-    const chose = [res.form.mode?.label, res.form.paid != null ? `支付${res.form.paid}點` : null]
-      .filter(Boolean)
-      .join("，");
-    appendCombatSystemLine(`${res.form.label} 啟動${chose ? `（${chose}）` : ""}`, "text-violet-300");
-  } catch (err) {
-    appendCombatSystemLine(`變身失敗（連線失敗）：${err.message}`);
-  } finally {
-    combatInFlight = false;
-    renderCombat();
-  }
-}
-
-async function combatAttack(weaponKey) {
-  if (!currentCombat?.active || combatInFlight) return;
-  if (currentCombat.order[currentCombat.turnIndex] !== "player") return;
-
-  combatInFlight = true;
-  renderCombat();
-  try {
-    const checkResult = { totalSuccesses: 0 };
-    const res = await (await fetch("/api/combat/act", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: currentSessionId, weaponKey }),
-    })).json();
-
-    if (!res.ok) {
-      // 戰鬥中用 alert 會把玩家整個打斷，訊息按掉之後也查不回去；改成寫進戰鬥紀錄。
-      appendCombatSystemLine(`行動失敗：${res.error}`);
-      return;
-    }
-
-    if (res.playerAttack) {
-      checkResult.totalSuccesses = res.playerAttack.rawSuccesses ?? 0;
-      await playDiceRollAnimation(checkResult);
-      appendCombatLog({
-        actor: "player",
-        weaponKey,
-        hit: res.playerAttack.hit,
-        damage: res.playerAttack.finalDamage ?? 0,
-        damageSeverity: res.playerAttack.damageSeverity,
-        damageSeverityTag: res.playerAttack.damageSeverityTag,
-      });
-    }
-    if (res.enemyAttack) {
-      appendCombatLog({
-        actor: "enemy",
-        weaponKey: currentCombat.enemy.weaponKey,
-        hit: res.enemyAttack.hit,
-        damage: res.enemyAttack.finalDamage ?? 0,
-        damageSeverity: res.enemyAttack.damageSeverity,
-        damageSeverityTag: res.enemyAttack.damageSeverityTag,
-      });
-    }
-
-    // 跨輪時型態的維持成本被收走了(或收不到而斷氣)。不說一聲的話，玩家只會看到
-    // 防御突然變低、內力莫名其妙少了一點——引擎收走了東西，畫面上要有紀錄。
-    for (const ev of res.formEvents ?? []) {
-      appendCombatSystemLine(
-        ev.event === "型態到期" ? `${ev.label} 結束${ev.reason ? `：${ev.reason}` : ""}` : `${ev.label} 維持中（已支付這一輪的維持成本）`,
-        ev.event === "型態到期" ? "text-yellow-300" : "text-violet-300"
-      );
-    }
-
-    currentCombat = res.combat;
-    currentCombatOptions = res.options ?? currentCombatOptions;
-    if (res.character) adoptCharacter(res.character);
-    if (res.scenario?.nodeCompleted) {
-      const n = res.scenario.nodeCompleted;
-      const block = document.createElement("div");
-      block.className = "feed-block-enter p-2.5 rounded bg-emerald-500/10 border border-emerald-500/40 text-[11px] text-emerald-200 font-bold pulse-glow";
-      block.innerHTML = `<i class="fas fa-trophy"></i> 副本節點「${escapeHtml(n.title)}」完成 · 獲得 ${n.reward} 點經驗`;
-      document.getElementById("combat-log").appendChild(block);
-    }
-    // 打贏最終戰卻沒結算成獎勵時，後端會說明原因（見 functions/api/combat/act.js）。
-    // 這種事以前是完全靜音的：玩家打贏boss、沒有XP、沒有提示，跟沒打贏長得一樣。
-    (res.scenario?.warnings || []).forEach((w) => appendCombatSystemLine(w, "text-yellow-300"));
-    if (res.scenario) {
-      updateScenarioHud(res.scenario);
-      if (res.scenario.settlement?.runSummary) showScenarioSettlement(res.scenario.settlement);
-    }
-    renderCombat();
-    refreshJournalIfOpen();
-  } catch (err) {
-    console.error("[COMBAT_FAILURE] /api/combat/act 呼叫失敗", err);
-    appendCombatSystemLine(`行動失敗（連線失敗）：${err.message}。請確認網路後再按一次。`);
-  } finally {
-    combatInFlight = false;
-    renderCombat();
-  }
-}
-
-function endCombat() {
-  const won = currentCombat?.winner === "player";
-  const enemyName = currentCombat?.enemy?.name ?? "敵人";
-  leaveCombatView();
-
-  // [2026-08-16 修正] 這裡以前不管輸贏都送「勉強脫身」回主迴圈，於是打到死掉的角色
-  // 也照樣繼續玩下去。現在輸掉時先問伺服器角色到底是什麼狀態：真的倒下就不送行動回合
-  // (會被 /api/turn 的傷勢閘門擋下)，改成顯示昏迷/死亡橫幅與復活選項。
+function endCombatReturn({ won, enemyName = "敵人" }) {
+  // 輸掉時先問伺服器角色到底是什麼狀態：真的倒下就不送行動回合（會被 /api/turn 的
+  // 傷勢閘門擋下），改成顯示昏迷/死亡橫幅與復活選項。打到死掉的角色不該繼續玩下去。
   if (!won) {
     refreshDownStateThenContinue(enemyName);
     return;
   }
-
   runTurn({ playerAction: `擊敗了${enemyName}，戰鬥結束。` });
 }
 
@@ -4396,7 +4015,7 @@ async function openChronicle(scenarioId = null) {
     showToast("先建立輪迴者檔案，主神才會替你保存劇情。", { kind: "warn" });
     return;
   }
-  if (currentCombat?.active) return;
+  if (inCombat()) return;
   openModal("chronicleModal");
   const book = document.getElementById("chronicle-book");
   if (book) book.innerHTML = `<div class="chronicle-loading"><i class="fas fa-feather-pointed fa-bounce"></i> 正在翻閱存檔……</div>`;
@@ -4808,10 +4427,8 @@ window.showScenarioSettlement = showScenarioSettlement;
 window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
-window.startCombat = startCombat;
 window.openShop = openShop;
 window.doRest = doRest;
-window.endCombat = endCombat;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到
 window.refreshSessionList = refreshSessionList;

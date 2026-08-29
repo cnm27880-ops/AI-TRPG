@@ -535,6 +535,200 @@
             background: linear-gradient(160deg, rgba(16,185,129,.12), rgba(24,24,27,.75));
         }
 
+        /* =====================================================================
+           Combat V2 戰術控制台（規格第7.1、7.2節）。
+
+           顏色一律走既有的主題通道（--ink-*, --line-*, --accent, --bg-*），
+           不寫死 rgba(255,255,255,…)：那種寫法在淺色主題上會整片消失，
+           而本專案的淺色主題是真的有人在用的（見 --brush-alpha 那段註解）。
+           規格要求暗色、低亮度、不使用白底與霓虹，所以這裡沒有任何 glow 動畫。
+           ===================================================================== */
+        .cv2-statusbar {
+            position: sticky; top: 0; z-index: 5;
+            display: flex; align-items: center; gap: .55rem; flex-wrap: wrap;
+            padding: .5rem .75rem;
+            font-family: 'JetBrains Mono', monospace; font-size: .68rem;
+            color: var(--ink-400);
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--line);
+        }
+        .cv2-statusbar .cv2-spacer { flex: 1 1 auto; }
+        .cv2-phase {
+            padding: .12rem .45rem; border-radius: 3px;
+            border: 1px solid var(--line-strong); color: var(--ink-100);
+            font-weight: 700; letter-spacing: .04em;
+        }
+        .cv2-phase[data-phase="player_selection"] { color: var(--accent); border-color: var(--accent); }
+        .cv2-phase[data-phase="resolving"] { color: #c9a227; border-color: rgba(201,162,39,.6); }
+        .cv2-phase[data-phase="ended"] { color: var(--ink-500); }
+        .cv2-round b { color: var(--ink-100); }
+        .cv2-scene { color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 12rem; }
+        .cv2-chip-btn {
+            padding: .18rem .5rem; border-radius: 4px;
+            border: 1px solid var(--line); background: transparent; color: var(--ink-400);
+            font-family: inherit; font-size: .66rem; cursor: pointer; transition: all .18s ease;
+        }
+        .cv2-chip-btn:hover { border-color: var(--line-strong); color: var(--ink-100); }
+        .cv2-chip-danger:hover { border-color: rgba(217,154,140,.6); color: #d99a8c; }
+
+        .cv2-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: .75rem; display: flex; flex-direction: column; gap: .7rem; }
+
+        .cv2-help {
+            border: 1px solid var(--line); border-radius: 6px; padding: .7rem .85rem;
+            background: var(--bg-card); color: var(--ink-400); font-size: .72rem; line-height: 1.6;
+        }
+        .cv2-help h4 { color: var(--ink-100); font-weight: 700; margin-bottom: .3rem; font-size: .74rem; }
+        .cv2-help ul { margin: 0 0 .5rem; padding-left: 1.1rem; list-style: disc; }
+        .cv2-help b { color: var(--ink-100); }
+
+        .cv2-cards { display: grid; grid-template-columns: 1fr; gap: .6rem; }
+        @media (min-width: 768px) { .cv2-cards { grid-template-columns: 1fr 1fr; } }
+        .cv2-card {
+            border: 1px solid var(--line); border-radius: 6px; padding: .65rem .75rem;
+            background: var(--bg-card); font-size: .72rem; color: var(--ink-400);
+        }
+        .cv2-card-title { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .45rem; }
+        .cv2-card-name { color: var(--ink-100); font-weight: 700; font-size: .78rem; }
+        .cv2-enemy-list { display: flex; flex-direction: column; gap: .5rem; }
+        .cv2-card-enemy .cv2-card-name { color: #d99a8c; }
+        .cv2-card-enemy.is-down { opacity: .45; }
+
+        .cv2-kv { display: flex; flex-wrap: wrap; gap: .3rem .8rem; font-family: 'JetBrains Mono', monospace; font-size: .68rem; }
+        .cv2-kv span b { color: var(--ink-100); }
+
+        /* 五類動作的剩餘量。整輪與全回合**不在這裡**——它們不是資源池，
+           而是消耗組合，顯示在行動卡上（規格第7.1節B區）。 */
+        .cv2-budget { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .5rem; }
+        .cv2-budget-pill {
+            display: inline-flex; align-items: baseline; gap: .3rem;
+            padding: .16rem .5rem; border-radius: 999px;
+            border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: .68rem;
+            color: var(--ink-500);
+        }
+        .cv2-budget-pill b { color: var(--ink-100); font-size: .76rem; }
+        .cv2-budget-pill.is-available { border-color: var(--accent); color: var(--ink-100); }
+        .cv2-budget-pill.is-spent { opacity: .45; text-decoration: line-through; }
+
+        .cv2-status-chip {
+            display: inline-block; padding: .08rem .38rem; margin: .12rem .18rem 0 0;
+            border: 1px solid var(--line); border-radius: 3px; font-size: .62rem; color: var(--ink-400);
+        }
+        .cv2-telegraph {
+            margin-top: .4rem; padding: .35rem .5rem; border-radius: 4px;
+            border: 1px solid rgba(194,154,98,.35); background: rgba(194,154,98,.08);
+            color: #c9a227; font-size: .68rem;
+        }
+
+        /* D. 三段距離帶 */
+        .cv2-field { border: 1px solid var(--line); border-radius: 6px; padding: .65rem .75rem; background: var(--bg-card); }
+        .cv2-band { display: flex; align-items: stretch; gap: 0; margin: .35rem 0 .55rem; }
+        .cv2-band-seg {
+            flex: 1 1 0; text-align: center; padding: .4rem .2rem;
+            border: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: .68rem;
+            color: var(--ink-500); background: transparent;
+        }
+        .cv2-band-seg:first-child { border-radius: 4px 0 0 4px; }
+        .cv2-band-seg:last-child { border-radius: 0 4px 4px 0; }
+        .cv2-band-seg + .cv2-band-seg { border-left: none; }
+        .cv2-band-seg.is-current {
+            color: var(--ink-100); border-color: var(--accent);
+            background: rgb(var(--c-accent-base) / .12); font-weight: 700;
+        }
+        .cv2-band-seg small { display: block; font-size: .58rem; opacity: .75; margin-top: .12rem; }
+        .cv2-field-line { font-size: .7rem; color: var(--ink-400); line-height: 1.6; }
+        .cv2-field-line b { color: var(--ink-100); }
+        .cv2-feature { display: inline-block; margin: .18rem .25rem 0 0; padding: .1rem .4rem; border: 1px dashed var(--line); border-radius: 3px; font-size: .64rem; }
+        .cv2-feature.is-used { opacity: .45; text-decoration: line-through; }
+
+        /* E. 行動選單 */
+        .cv2-section-title { font-size: .7rem; font-weight: 700; color: var(--ink-400); letter-spacing: .06em; margin-bottom: .35rem; }
+        .cv2-group { margin-bottom: .6rem; }
+        .cv2-group-head { display: flex; align-items: baseline; gap: .45rem; margin-bottom: .3rem; }
+        .cv2-group-name { font-size: .72rem; font-weight: 700; color: var(--ink-100); }
+        .cv2-group-cost { font-size: .62rem; color: var(--ink-500); font-family: 'JetBrains Mono', monospace; }
+        .cv2-group-grid { display: grid; grid-template-columns: 1fr; gap: .4rem; }
+        @media (min-width: 640px) { .cv2-group-grid { grid-template-columns: 1fr 1fr; } }
+
+        .cv2-action {
+            display: flex; flex-direction: column; gap: .2rem; text-align: left;
+            padding: .55rem .65rem; border-radius: 5px;
+            border: 1px solid var(--line); background: var(--bg-card);
+            color: var(--ink-400); font-size: .7rem; cursor: pointer;
+            transition: border-color .18s ease, background .18s ease, opacity .18s ease;
+        }
+        .cv2-action:hover:not(:disabled) { border-color: var(--line-strong); background: var(--bg-panel); }
+        .cv2-action:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .cv2-action-name { color: var(--ink-100); font-weight: 700; font-size: .74rem; }
+        .cv2-action-meta { font-family: 'JetBrains Mono', monospace; font-size: .62rem; color: var(--ink-500); }
+        .cv2-action-desc { font-size: .66rem; line-height: 1.45; }
+        .cv2-action-why { font-size: .64rem; color: #c9a227; }
+        /* 四種狀態（規格第7.1節E區）。unavailable 仍然顯示，只是降低視覺強度並寫明原因。 */
+        .cv2-action[data-state="selected"] { border-color: var(--accent); background: rgb(var(--c-accent-base) / .1); }
+        .cv2-action[data-state="unavailable"] { opacity: .42; cursor: not-allowed; }
+        .cv2-action[data-state="locked"] { opacity: .5; cursor: not-allowed; border-style: dashed; }
+        .cv2-action[data-state="resolving"] { opacity: .6; cursor: progress; }
+
+        /* 一張行動卡佔一格。支付選單跟著它的卡，不會掉到隔壁那一欄。 */
+        .cv2-action-cell { display: flex; flex-direction: column; gap: .15rem; }
+        .cv2-action-cell > .cv2-action { flex: 1 1 auto; }
+
+        /* 可變量型態的支付點數選單。放在行動卡外面（<select> 在 <button> 裡點不動）。 */
+        .cv2-amount {
+            display: flex; align-items: center; gap: .3rem; margin: 0 0 .1rem .1rem;
+            font-family: 'JetBrains Mono', monospace; font-size: .64rem; color: var(--ink-500);
+        }
+        .cv2-amount select {
+            background: var(--bg-panel); border: 1px solid var(--line); border-radius: 3px;
+            padding: .08rem .3rem; color: var(--ink-100); font-family: inherit; font-size: .64rem;
+        }
+        .cv2-amount select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+        /* F. 本回合選擇摘要（固定在底部） */
+        .cv2-summary {
+            flex: 0 0 auto; border-top: 1px solid var(--line); background: var(--bg-panel);
+            padding: .55rem .75rem; display: flex; flex-direction: column; gap: .45rem;
+        }
+        .cv2-summary-rows { display: flex; flex-wrap: wrap; gap: .25rem .9rem; font-family: 'JetBrains Mono', monospace; font-size: .68rem; color: var(--ink-500); }
+        .cv2-summary-rows b { color: var(--ink-100); font-weight: 700; }
+        .cv2-summary-buttons { display: flex; gap: .4rem; }
+        .cv2-confirm, .cv2-clear {
+            padding: .45rem .9rem; border-radius: 4px; font-family: 'JetBrains Mono', monospace;
+            font-size: .72rem; font-weight: 700; cursor: pointer; transition: all .18s ease;
+            border: 1px solid var(--line-strong); background: transparent; color: var(--ink-400);
+        }
+        .cv2-confirm { flex: 1 1 auto; border-color: var(--accent); color: var(--accent); }
+        .cv2-confirm:hover:not(:disabled) { background: rgb(var(--c-accent-base) / .14); }
+        .cv2-clear:hover:not(:disabled) { color: var(--ink-100); }
+        .cv2-confirm:disabled, .cv2-clear:disabled { opacity: .4; cursor: not-allowed; }
+        .cv2-confirm:focus-visible, .cv2-clear:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .cv2-notice { font-size: .66rem; color: #c9a227; }
+        .cv2-notice.is-error { color: #d99a8c; }
+
+        /* G. 戰鬥紀錄 */
+        .cv2-logbox { border: 1px solid var(--line); border-radius: 6px; padding: .6rem .7rem; background: var(--bg-card); }
+        .cv2-log { max-height: 9rem; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: .66rem; color: var(--ink-400); line-height: 1.65; }
+        .cv2-log li { padding-left: .55rem; border-left: 2px solid var(--line); margin-bottom: .12rem; }
+        .cv2-log li[data-kind="round"] { color: var(--ink-500); border-left-color: var(--line-strong); }
+        .cv2-log li[data-kind="action"] { color: var(--ink-100); border-left-color: var(--accent); }
+        .cv2-log li[data-kind="attack"], .cv2-log li[data-kind="move"] { color: #d99a8c; border-left-color: rgba(217,154,140,.5); }
+        .cv2-log li[data-kind="result"] { color: var(--ink-100); font-weight: 700; }
+
+        .cv2-over { border: 1px solid var(--line-strong); border-radius: 6px; padding: .9rem; text-align: center; background: var(--bg-card); }
+        .cv2-over-text { font-size: .9rem; font-weight: 700; color: var(--ink-100); margin-bottom: .6rem; }
+
+        /* 左下角的系統工具 dock 是 position:fixed 的，會壓在摘要列的「清除選擇」上面
+           （手機上兩者剛好重疊）。戰鬥中把摘要列的按鈕讓開那一格，而不是把 dock 藏起來——
+           藏掉它等於在戰鬥中拿走存檔與設定的入口。 */
+        body.is-combat-v2-view .cv2-summary-buttons { padding-left: 3.1rem; }
+
+        /* 手機：垂直堆疊，但距離帶與剩餘動作**不得被隱藏**（規格第7.2節第10點）。
+           兩者分別在 .cv2-field 與 sticky 的 .cv2-summary 裡，都沒有 display:none 的斷點。 */
+        @media (max-width: 480px) {
+            .cv2-hide-sm { display: none; }
+            .cv2-scene { max-width: 7rem; }
+            .cv2-group-grid { grid-template-columns: 1fr; }
+        }
+
         /* 畫面動畫 */
         @keyframes screenFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .screen-enter, .anim-fade-up { animation: screenFadeIn .4s cubic-bezier(.2,.8,.2,1) both; }
@@ -1125,9 +1319,6 @@
         #story-action-panel input:focus { border-color: rgba(222,214,200,.5) !important; box-shadow: 0 0 0 3px rgba(222,214,200,.08) !important; }
         #story-action-panel [data-send-custom] { background: rgba(166,176,162,.16) !important; border-color: rgba(166,176,162,.45) !important; color: var(--ink-100) !important; box-shadow: none !important; }
         #story-action-panel [data-send-custom]:hover { background: rgba(166,176,162,.28) !important; }
-        #combat-panel .hud-box, #combat-telegraph, #combat-log > * { background: rgba(31,28,24,.88); border-color: rgba(222,214,200,.15); }
-        #combat-enemy-name, #combat-over-text { color: #d99a8c !important; }
-        #combat-turn-indicator { color: var(--accent) !important; }
         #chargen-screen { color: var(--ink-100); }
         #chargen-screen > .hud-box { background: rgba(27,25,21,.9); border-color: rgba(222,214,200,.16); border-radius: 4px; }
         #chargen-screen .text-zinc-100, #chargen-screen .text-zinc-200 { color: var(--ink-100) !important; }
@@ -2011,9 +2202,12 @@
         #char-hud #derived-stats-bar strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; }
 
         /* 一般劇情模式的操作列是主回合入口，不能被上一場戰鬥的 inline 狀態帶走。 */
-        body.is-game-screen:not(.is-combat-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
-        body.is-game-screen.is-combat-view #story-action-panel { display: none !important; }
-        body.is-game-screen.is-combat-view #story-current { display: none !important; }
+        body.is-game-screen:not(.is-combat-v2-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
+        /* Combat V2：戰鬥中不得有自由文字輸入（規格第1節、第11.5節第10點）。
+           #story-action-panel 就是那個輸入框所在的面板，所以這兩行不是排版偏好，
+           而是規則的實作——把它們拿掉，戰鬥中就會重新出現一個可以打字的框。 */
+        body.is-game-screen.is-combat-v2-view #story-action-panel { display: none !important; }
+        body.is-game-screen.is-combat-v2-view #story-current { display: none !important; }
         #story-action-panel .decision-panel-heading { min-height: 1.7rem; }
         #story-action-panel #option-grid { min-height: 0; }
 
@@ -3028,9 +3222,6 @@
                      作法是把每一顆都設成不換行、不壓縮，並在小螢幕上只留圖示——
                      文字標籤改用 title/aria-label 保留語意，圖示本身在桌機仍然帶著文字。 -->
                 <div class="flex items-center gap-2 sm:gap-3 text-[11px] text-zinc-300 shrink-0">
-                    <button id="combat-start-btn" onclick="startCombat()" style="display:none" title="遭遇戰鬥" aria-label="遭遇戰鬥" class="px-2.5 py-1 rounded bg-red-500/10 border border-red-500/40 text-red-300 hover:bg-red-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-crosshairs text-[10px]"></i><span class="hidden sm:inline"> 遭遇戰鬥</span>
-                    </button>
                     <!-- 主神商店。門禁規則見 content/shop/access.js（規則書第469行）：
                          支線與獎勵點數只能在主神空間花，經驗兩邊都能花但副本中要兩倍。
                          按鈕一直在，因為玩家在副本中也需要看得到「等我出去要買什麼」。 -->
@@ -3138,62 +3329,72 @@
                 </div>
             </section>
 
-            <!-- 戰鬥面板（單敵人 MVP，見 content/combat/encounterState.js） -->
-            <div id="combat-panel" style="display:none" class="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3">
-                <div class="hud-box p-4 rounded-lg space-y-3 shrink-0">
-                    <div class="flex items-center justify-between font-mono text-xs">
-                        <span class="text-red-300 font-bold flex items-center gap-1.5"><i class="fas fa-skull text-[11px]"></i><span id="combat-enemy-name">—</span></span>
-                        <span class="text-zinc-300">第 <span id="combat-round">1</span> 輪</span>
-                    </div>
-                    <div class="space-y-1" id="combat-enemy-hp-wrap">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
-                            <span>敵方生命</span><span id="combat-enemy-hp-text" class="text-zinc-100 font-semibold">—</span>
-                        </div>
-                        <div id="combat-enemy-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    </div>
-                    <div class="space-y-1" id="combat-player-hp-wrap">
-                        <div class="flex justify-between text-[11px] font-mono text-zinc-400">
-                            <span>我方生命</span><span id="combat-player-hp-text" class="text-zinc-100 font-semibold">—</span>
-                        </div>
-                        <div id="combat-player-hp-bar" class="grid gap-0.5 h-2 p-0.5 bg-zinc-900 rounded border hairline-border"></div>
-                    </div>
-                    <div id="combat-turn-indicator" class="text-[11px] font-mono text-emerald-300 font-semibold">—</div>
-                </div>
+            <!-- ================================================================
+                 戰術戰鬥控制台（規格第7.1節 A~G 區）。由 public/combatV2.js 控制。
 
-                <!-- 敵人意圖預告：引擎在每一輪開始時抽一句（見 content/combat/encounterState.js
-                     的 pickTelegraph），玩家在按下攻擊鍵之前就看得到牠正在做什麼。
-                     沒有預告文案的敵人（舊樣板）這一格會整個隱藏，不會留一條空框。 -->
-                <div id="combat-telegraph" style="display:none"
-                     class="shrink-0 p-2.5 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] text-amber-200 flex items-start gap-2">
-                    <i class="fas fa-eye mt-0.5 shrink-0"></i>
-                    <span id="combat-telegraph-text" class="flex-1"></span>
-                </div>
+                 這裡只放骨架與具名容器：**每一格的內容都由伺服器回的公開狀態渲染**，
+                 沒有任何一顆行動按鈕是寫死在 HTML 裡的（舊版寫死兩顆攻擊鍵的教訓，
+                 見 public/app.js 的 renderCombatActions 註解）。
+                 ================================================================ -->
+            <div id="combat-v2-panel" style="display:none" class="flex-1 min-h-0 flex flex-col overflow-hidden" aria-label="戰術戰鬥控制台">
 
-                <div id="combat-log" class="flex-1 overflow-y-auto space-y-2 font-mono text-xs"></div>
-
-                <div id="combat-over-banner" style="display:none" class="hud-box p-4 rounded-lg text-center space-y-3 shrink-0">
-                    <div id="combat-over-text" class="text-lg font-bold"></div>
-                    <button onclick="endCombat()" class="px-5 py-2.5 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
-                        返回劇情
+                <!-- A. 頂部戰鬥狀態列。sticky：手機上捲到選單底部時仍看得到輪數與階段。 -->
+                <div id="cv2-statusbar" class="cv2-statusbar" role="status" aria-live="polite">
+                    <span class="cv2-phase" id="cv2-phase">準備中</span>
+                    <span class="cv2-round">第 <b id="cv2-round">1</b> 輪</span>
+                    <span class="cv2-scene" id="cv2-scene">—</span>
+                    <span class="cv2-spacer"></span>
+                    <button type="button" id="cv2-help-btn" class="cv2-chip-btn" aria-label="戰鬥說明">
+                        <i class="fas fa-circle-question" aria-hidden="true"></i><span class="cv2-hide-sm"> 說明</span>
+                    </button>
+                    <button type="button" id="cv2-exit-btn" class="cv2-chip-btn cv2-chip-danger" aria-label="離開戰鬥">
+                        <i class="fas fa-door-open" aria-hidden="true"></i><span class="cv2-hide-sm"> 離開</span>
                     </button>
                 </div>
 
-                <div id="combat-actions" class="grid grid-cols-2 gap-2.5 shrink-0 font-mono">
-                    <button data-combat-attack="unarmed" class="action-tile !p-2.5 !flex-row justify-center">
-                        <i class="fas fa-hand-fist action-tile-icon !text-base"></i>
-                        <span class="flex flex-col items-start leading-tight">
-                            <span class="action-tile-label">徒手攻擊</span>
-                            <span class="action-tile-sub">力量 + 格鬥</span>
-                        </span>
-                    </button>
-                    <button data-combat-attack="pistol" class="action-tile !p-2.5 !flex-row justify-center">
-                        <i class="fas fa-gun action-tile-icon !text-base"></i>
-                        <span class="flex flex-col items-start leading-tight">
-                            <span class="action-tile-label">手槍射擊</span>
-                            <span class="action-tile-sub">敏捷 + 射擊</span>
-                        </span>
-                    </button>
+                <div class="cv2-scroll" id="cv2-scroll">
+                    <!-- 戰鬥說明（規格第7.1節A區的「查看戰鬥說明」入口）。預設收起。 -->
+                    <div id="cv2-help" class="cv2-help" hidden>
+                        <h4>五類動作</h4>
+                        <ul>
+                            <li><b>迅捷動作</b>：每輪 1 個。低負荷、快速完成的行動。</li>
+                            <li><b>移動動作</b>：每輪 1 個。移動、取物、改變戰術位置。</li>
+                            <li><b>標準動作</b>：每輪 1 個。主要攻擊、技能、醫療、複雜操作。</li>
+                            <li><b>整輪動作</b>：消耗移動＋標準。迅捷仍可使用。</li>
+                            <li><b>全回合動作</b>：消耗迅捷＋移動＋標準。</li>
+                        </ul>
+                        <p>動作只能由高階轉化為低階：標準 → 移動 → 迅捷，反向不行。</p>
+                        <p>距離分近／中／遠三段，一般移動一次只改變一格。行動的結算順序由伺服器決定：移動 → 環境 → 戰術 → 攻擊 → 支援。</p>
+                    </div>
+
+                    <!-- B + C. 玩家狀態卡與敵方狀態卡 -->
+                    <div class="cv2-cards">
+                        <section id="cv2-player-card" class="cv2-card cv2-card-player" aria-label="我方狀態"></section>
+                        <section id="cv2-enemy-cards" class="cv2-enemy-list" aria-label="敵方狀態"></section>
+                    </div>
+
+                    <!-- D. 中央距離與戰場區 -->
+                    <section id="cv2-field" class="cv2-field" aria-label="戰場與距離"></section>
+
+                    <!-- E. 行動選單（依五類動作分組） -->
+                    <section id="cv2-actions" class="cv2-actions" aria-label="可用行動"></section>
+
+                    <!-- G. 戰鬥紀錄 -->
+                    <section class="cv2-logbox" aria-label="戰鬥紀錄">
+                        <h4 class="cv2-section-title"><i class="fas fa-list-ul" aria-hidden="true"></i> 戰鬥紀錄</h4>
+                        <ol id="cv2-log" class="cv2-log" aria-live="polite"></ol>
+                    </section>
+
+                    <!-- 戰鬥結束橫幅 -->
+                    <div id="cv2-over" class="cv2-over" hidden>
+                        <div id="cv2-over-text" class="cv2-over-text"></div>
+                        <button type="button" id="cv2-over-close" class="cv2-confirm">返回劇情</button>
+                    </div>
                 </div>
+
+                <!-- F. 本回合選擇摘要。固定在底部：手機上不論捲到哪裡，
+                     「剩餘動作」與「確認並結算」都必須看得到（規格第7.2節第10點）。 -->
+                <div id="cv2-summary" class="cv2-summary" aria-label="本回合選擇"></div>
             </div>
 
             <!-- d20 擲骰結算覆蓋層 -->
@@ -3690,7 +3891,7 @@
             chargen.style.display = (screen === 'chargen') ? 'block' : 'none';
             game.style.display = (screen === 'game') ? 'flex' : 'none';
             document.body.classList.toggle('is-game-screen', screen === 'game');
-            document.body.classList.remove('is-combat-view');
+            document.body.classList.remove('is-combat-v2-view');
             // 建卡與遊戲都發生在副本裡（深色檔案）；回到 portal 則退回第一幕，
             // 若該玩家已經接受過邀請，revealMainGodSpace('resume') 會馬上再把舞台推到主神空間。
             document.documentElement.setAttribute('data-stage', screen === 'portal' ? 'invitation' : 'instance');
@@ -4181,5 +4382,9 @@
         }
     </script>
     <script src="./app.js?v=20260827-r19"></script>
+    <!-- Combat V2 戰術控制台。放在 app.js 之後：它會用到 app.js 的 currentSessionId
+         與 adoptCharacter／escapeHtml，而且要在 app.js 的續戰流程呼叫 restoreCombatV2()
+         之前就已經定義好。 -->
+    <script src="./combatV2.js?v=20260829-r1"></script>
 </body>
 </html>

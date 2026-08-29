@@ -33,7 +33,6 @@ import {
 import { scenarioHudView } from "../../content/scenario/hudView.js";
 import { scenarioLifecycle } from "../../content/scenario/lifecycle.js";
 import { getDownState, revivalQuote } from "../../content/downState.js";
-import { combatOptions } from "../../content/combat/encounterState.js";
 import { getCurrentUser } from "../../content/auth/sessionToken.js";
 import {
   canAccessSession,
@@ -131,39 +130,20 @@ export async function onRequestPost(context) {
   });
 }
 
-function publicCombatState(combat) {
-  if (!combat || typeof combat !== "object") return null;
-  return {
-    active: Boolean(combat.active),
-    round: Number(combat.round) || 0,
-    turnIndex: Number(combat.turnIndex) || 0,
-    order: Array.isArray(combat.order) ? [...combat.order] : [],
-    winner: combat.winner ?? null,
-    initiative: combat.initiative ? { ...combat.initiative } : null,
-    currentTelegraph: combat.currentTelegraph ?? null,
-    forms: combat.forms && typeof combat.forms === "object"
-      ? { active: Array.isArray(combat.forms.active) ? combat.forms.active.map((form) => ({ ...form })) : [] }
-      : null,
-    player: combat.player ? {
-      hpState: { ...(combat.player.hpState ?? {}) },
-      budget: { ...(combat.player.budget ?? {}) },
-    } : null,
-    enemy: combat.enemy ? {
-      name: combat.enemy.name ?? "未知敵人",
-      weaponKey: combat.enemy.weaponKey ?? null,
-      armor: Number(combat.enemy.armor) || 0,
-      hpState: { ...(combat.enemy.hpState ?? {}) },
-      budget: { ...(combat.enemy.budget ?? {}) },
-    } : null,
-    log: Array.isArray(combat.log) ? combat.log.map((entry) => ({
-      actor: entry.actor ?? null,
-      weaponKey: entry.weaponKey ?? null,
-      hit: Boolean(entry.hit),
-      damage: Number(entry.damage) || 0,
-      damageSeverity: entry.damageSeverity ?? null,
-      damageSeverityTag: entry.damageSeverityTag ?? null,
-    })) : [],
-  };
+/**
+ * 進行中的戰鬥要不要回給前端。
+ *
+ * [2026-08-29] 舊戰鬥系統移除之後，這裡不再自己攤平一份戰鬥狀態——戰鬥的公開形狀
+ * 只有一個權威來源（core/combat/v2/publicState.js 的白名單），在這裡再寫第二份
+ * 攤平邏輯，遲早會有一份忘記過濾而把敵人的精確血量或 seed 漏出去。
+ *
+ * 所以這裡只回一個「有沒有仗在打」的旗標，前端看到它就去打 /api/combat/v2/state
+ * 拿完整狀態（見 public/combatV2.js 的 restoreCombatV2）。
+ */
+function publicCombatState(session) {
+  const battle = session?.combatV2;
+  if (!battle?.active) return null;
+  return { active: true, battleId: battle.battleId ?? null, round: Number(battle.round) || 0 };
 }
 
 /**
@@ -192,7 +172,7 @@ function publicSessionView(session) {
           baseTurn: session.pendingTurn.baseTurn ?? session.turns ?? 0,
         }
       : null,
-    combat: publicCombatState(session?.combat),
+    combat: publicCombatState(session),
     godspace: publicGodspaceProfile(session?.godspace),
   };
 }
@@ -279,12 +259,6 @@ export async function onRequestGet(context) {
       available: lifecycle.canEnterGodspace,
       endpoint: "/api/godspace",
     },
-    // [2026-08-17 第九輪] 續戰時的行動列。**這是同一個洞的第二半**：上一輪把戰鬥行動列
-    // 從「index.html 裡寫死的兩顆按鈕」改成引擎算的 combatOptions()，但只接了
-    // /api/combat/start 與 act 兩條回應——**重整頁面回到一場進行中的戰鬥時沒有人算它**，
-    // 前端只好退回那兩顆寫死的按鈕，於是買到的武器與身上的型態在續戰時全部按不到。
-    // 症狀跟上一輪修掉的完全一樣，只是躲在另一條路徑上。
-    combatOptions: session.combat?.active ? combatOptions(session.combat, session.character) : null,
     // [2026-08-20] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在讀取存檔時
     // 一起算出來。先前只有 /api/turn 會回這一份，所以重整頁面接續遊戲的玩家會看到一條空的
     // 頂欄，得再打一個回合才知道自己現在的目標是什麼——狀態一直都在存檔裡，只是沒人讀。

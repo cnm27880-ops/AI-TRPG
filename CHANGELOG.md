@@ -2,6 +2,60 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [BREAKING-2026.08.29] — 移除舊戰鬥系統，戰術戰鬥成為唯一戰鬥；戰鬥改由局勢觸發
+
+**影響範圍：** 移除 `core/combat/actionEconomy.js`、`content/combat/encounterState.js`、`content/combat/placeholderEncounters.js`、`functions/api/combat/{start,act,resolve}.js`、`public/index.html` 的 `#combat-panel` 與「遭遇戰鬥」按鈕；新增 `content/combat/v2/weapons.js`、`core/combat/README.md`；修改 `content/shop/forms.js`、`functions/api/session.js`、`public/app.js`、`public/combatV2.js`、`content/combat/v2/{encountersV2,battleFactory}.js`、`functions/api/combat/v2/start.js`
+
+**變更性質：** 破壞性——舊的 `/api/combat/{start,act,resolve}` 三個端點與 `session.combat` 欄位不再存在。判定公式、骰池、角色數值計算與角色卡格式不變。
+
+### 移除
+
+- 舊的單敵人戰鬥系統整套（狀態機、動作經濟、API、前端面板）。它與戰術戰鬥並存了一版，兩套並存最容易出的錯是「兩邊各記一份在不在戰鬥中」，現在只有一個答案來源。
+- **「遭遇戰鬥」按鈕**。戰鬥由局勢觸發：迫近度到頂（接觸）或主線推進到最終戰節點時自動開戰。打誰由伺服器依副本進度決定（最終戰的 `bossEncounter` > 副本自己的 `threatEncounter` > 內建佔位遭遇）。
+
+### 調整
+
+| 位置 | 原本 | 現在 |
+|---|---|---|
+| `content/shop/forms.js` | `activateForm()`／`payUpkeep()` 收 budget 並自己扣動作額度 | 只管資源與期限；動作額度由 `core/combat/v2/actionBudget.js` 扣。`effect.activation.action` 仍是資料，戰鬥系統讀它 |
+| `functions/api/session.js` | 自己攤平一份戰鬥狀態回給前端 | 只回「有沒有仗在打」的旗標，完整狀態走 `/api/combat/v2/state` 的白名單（兩份攤平邏輯遲早有一份忘記過濾） |
+| 副本敵人樣板 | 只有舊系統讀得懂 | `enemyFromTemplate()` 轉成戰術戰鬥的形狀，生命值與先攻由屬性推導，boss 難度不變 |
+| 武器表 | `content/combat/placeholderEncounters.js` | `content/combat/v2/weapons.js`（內容未改） |
+
+### 順帶修掉的兩個問題
+
+- **商品的攻擊加值在戰術戰鬥裡吃不到。** `performAttack()` 沒有呼叫 `attackModifiersFor()`，所以買到的「攻擊 +2DP」在敘事迴圈的檢定生效、在戰鬥裡卻無聲消失。這是移植舊測試時才發現的。
+- **角色卡壞掉時會用編出來的預設值開戰。** `battleFactory` 原本寫 `character.derived?.hp ?? { max: 10, ... }`，存檔壞掉的玩家會進到一場自己血量憑空變成 10 的戰鬥。改成當場報清楚——開不了的戰鬥好過一場數字是假的戰鬥。
+
+### 測試
+
+移除 `actionEconomy` / `encounterState` / `combatTelegraph` 三個測試檔（它們測的程式碼不存在了）。**驗的行為還在的那些全部搬走，不是刪掉**：`test/shopForms.test.js` 中段留了一段註解列出每一則搬到哪裡，`downState`／`formsApi`／`referenceV2Smoke`／`scenarioIntegration`／`security2026_08_24`／`silentFailures` 六個檔案改打戰術戰鬥的端點。全套 1151 項通過。另以 Chromium 實測：按鈕與舊面板都不存在、自動開戰進得去、戰鬥中沒有自由文字輸入、結算換輪正常、無 console 錯誤。
+
+## [FEATURE-2026.08.29] — Combat V2：戰術戰鬥系統與新戰鬥頁面
+
+**影響範圍：** `core/combat/v2/*`（新增）、`content/combat/v2/*`（新增）、`functions/api/combat/v2/*`（新增）、`public/combatV2.js`（新增）、`public/index.html`、`public/app.js`、`core/combat/V2_ISOLATION.md`（新增）、`test/combatV2*.test.js`（新增）
+
+**變更性質：** 新增一套獨立的 server-authoritative 戰術戰鬥系統。**舊戰鬥流程一行都沒有刪、也沒有改判定**——兩者的狀態、API 與前端面板完全分離（對照表見 `core/combat/V2_ISOLATION.md`）。判定公式、骰池、角色數值計算與既有存檔格式不變。
+
+### 新增
+
+- **五類動作經濟**（`core/combat/v2/actionTypes.js`、`actionBudget.js`）：迅捷／移動／標準各 1，整輪＝移動＋標準、全回合＝迅捷＋移動＋標準（原子消耗）。模型是**計數池＋消耗紀錄**，不是 boolean 旗標；單向轉化（標準→移動→迅捷）每一次都留下來源紀錄。整輪／全回合不是額外的資源池，回合結束與否由結算後真正剩下的額度決定。
+- **三段距離系統**（`range.js`）：`close`／`medium`／`far` 是 server state。一般移動一次只能改變一格，例外要由能力明確宣告（`rangeEffect`）。
+- **動態行動選單**（`actionCatalog.js`、`availableActions.js`）：21 條行動、涵蓋規格的七個分類與全部五種動作類型。不可用的行動照樣回傳，並附上玩家看得懂的原因（「需要近距離」「彈藥不足」「目前無可掩護的隊友」）。`requirements` 走白名單，秘密欄位不會因為忘記過濾而外洩。
+- **回合結算**（`resolveAction.js`、`resolveTurn.js`、`enemyTurn.js`）：結算順序由伺服器決定（移動 → 環境 → 戰術 → 攻擊 → 支援），並依該順序重驗每一張卡的可用性——所以「接近＋近戰」成立、「接近＋射擊」被擋下。敵方 AI 是規則式的，跟玩家用同一套動作經濟，完全不經過 LLM。
+- **可重播的戰鬥骰子**（`rng.js`）：每場戰鬥帶一個 seed，同一個 seed 跑出同一場戰鬥；seed 不出現在任何公開 payload。
+- **公開狀態白名單**（`publicState.js`）：敵人只給公開生命等級（未受傷／受傷／重創／瀕死／已倒下），不給精確 HP、AI 檔案、秘密 DC 或骰池。
+- **API**：`POST /api/combat/v2/start`、`GET /api/combat/v2/state`、`POST /api/combat/v2/turn`（含 `preview` 模式）。所有改變狀態的請求都要帶 `stateVersion` 與 `requestId`：版本不符回 409 並附最新狀態，同一個 `requestId` 重送回原結果不重複結算。
+- **戰鬥頁面**（`public/combatV2.js` + `#combat-v2-panel`）：狀態列、玩家與敵方公開狀態卡、三段距離帶與戰場資訊、依五類動作分組的行動選單、本回合選擇摘要與確認流程、戰鬥紀錄。戰鬥中**沒有自由文字輸入**；前端不做任何規則判定，每次改變選擇都向伺服器要一次預覽。
+
+### 被隔離、但沒有刪除
+
+`core/combat/actionEconomy.js` 的反射動作（`useReflex`）、自由動作（`useFree`）與專注（`startFocus`）仍留在舊模組供舊流程使用，Combat V2 的任何檔案都沒有 import 它們。戰鬥中的型態啟動（`resolveFormActivation`）尚未接進 V2 的行動目錄——這是已知未完成項，不是被移除的功能。細節見 `core/combat/V2_ISOLATION.md`。
+
+### 測試
+
+新增 `test/combatV2ActionBudget.test.js`（25）、`combatV2Range.test.js`（15）、`combatV2ActionMenu.test.js`（14）、`combatV2Turn.test.js`（24）、`combatV2Api.test.js`（18）、`combatV2Ui.test.js`（18），共 114 項，涵蓋規格第 11.1～11.5 節的全部 45 條要求。全套測試 1162 項通過（既有 1048 項無回歸）。桌機（1280×900）與手機（390×844）以 Chromium 實測過開戰、選擇、整輪鎖定、確認結算與換輪。
+
 ## [CONTENT-2026.08.28] — 第二副本《努布拉島：維修站撤離》接入
 
 **影響範圍：** `content/scenario/examples/jurassicPark_v1*`、`content/scenario/registry.js`、`content/scenario/referenceAdapter.js`、`content/scenario/explorationState.js`、`content/scenario/settlement.js`、`functions/api/travel.js`、`functions/api/turn.js`、`validate_jurassic_v1.mjs`、`test/jurassicParkV1.test.js`、`docs/JURASSIC_PARK_V1_AUTHORING_AUDIT.md`

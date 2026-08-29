@@ -52,18 +52,37 @@ core/                  純運算引擎，不含任何 AI 呼叫，Node/瀏覽器
                             (damageCap()公式已停用，保留當規則書參考記錄)
     attack.js               [設計，2026-08-15取代規則書版] resolveAttack命中判定核心
                              (原始成功數>防御DC才算命中 -> 總成功數-DC當基礎傷害，無上限)
-    actionEconomy.js         [規則書] 自由/迅捷/移動/標準/整輪/全回合/反射/專注的額度追蹤與轉化鏈
     armor.js                  [設計，2026-08-15取代規則書版] 單一護甲值(Armor)傷害吸收，
                               取代原本物理/能量/精神/力場/毒素/墜落六大類的8步驟減免流程
     resolveCombatAction.js    [設計]  把attack.js+armor.js+health.js接成一次完整攻擊行動
+    v2/                       [設計] 戰術戰鬥系統(2026-08-29 起是唯一的戰鬥系統)
+      actionTypes.js           五類動作(迅捷/移動/標準/整輪/全回合)、階層與單向轉化表
+      actionBudget.js          計數池＋消耗紀錄的額度模型，整輪/全回合原子消耗
+      range.js                 close/medium/far 三段距離與合法性判定
+      initiative.js            先攻(沿用 turnOrder.js，換成戰鬥自己的可重播亂數)
+      rng.js                   seed＋cursor 的可重播骰子，seed 不進任何公開 payload
+      battleState.js           戰場狀態、回合狀態機、狀態效果、型態時鐘與公開紀錄
+      actionCatalog.js         行動目錄(21條靜態行動的 schema 與結算相位)
+      availableActions.js      server-side 動態行動選單生成器
+      resolveAction.js         單一行動的規則結算
+      resolveTurn.js           多行動的驗證、排序、原子扣除與整輪結算
+      enemyTurn.js             敵方 AI 的公開規則執行層(不經過 LLM)
+      publicState.js           內部狀態 -> 不洩漏秘密的公開 payload(白名單)
   character.js           [設計]  戰鬥用角色檔案資料形狀(emptyCombatProfile：skillCorrection/
                           equipmentDefense/armor三個欄位)，橋接character屬性/技能跟combat/
                           模組要吃的參數，Phase 3裝備/血統資料進來前先給零值骨架
 content/               即插即用內容包
-  combat/                 [設計] 單敵人戰鬥遭遇的臨時佔位資料與狀態機
-    placeholderEncounters.js  臨時武器(徒手/手槍)與測試敵人(掠奪者)資料，等型錄轉換工具
-                               做出真實裝備/怪物資料後會被取代，見「戰鬥數學簡化」決策記錄
-    encounterState.js          單敵人回合制狀態機：先攻排序、玩家/敵人交替攻擊、勝負判定
+  combat/                 [設計] 戰鬥內容與戰後結算
+    finaleSettlement.js       打贏最終戰之後的節點結算、獎勵、通關結算與劇情包封存
+    v2/                       戰術戰鬥的內容層(接線與資料)
+      weapons.js               臨時武器(徒手/手槍)與攻擊參數轉接，等型錄轉換工具
+                                做出真實裝備資料後會被取代，見「戰鬥數學簡化」決策記錄
+      encountersV2.js          場景(可互動物件)、內建遭遇，以及把副本包的敵人樣板
+                                (bossEncounter/threatEncounter)轉成戰鬥要的形狀
+      loadout.js               玩家的武器/彈藥/消耗品清單(商店買到什麼就長出什麼)
+      formActions.js           把角色身上的型態變成行動目錄的條目
+      battleFactory.js         角色卡＋遭遇樣板 -> 一場戰鬥
+      apiSupport.js            API 層共用工具(存檔歸屬、冪等、樂觀鎖定、角色卡掛載)
   packs/                各個 resource pack / scenario pack / contract pack 的 JSON 檔案
                         (含 d-tier-samples-*.json：7個資源分類各3個D級真實條目，見下方決策記錄；
                          以及 shop-starter-*.json：商店貨架9個包共36件商品，是同一批原文

@@ -5,8 +5,8 @@ import { emptyCharacter } from "../core/schema.js";
 import { onRequestPost as createSession } from "../functions/api/session.js";
 import { onRequestPost as playTurn } from "../functions/api/turn.js";
 import { onRequestPost as travel } from "../functions/api/travel.js";
-import { onRequestPost as combatStart } from "../functions/api/combat/start.js";
-import { onRequestPost as combatAct } from "../functions/api/combat/act.js";
+import { onRequestPost as combatStart } from "../functions/api/combat/v2/start.js";
+import { onRequestPost as combatTurn } from "../functions/api/combat/v2/turn.js";
 import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { getScenarioPack, getScenarioReference } from "../content/scenario/registry.js";
 
@@ -778,30 +778,28 @@ test("V2 combat settlement also returns the canonical ending presentation", asyn
   await store.put(session);
 
   const started = await readJson(await combatStart({
-    request: jsonRequest("https://test.local/api/combat/start", { sessionId }),
+    request: jsonRequest("https://test.local/api/combat/v2/start", { sessionId, seed: 3 }),
     env,
   }));
   assert.equal(started.status, 200, JSON.stringify(started.body));
+
+  // 把敵人直接設成倒下，讓變因限制在「打贏之後有沒有跑通關結算」。
   const combatSession = await store.get(sessionId);
-  combatSession.combat.order = ["player", "enemy"];
-  combatSession.combat.turnIndex = 0;
-  combatSession.combat.enemy.hpState = {
-    ...combatSession.combat.enemy.hpState,
-    intact: 0,
-    B: 0,
-    L: 0,
-    A: 0,
-    dead: true,
-    unconscious: false,
-  };
+  const enemy = combatSession.combatV2.participants.find((p) => p.side === "enemy");
+  enemy.hpState = { ...enemy.hpState, intact: 0, B: 0, L: 0, A: enemy.hpState.max, dead: true, unconscious: true };
   await store.put(combatSession);
 
-  const victory = await readJson(await combatAct({
-    request: jsonRequest("https://test.local/api/combat/act", { sessionId, weaponKey: "unarmed" }),
+  const victory = await readJson(await combatTurn({
+    request: jsonRequest("https://test.local/api/combat/v2/turn", {
+      sessionId,
+      stateVersion: combatSession.combatV2.stateVersion,
+      requestId: "v2-finale",
+      selectedActions: [{ actionId: "hunker_down" }],
+    }),
     env,
   }));
   assert.equal(victory.status, 200, JSON.stringify(victory.body));
-  assert.equal(victory.body.combatOver.winner, "player");
+  assert.equal(victory.body.battle.outcome.winner, "player");
   assert.equal(victory.body.scenario.settlement.endingPresentation.source, "canonical_gemini_narrative");
   assert.match(victory.body.scenario.settlement.endingPresentation.copy, /水仙號的引擎噴口/);
   assert.equal(JSON.stringify(victory.body.scenario.settlement).includes("gmTruth"), false);

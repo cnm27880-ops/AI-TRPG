@@ -14,6 +14,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const app = fs.readFileSync(path.join(root, "public/app.js"), "utf8");
 const index = fs.readFileSync(path.join(root, "public/index.html"), "utf8");
+const view = fs.readFileSync(path.join(root, "public/combatV2.js"), "utf8");
 
 // ---------------------------------------------------------------------------
 // 1) 前端打的每一個 /api 路徑，functions/ 底下都要有對應的檔案
@@ -38,7 +39,7 @@ function routeFileFor(apiPath) {
 }
 
 test("前端呼叫的每一個 /api 路徑都有對應的 Cloudflare Function 檔", () => {
-  const missing = frontendApiPaths(app + index).filter((apiPath) => !routeFileFor(apiPath));
+  const missing = frontendApiPaths(app + index + view).filter((apiPath) => !routeFileFor(apiPath));
   assert.deepEqual(missing, [], `這些路徑在 functions/ 底下沒有對應檔案，正式部署會回 index.html：${missing.join(", ")}`);
 });
 
@@ -110,15 +111,18 @@ test("還沒有任何一則時保留故事區的佔位文字", () => {
 // 光把 inline style 設回 flex 是壓不過它的。舊的 attemptRevive() 抄了三行顯示切換卻漏掉
 // 這個 class，於是「戰鬥中被打死 → 復活」之後畫面是一片空白，而且回不去。
 // ---------------------------------------------------------------------------
-test("離開戰鬥畫面只有一份實作，且一定會拿掉 is-combat-view", () => {
-  assert.match(app, /function leaveCombatView\(\)/);
-  assert.match(app, /if \(currentCombat\) leaveCombatView\(\);/, "復活後要走同一份離開流程");
+test("離開戰鬥畫面只有一份實作，且一定會拿掉 is-combat-v2-view", () => {
+  // [2026-08-29] 舊戰鬥面板移除後，這條契約跟著搬到 public/combatV2.js。守的還是同一件事：
+  // 拆掉那個 class 的地方只能有一處，抄第二份遲早有一份漏掉，而漏掉的症狀是
+  // 「回到故事流了，但故事面板還是被 CSS 藏著」——畫面看起來整個空掉。
+  assert.match(view, /function leaveCombatV2View\(\)/);
   assert.equal(
-    (app.match(/classList\.remove\("is-combat-view"\)/g) ?? []).length,
+    (view.match(/classList\.remove\("is-combat-v2-view"\)/g) ?? []).length,
     1,
-    "拆掉 is-combat-view 的地方只能有一處（leaveCombatView），抄第二份就會再漏一次",
+    "拆掉 is-combat-v2-view 的地方只能有一處（leaveCombatV2View）",
   );
-  assert.match(index, /body\.is-game-screen\.is-combat-view #story-current \{ display: none !important; \}/);
+  assert.match(app, /window\.leaveCombatV2View/, "復活/回主神空間要走同一份離開流程");
+  assert.match(index, /body\.is-game-screen\.is-combat-v2-view #story-current \{ display: none !important; \}/);
 });
 
 // ---------------------------------------------------------------------------

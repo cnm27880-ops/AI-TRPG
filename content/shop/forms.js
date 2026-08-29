@@ -33,7 +33,6 @@
 //    entry.grants。之後所有查表的地方看到的就是一組普通的固定效果——**選擇點只存在一瞬間**，
 //    這是它不違反「條件不可以交給AI判斷」的原因：查表的時候已經沒有任何條件要判斷了。
 
-import { useFree, useSwift, useMove, useStandard, useFullRound, useFullTurn } from "../../core/combat/actionEconomy.js";
 import { spendEnergy } from "../../core/energyPools.js";
 
 /**
@@ -133,24 +132,6 @@ function grantsFor(effect, mode) {
  *   於是同一輪裡第二個以自由動作啟動/維持的型態會被誤判成重複行為而失敗
  *   (維持成本做出來之後這件事才變得碰得到：兩個各要一個自由動作的維持型態並存)。
  */
-function applyActionCost(budget, action, freeKey = "啟動型態") {
-  switch (action) {
-    case "自由":
-      return useFree(budget, freeKey);
-    case "迅捷":
-      return useSwift(budget);
-    case "移動":
-      return useMove(budget);
-    case "標準":
-      return useStandard(budget);
-    case "整輪":
-      return useFullRound(budget);
-    case "全回合":
-      return useFullTurn(budget);
-    default:
-      throw new Error(`未知的啟動動作等級：${action}`);
-  }
-}
 
 /**
  * 啟動一個型態。
@@ -161,21 +142,22 @@ function applyActionCost(budget, action, freeKey = "啟動型態") {
  * @param {object} character 角色卡(不會被修改)
  * @param {object} formsState createFormsState() 的形狀(不會被修改)
  * @param {string} formId formIdOf() 產生的識別字串
- * @param {{ round?: number, budget?: object, sceneKey?: string, amount?: number, mode?: string }} [ctx]
+ * @param {{ round?: number, sceneKey?: string, amount?: number, mode?: string }} [ctx]
  *   round    —— 目前的戰鬥輪數，duration.unit==="輪" 時必須提供
- *   budget   —— 目前這一輪的動作額度(core/combat/actionEconomy.js)，有給才會檢查動作成本
+ *   （動作額度**不在這裡**檢查：那是戰鬥系統的事，見 core/combat/v2/actionBudget.js。
+ *     effect.activation.action 仍然是資料的一部分，由戰鬥系統讀它決定要扣哪一種動作。）
  *   sceneKey —— 現在人在哪(content/shop/access.js 的 sceneKeyOf())。以「場景」計時的型態
  *               會把它記在自己身上，之後鑰匙一變就到期，見 expireOnSceneChange()
  *   amount   —— 可變量型態這次要付幾點(見 variablePaymentRange)。非可變量的型態不看這個欄位
  *   mode     —— 有 modes 的型態這次選哪一種(書上的「由你自己選擇」)
  * @returns {{ ok: boolean, blockers: {code:string,message:string}[],
- *             character?: object, formsState?: object, budget?: object, form?: object }}
+ *             character?: object, formsState?: object, form?: object }}
  */
 export function activateForm(
   character,
   formsState,
   formId,
-  { round = null, budget = null, sceneKey = null, amount = null, mode = null } = {}
+  { round = null, sceneKey = null, amount = null, mode = null } = {}
 ) {
   const blockers = [];
   const found = formsOf(character).find((f) => f.formId === formId);
@@ -259,16 +241,10 @@ export function activateForm(
     });
   }
 
-  // 動作額度。呼叫端沒有給 budget 就代表「現在不在戰鬥裡，動作額度不適用」——
-  // 這是刻意的：敘事迴圈裡沒有回合制的動作額度，強迫它有一個等於憑空發明規則。
-  let nextBudget = budget;
-  if (budget && effect.activation?.action) {
-    try {
-      nextBudget = applyActionCost(budget, effect.activation.action, `啟動型態:${formId}`);
-    } catch (e) {
-      blockers.push({ code: "動作額度不足", message: e.message });
-    }
-  }
+  // 動作額度**不在這裡扣**。這個模組只管資源（意志力／能量池）與期限；
+  // 「這個型態要花一個迅捷動作」是戰鬥系統的規則，由它用自己的額度模型扣
+  // （見 core/combat/v2/actionBudget.js 與 formActions.js）。
+  // effect.activation.action 仍然留在資料裡，因為戰鬥系統要讀它才知道要扣哪一種。
 
   // 期限
   const unit = effect.duration?.unit;
@@ -340,7 +316,6 @@ export function activateForm(
         },
       ],
     },
-    budget: nextBudget,
     form: entry,
   };
 }
@@ -403,19 +378,18 @@ export function tickFormsOnRound(formsState, round) {
  * @param {object} formsState
  * @param {object} character 角色卡(不會被修改，扣完的新卡從回傳值拿)
  * @param {number} round 剛開始的這一輪
- * @param {object} [budget] 這一輪剛重置的動作額度。有給才會扣維持動作
+ * （動作額度同樣不在這裡扣，理由見 activateForm。）
  *   (書上的「每輪需以一個自由動作支付1點內力維持」——那個自由動作是真的要花的)
- * @returns {{ formsState, character, budget, ended: object[], paid: object[] }}
+ * @returns {{ formsState, character, ended: object[], paid: object[] }}
  */
-export function payUpkeep(formsState, character, round, budget = null) {
+export function payUpkeep(formsState, character, round) {
   const active = formsState?.active ?? [];
   if (!active.some((f) => f.upkeep)) {
-    return { formsState: formsState ?? createFormsState(), character, budget, ended: [], paid: [] };
+    return { formsState: formsState ?? createFormsState(), character, ended: [], paid: [] };
   }
 
   let pools = character.derived?.energyPools ?? {};
   let willpower = character.derived?.willpower;
-  let nextBudget = budget;
   const kept = [];
   const ended = [];
   const paid = [];
@@ -431,22 +405,11 @@ export function payUpkeep(formsState, character, round, budget = null) {
     const wpCost = upkeep.willpower ?? 0;
     const shortOfWillpower = wpCost > 0 && (willpower?.current ?? 0) < wpCost;
     const spent = upkeep.pool ? spendEnergy(pools, upkeep.pool.name, upkeep.pool.amount) : null;
-    let actionBudget = nextBudget;
-    let actionFailure = null;
-    if (nextBudget && upkeep.action) {
-      try {
-        actionBudget = applyActionCost(nextBudget, upkeep.action, `維持型態:${form.formId}`);
-      } catch (e) {
-        actionFailure = e.message;
-      }
-    }
 
-    if (shortOfWillpower || (spent && !spent.ok) || actionFailure) {
+    if (shortOfWillpower || (spent && !spent.ok)) {
       const reason = shortOfWillpower
         ? `付不出維持成本：意志力不足(需要${wpCost}點)`
-        : spent && !spent.ok
-          ? `付不出維持成本：${spent.reason}`
-          : `付不出維持成本：${actionFailure}`;
+        : `付不出維持成本：${spent.reason}`;
       ended.push({ ...form, endReason: reason });
       changed = true;
       continue;
@@ -454,14 +417,13 @@ export function payUpkeep(formsState, character, round, budget = null) {
 
     if (spent) pools = spent.pools;
     if (wpCost > 0) willpower = { ...willpower, current: willpower.current - wpCost };
-    nextBudget = actionBudget;
     if (spent || wpCost > 0) changed = true;
     paid.push({ formId: form.formId, label: form.label, willpower: wpCost, pool: upkeep.pool ?? null });
     kept.push(form);
   }
 
   if (!changed) {
-    return { formsState: formsState ?? createFormsState(), character, budget: nextBudget, ended, paid };
+    return { formsState: formsState ?? createFormsState(), character, ended, paid };
   }
 
   return {
@@ -477,7 +439,6 @@ export function payUpkeep(formsState, character, round, budget = null) {
       ...character,
       derived: { ...character.derived, willpower, energyPools: pools },
     },
-    budget: nextBudget,
     ended,
     paid,
   };
