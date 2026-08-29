@@ -201,13 +201,8 @@ test("evaluatePurchase 吃得到地點：同一件商品在兩個地點結果不
 
 test("執行期的貨架註冊表跟 content/packs 的 JSON 逐件一致(忘記同步就會紅)", async () => {
   const { readFileSync } = await import("node:fs");
-  const files = [
-    "items", "feats", "bloodline", "cybernetic", "dojutsu",
-    "title", "school", "technique", "spell", "pools",
-  ];
-  const fromJson = files.flatMap(
-    (f) => JSON.parse(readFileSync(new URL(`../content/packs/shop-starter-${f}.json`, import.meta.url))).entries
-  );
+  const packsFiles = ["shop-starter-items.json", "shop-starter-feats.json", "d-tier-rebalanced-bloodlines.json", "shop-starter-cybernetic.json", "shop-starter-dojutsu.json", "shop-starter-title.json", "shop-starter-school.json", "shop-starter-technique.json", "shop-starter-spell.json", "shop-starter-pools.json"];
+  const fromJson = packsFiles.flatMap((f) => JSON.parse(readFileSync(new URL(`../content/packs/${f}`, import.meta.url))).entries);
   assert.deepEqual(SHOP_GOODS, fromJson, "shopStarterPacks.js 跟 shop-starter-*.json 走鐘了");
 });
 

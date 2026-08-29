@@ -1,0 +1,384 @@
+{
+  "id": "bloodline-d-tier-rebalanced-v1",
+  "type": "商品",
+  "version": "1.0.0",
+  "schemaVersion": "bloodline-d-tier-rebalanced-v1",
+  "packId": "bloodline-d-tier-rebalanced-v1",
+  "status": "上架",
+  "candidateOnly": false,
+  "runtimeImported": true,
+  "sourceDraft": "bloodline-rebalanced-draft-v1",
+  "entries": [
+    {
+      "goodId": "bloodline.rebalanced.martial_arts_prodigy.D",
+      "name": "萬中無一的武學奇才 D級：懵懂的少年",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.martial_arts_prodigy",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "生命上限+2",
+        "求生檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "求生",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.coordinator.D",
+      "name": "調整者 D級：初代調整者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.coordinator",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "生命上限+2",
+        "醫療檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "醫療",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance_citizen.D",
+      "name": "阿蘭斯血統 D級：帝國公民",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.allance",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "技藝檢定加骰+1",
+        "交涉檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "skill": "技藝",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "交涉",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.white_tiger.D",
+      "name": "白虎星血統 D級：白虎星裔",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.white_tiger",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "天生武器",
+        "護甲+1"
+      ],
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "白虎爪",
+          "attackType": "肉搏",
+          "weaponDamage": 1,
+          "severity": "B",
+          "ranged": false
+        },
+        {
+          "kind": "護甲",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.ancient_sacred_body.D",
+      "name": "荒古聖體 D級：天賦異稟",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.ancient_sacred_body",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "生命上限+2",
+        "體魄檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "體魄",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.crimson_demon.D",
+      "name": "紅魔族 D級：背負血之命運的法師",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.crimson_demon",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "秘識檢定加骰+1",
+        "技藝檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "skill": "秘識",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "技藝",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.wisewolf.D",
+      "name": "賢狼變化 D級：萌芽之狼",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.wisewolf",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "偵察檢定加骰+1",
+        "求生檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "skill": "偵察",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "求生",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.garuda.D",
+      "name": "迦樓羅血統 D級：祈靈者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.garuda",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "防御+1",
+        "格鬥檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "防御",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.holy_gem.D",
+      "name": "聖寶石體質 D級：晶體接觸",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.holy_gem",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "意志檢定加骰+1",
+        "秘識檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "attribute": "意志",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "秘識",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.fungus_lord.D",
+      "name": "毒茸之侵略者 D級：Wake Up!",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.fungus_lord",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "潛行檢定加骰+1",
+        "醫療檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "skill": "潛行",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "醫療",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.saiyan.D",
+      "name": "賽亞人血統 D級：下級戰士",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.saiyan",
+      "pathId": "default",
+      "rank": "D",
+      "status": "上架",
+      "price": "D+600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行",
+      "attributePool": {
+        "points": 4,
+        "capPerAttribute": 2
+      },
+      "traits": [
+        "護甲+1",
+        "體魄檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "體魄",
+          "amount": 1
+        }
+      ]
+    }
+  ]
+}

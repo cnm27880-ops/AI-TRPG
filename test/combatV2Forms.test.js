@@ -22,7 +22,19 @@ import { activeGrantSources } from "../content/shop/forms.js";
 
 const 葵花 = SHOP_GOODS.find((g) => g.goodId === "technique.葵花寶典.1");   // 鬼魅身：迅捷＋1內力，有維持成本
 const 混元 = SHOP_GOODS.find((g) => g.goodId === "pool.混元劍經.1");        // 劍氣：自由＋可變量，二選一
-const 阿蘭斯 = SHOP_GOODS.find((g) => g.goodId === "bloodline.阿蘭斯.D");    // 帝國子民：標準＋1意志力
+
+const 阿蘭斯 = {
+  goodId: "mock.阿蘭斯.D",
+  name: "阿蘭斯",
+  effects: [{
+    kind: "型態",
+    label: "帝國子民",
+    activation: { action: "標準", willpower: 1 },
+    duration: { unit: "場景" },
+    grants: [{ kind: "檢定加骰", amount: 1 }]
+  }]
+};
+
 const 寫輪眼 = SHOP_GOODS.find((g) => g.goodId === "dojutsu.寫輪眼.D");      // 洞察眼：標準＋1查克拉
 
 /** 一張買好那幾件商品、池子也開好的角色卡（買賣流程有自己的測試，這裡不重跑）。 */
@@ -50,7 +62,7 @@ function battleWith(character, opts = {}) {
 
 const 鬼魅身 = "form:technique.葵花寶典.1:鬼魅身";
 const 劍氣攻 = "form:pool.混元劍經.1:劍氣@攻";
-const 帝國子民 = "form:bloodline.阿蘭斯.D:帝國子民";
+const 帝國子民 = "form:mock.阿蘭斯.D:帝國子民";
 
 // --- 動作等級對映 ---
 
@@ -254,7 +266,7 @@ test("戰鬥結束時以「輪」計時的型態收掉，以「場景」計時�
   resolveTurn(battle, [{ actionId: "hunker_down" }]);
   assert.equal(battle.active, false);
   assert.ok(
-    (battle.forms.active ?? []).some((f) => f.formId === "bloodline.阿蘭斯.D:帝國子民"),
+    (battle.forms.active ?? []).some((f) => f.formId === "mock.阿蘭斯.D:帝國子民"),
     "打一場架不會改變你站在哪裡，以場景計時的型態要留到玩家離開這個地點"
   );
 });
@@ -284,11 +296,26 @@ test("公開狀態帶得出進行中的型態與資源，但不帶整張角色�
 // ---------------------------------------------------------------------------
 
 test("戰鬥中變身讓防御真的變高（不是只有查表函式知道）", () => {
-  const Orphnoch = SHOP_GOODS.find((g) => g.goodId === "bloodline.Orphnoch.D");
+
+const Orphnoch = {
+  goodId: "mock.Orphnoch.D",
+  name: "Orphnoch",
+  effects: [{
+    kind: "型態",
+    label: "進化形態",
+    activation: { action: "移動", willpower: 1 },
+    duration: { unit: "場景" },
+    grants: [
+      { kind: "防御", amount: 3 },
+      { kind: "武器", label: "天生武器", attackType: "肉搏", weaponDamage: 3, severity: "L", ranged: false }
+    ]
+  }]
+};
+
   const battle = battleWith(帶型態的角色卡({ goods: [Orphnoch] }));
   const before = combatProfileFrom(battle.character, { extraSources: activeGrantSources(battle.forms) }).equipmentDefense;
 
-  resolveTurn(battle, [{ actionId: "form:bloodline.Orphnoch.D:進化形態" }]);
+  resolveTurn(battle, [{ actionId: "form:mock.Orphnoch.D:進化形態" }]);
 
   const after = combatProfileFrom(battle.character, { extraSources: activeGrantSources(battle.forms) }).equipmentDefense;
   assert.ok(after > before, `變身後防御要變高（${before} -> ${after}）`);
@@ -353,11 +380,26 @@ test("戰鬥結束會收掉以「輪」計時的型態（戰鬥外沒有輪可�
 
 test("型態授予的天生武器在啟動後真的按得到（裝備表會重算）", () => {
   // 進化形態（Orphnoch）變身中才有天生武器。
-  const Orphnoch = SHOP_GOODS.find((g) => g.goodId === "bloodline.Orphnoch.D");
+
+const Orphnoch = {
+  goodId: "mock.Orphnoch.D",
+  name: "Orphnoch",
+  effects: [{
+    kind: "型態",
+    label: "進化形態",
+    activation: { action: "移動", willpower: 1 },
+    duration: { unit: "場景" },
+    grants: [
+      { kind: "防御", amount: 3 },
+      { kind: "武器", label: "天生武器", attackType: "肉搏", weaponDamage: 3, severity: "L", ranged: false }
+    ]
+  }]
+};
+
   const c = 帶型態的角色卡({ goods: [Orphnoch] });
   const battle = battleWith(c);
   const before = battle.loadout.weapons.length;
-  resolveTurn(battle, [{ actionId: "form:bloodline.Orphnoch.D:進化形態" }]);
+  resolveTurn(battle, [{ actionId: "form:mock.Orphnoch.D:進化形態" }]);
   assert.ok(
     battle.loadout.weapons.length > before,
     "型態授予的天生武器要進裝備表，否則變身少了一半的價值"

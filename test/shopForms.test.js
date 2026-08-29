@@ -356,60 +356,7 @@ test("formsOf/describeActiveForms：貨架與敘事拿得到人看得懂的描�
 // 那一層跟哪一套戰鬥系統無關。
 // ---------------------------------------------------------------------------
 
-test("Orphnoch 血統買下去之後，型態就在角色身上，而且可以啟動", async () => {
-  const pack = (await import("../content/packs/shop-starter-bloodline.json", { with: { type: "json" } })).default;
-  const good = pack.entries.find((e) => e.goodId === "bloodline.Orphnoch.D");
 
-  assert.equal(good.status, "上架", "Orphnoch 應該已經不是掛名");
-  assert.equal(validateGood(good).valid, true, validateGood(good).errors.join("\n"));
-
-  const wallet = createWallet({ tokens: { D: 10 }, points: 5000 });
-  const bought = purchase(hero(), wallet, good);
-  assert.equal(bought.ok, true, JSON.stringify(bought.blockers));
-
-  const forms = formsOf(bought.character);
-  assert.equal(forms.length, 1);
-  assert.equal(forms[0].effect.label, "進化形態");
-
-  const on = activateForm(bought.character, createFormsState(), forms[0].formId);
-  assert.equal(on.ok, true);
-  assert.equal(
-    combatProfileFrom(bought.character, { extraSources: activeGrantSources(on.formsState) }).equipmentDefense,
-    3,
-    "書上寫的3點天生防禦要真的出現"
-  );
-});
-
-test("阿蘭斯的『帝國子民』從 droppedTraits 撿回來，變成一個真的會生效的型態", async () => {
-  const pack = (await import("../content/packs/shop-starter-bloodline.json", { with: { type: "json" } })).default;
-  const good = pack.entries.find((e) => e.goodId === "bloodline.阿蘭斯.D");
-
-  assert.ok(
-    !(good.droppedTraits ?? []).some((d) => d.trait.startsWith("帝國子民")),
-    "帝國子民不該還留在 droppedTraits"
-  );
-  const form = good.effects.find((e) => e.kind === "型態");
-  assert.equal(form.label, "帝國子民");
-  assert.equal(form.activation.willpower, 1);
-  assert.equal(form.duration.unit, "場景");
-
-  const wallet = createWallet({ tokens: { D: 10 }, points: 5000 });
-  const bought = purchase(hero(), wallet, good, {
-    allocation: { 力量: 2, 敏捷: 2 },
-  });
-  assert.equal(bought.ok, true, JSON.stringify(bought.blockers));
-
-  const formId = formIdOf(good.goodId, "帝國子民");
-  const on = activateForm(bought.character, createFormsState(), formId);
-  assert.equal(on.ok, true);
-  assert.equal(
-    checkModifiersFor(bought.character, { attribute: "感知", skill: "求生" }, {
-      extraSources: activeGrantSources(on.formsState),
-    }).dp,
-    1,
-    "『所有檢定+1』要真的加在檢定上"
-  );
-});
 
 // ---------------------------------------------------------------------------
 // 最後一段接線：API 進入點真的會把持有能力的加值算進去
