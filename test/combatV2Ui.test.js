@@ -128,12 +128,19 @@ test("11.5.10 戰鬥頁面不存在自由文字輸入框", () => {
   assert.match(view, /classList\.remove\("is-combat-v2-view"\)/);
 });
 
-test("前端只送 actionId 與 targetId，不送 cost／actionType／距離／任何結果", () => {
+test("前端只送 actionId／targetId／玩家的選擇，不送 cost／actionType／距離／任何結果", () => {
   const confirmBlock = view.slice(view.indexOf("async function cv2Confirm"), view.indexOf("// ---------------------------------------------------------------------------\n// 繪製"));
-  assert.match(confirmBlock, /selectedActions: cv2Selection\.map\(\(s\) => \(\{ actionId: s\.actionId, targetId: s\.targetId \}\)\)/);
+  // payload 只有三個欄位，而 parameters 是玩家的**選擇**（可變量型態付幾點），不是結果。
+  assert.match(confirmBlock, /actionId: s\.actionId,/);
+  assert.match(confirmBlock, /targetId: s\.targetId,/);
+  assert.match(confirmBlock, /\.\.\.\(s\.parameters \? \{ parameters: s\.parameters \} : \{\}\)/);
   for (const forbidden of ["hit:", "damage:", "cost:", "actionType:", "distance:", "successes"]) {
     assert.equal(confirmBlock.includes(forbidden), false, `送出的 payload 不得含「${forbidden}」`);
   }
+  // 前端**只**組得出 amount 這一個 parameter，而且它的預設值來自伺服器給的範圍下限。
+  const built = view.slice(view.indexOf("cv2Selection = [...cv2Selection"), view.indexOf("  }\n  cv2Notice = null;"));
+  assert.match(built, /parameters: \{ amount: cv2AmountFor\(actionId, action\) \}/);
+  assert.match(view, /action\.requirements\.variablePayment\.min/, "支付範圍由伺服器給，前端不自己算上限");
 });
 
 test("前端不做任何規則判定：沒有距離比較、沒有命中/傷害運算", () => {

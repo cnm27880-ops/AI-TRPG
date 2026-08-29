@@ -127,6 +127,30 @@ export function reloadWeapon(loadout, weaponKey) {
   };
 }
 
+/**
+ * 重算武器表（型態啟動／到期之後用）。
+ *
+ * 彈藥狀態**保留**：換一份武器表不該讓已經打掉的子彈回來。新出現的武器（型態授予的
+ * 天生武器）補上滿彈匣；消失的武器連同它的彈藥一起移除。
+ */
+export function rebuildWeapons(loadout, character, extraSources = []) {
+  const table = new Map();
+  for (const weapon of Object.values(PLACEHOLDER_WEAPONS)) table.set(weapon.key, toV2Weapon(weapon));
+  for (const weapon of weaponsFrom(character, { extraSources })) table.set(weapon.key, toV2Weapon(weapon));
+
+  const weapons = [...table.values()];
+  const ammo = {};
+  for (const weapon of weapons) {
+    if (weapon.category !== WEAPON_CATEGORIES.FIREARM) continue;
+    ammo[weapon.key] = loadout.ammo?.[weapon.key] ?? {
+      loaded: weapon.magazine,
+      magazine: weapon.magazine,
+      spareMagazines: DEFAULT_SPARE_MAGAZINES,
+    };
+  }
+  return { ...loadout, weapons, ammo };
+}
+
 /** 用掉一個消耗品。不足時回 null。 */
 export function consumeItem(loadout, itemKey, count = 1) {
   const have = loadout.items?.[itemKey] ?? 0;

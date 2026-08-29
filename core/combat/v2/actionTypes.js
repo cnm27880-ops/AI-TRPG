@@ -131,3 +131,37 @@ export function poolsLockedBy(actionType) {
   const cost = COMPOSITE_COST[actionType];
   return BASE_POOLS.filter((pool) => cost[pool] > 0);
 }
+
+/**
+ * 舊資料的動作等級 → Combat V2 的五類動作。
+ *
+ * [這是一層暫時的轉接，不是規則。] 商品型錄（content/packs/shopStarterPacks.js）的
+ * `effect.activation.action` 目前寫的是舊戰鬥流程的六個等級，其中「自由」在 Combat V2
+ * **不存在**——規格第3節把自由動作連同反應窗口一起排除了。
+ *
+ * 「自由」映成迅捷，不是映成零消耗，理由有二：
+ *   1. 規格第2節把每回合的額度定死在 1/1/1，「不佔任何額度的動作」正是被拿掉的那一類；
+ *      留一個零消耗的後門等於在五類之外偷偷開第六類。
+ *   2. 鬼魅身的**維持成本**也是自由動作、每輪收一次。自由若等於零消耗，那件商品
+ *      每輪的代價會整個消失，它就從「要一直付錢的型態」變成一次性的永久增益。
+ *
+ * 代價是三件用自由動作啟動的商品在 V2 裡變貴了（本來不佔額度，現在佔 1 迅捷）。
+ * 這是刻意的取捨：**戰鬥系統是基準，商品往它對齊**，而不是反過來讓規則遷就佔位資料。
+ * 商品型錄之後改寫成直接使用 V2 的五類動作時，這張表就可以整個刪掉。
+ */
+export const LEGACY_ACTION_LEVEL_TO_V2 = Object.freeze({
+  自由: ACTION_TYPES.SWIFT,
+  迅捷: ACTION_TYPES.SWIFT,
+  移動: ACTION_TYPES.MOVE,
+  標準: ACTION_TYPES.STANDARD,
+  整輪: ACTION_TYPES.FULL_ROUND,
+  全回合: ACTION_TYPES.FULL_TURN,
+});
+
+/**
+ * 把舊資料的動作等級翻成 V2 的動作類型。翻不出來就回 null，由呼叫端決定怎麼辦——
+ * **不要**預設成某一種，那會讓一筆打錯字的商品資料安靜地變成一個免費行動。
+ */
+export function fromLegacyActionLevel(level) {
+  return LEGACY_ACTION_LEVEL_TO_V2[level] ?? null;
+}

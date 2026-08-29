@@ -668,6 +668,21 @@
         .cv2-action[data-state="locked"] { opacity: .5; cursor: not-allowed; border-style: dashed; }
         .cv2-action[data-state="resolving"] { opacity: .6; cursor: progress; }
 
+        /* 一張行動卡佔一格。支付選單跟著它的卡，不會掉到隔壁那一欄。 */
+        .cv2-action-cell { display: flex; flex-direction: column; gap: .15rem; }
+        .cv2-action-cell > .cv2-action { flex: 1 1 auto; }
+
+        /* 可變量型態的支付點數選單。放在行動卡外面（<select> 在 <button> 裡點不動）。 */
+        .cv2-amount {
+            display: flex; align-items: center; gap: .3rem; margin: 0 0 .1rem .1rem;
+            font-family: 'JetBrains Mono', monospace; font-size: .64rem; color: var(--ink-500);
+        }
+        .cv2-amount select {
+            background: var(--bg-panel); border: 1px solid var(--line); border-radius: 3px;
+            padding: .08rem .3rem; color: var(--ink-100); font-family: inherit; font-size: .64rem;
+        }
+        .cv2-amount select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
         /* F. 本回合選擇摘要（固定在底部） */
         .cv2-summary {
             flex: 0 0 auto; border-top: 1px solid var(--line); background: var(--bg-panel);

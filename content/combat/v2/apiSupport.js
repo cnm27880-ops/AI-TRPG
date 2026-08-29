@@ -80,6 +80,27 @@ export function stateVersionConflict(battle, incoming) {
   return null;
 }
 
+/**
+ * 把角色卡掛上戰鬥狀態，**每一個端點在做任何事之前都要先呼叫它**。
+ *
+ * 型態系統要讀寫角色卡（意志力、能量池），而規則層拿到的只有 battle。最直覺的作法是
+ * 把角色卡存進 battle——但那會立刻多出**第二份角色卡**：玩家在戰鬥中途去休息、買東西、
+ * 復活，改的是 session.character，而戰鬥裡那份不會跟著變，兩份從此各走各的。
+ *
+ * 所以 battle.character 是一個**暫時的工作參照，不是狀態**：進來時從存檔重新掛上、
+ * 出去時（detachCharacter）拆掉，永遠不寫進 KV。唯一的真相仍然是 session.character。
+ */
+export function attachCharacter(battle, character) {
+  if (battle) battle.character = character;
+  return battle;
+}
+
+/** 拆掉工作參照。存檔之前一定要呼叫，否則存檔裡會多一份會過期的角色卡。 */
+export function detachCharacter(battle) {
+  if (battle) delete battle.character;
+  return battle;
+}
+
 /** 把戰鬥中玩家受到的傷害同步回角色卡，讓角色面板與戰鬥面板永遠是同一個血量。 */
 export function syncPlayerHp(session, battle) {
   const player = battle.participants.find((p) => p.id === "player");

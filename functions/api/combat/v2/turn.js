@@ -15,10 +15,14 @@ import { resolveSessionStore, SessionConflictError } from "../../../../content/s
 import { resolveTurn, validateSelection, TurnValidationError } from "../../../../core/combat/v2/resolveTurn.js";
 import { getAvailableCombatActions } from "../../../../core/combat/v2/availableActions.js";
 import { buildNarrationContext, toPublicBattle } from "../../../../core/combat/v2/publicState.js";
+import { buildCombatV2NarrationPrompt } from "../../../../content/gemini/promptContract.js";
+import { settleFinaleVictory } from "../../../../content/combat/finaleSettlement.js";
 import { publicBudget } from "../../../../core/combat/v2/actionBudget.js";
 import { appendEvent, EVENT_TYPES } from "../../../../core/eventLog.js";
 import {
+  attachCharacter,
   battleResponse,
+  detachCharacter,
   findRequestRecord,
   json,
   loadOwnedSession,
@@ -55,6 +59,9 @@ export async function onRequestPost(context) {
   if (!battle) {
     return json({ ok: false, code: "NO_BATTLE", error: "這場存檔目前沒有 Combat V2 戰鬥。" }, 409);
   }
+  // 角色卡以存檔那一份為準，每次都重新掛上（見 apiSupport.attachCharacter）。
+  // 型態要靠它算意志力／能量池夠不夠，選單也要靠它決定哪些型態按得下去。
+  attachCharacter(battle, session.character);
   if (battleId && battle.battleId !== battleId) {
     return json({ ok: false, code: "BATTLE_MISMATCH", error: "這個 battleId 不是目前進行中的戰鬥。" }, 409);
   }
@@ -108,6 +115,8 @@ export async function onRequestPost(context) {
   // --- 結算 ---
   // 在**副本**上結算：驗證失敗時丟掉整份副本，存檔一個字都沒動
   // （規格第10節：不得部分扣除、不改變狀態）。
+  // structuredClone 會把角色卡一起複製，正好是我們要的：結算跑在副本上，
+  // 失敗時整份丟掉，session.character 一個字都沒動。
   const working = structuredClone(battle);
   let result;
   try {
@@ -138,8 +147,26 @@ export async function onRequestPost(context) {
   }
 
   rememberRequest(working, requestId, result.resolution);
-  session.combatV2 = working;
+  // 型態啟動與維持成本扣掉的意志力／能量池在這份角色卡上，**一定要接住**——
+  // 沒接住的話維持成本會每輪「扣了但沒扣」，型態就變成免費的。
+  if (result.character) session.character = result.character;
   syncPlayerHp(session, working);
+  // 戰鬥結束時把型態帶回戰鬥外（以場景計時的還沒到期，它要等玩家離開這個地點）。
+  // 跟舊流程 /api/combat/act 的同一行是同一個約定。
+  if (!working.active && working.forms) session.forms = working.forms;
+
+  // 打贏最終戰：結算節點、發獎勵點數、跑通關結算、封存劇情包。這一整段跟舊流程共用
+  // content/combat/finaleSettlement.js，所以兩套戰鬥系統打贏 boss 的後果一模一樣。
+  const scenarioResult =
+    !working.active && working.outcome?.winner === "player"
+      ? settleFinaleVictory({
+          session,
+          finaleNodeId: working.scenarioFinaleNodeId,
+          sessionId,
+          where: "POST /api/combat/v2/turn",
+        })
+      : null;
+  session.combatV2 = detachCharacter(working);
 
   for (const action of result.resolution.playerActions) {
     appendEvent(
@@ -159,10 +186,19 @@ export async function onRequestPost(context) {
     throw err;
   }
 
+  attachCharacter(working, session.character);
+  const narrationContext = buildNarrationContext(working, result.resolution);
   return json({
     ...battleResponse(working, { persistent: store.persistent, character: session.character }),
     resolution: result.resolution,
+    // 副本結算結果（打贏最終戰時才有）。結算失敗時這裡會帶 warnings——
+    // 打贏了boss卻沒有任何回饋，跟沒打贏長得一模一樣，那正是要避免的。
+    ...(scenarioResult ? { scenario: scenarioResult } : {}),
     // 給敘事層的公開摘要。它只含已裁定的結果，LLM 拿不到任何可以改的數字（規格第9節）。
-    narrationContext: buildNarrationContext(working, result.resolution),
+    narrationContext,
+    // 已經組好的 prompt。在這裡組而不是讓呼叫端自己拼，理由同 /api/combat/resolve：
+    // 「不可以更改命中與傷害」那句約束該跟著引擎走；散到每個呼叫端各拼一次，
+    // 遲早有一個地方忘記帶，而那種漏接是完全靜音的。
+    narrationPrompt: buildCombatV2NarrationPrompt(narrationContext),
   });
 }

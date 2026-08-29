@@ -10,7 +10,12 @@ import { startBattleV2 } from "../../../../content/combat/v2/battleFactory.js";
 import { getDownState } from "../../../../content/downState.js";
 import { appendEvent, EVENT_TYPES } from "../../../../core/eventLog.js";
 import { pushLog } from "../../../../core/combat/v2/battleState.js";
-import { battleResponse, json, loadOwnedSession } from "../../../../content/combat/v2/apiSupport.js";
+import { getScenarioPack } from "../../../../content/scenario/registry.js";
+import { findActiveNode, getThreatTrack, dischargeThreatOnEncounter } from "../../../../content/scenario/progress.js";
+import { THREAT_MAX } from "../../../../content/scenario/threat.js";
+import { sceneKeyOf } from "../../../../content/shop/access.js";
+import { formsForScene } from "../../../../content/shop/forms.js";
+import { battleResponse, detachCharacter, json, loadOwnedSession } from "../../../../content/combat/v2/apiSupport.js";
 
 export async function onRequestPost(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -41,13 +46,26 @@ export async function onRequestPost(context) {
     return json({ ok: false, code: "PLAYER_DOWN", error: downState.reason, downState }, 409);
   }
 
+  // 副本的最終戰節點若已經是目前活躍節點，這場戰鬥就是那一場——記下節點 ID，
+  // 打贏之後 /api/combat/v2/turn 才知道要結算哪一個節點（跟舊流程同一個機制）。
+  const scenarioPack = session.scenario ? getScenarioPack(session.scenario.packId) : null;
+  const activeNode = scenarioPack ? findActiveNode(scenarioPack, session.scenario.progress) : null;
+  const finaleNode = activeNode?.isFinale ? activeNode : null;
+
+  // 戰鬥外已經在進行中的型態要跟著進戰鬥，但**先對一次場景鑰匙**：玩家在別的地點變的身
+  // 應該在走到這裡之前就已經到期（見 forms.js 的 formsForScene）。跟舊流程同一個判斷。
+  const sceneKey = sceneKeyOf(session, getScenarioPack);
+  const synced = formsForScene(session.forms, sceneKey);
+  session.forms = synced.formsState;
+
   let battle;
   try {
     battle = startBattleV2({
       character: session.character,
+      forms: session.forms,
+      sceneKey,
       battleId: `battle_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
       encounterId,
-      forms: session.forms,
       // seed 只在測試/開發環境接受。正式環境傳進來也只影響**這一場**的骰序，
       // 而且 seed 從不出現在任何回應裡（見 publicState.js 的白名單），
       // 所以玩家沒有辦法用它預測後續結果。
@@ -63,6 +81,8 @@ export async function onRequestPost(context) {
     return json({ ok: false, error: `無法建立戰鬥：${err.message}` }, 400);
   }
 
+  if (finaleNode) battle.scenarioFinaleNodeId = finaleNode.id;
+
   pushLog(battle, { actor: "system", kind: "round", text: `戰鬥開始：${battle.scene.label}。` });
   if (battle.order[0] !== "player") {
     // 先攻輸掉不代表要先挨一輪打——V2 的敵方回合固定在玩家確認之後執行，
@@ -72,7 +92,14 @@ export async function onRequestPost(context) {
     pushLog(battle, { actor: "system", kind: "info", text: "你取得本輪先手。" });
   }
 
-  session.combatV2 = battle;
+  // battle.character 是暫時的工作參照，不進存檔（見 apiSupport.attachCharacter 的說明）。
+  session.combatV2 = detachCharacter(battle);
+  // 開戰＝追蹤結束、正面衝突開始，迫近度回落（見 content/scenario/threat.js 的 dischargeThreat）。
+  // 不歸零是刻意的：打完之後追兵還在，玩家不該因為打了一場就回到「它不知道你在哪」。
+  // 跟舊流程 /api/combat/start 的同一段是同一個約定。
+  if (session.scenario) {
+    session.scenario = { ...session.scenario, progress: dischargeThreatOnEncounter(session.scenario.progress) };
+  }
   appendEvent(
     session.log,
     EVENT_TYPES.COMBAT_ACTION,
@@ -89,5 +116,7 @@ export async function onRequestPost(context) {
     throw err;
   }
 
+  // 回應要畫得出玩家的意志力／能量池，所以再掛一次——這一份不會被存回去。
+  battle.character = session.character;
   return json(battleResponse(battle, { persistent: store.persistent, character: session.character }));
 }

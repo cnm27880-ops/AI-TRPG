@@ -19,12 +19,7 @@ import {
 } from "../../../content/combat/encounterState.js";
 import { appendEvent, EVENT_TYPES } from "../../../core/eventLog.js";
 import { buildCombatNarrationPrompt } from "../../../content/gemini/promptContract.js";
-import { getScenarioPack, getScenarioReference } from "../../../content/scenario/registry.js";
-import { applyReferenceFinaleVictory, normalizeReferenceState } from "../../../content/scenario/referenceAdapter.js";
-import { completeNodeAndAdvance, getProgressSummary } from "../../../content/scenario/progress.js";
-import { creditNodeReward, settleScenario } from "../../../content/scenario/settlement.js";
-import { publicEndingPresentation } from "../../../content/godspace/debrief.js";
-import { registerChroniclePackage } from "../../../content/storage/chronicle.js";
+import { settleFinaleVictory } from "../../../content/combat/finaleSettlement.js";
 import { getDownState } from "../../../content/downState.js";
 import { getCurrentUser } from "../../../content/auth/sessionToken.js";
 import { canAccessSession } from "../../../content/auth/ownership.js";
@@ -179,137 +174,20 @@ export async function onRequestPost(context) {
   }
 
   // 副本最終戰：玩家打贏了 /api/combat/start 標記過的 scenarioFinaleNodeId 時，
-  // 自動結算那個節點(扭轉度固定用0級/完全遵循原劇情——戰鬥勝負本身沒有「敘事扭轉度」可言，
-  // 那是敘事節點的概念，見 content/scenario/divergence.js 檔頭說明)，
-  // 玩家不需要另外靠AI敘事JSON信號才能拿到最終戰獎勵。
-  // [2026-08-16 修正] 底下兩層 if 任一失敗時，scenarioResult 會停在 null，
-  // 玩家打贏了boss卻沒有XP、沒有節點完成提示、也沒有任何錯誤——跟「沒打贏」長得一模一樣。
-  // 現在失敗一律留 log 並把原因帶回前端(scenarioResult.warnings)，不再靜音。
-  let scenarioResult = null;
-  if (combatOver.over && combatOver.winner === "player" && combat.scenarioFinaleNodeId && session.scenario) {
-    const scenarioWarnings = [];
-    const pack = getScenarioPack(session.scenario.packId);
-    if (!pack) {
-      const msg =
-        `打贏了最終戰，但存檔記錄的副本「${session.scenario.packId}」找不到對應的內建副本包，` +
-        `本次無法結算節點獎勵。`;
-      console.error("[SCENARIO_SETTLEMENT_FAILED]", JSON.stringify({
-        where: "POST /api/combat/act",
-        sessionId,
-        packId: session.scenario.packId,
-        nodeId: combat.scenarioFinaleNodeId,
-        reason: "pack_not_found",
-      }));
-      scenarioWarnings.push(msg);
-    }
-    if (pack) {
-      const result = completeNodeAndAdvance(pack, session.scenario.progress, combat.scenarioFinaleNodeId, 0);
-      if (!result.ok) {
-        console.error("[SCENARIO_SETTLEMENT_FAILED]", JSON.stringify({
-          where: "POST /api/combat/act",
+  // 自動結算那個節點，玩家不需要另外靠AI敘事JSON信號才能拿到最終戰獎勵。
+  //
+  // [2026-08-29] 這一段原本整個寫在這裡，現在抽到 content/combat/finaleSettlement.js，
+  // 因為 Combat V2 需要一模一樣的行為，而這件事跟哪一套戰鬥引擎算出勝負完全無關。
+  // 行為一個字都沒有改——包含所有「不靜音」的分支，見該檔案的檔頭說明。
+  const scenarioResult =
+    combatOver.over && combatOver.winner === "player"
+      ? settleFinaleVictory({
+          session,
+          finaleNodeId: combat.scenarioFinaleNodeId,
           sessionId,
-          packId: pack.id,
-          nodeId: combat.scenarioFinaleNodeId,
-          reason: result.error,
-        }));
-        scenarioWarnings.push(`打贏了最終戰，但節點結算被引擎擋下：${result.error}`);
-      }
-      if (result.ok) {
-        // 最終戰的獎勵跟一般節點一樣是獎勵點數，不是XP(見 content/scenario/settlement.js)
-        session.wallet = creditNodeReward(session.wallet, result.reward, result.node.title).wallet;
-        let progress = result.progress;
-        const ts = new Date().toISOString();
-        appendEvent(
-          session.log,
-          EVENT_TYPES.NODE_COMPLETE,
-          { nodeId: result.node.id, title: result.node.title, divergenceTier: 0, reward: result.reward },
-          { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
-        );
-        appendEvent(
-          session.log,
-          EVENT_TYPES.POINTS_GRANT,
-          { total: result.reward, reason: `擊敗最終戰「${result.node.title}」` },
-          { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
-        );
-
-        // 最終戰打完通常就是通關，所以結算也要在這條路徑上跑一次——
-        // 不然玩家打贏之後如果沒有再送出任何一輪敘事，XP 就永遠不會入帳。
-        // reference 終局狀態先由 adapter 產生，再交給 settlement 建立 server-computed runSummary。
-        const reference = getScenarioReference(pack);
-        const referenceStateBeforeVictory = reference
-          ? normalizeReferenceState(reference, session.scenario.referenceState)
-          : null;
-        const completedReferenceState = reference
-          ? applyReferenceFinaleVictory(reference, referenceStateBeforeVictory)
-          : null;
-        const referenceSettlementReady = !reference || Boolean(
-          completedReferenceState?.endingId || completedReferenceState?.flags?.includes("flag_hypersleep_entered")
-        );
-        const settlement = referenceSettlementReady
-          ? settleScenario(pack, progress, session.character, session.wallet, { referenceState: completedReferenceState })
-          : { settled: false, wallet: session.wallet, progress, reason: "reference 終局仍需完成休眠前結算" };
-        if (settlement.settled) {
-          session.wallet = settlement.wallet;
-          progress = settlement.progress;
-          appendEvent(
-            session.log,
-            EVENT_TYPES.XP_GRANT,
-            { total: settlement.xp, reason: `副本「${pack.briefing?.title ?? pack.id}」通關結算`, breakdown: settlement.breakdown },
-            { timestamp: ts, scenarioId: pack.id, turn: (session.turns ?? 0) + 1 }
-          );
-          if (settlement.speedBonusPoints > 0) {
-            appendEvent(
-              session.log,
-              EVENT_TYPES.POINTS_GRANT,
-              { total: settlement.speedBonusPoints, reason: "剩餘效率回合速度獎勵", speedBonus: settlement.speedBonus, runSummary: settlement.runSummary },
-              { timestamp: ts }
-            );
-          }
-          scenarioWarnings.push(`副本通關結算：獲得 ${settlement.xp} XP，速度獎勵 ${settlement.speedBonusPoints} 點。回到主神空間，商店已開放。`);
-        }
-
-        session.scenario = {
-          packId: pack.id,
-          progress,
-          ...(reference ? { referenceState: completedReferenceState } : {}),
-        };
-        const packageRegistration = getProgressSummary(pack, progress).scenarioComplete
-          ? registerChroniclePackage(session.chroniclePackages, {
-              scenarioId: pack.id,
-              scenarioTitle: pack.briefing?.title ?? pack.id,
-              turnStart: 1,
-              turnEnd: session.turns ?? session.chronicle?.length ?? 0,
-              createdAt: ts,
-            })
-          : { packages: session.chroniclePackages ?? [], record: null, created: false };
-        session.chroniclePackages = packageRegistration.packages;
-        scenarioResult = {
-          nodeCompleted: { nodeId: result.node.id, title: result.node.title, reward: result.reward },
-          ...(packageRegistration.created && packageRegistration.record ? { chroniclePackage: packageRegistration.record } : {}),
-          ...(reference
-            ? { reference: { enabled: true, eventId: session.scenario.referenceState.currentSceneId, location: session.scenario.referenceState.currentLocation } }
-            : {}),
-          ...(settlement.settled
-            ? {
-                settlement: {
-                  xp: settlement.xp,
-                  speedBonusPoints: settlement.speedBonusPoints,
-                  runSummary: settlement.runSummary,
-                  endingPresentation: publicEndingPresentation({
-                    reference,
-                    endingId: settlement.runSummary?.endingId,
-                  }),
-                },
-              }
-            : {}),
-        };
-      }
-    }
-
-    if (scenarioWarnings.length) {
-      scenarioResult = { ...(scenarioResult ?? { nodeCompleted: null }), warnings: scenarioWarnings };
-    }
-  }
+          where: "POST /api/combat/act",
+        })
+      : null;
 
   session.combat = combat;
   // 收兵：戰鬥中的型態狀態帶回戰鬥外那一份。以「輪」計時的已經在 finalizeIfOver() 收掉了

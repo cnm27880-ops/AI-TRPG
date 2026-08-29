@@ -264,6 +264,72 @@ export function buildCombatNarrationPrompt({
 }
 
 /**
+ * [2026-08-29] Combat V2 一整輪的敘事 prompt。
+ *
+ * 跟上面的 buildCombatNarrationPrompt 是同一個原則、不同的粒度：舊的描述**一次攻擊**，
+ * 這一份描述**一整輪**（玩家選了好幾個行動、敵人也動了）。V2 的戰鬥是回合制的多行動
+ * 結算，把它拆成幾次單獨的攻擊敘事會讓 AI 寫出互相矛盾的段落——它不會知道
+ * 「你先接近再揮刀」是同一個連續動作。
+ *
+ * 輸入只吃 core/combat/v2/publicState.js 的 buildNarrationContext() 產出的東西，
+ * 也就是**已經裁定完的公開結果**。這裡沒有任何一個欄位是 AI 可以拿去反推數字的：
+ * 沒有骰點、沒有 DC、沒有精確 HP、沒有敵人的內部狀態。AI 就算想改結果，手上也沒有
+ * 可以改的東西——那是規格第9節那張「LLM 不得決定」清單唯一站得住腳的實作方式。
+ *
+ * @param {object} context core/combat/v2/publicState.js 的 buildNarrationContext() 回傳值
+ */
+export function buildCombatV2NarrationPrompt(context) {
+  if (!context) return "";
+  const lines = [
+    `【戰鬥結算（規則引擎算好的事實，不可更改）】第 ${context.round} 輪，` +
+      `${context.scene?.label ?? "戰場"}${context.scene?.terrain ? `（${context.scene.terrain}）` : ""}，` +
+      `目前距離：${RANGE_TEXT[context.distance] ?? "未知"}。`,
+  ];
+
+  const player = (context.playerActions ?? []).filter((a) => a.text);
+  if (player.length) {
+    lines.push("【你這一輪做的事，依實際結算順序】");
+    player.forEach((action, index) => {
+      lines.push(`${index + 1}. ${action.text}${action.ok ? "" : "（沒有成功）"}`);
+      if (action.severityTag) lines.push(`   傷害嚴重度標籤：${action.severityTag}`);
+    });
+  }
+
+  const enemy = (context.enemyActions ?? []);
+  if (enemy.length) {
+    lines.push("【敵方這一輪的行動】");
+    for (const action of enemy) {
+      lines.push(
+        `- ${ENEMY_ACTION_TEXT[action.kind] ?? action.kind}` +
+          (action.hit === true ? "，命中了你" : action.hit === false ? "，沒有命中" : "") +
+          (action.severityTag ? `（${action.severityTag}）` : "")
+      );
+    }
+  }
+
+  if (context.outcome) {
+    lines.push(
+      `【戰鬥結果】${context.outcome.winner === "player" ? "敵人全部倒下，戰鬥結束。" : "你倒下了。"}`
+    );
+  }
+
+  lines.push(
+    "請把上面這些**已經定案**的事實寫成一段連貫的戰鬥敘事：" +
+      "描寫動作的視覺、聲音與壓力感，讓多個行動讀起來是一個連續的動作，而不是幾條分開的紀錄。" +
+      "不要把標籤文字、輪數、距離代碼或任何數字直接寫進敘事裡。" +
+      "不可以更改命中與否、傷害輕重、距離變化或勝敗——那些已經由規則引擎裁定完畢。"
+  );
+  return tagged("Combat_V2_Round", lines.join("\n"));
+}
+
+const RANGE_TEXT = Object.freeze({ close: "近距離（接觸）", medium: "中距離", far: "遠距離" });
+const ENEMY_ACTION_TEXT = Object.freeze({
+  attack: "敵人發動攻擊",
+  move: "敵人改變了位置",
+  hold: "敵人沒有推進",
+});
+
+/**
  * 建立「DM 備忘錄」，將遊戲引擎內的絕對數值轉化為 AI 的參考表格。
  * 概念對應：全局數據表、主角信息表、任務与事件表。
  * @param {object} character 玩家角色物件

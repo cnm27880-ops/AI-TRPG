@@ -9,9 +9,9 @@
 
 import {
   ACTION_CATEGORY_LABELS,
-  ACTION_CATALOG,
   TARGET_MODES,
-  getActionDefinition,
+  allActionDefinitions,
+  resolveActionDefinition,
   resolutionPhaseIndex,
 } from "./actionCatalog.js";
 import { ACTION_TYPE_COST_HINTS, ACTION_TYPE_LABELS, costOf } from "./actionTypes.js";
@@ -19,6 +19,8 @@ import { canSpend, spendBlockReason } from "./actionBudget.js";
 import { RANGE_LABELS, rangeBlockReason, stepRange } from "./range.js";
 import { getRange, isDown, livingEnemies, playerOf } from "./battleState.js";
 import { ammoOf, ownsWeaponOfCategory, usableWeaponsOfCategory } from "../../../content/combat/v2/loadout.js";
+import { formAlreadyActive } from "../../../content/combat/v2/formActions.js";
+import { formsOf } from "../../../content/shop/forms.js";
 
 /**
  * 產生目前這個角色能看到的完整行動選單。
@@ -50,7 +52,9 @@ export function getAvailableCombatActions({
   const projected = projectRanges(battle, pending);
 
   const actions = [];
-  for (const definition of ACTION_CATALOG) {
+  // 靜態目錄 ＋ 這場戰鬥動態長出來的條目（型態）。型態走完全同一條驗證路徑，
+  // 沒有任何特例分支——那正是把它包成標準 action card 的目的。
+  for (const definition of allActionDefinitions(battle)) {
     for (const bound of bindTargets(definition, battle, actor, enemies)) {
       actions.push(evaluate({ definition, bound, battle, actor, budget, loadout, projected }));
     }
@@ -154,6 +158,7 @@ function evaluate({ definition, bound, battle, actor, budget, loadout, projected
 
   // --- 裝備、資源與場景物件狀態 ---
   reasons.push(...requirementReasons(definition, bound, loadout));
+  reasons.push(...formReasons(definition, battle, battle.character ?? null));
 
   // --- 動作額度（最後才問，理由見上面）---
   if (!canSpend(budget, definition.actionType)) {
@@ -231,7 +236,7 @@ export function projectRanges(battle, pending = []) {
   const enemies = livingEnemies(battle);
 
   for (const selection of pending) {
-    const definition = getActionDefinition(selection.definitionId);
+    const definition = resolveActionDefinition(battle, selection.definitionId);
     const effect = definition?.rangeEffect;
     if (!effect) continue;
 
@@ -303,6 +308,53 @@ function requirementReasons(definition, bound, loadout) {
   return reasons;
 }
 
+/**
+ * 型態專屬的檢查。分開寫是因為它要讀 battle.forms 與角色卡，而上面那些只要讀裝備表。
+ *
+ * 這裡**只查玩家能自己看出來的前提**（已在進行中、意志力／能量池夠不夠、動作等級翻不翻得出來）。
+ * 真正權威的判定仍然在 content/shop/forms.js 的 activateForm()——它會把所有理由一次列齊。
+ * 兩邊重複判斷是刻意的：選單要在按下去之前就講清楚，結算要在按下去之後再查一次。
+ */
+function formReasons(definition, battle, character) {
+  const req = definition.requirements ?? {};
+  if (!req.form) return [];
+  const reasons = [];
+
+  if (req.unsupportedActionLevel) {
+    reasons.push(`這個型態的啟動動作「${req.unsupportedActionLevel}」還沒有對應到五類動作`);
+    return reasons;
+  }
+  if (formAlreadyActive(battle.forms, req.form)) {
+    reasons.push(`「${definition.form.label}」已經在進行中`);
+  }
+
+  const activation = formActivationOf(character, req.form);
+  if (activation) {
+    const wp = activation.willpower ?? 0;
+    if (wp > 0 && (character?.derived?.willpower?.current ?? 0) < wp) {
+      reasons.push(`意志力不足（需要 ${wp} 點）`);
+    }
+    const pool = activation.pool;
+    if (pool && (character?.derived?.energyPools?.[pool.name]?.current ?? 0) < pool.amount) {
+      reasons.push(`${pool.name}不足（需要 ${pool.amount} 點）`);
+    }
+    const variable = req.variablePayment;
+    if (variable && (character?.derived?.energyPools?.[variable.poolName]?.current ?? 0) < variable.min) {
+      reasons.push(`${variable.poolName}不足（至少要付 ${variable.min} 點）`);
+    }
+  }
+
+  return reasons;
+}
+
+/** 查一個型態的啟動成本。查不到回 null（角色卡上沒有那件商品了）。 */
+function formActivationOf(character, formId) {
+  for (const form of formsOf(character ?? {})) {
+    if (form.formId === formId) return form.effect.activation ?? {};
+  }
+  return null;
+}
+
 const ITEM_LABELS = Object.freeze({ medkit: "醫療包" });
 function itemLabel(key) {
   return ITEM_LABELS[key] ?? key;
@@ -321,6 +373,9 @@ function publicRequirements(requirements = {}) {
   if (requirements.featureTag) out.featureTag = requirements.featureTag;
   if (requirements.ally) out.ally = true;
   if (requirements.spareMagazine) out.spareMagazine = requirements.spareMagazine;
+  // 型態：玩家本來就知道自己買了什麼、要付幾點，這兩項可以公開。
+  if (requirements.form) out.form = requirements.form;
+  if (requirements.variablePayment) out.variablePayment = { ...requirements.variablePayment };
   return out;
 }
 

@@ -9,7 +9,7 @@
 // 同相位再依 action ID 排序。前端送上來的陣列順序沒有任何意義——否則玩家可以靠
 // 調換順序把「先射擊再接近」變成「先接近再射擊」，繞過距離限制。
 
-import { getActionDefinition, resolutionPhaseIndex } from "./actionCatalog.js";
+import { resolveActionDefinition, resolutionPhaseIndex } from "./actionCatalog.js";
 import { getAvailableCombatActions } from "./availableActions.js";
 import { spendBatch } from "./actionBudget.js";
 import { resolveSingleAction } from "./resolveAction.js";
@@ -80,7 +80,7 @@ export function validateSelection(battle, selectedActions) {
     if (!card) {
       throw new TurnValidationError(`行動不存在或目前不屬於你：${actionId}`, { code: "UNKNOWN_ACTION" });
     }
-    const definition = getActionDefinition(card.definitionId);
+    const definition = resolveActionDefinition(battle, card.definitionId);
     if (!definition) {
       throw new TurnValidationError(`行動定義遺失：${card.definitionId}`, { status: 500, code: "CATALOG_MISSING" });
     }
@@ -90,7 +90,28 @@ export function validateSelection(battle, selectedActions) {
       throw new TurnValidationError("選擇的目標與這張行動卡不符", { code: "TARGET_MISMATCH" });
     }
 
-    resolved.push({ card, definition, parameters: selection.parameters ?? {} });
+    const parameters = selection.parameters ?? {};
+
+    // 行動自己要求的玩家選擇（目前只有可變量型態的「付幾點」）在這裡就驗，
+    // **不能留到結算**：結算階段的失敗只會回一個 ok:false 的行動，而動作額度那時
+    // 已經扣掉了——玩家會為了一個手滑的請求白白損失一個迅捷動作。
+    const variable = definition.requirements?.variablePayment;
+    if (variable) {
+      if (!Number.isInteger(parameters.amount)) {
+        throw new TurnValidationError(
+          `「${card.label}」要由你決定支付幾點${variable.poolName}（${variable.min}～${variable.max}）`,
+          { code: "MISSING_PARAMETER", details: { actionId, parameter: "amount", range: variable } }
+        );
+      }
+      if (parameters.amount < variable.min || parameters.amount > variable.max) {
+        throw new TurnValidationError(
+          `「${card.label}」這次可以支付 ${variable.min}～${variable.max} 點${variable.poolName}，收到 ${parameters.amount}`,
+          { code: "PARAMETER_OUT_OF_RANGE", details: { actionId, parameter: "amount", range: variable } }
+        );
+      }
+    }
+
+    resolved.push({ card, definition, parameters });
   }
 
   // 動作額度：一次排完整批，任何一項排不進去就整批拒絕，不做部分扣除
@@ -231,6 +252,9 @@ export function resolveTurn(battle, selectedActions) {
 
   return {
     battle,
+    // 角色卡可能被型態啟動與維持成本改過（扣意志力／能量池）。**呼叫端有義務存回去**——
+    // 這是 content/shop/forms.js 既有的約定，沒有接住的話維持成本會每輪「扣了但沒扣」。
+    character: battle.character ?? null,
     resolution: {
       playerActions,
       enemyActions,

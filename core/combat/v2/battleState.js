@@ -12,6 +12,9 @@ import { createActionBudget } from "./actionBudget.js";
 import { COMBAT_RANGES, isValidRange, rangeKey } from "./range.js";
 import { rollBattleInitiative } from "./initiative.js";
 import { createRng, createSeed } from "./rng.js";
+import { createFormsState, endCombat as endCombatForms, payUpkeep, tickFormsOnRound } from "../../../content/shop/forms.js";
+import { ACTION_TYPE_LABELS, fromLegacyActionLevel } from "./actionTypes.js";
+import { spendAction } from "./actionBudget.js";
 
 /** 回合狀態機的相位（規格第5節）。 */
 export const BATTLE_PHASES = Object.freeze({
@@ -291,11 +294,24 @@ export function evaluateBattleEnd(battle) {
   return { over: false, winner: null, reason: null };
 }
 
-/** 把戰鬥收尾。 */
+/**
+ * 把戰鬥收尾。
+ *
+ * 以「輪」計時的型態在這裡結束（戰鬥外沒有輪可以數），以「場景」計時的**留著**——
+ * 打一場架不會改變你站在哪裡，它要等玩家離開這個地點才由 expireOnSceneChange() 收掉。
+ * 這是舊流程既有的判斷（見 encounterState.js 的 finalizeIfOver），V2 沿用同一套。
+ */
 export function finalizeBattle(battle, outcome) {
   battle.active = false;
   battle.phase = BATTLE_PHASES.ENDED;
   battle.outcome = { ...outcome, endedAtRound: battle.round };
+  if (battle.forms) {
+    const ended = endCombatForms(battle.forms);
+    battle.forms = ended.formsState;
+    for (const form of ended.expired) {
+      pushLog(battle, { actor: "player", kind: "info", text: `${form.label} 隨戰鬥結束。` });
+    }
+  }
   return battle;
 }
 
@@ -317,5 +333,70 @@ export function beginNextRound(battle) {
   }
   commitRng(battle, rng);
   pushLog(battle, { actor: "system", kind: "round", text: `第 ${battle.round} 輪開始。` });
+  tickForms(battle);
+  return battle;
+}
+
+/**
+ * 型態的「輪」時鐘。新的一輪開始、額度剛重置之後跑，所以：
+ *   - 「持續1輪」的型態在啟動的那一輪內完整有效，下一輪開始才消失
+ *   - 維持成本花的是**這一輪剛拿到的**額度，不是上一輪的殘額
+ * 兩點都跟舊流程（encounterState.js 的 advanceTurn）一致——同一套型態規則在兩個戰鬥
+ * 系統裡不該有不同的到期時機。
+ *
+ * 動作額度的扣法是 V2 自己的：payUpkeep() 傳 `budget: null` 讓它只收意志力與能量池，
+ * 動作那一份由這裡用 V2 的計數池扣。付不出動作額度時型態當場結束，跟付不出錢一樣。
+ */
+function tickForms(battle) {
+  if (!battle.forms || !battle.character) return battle;
+
+  const ticked = tickFormsOnRound(battle.forms, battle.round);
+  battle.forms = ticked.formsState;
+  for (const form of ticked.expired) {
+    pushLog(battle, { actor: "player", kind: "info", text: `${form.label} 已到期。` });
+  }
+
+  // 先扣動作額度（V2 的池子），再讓 forms.js 收意志力／能量池。
+  // 順序反過來的話，會出現「錢付了但動作不夠」而錢收不回來的半套狀態。
+  const stillActive = [];
+  for (const form of battle.forms.active ?? []) {
+    if (!form.upkeep?.action) {
+      stillActive.push(form);
+      continue;
+    }
+    const actionType = fromLegacyActionLevel(form.upkeep.action);
+    const spend = actionType
+      ? spendAction(battle.budgets.player, actionType, {}, { actionId: `upkeep:${form.formId}`, label: form.label, round: battle.round })
+      : { ok: false, reason: `維持成本的動作等級「${form.upkeep.action}」沒有對應到五類動作` };
+    if (!spend.ok) {
+      pushLog(battle, { actor: "player", kind: "info", text: `${form.label} 結束（${spend.reason}）。` });
+      continue;
+    }
+    battle.budgets.player = spend.budget;
+    // 維持成本花掉的動作額度要寫進紀錄。「自由動作」在 V2 映成迅捷（見 actionTypes.js 的
+    // LEGACY_ACTION_LEVEL_TO_V2），那是一個真的會少一個行動的代價——不講的話，玩家
+    // 只會看到自己這一輪的迅捷莫名其妙不見了。
+    pushLog(battle, {
+      actor: "player",
+      kind: "info",
+      text: `維持${form.label}消耗了${ACTION_TYPE_LABELS[actionType]}。`,
+    });
+    stillActive.push(form);
+  }
+  battle.forms = { ...battle.forms, active: stillActive };
+
+  const upkeep = payUpkeep(battle.forms, battle.character, battle.round, null);
+  battle.forms = upkeep.formsState;
+  battle.character = upkeep.character;
+  for (const paid of upkeep.paid) {
+    const cost = [
+      paid.willpower > 0 ? `${paid.willpower} 點意志力` : null,
+      paid.pool ? `${paid.pool.amount} 點${paid.pool.name}` : null,
+    ].filter(Boolean).join("＋");
+    pushLog(battle, { actor: "player", kind: "info", text: `維持${paid.label}${cost ? `，付出 ${cost}` : ""}。` });
+  }
+  for (const form of upkeep.ended) {
+    pushLog(battle, { actor: "player", kind: "info", text: `${form.label} 結束（${form.endReason}）。` });
+  }
   return battle;
 }

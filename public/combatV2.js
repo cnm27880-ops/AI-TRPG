@@ -131,11 +131,24 @@ async function cv2ToggleAction(actionId) {
     cv2Selection = cv2Selection.filter((s) => s.actionId !== actionId);
   } else {
     if (!action.available) return;   // 不可用的卡不接受點擊（伺服器也會擋，這裡只是不浪費一次往返）
-    cv2Selection = [...cv2Selection, { actionId, targetId: action.targetId ?? null }];
+    cv2Selection = [...cv2Selection, {
+      actionId,
+      targetId: action.targetId ?? null,
+      // 可變量型態的「付幾點」。這是玩家的**選擇**，不是結果——範圍由伺服器給
+      // （requirements.variablePayment），合法性也由伺服器再驗一次。
+      ...(action.requirements?.variablePayment ? { parameters: { amount: cv2AmountFor(actionId, action) } } : {}),
+    }];
   }
   cv2Notice = null;
   renderCombatV2();
   await cv2Preview();
+}
+
+/** 讀這張卡的支付點數選單。還沒畫出來時退回下限（伺服器仍會驗範圍）。 */
+function cv2AmountFor(actionId, action) {
+  const picker = document.querySelector(`[data-cv2-amount="${CSS.escape(actionId)}"]`);
+  const value = picker ? Number(picker.value) : NaN;
+  return Number.isInteger(value) ? value : action.requirements.variablePayment.min;
 }
 
 function cv2ClearSelection() {
@@ -203,7 +216,11 @@ async function cv2Confirm() {
         stateVersion: cv2Battle.stateVersion,
         requestId,
         // **只送 ID 與目標。** 沒有 cost、沒有 actionType、沒有距離、沒有結果。
-        selectedActions: cv2Selection.map((s) => ({ actionId: s.actionId, targetId: s.targetId })),
+        selectedActions: cv2Selection.map((s) => ({
+          actionId: s.actionId,
+          targetId: s.targetId,
+          ...(s.parameters ? { parameters: s.parameters } : {}),
+        })),
       }),
     });
     const payload = await res.json();
@@ -310,9 +327,26 @@ function cv2RenderPlayerCard(b) {
       ${items ? `<span>物品 <b>${items}</b></span>` : ""}
       ${p.coverFeatureId ? `<span>掩體 <b>有</b></span>` : ""}
     </div>
+    ${cv2ResourcesHtml(b.resources)}
+    ${p.forms.length ? `<div class="cv2-kv" style="margin-top:.3rem"><span>型態 <b>${p.forms.map((f) => cv2Escape(f.label + (f.mode ? `·${f.mode}` : "") + (f.hasUpkeep ? "（每輪維持）" : ""))).join("、")}</b></span></div>` : ""}
     <div>${p.statuses.map((s) => `<span class="cv2-status-chip" title="${cv2Escape(s.description ?? "")}">${cv2Escape(s.label)}</span>`).join("")}</div>
     ${cv2BudgetHtml(b.playerActionBudget)}
   `;
+}
+
+/**
+ * 型態會花的資源：意志力與能量池。沒有這一格，玩家看不出「洞察眼按不下去」
+ * 是因為查克拉空了——那個資訊在行動卡的不可用原因裡有，但玩家需要在**按之前**
+ * 就知道自己還剩多少，才能規劃這一輪。
+ */
+function cv2ResourcesHtml(resources) {
+  if (!resources) return "";
+  const parts = [];
+  if (resources.willpower) parts.push(`<span>意志 <b>${resources.willpower.current}/${resources.willpower.max}</b></span>`);
+  for (const [name, pool] of Object.entries(resources.energyPools ?? {})) {
+    parts.push(`<span>${cv2Escape(name)} <b>${pool.current}/${pool.max}</b></span>`);
+  }
+  return parts.length ? `<div class="cv2-kv" style="margin-top:.3rem">${parts.join("")}</div>` : "";
 }
 
 /**
@@ -439,7 +473,10 @@ function cv2ActionCardHtml(action) {
   const disabled = cv2Busy || (!action.available && !selected);
   const ranges = action.validRanges.length ? action.validRanges.map(cv2RangeLabel).join("／") : "不限距離";
 
+  // 卡片與它的支付選單要包在同一格裡。不包的話，選單會變成 grid 的下一個項目，
+  // 落到隔壁那一欄去——畫面上看起來像是「另一張卡的選單」。
   return `
+    <div class="cv2-action-cell">
     <button type="button" class="cv2-action" data-cv2-action="${cv2Escape(action.id)}"
       data-state="${state}" ${disabled ? "disabled" : ""}
       aria-pressed="${selected}"
@@ -447,8 +484,32 @@ function cv2ActionCardHtml(action) {
       <span class="cv2-action-name">${selected ? "✓ " : ""}${cv2Escape(action.label)}</span>
       <span class="cv2-action-meta">${cv2Escape(action.actionTypeLabel)}｜${cv2Escape(action.costHint)}｜${cv2Escape(ranges)}｜${cv2Escape(cv2TargetLabel(action))}</span>
       <span class="cv2-action-desc">${cv2Escape(action.display.description)}</span>
+      ${action.display.hint ? `<span class="cv2-action-meta">${cv2Escape(action.display.hint)}</span>` : ""}
       ${action.available ? "" : `<span class="cv2-action-why">${cv2Escape(action.unavailableReason ?? "")}</span>`}
-    </button>`;
+    </button>
+    ${cv2AmountPickerHtml(action, disabled)}
+    </div>`;
+}
+
+/**
+ * 可變量型態的支付點數選單（書上的「支付最多不超過X點，獲得等額加值」）。
+ * 範圍是**伺服器算的**（「不超過敏捷或感知取低」是規則，不是介面細節），
+ * 這裡只把 min~max 攤成選項——跟舊戰鬥面板同一個作法。
+ *
+ * 放在按鈕外面而不是裡面：<select> 在 <button> 內部點不動（點擊會被按鈕吃掉）。
+ */
+function cv2AmountPickerHtml(action, disabled) {
+  const variable = action.requirements?.variablePayment;
+  if (!variable) return "";
+  const options = [];
+  for (let n = variable.min; n <= variable.max; n++) options.push(`<option value="${n}">${n}</option>`);
+  return `
+    <label class="cv2-amount">
+      支付
+      <select data-cv2-amount="${cv2Escape(action.id)}" ${disabled ? "disabled" : ""}
+        aria-label="${cv2Escape(action.label)} 支付點數">${options.join("")}</select>
+      點${cv2Escape(variable.poolName)}
+    </label>`;
 }
 
 function cv2RangeLabel(range) {

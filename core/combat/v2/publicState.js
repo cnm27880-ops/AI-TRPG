@@ -29,6 +29,18 @@ function publicPlayer(battle) {
     statuses: player.statuses.map((s) => ({ id: s.id, label: s.label, description: s.description ?? null })),
     coverFeatureId: player.coverFeatureId,
     armor: player.armor ?? 0,
+    // 進行中的型態。玩家要看得到自己現在變著什麼身、還要付幾輪維持成本，
+    // 否則「鬼魅身每輪扣 1 點內力」在畫面上是完全隱形的。
+    forms: (battle.forms?.active ?? []).map((form) => ({
+      formId: form.formId,
+      label: form.label,
+      sourceName: form.sourceName,
+      mode: form.mode?.label ?? null,
+      paid: form.paid ?? null,
+      hasUpkeep: Boolean(form.upkeep),
+      expiresAfterRound: form.expiresAfterRound ?? null,
+      unit: form.unit ?? null,
+    })),
   };
 }
 
@@ -48,6 +60,23 @@ function publicEnemy(battle, enemy) {
     visible: enemy.visible,
     // 意圖預告是刻意公開的敘事線索，不是內部資料（見 placeholderEncounters.js 的說明）。
     telegraph: enemy.currentTelegraph ?? null,
+  };
+}
+
+/**
+ * 型態會花的資源：意志力與能量池。這是玩家自己的角色卡，給精確數字沒有洩漏問題。
+ * 角色卡沒帶進戰鬥時（純規則測試）回 null，UI 那一格就不畫。
+ */
+function publicResources(character) {
+  if (!character?.derived) return null;
+  const pools = character.derived.energyPools ?? {};
+  return {
+    willpower: character.derived.willpower
+      ? { current: character.derived.willpower.current, max: character.derived.willpower.max }
+      : null,
+    energyPools: Object.fromEntries(
+      Object.entries(pools).map(([name, pool]) => [name, { current: pool.current, max: pool.max }])
+    ),
   };
 }
 
@@ -125,6 +154,8 @@ export function toPublicBattle(battle, { includeActions = true } = {}) {
     availableActions: actions,
     actionsByType: groupActionsByType(actions),
     loadout: publicLoadout(battle.loadout),
+    // 型態的成本來源。沒有這一格，玩家看不出「洞察眼按不下去」是因為查克拉空了。
+    resources: publicResources(battle.character),
     publicLog: [...battle.publicLog],
     outcome: battle.outcome,
   };

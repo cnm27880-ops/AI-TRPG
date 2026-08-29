@@ -422,9 +422,25 @@ export const ACTION_CATALOG = Object.freeze(
 
 const BY_ID = new Map(ACTION_CATALOG.map((entry) => [entry.id, entry]));
 
-/** 查一條行動定義。查不到回 null——伺服器要能明確回「這個 action 不存在」（規格第10節）。 */
+/** 查一條**靜態**行動定義。查不到回 null——伺服器要能明確回「這個 action 不存在」（規格第10節）。 */
 export function getActionDefinition(actionId) {
   return BY_ID.get(actionId) ?? null;
+}
+
+/**
+ * 查一條行動定義，含這場戰鬥動態長出來的條目（目前是型態，見
+ * content/combat/v2/formActions.js）。**結算路徑一律用這個**，不要用 getActionDefinition()：
+ * 只查靜態表的話，型態行動會在驗證階段被判成「行動不存在」。
+ *
+ * 動態定義存在 battle.dynamicActions 裡、跟著戰鬥狀態一起存檔，所以續戰時查得到同一份。
+ */
+export function resolveActionDefinition(battle, definitionId) {
+  return BY_ID.get(definitionId) ?? (battle?.dynamicActions ?? []).find((d) => d.id === definitionId) ?? null;
+}
+
+/** 這場戰鬥所有可用的行動定義＝靜態目錄 ＋ 動態條目。 */
+export function allActionDefinitions(battle) {
+  return [...ACTION_CATALOG, ...(battle?.dynamicActions ?? [])];
 }
 
 /** 結算排序用的相位序號。 */

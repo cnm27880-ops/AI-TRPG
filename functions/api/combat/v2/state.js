@@ -10,7 +10,7 @@
 // 狀態，一律以這裡回的為準。
 
 import { resolveSessionStore } from "../../../../content/storage/sessionStore.js";
-import { battleResponse, json, loadOwnedSession } from "../../../../content/combat/v2/apiSupport.js";
+import { attachCharacter, battleResponse, json, loadOwnedSession } from "../../../../content/combat/v2/apiSupport.js";
 
 export async function onRequestGet(context) {
   const store = resolveSessionStore(context.env ?? {});
@@ -31,5 +31,8 @@ export async function onRequestGet(context) {
     return json({ ok: false, code: "BATTLE_MISMATCH", error: "這個 battleId 不是目前進行中的戰鬥。", battle: undefined }, 409);
   }
 
+  // 角色卡以存檔那一份為準（見 apiSupport.attachCharacter）。選單要靠它判定
+  // 哪些型態現在按得下去，沒掛上的話所有型態都會顯示成不可用。
+  attachCharacter(battle, loaded.session.character);
   return json(battleResponse(battle, { persistent: store.persistent, character: loaded.session.character }));
 }

@@ -31,8 +31,10 @@ import {
   consumeItem,
   findWeapon,
   reloadWeapon,
+  rebuildWeapons,
   usableWeaponsOfCategory,
 } from "../../../content/combat/v2/loadout.js";
+import { activateForm, activeGrantSources } from "../../../content/shop/forms.js";
 
 /** 狀態效果的具名定義。每一個都要有公開文案——玩家看得懂身上有什麼才能做決定。 */
 export const STATUS_DEFS = Object.freeze({
@@ -381,6 +383,54 @@ const RESOLVERS = {
     };
   },
 
+  /**
+   * 啟動一個型態（變身／開眼／爆發）。
+   *
+   * 動作額度**已經由 resolveTurn 用 V2 的計數池扣掉了**，所以這裡呼叫 activateForm() 時
+   * 一律傳 `budget: null`——那個參數走的是舊的 boolean 旗標模型（見 forms.js 的
+   * applyActionCost），兩種模型不相容。傳 null 時 forms.js 會跳過動作額度檢查，
+   * 只收意志力與能量池，正好是 V2 需要它做的那一半。舊模組因此一行都不用改。
+   */
+  resolve_activate_form(ctx) {
+    const { battle, definition, parameters } = ctx;
+    const character = battle.character;
+    if (!character) return { ok: false, reason: "這場戰鬥沒有帶上角色卡，無法啟動型態" };
+
+    const result = activateForm(character, battle.forms, definition.form.formId, {
+      round: battle.round,
+      // 動作額度已經扣過，這裡不能再扣一次。
+      budget: null,
+      sceneKey: battle.sceneKey ?? null,
+      // 玩家在啟動當下的兩個決定。它們是**選擇**不是結果，所以可以由前端送上來——
+      // 合法範圍仍然由 forms.js 驗（「不超過敏捷或感知取低」是規則，不是介面細節）。
+      amount: Number.isInteger(parameters.amount) ? parameters.amount : null,
+      mode: definition.form.modeKey ?? parameters.mode ?? null,
+    });
+
+    if (!result.ok) {
+      // 變不成不是系統錯誤，是遊戲狀態。把 forms.js 列齊的理由原樣帶出去。
+      return { ok: false, reason: result.blockers.map((b) => b.message).join("；") };
+    }
+
+    battle.forms = result.formsState;
+    // activateForm 不改角色卡本身，它回傳一份扣完意志力／能量池的新卡，
+    // **呼叫端有義務接住**（forms.js 的既有約定）。這裡接住，resolveTurn 再交還給 API 層存檔。
+    battle.character = result.character;
+    // 型態可能授予天生武器（金剛狼的骨爪那一類）。裝備表是開戰當下算好的，
+    // 不重算的話那把武器這場戰鬥都按不到——型態就少了一半的價值。
+    battle.loadout = rebuildWeapons(battle.loadout, result.character, activeGrantSources(battle.forms));
+
+    const chose = [
+      result.form.mode?.label,
+      result.form.paid != null ? `支付 ${result.form.paid} 點` : null,
+    ].filter(Boolean).join("，");
+    return {
+      ok: true,
+      publicText: `你啟動了${result.form.label}${chose ? `（${chose}）` : ""}。`,
+      effects: [{ type: "form_activated", formId: definition.form.formId, label: result.form.label }],
+    };
+  },
+
   resolve_drop_item(ctx) {
     const { battle } = ctx;
     const next = consumeItem(battle.loadout, "medkit", 1);
@@ -469,8 +519,15 @@ export function resolveSingleAction({ battle, action, definition, rng, parameter
     target,
     feature,
     rng,
-    // 白名單：只有 weaponKey 會被讀。命中、傷害、骰點、距離結果一律不接受（規格第6.3節）。
-    parameters: { weaponKey: typeof parameters.weaponKey === "string" ? parameters.weaponKey : null },
+    definition,
+    // 白名單。這三個都是玩家的**選擇**，不是結果：要用哪把武器、可變量型態付幾點、
+    // 二選一型態選哪一種。命中、傷害、骰點、距離結果一律不接受（規格第6.3節），
+    // 而且合法範圍全部由伺服器再驗一次。
+    parameters: {
+      weaponKey: typeof parameters.weaponKey === "string" ? parameters.weaponKey : null,
+      amount: Number.isInteger(parameters.amount) ? parameters.amount : null,
+      mode: typeof parameters.mode === "string" ? parameters.mode : null,
+    },
   });
 
   return {
