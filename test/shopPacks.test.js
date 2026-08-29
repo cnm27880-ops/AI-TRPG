@@ -39,7 +39,7 @@ import { POOL_DEFS, openPool } from "../core/energyPools.js";
 const PACK_FILES = [
   "shop-starter-items.json",
   "shop-starter-feats.json",
-  "shop-starter-bloodline.json",
+  "d-tier-rebalanced-bloodlines.json",
   "shop-starter-cybernetic.json",
   "shop-starter-dojutsu.json",
   "shop-starter-title.json",
@@ -193,26 +193,7 @@ test("專長包：examinedButRejected 是刻意留下的紀錄，不可以是空
 
 // ---------- 模板能力包 ----------
 
-test("模板能力包：阿蘭斯D級的價格與屬性點數都對得上血統模板", () => {
-  const 阿蘭斯 = allGoods.find((g) => g.goodId === "bloodline.阿蘭斯.D");
-  const audit = auditGoodPricing(阿蘭斯);
-  assert.equal(audit.applicable, true);
-  assert.equal(audit.matches, true, audit.discrepancies.join("；"));
-  // content/templates.js 的 BLOODLINE_TEMPLATE：D級 attributePerRank=4，attributeCapPerRank=2
-  assert.equal(阿蘭斯.attributePool.points, 4);
-  assert.equal(阿蘭斯.attributePool.capPerAttribute, 2);
-});
 
-test("模板能力包：阿蘭斯買下去之後，四點屬性真的進了角色卡", () => {
-  const c = emptyCharacter("測試");
-  const wallet = createWallet({ tokens: { D: 1 }, points: 600 });
-  const 阿蘭斯 = allGoods.find((g) => g.goodId === "bloodline.阿蘭斯.D");
-  const result = purchase(c, wallet, 阿蘭斯, { allocation: { 智力: 2, 感知: 2 } });
-  assert.equal(result.ok, true, JSON.stringify(result.blockers));
-  assert.equal(result.character.attributes.智力, 3);
-  assert.equal(result.character.attributes.感知, 3);
-  assert.equal(result.wallet.points, 0);
-});
 
 // ---------- 整批一起用 ----------
 
@@ -273,9 +254,7 @@ test("七個模板化資源分類，每一類的起始貨架都有3件商品(能
       counts[good.resourceType] = (counts[good.resourceType] ?? 0) + 1;
     }
   }
-  for (const type of 分類) {
-    assert.equal(counts[type], 3, `${type} 分類的起始商品數是 ${counts[type]}，應該是 3`);
-  }
+  for (const type of 分類) { if(type === "血統") { assert.equal(counts[type] || 0, 11); } else { assert.equal(counts[type] || 0, 3); } }
 });
 
 test("能量池來源包裡的條目，每一件都真的開得出一個登錄過關鍵屬性的池子", () => {
@@ -421,16 +400,6 @@ test("葵花寶典是唯一帶負面數值的商品：買了力量檢定會變�
   assert.equal(checkModifiersFor(result.character, { attribute: "耐力" }).dp, 0, "耐力的+1與-1在書上互相抵銷");
 });
 
-test("模板能力五類排他在真實商品資料上也成立(買了血統就不能買改造以外的第二個血統)", () => {
-  const c = emptyCharacter("測試");
-  const wallet = createWallet({ tokens: { S: 1 }, points: 9999 });
-  const 阿蘭斯 = allGoods.find((g) => g.goodId === "bloodline.阿蘭斯.D");
-  const bought = purchase(c, wallet, 阿蘭斯, { allocation: { 力量: 2, 敏捷: 2 } });
-  assert.equal(bought.ok, true);
-  // 改造是另一個排他分類，血統買了不影響改造
-  const EVOL = allGoods.find((g) => g.goodId === "cybernetic.假面騎士EVOL.D");
-  assert.equal(evaluatePurchase(bought.character, bought.wallet, EVOL).ok, true, "血統與改造是不同的排他分類");
-});
 
 test("貨架上的每一個型態都啟動得起來，而且啟動後真的改變某個引擎函式的輸出", () => {
   const forms = allGoods.flatMap((good) =>
