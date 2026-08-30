@@ -212,7 +212,11 @@ export async function callLlm({
 export function isRetryableLlmError(err) {
   if (err?.stage === "timeout" || err?.stage === "binding" || err?.stage === "shape") return true;
   if (err?.stage !== "http") return false;
-  return new Set([408, 413, 425, 429, 500, 502, 503, 504, 529]).has(Number(err.status));
+  const status = Number(err.status);
+  // 5xx 不是固定幾個供應商錯誤：Cloudflare 常見 520／522／524、代理自訂的 5xx，
+  // 都代表上游暫時不可用或無法替這次請求完成，應交給下一個 server-managed provider。
+  if (Number.isInteger(status) && status >= 500 && status <= 599) return true;
+  return new Set([408, 413, 425, 429]).has(status);
 }
 
 export const DEFAULT_AUTO_RETRY_MAX_DELAY_MS = 5_000;
