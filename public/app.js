@@ -2569,7 +2569,7 @@ function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
   const data = dmPrompt && typeof dmPrompt === "object" ? dmPrompt : {};
   hint.textContent = typeof data.hint === "string" && data.hint.trim()
     ? data.hint.trim()
-    : "可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。";
+    : "以下僅供參考，你也可以自由行動。";
   const safeHints = Array.isArray(data.referenceHints)
     ? data.referenceHints.filter((value) => typeof value === "string" && value.trim()).slice(0, 3)
     : [];
@@ -2989,6 +2989,12 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
   if (!desired.length) {
     desired.push(storyEmptyPlaceholder(current));
   }
+
+  // 行動方向／選項面板（index.html 裡的 #inline-decision-panel）永遠排在最後一位，
+  // 讓它跟故事文字一起捲動而不是固定在輸入框上方。用同一套 keep-set 診斷邏輯保留它，
+  // 不然下面的「移掉不在 desired 裡的節點」會把它當成過期內容清掉。
+  const inlineDecisionPanel = document.getElementById("inline-decision-panel");
+  if (inlineDecisionPanel) desired.push(inlineDecisionPanel);
 
   // 只動真的需要動的節點：先移掉不該在的，再把位置不對的搬過去。
   // 一次換掉全部子節點會讓每一則都重新插入 DOM，動畫與捲動位置一起被重設。

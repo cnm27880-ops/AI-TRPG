@@ -940,6 +940,10 @@
         .dm-action-hints { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin-top: .45rem; }
         .dm-hints-label { color: var(--ink-500); font: 700 .56rem/1.3 'JetBrains Mono', monospace; }
         .dm-hint-pill { padding: .2rem .42rem; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: var(--ink-300); background: rgba(255,255,255,.035); font: .58rem/1.3 'Noto Serif TC', 'Songti TC', serif; }
+        /* 行動方向／選項現在是故事流最後一則「訊息」，跟其他 .feed-event 共用同一個
+           置中寬度，並用一條頂線把它跟上面的敘事分開，視覺上讀作「這裡輪到你了」。 */
+        #inline-decision-panel { width: 100%; max-width: 78rem; margin: 1rem auto 0; padding-top: .9rem; border-top: 1px solid rgb(var(--c-line) / .16); }
+        #inline-decision-panel > * + * { margin-top: .5rem; }
         [data-action-count] { min-height: 1rem; }
         .decision-grid { transition: opacity .2s ease; }
         .decision-card {
@@ -2009,7 +2013,7 @@
 
         /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。 */
         #story-action-panel { padding: .52rem clamp(.75rem, 2vw, 2rem) .62rem; }
-        #story-action-panel .decision-panel-heading { gap: .5rem; }
+        #inline-decision-panel .decision-panel-heading { gap: .5rem; }
         #option-grid { gap: .45rem; }
         .decision-card { min-height: 4.15rem; padding: .48rem .62rem; }
         .decision-card-label { font-size: .72rem; line-height: 1.25; }
@@ -2231,8 +2235,8 @@
            而是規則的實作——把它們拿掉，戰鬥中就會重新出現一個可以打字的框。 */
         body.is-game-screen.is-combat-v2-view #story-action-panel { display: none !important; }
         body.is-game-screen.is-combat-v2-view #story-current { display: none !important; }
-        #story-action-panel .decision-panel-heading { min-height: 1.7rem; }
-        #story-action-panel #option-grid { min-height: 0; }
+        #inline-decision-panel .decision-panel-heading { min-height: 1.7rem; }
+        #inline-decision-panel #option-grid { min-height: 0; }
 
         html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
         html[data-theme="light"] #char-hud #char-hud-titlebar { border-color: rgba(60,55,47,.16); }
@@ -3349,6 +3353,24 @@
             <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-label="故事現場">
                 <div id="recent-story-list" class="story-current-content flex-1 min-h-0 overflow-y-auto" aria-live="polite" aria-label="最近五則故事訊息">
                     <div class="story-current-empty">等待第一段故事回應……</div>
+                    <!-- 行動方向／選項跟故事文字一起捲動，不再固定佔住輸入框上方——
+                         手機上舊版會把可讀高度壓縮到剩一兩行。這個節點永遠留在
+                         #recent-story-list 裡：見 app.js 的 renderRecentStoryWindow，
+                         每次重繪都會把它排進 desired 清單的最後一位，不會被當成過期節點清掉。 -->
+                    <div id="inline-decision-panel">
+                        <div class="decision-panel-heading">
+                            <div>
+                                <div id="decision-kicker" class="decision-kicker">行動方向</div>
+                                <div id="decision-title" class="decision-title">可參考的情境線索</div>
+                            </div>
+                            <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
+                        </div>
+                        <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
+                            <div id="dm-action-hint" class="dm-action-hint">以下僅供參考，你也可以自由行動。</div>
+                            <div id="dm-action-hints" class="dm-action-hints"></div>
+                        </div>
+                        <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
+                    </div>
                 </div>
             </section>
 
@@ -3439,19 +3461,7 @@
                 </div>
             </div>
 
-            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
-                <div class="decision-panel-heading">
-                    <div>
-                        <div id="decision-kicker" class="decision-kicker">行動方向</div>
-                        <div id="decision-title" class="decision-title">可參考的情境線索</div>
-                    </div>
-                    <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
-                </div>
-                <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
-                                        <div id="dm-action-hint" class="dm-action-hint">可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。</div>
-                    <div id="dm-action-hints" class="dm-action-hints"></div>
-                </div>
-                <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
+            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur">
                 <div class="flex gap-2 items-end">
                     <div class="relative flex-1">
                         <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
