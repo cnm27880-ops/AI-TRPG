@@ -723,11 +723,19 @@ async function playChargenReleaseTransition() {
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const lines = ["防護罩解除。", "你的名字，已經不再屬於原本的世界。", "那麼，祝你好運。"];
   overlay.style.display = "flex";
-  overlay.classList.remove("is-leaving");
-  overlay.classList.add("is-visible");
+  overlay.classList.remove("is-leaving", "is-visible");
   overlay.setAttribute("aria-hidden", "false");
   overlay.setAttribute("aria-busy", "true");
   message.textContent = "";
+
+  // 先讓瀏覽器畫出 display:flex + opacity:0 這一格，class 才補在下一格加上，
+  // 不然 display 跟 opacity 同一拍改完，CSS transition 沒有起點可以補間，
+  // 畫面就會直接「跳」成全黑，而不是淡入。
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  if (run !== chargenReleaseRun) return;
+  overlay.classList.add("is-visible");
+  await sleepForTransition(reducedMotion ? 0 : 900);
+  if (run !== chargenReleaseRun) return;
   message.focus();
 
   try {
@@ -740,7 +748,7 @@ async function playChargenReleaseTransition() {
     await sleepForTransition(reducedMotion ? 80 : 900);
     if (run !== chargenReleaseRun) return;
     overlay.classList.add("is-leaving");
-    await sleepForTransition(reducedMotion ? 0 : 720);
+    await sleepForTransition(reducedMotion ? 0 : 900);
   } finally {
     if (run === chargenReleaseRun) {
       overlay.classList.remove("is-visible", "is-leaving");

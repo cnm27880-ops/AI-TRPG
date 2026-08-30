@@ -1761,7 +1761,13 @@
         html[data-stage="godspace"] #portal-title { filter: none; }
 
         .portal-platform { position: relative; isolation: isolate; overflow: hidden; width: min(100%, 58rem); min-height: 100%; padding: 1.4rem .8rem 2rem; gap: 1.1rem; color: var(--ink-100); }
-        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(14, 20, 22, .98), rgba(7, 10, 12, .98)); }
+        /* [修正] 這一層是 .portal-platform 內部另一片獨立的絕對定位背景（z-index: -2），
+           蓋在上面 #portal-screen 之上。#portal-screen 已經改成只在 data-theme="dark"
+           時套黑幕，但這裡當初漏改，預設值仍寫死同一組黑幕漸層——結果淺色模式下
+           卡片、頁首都吃到了淺色 token 變亮，這片背景卻還是黑的，變成「亮介面疊在
+           黑畫面上」。改成預設是過曝白色平台（跟 .platform-orb、.platform-heading
+           一樣的白），黑幕只在 data-theme="dark" 生效（見下面 1810 行附近的覆寫）。 */
+        .platform-backdrop { position: absolute; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; background: linear-gradient(180deg, rgba(253, 252, 249, .98), rgba(244, 242, 235, .98)); }
         /* 紙纖維與印刷網點。這一層是「質感」真正的來源——它不加任何顏色，
            只讓大片白不再是一塊死掉的色塊。 */
         .platform-backdrop::before { content: ''; position: absolute; inset: 0; opacity: .3; background-image: radial-gradient(rgba(72,67,59,.12) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 1px, transparent 1px 5px); background-size: 8px 8px, 100% 5px; mix-blend-mode: multiply; }
@@ -2813,13 +2819,18 @@
         .settlement-return-btn { display: inline-flex; align-items: center; justify-content: center; gap: .7rem; padding: .8rem 1.1rem; border: 1px solid rgba(52, 211, 153, .62); background: rgba(16, 185, 129, .12); color: #a7f3d0; font: 700 .72rem/1.2 "JetBrains Mono", monospace; letter-spacing: .06em; transition: transform .16s ease-out, background-color .16s ease-out, box-shadow .16s ease-out; }
         .settlement-return-btn:hover { transform: translateY(-1px); background: rgba(16, 185, 129, .22); box-shadow: 0 0 1.5rem rgba(52, 211, 153, .15); }
         .settlement-return-btn:active { transform: scale(.97); }
-        .chargen-release-overlay { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 1.5rem; background: #000; color: #d7dfdc; opacity: 0; pointer-events: none; text-align: center; }
+        /* [修正] 進場原本沒有 transition，display:none→flex 跟 opacity 0→1 在同一拍發生，
+           瀏覽器沒有東西可以補間，畫面就是「啪」一聲直接跳成全黑——在淺色主題下
+           這個反差比深色主題更刺眼。現在進場也走跟離場一樣的 opacity transition，
+           JS 那邊會在切到 display:flex 之後多等一格畫面再加上 is-visible，
+           讓瀏覽器先畫出 opacity:0 的畫面，才有東西可以淡入。 */
+        .chargen-release-overlay { position: fixed; inset: 0; z-index: 90; display: none; align-items: center; justify-content: center; padding: 1.5rem; background: #000; color: #d7dfdc; opacity: 0; pointer-events: none; text-align: center; transition: opacity .9s cubic-bezier(.23, 1, .32, 1); }
         .chargen-release-overlay.is-visible { display: flex; opacity: 1; pointer-events: auto; }
-        .chargen-release-overlay.is-leaving { opacity: 0; transition: opacity .72s cubic-bezier(.23, 1, .32, 1); }
+        .chargen-release-overlay.is-leaving { opacity: 0; transition: opacity .9s cubic-bezier(.23, 1, .32, 1); }
         .chargen-release-message { max-width: 30rem; color: #d7dfdc; font: 600 clamp(1rem, 3vw, 1.45rem)/2 "Noto Serif TC", serif; letter-spacing: .16em; text-shadow: 0 0 22px rgba(167, 243, 208, .12); outline: none; }
         .chargen-release-message::after { content: ''; display: block; width: 2.4rem; height: 1px; margin: 1.35rem auto 0; background: rgba(167, 243, 208, .5); box-shadow: 0 0 14px rgba(110, 231, 183, .22); }
         @media (prefers-reduced-motion: reduce) {
-            .chargen-release-overlay.is-leaving { transition: none; }
+            .chargen-release-overlay, .chargen-release-overlay.is-leaving { transition: none; }
         }
         @media (max-width: 640px) {
             .settlement-hero { align-items: start; flex-direction: column; gap: 1.8rem; }
