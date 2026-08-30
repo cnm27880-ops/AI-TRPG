@@ -155,3 +155,18 @@ test("輪迴者檔案清單同時間只發一個請求", () => {
   assert.match(app, /if \(sessionListRequest\) return sessionListRequest;/);
   assert.match(app, /async function loadSessionList\(/);
 });
+
+// ---------------------------------------------------------------------------
+// 8) 血統商品要能查看完整能力卡片
+// ---------------------------------------------------------------------------
+test("血統商品卡片可開啟能力詳情，且詳情沿用商品資料", () => {
+  assert.match(index, /id="bloodlineDetailModal"/);
+  assert.match(app, /function openBloodlineDetail\(goodId\)/);
+  assert.match(app, /function bloodlineDetailHtml\(item\)/);
+  assert.match(app, /data-shop-detail=/, "血統卡片必須帶有可委派的詳情識別碼");
+  assert.match(app, /closest\("\[data-shop-detail\]"\)/, "點擊卡片必須由委派監聽接上");
+  assert.match(app, /e\.key !== "Enter" && e\.key !== " "/, "詳情卡片必須可用鍵盤開啟");
+  assert.match(app, /good\.traits/, "詳情要顯示玩家可讀的血統特徵");
+  assert.match(app, /good\.attributePool/, "詳情要顯示肉體重塑配置");
+  assert.match(app, /good\.effects/, "詳情要顯示實際規則效果");
+});

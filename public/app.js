@@ -4344,10 +4344,117 @@ async function toggleForm(formId, action) {
   }
 }
 
+function bloodlineEffectCopy(effect) {
+  const kind = String(effect?.kind ?? "能力");
+  if (kind === "檢定加骰") {
+    const target = effect.skill || effect.attribute || "相關";
+    return {
+      title: `${target}檢定加骰 +${effect.amount ?? 0}`,
+      detail: "進行對應檢定時，獲得額外骰子。",
+      icon: "fa-dice-d20",
+    };
+  }
+  if (kind === "生命上限") {
+    return { title: `生命上限 +${effect.amount ?? 0}`, detail: "角色的生命上限永久提高。", icon: "fa-heart-pulse" };
+  }
+  if (kind === "護甲") {
+    return { title: `護甲 +${effect.amount ?? 0}`, detail: "承受傷害時獲得額外防護。", icon: "fa-shield-halved" };
+  }
+  if (kind === "防御") {
+    return { title: `防禦 +${effect.amount ?? 0}`, detail: "提高角色的防禦值。", icon: "fa-person-running" };
+  }
+  if (kind === "武器") {
+    const label = effect.label || "天生武器";
+    const details = [effect.attackType, effect.weaponDamage != null ? `傷害 ${effect.weaponDamage}` : "", effect.severity ? `嚴重度 ${effect.severity}` : "", effect.ranged ? "遠程" : "肉搏"]
+      .filter(Boolean)
+      .join(" · ");
+    return { title: label, detail: details || "獲得一項天生武器。", icon: "fa-fist-raised" };
+  }
+  const detail = [effect.label, effect.skill, effect.attribute, effect.amount != null ? `數值 ${effect.amount}` : ""]
+    .filter(Boolean)
+    .join(" · ");
+  return { title: kind, detail: detail || "主神記錄的特殊能力。", icon: "fa-sparkles" };
+}
+
+function bloodlineDetailHtml(item) {
+  const good = item.good;
+  const [titlePart, ...subtitleParts] = String(good.name ?? "未命名血統").split("：");
+  const title = titlePart || good.name || "未命名血統";
+  const subtitle = subtitleParts.join("：") || "主神資料庫中的血統能力紀錄";
+  const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : "zinc";
+  const traits = (good.traits ?? []).length
+    ? `<div class="bloodline-detail-section">
+        <div class="bloodline-detail-section-label"><i class="fas fa-bolt"></i> 已知特徵</div>
+        <div class="bloodline-trait-grid">${good.traits
+          .map((trait) => `<div class="bloodline-trait"><i class="fas fa-check"></i><span>${escapeHtml(trait)}</span></div>`)
+          .join("")}</div>
+      </div>`
+    : "";
+  const pool = good.attributePool
+    ? `<div class="bloodline-detail-section">
+        <div class="bloodline-detail-section-label"><i class="fas fa-sliders"></i> 肉體重塑</div>
+        <div class="bloodline-attribute-box">
+          <div><div class="bloodline-attribute-main">可分配屬性點</div><div class="bloodline-attribute-note">每項最多分配 ${escapeHtml(good.attributePool.capPerAttribute ?? "—")} 點</div></div>
+          <div class="bloodline-attribute-value">+${escapeHtml(good.attributePool.points ?? 0)}<small> 點</small></div>
+        </div>
+      </div>`
+    : "";
+  const effects = (good.effects ?? []).length
+    ? `<div class="bloodline-detail-section">
+        <div class="bloodline-detail-section-label"><i class="fas fa-list-check"></i> 規則效果</div>
+        <div class="bloodline-effect-list">${good.effects
+          .map((effect) => {
+            const copy = bloodlineEffectCopy(effect);
+            return `<div class="bloodline-effect"><div class="bloodline-effect-icon"><i class="fas ${copy.icon}"></i></div><div><div class="bloodline-effect-title">${escapeHtml(copy.title)}</div><div class="bloodline-effect-detail">${escapeHtml(copy.detail)}</div></div></div>`;
+          })
+          .join("")}</div>
+      </div>`
+    : "";
+  const blockers = (item.blockers ?? []).length
+    ? `<div class="bloodline-detail-section bloodline-detail-blockers"><div class="bloodline-detail-section-label"><i class="fas fa-lock"></i> 尚不可兌換</div><div class="shop-item-blockers">${item.blockers
+        .map((blocker) => `<div class="text-[10px] text-amber-200/80 leading-snug"><span class="font-semibold">${escapeHtml(blocker.code)}</span> · ${escapeHtml(blocker.message)}</div>`)
+        .join("")}</div></div>`
+    : "";
+  const purchaseButton = item.status === "掛名"
+    ? `<span class="shop-detail-buy px-3 py-2 rounded border border-zinc-700 text-zinc-500 text-[11px] font-mono font-bold text-center">尚未開放</span>`
+    : `<button data-shop-buy="${escapeHtml(good.goodId)}" ${item.purchasable ? "" : "disabled"} class="shop-detail-buy px-3 py-2 rounded text-[11px] font-mono font-bold transition-all ${item.purchasable ? "bg-amber-500/20 border border-amber-400/55 text-amber-200 hover:bg-amber-500/30 hover:-translate-y-px" : "border hairline-border text-zinc-600 cursor-not-allowed"}">${item.purchasable ? "兌換這項血統" : "尚不可兌換"}</button>`;
+
+  return `<div>
+    <div class="bloodline-detail-hero">
+      <button type="button" class="bloodline-detail-close" onclick="closeModal('bloodlineDetailModal')" aria-label="關閉血統詳情"><i class="fas fa-times"></i></button>
+      <div class="bloodline-detail-kicker"><i class="fas fa-dna"></i> Genetic Archive / 血統檔案</div>
+      <div id="bloodline-detail-title" class="bloodline-detail-title">${escapeHtml(title)}</div>
+      <div class="bloodline-detail-subtitle">${escapeHtml(subtitle)}</div>
+      <div class="bloodline-detail-meta">
+        <span class="shop-rank-badge shop-rank-${rankAccent}">RANK ${escapeHtml(good.rank || "—")}</span>
+        <span class="bloodline-detail-pill"><i class="fas fa-fingerprint"></i>${escapeHtml(good.lineageId || "未登錄血統")}</span>
+        <span class="bloodline-detail-pill pill-status"><i class="fas fa-circle-info"></i>${item.status === "掛名" ? "尚未開放" : item.purchasable ? "可兌換" : "條件未滿足"}</span>
+        <span class="bloodline-detail-pill bloodline-detail-pill-price"><i class="fas fa-coins"></i>${escapeHtml(item.price)}</span>
+      </div>
+    </div>
+    <div class="bloodline-detail-body">${traits}${pool}${effects}${blockers}
+      <div class="bloodline-detail-footer">
+        <div class="bloodline-detail-source">資料來源：${escapeHtml(good.sourceRef || "主神商店型錄")}</div>
+        ${purchaseButton}
+      </div>
+    </div>
+  </div>`;
+}
+
+function openBloodlineDetail(goodId) {
+  const item = shopState?.shelf?.find((entry) => entry.good?.goodId === goodId);
+  if (!item || shopDisplayCategory(item.good) !== "血統") return;
+  const content = document.getElementById("bloodline-detail-content");
+  if (!content) return;
+  content.innerHTML = bloodlineDetailHtml(item);
+  openModal("bloodlineDetailModal");
+}
+
 function shopItemHtml(item) {
   const good = item.good;
   const pending = item.status === "掛名";
   const displayCat = shopDisplayCategory(good);
+  const isBloodline = displayCat === "血統";
   const catMeta = SHOP_CATEGORY_META[displayCat] ?? { icon: "fa-shapes", accent: "zinc" };
   const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : null;
 
@@ -4388,9 +4495,15 @@ function shopItemHtml(item) {
   const rankBadge = good.rank
     ? `<span class="shop-rank-badge shop-rank-${rankAccent}">${escapeHtml(good.rank)}</span>`
     : "";
+  const detailAttrs = isBloodline
+    ? `data-shop-detail="${escapeHtml(good.goodId)}" role="button" tabindex="0" aria-label="查看${escapeHtml(good.name)}的能力詳情"`
+    : "";
+  const detailHint = isBloodline
+    ? `<div class="shop-item-detail-hint"><i class="fas fa-expand-alt"></i> 點擊查看完整能力</div>`
+    : "";
 
   return `
-    <div class="shop-item-card border ${border}">
+    <div class="shop-item-card border ${border} ${isBloodline ? "shop-item-card-clickable" : ""}" ${detailAttrs}>
       <div class="shop-item-cat-icon shop-item-cat-${catMeta.accent}" title="${escapeHtml(displayCat)}"><i class="fas ${catMeta.icon}"></i></div>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
@@ -4401,6 +4514,7 @@ function shopItemHtml(item) {
         ${pending && good.pendingReason ? `<div class="text-[10px] text-zinc-500 mt-1 leading-snug">還缺什麼：${escapeHtml(good.pendingReason)}</div>` : ""}
         ${blockers}
         ${higher}
+        ${detailHint}
       </div>
       ${button}
     </div>`;
@@ -4448,9 +4562,25 @@ document.addEventListener("click", (e) => {
     return;
   }
   const buy = e.target.closest("[data-shop-buy]");
-  if (buy && !buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
+  if (buy) {
+    if (!buy.disabled) buyGood(buy.getAttribute("data-shop-buy"));
+    return;
+  }
+  const detail = e.target.closest("[data-shop-detail]");
+  if (detail) {
+    openBloodlineDetail(detail.getAttribute("data-shop-detail"));
+    return;
+  }
   const form = e.target.closest("[data-form-toggle]");
   if (form) toggleForm(form.getAttribute("data-form-toggle"), form.getAttribute("data-form-action"));
+});
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const detail = e.target.closest?.("[data-shop-detail]");
+  if (!detail || e.target.closest("button, a")) return;
+  e.preventDefault();
+  openBloodlineDetail(detail.getAttribute("data-shop-detail"));
 });
 
 // 「輪迴者檔案」清單裡的「接續」與「刪除」。
@@ -4502,6 +4632,7 @@ window.resumeLocalSession = resumeLocalSession;
 window.selectOption = selectOption;
 window.handleResumeFromModal = handleResumeFromModal;
 window.openShop = openShop;
+window.openBloodlineDetail = openBloodlineDetail;
 window.doRest = doRest;
 window.startGoogleLogin = startGoogleLogin;
 // index.html 的 openModal() 是行內 script，跟 app.js 不同作用域，要掛上 window 才叫得到
