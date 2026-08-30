@@ -4082,6 +4082,55 @@ let shopState = null;
 let shopCategory = "全部";
 let shopBusy = false;
 
+// 貨架分類（前端展示用，不是規則書分類）。書上的 category 只有六種
+// （服務/直接強化/物品/專長/模板能力/體系），「模板能力」把血統跟瞳術、改造全部
+// 混在一起、「體系」把稱號跟流派、技藝、法術全部混在一起——逛架上時完全分不出
+// 「這一件是血統還是瞳術」，一路滑下去只看到一長串同樣灰色的長方形。
+// 這裡改用 good.resourceType（型錄轉換時就有的細分欄位）另外分一次類，
+// 純粹是畫面上的分頁，不影響 catalog.js 的購買判定。
+const SHOP_DISPLAY_CATEGORIES = ["物品", "血統", "瞳術", "稱號", "功法", "技藝"];
+const SHOP_CATEGORY_META = {
+  物品: { icon: "fa-box-archive", accent: "zinc" },
+  血統: { icon: "fa-dna", accent: "rose" },
+  瞳術: { icon: "fa-eye", accent: "violet" },
+  稱號: { icon: "fa-award", accent: "amber" },
+  功法: { icon: "fa-book-open", accent: "sky" },
+  技藝: { icon: "fa-hand-sparkles", accent: "emerald" },
+};
+const SHOP_RANK_META = {
+  D: { accent: "zinc", label: "D" },
+  C: { accent: "emerald", label: "C" },
+  B: { accent: "sky", label: "B" },
+  A: { accent: "violet", label: "A" },
+  AA: { accent: "amber", label: "AA" },
+  S: { accent: "rose", label: "S" },
+};
+
+/**
+ * 一件商品在前端分頁裡屬於哪一格。改造沒有自己的分頁（跟血統/瞳術同屬模板能力，
+ * 但只有三件、獨立一頁太空），歸進物品；專長沒有 resourceType，按性質併進技藝；
+ * 服務（療傷/洗點/精神時光屋）是消耗型的兌換，跟物品放在一起最自然。
+ * 都對不上的話退回 good.category，至少不會漏掉東西。
+ */
+function shopDisplayCategory(good) {
+  switch (good.resourceType) {
+    case "血統":
+    case "瞳術":
+    case "稱號":
+    case "技藝":
+      return good.resourceType;
+    case "流派":
+    case "法術":
+      return "功法";
+    case "改造":
+    case "物品":
+      return "物品";
+  }
+  if (good.category === "專長") return "技藝";
+  if (good.category === "服務") return "物品";
+  return good.category || "物品";
+}
+
 async function openHubExchange() {
   if (!currentSessionId) {
     showToast("先建立輪迴者檔案，主神才會開放兌換。", { kind: "warn" });
@@ -4129,7 +4178,7 @@ function renderShop() {
 
   const accessEl = document.getElementById("shop-access");
   accessEl.className =
-    "px-4 py-2 text-[11px] font-mono shrink-0 flex items-start gap-2 hairline-b " +
+    "px-3 py-1.5 text-[11px] font-mono shrink-0 flex items-start gap-2 hairline-b " +
     (inHub ? "bg-emerald-500/10 text-emerald-200" : "bg-amber-500/10 text-amber-200");
   accessEl.innerHTML =
     `<i class="fas ${inHub ? "fa-door-open" : "fa-triangle-exclamation"} mt-0.5 shrink-0"></i>` +
@@ -4150,20 +4199,29 @@ function renderShop() {
   );
   document.getElementById("shop-summary").textContent = `上架 ${totals.上架} · 掛名 ${totals.掛名}`;
 
-  const categories = ["全部", ...new Set(shopState.shelf.map((s) => s.good.category))];
-  document.getElementById("shop-tabs").innerHTML = categories
-    .map((c) => {
-      const active = c === shopCategory;
-      return `<button data-shop-cat="${escapeHtml(c)}" class="px-2.5 py-1 rounded border transition-colors ${
-        active
-          ? "bg-amber-500/20 border-amber-500/50 text-amber-200 font-bold"
-          : "bg-panel hairline-border text-zinc-400 hover:text-zinc-200"
-      }">${escapeHtml(c)}</button>`;
+  // 分頁固定用這六格＋全部，不是從貨架現有的東西反推——這樣「目前還沒有商品的分類」
+  // 也會出現在分頁上（只是點進去是空的），而不是分類本身就消失，玩家才看得出
+  // 「商店以後還會長出瞳術／功法」而不是誤以為這幾類本來就不存在。
+  const countByCategory = {};
+  for (const s of shopState.shelf) {
+    const cat = shopDisplayCategory(s.good);
+    countByCategory[cat] = (countByCategory[cat] ?? 0) + 1;
+  }
+  const tabs = [{ key: "全部", meta: { icon: "fa-layer-group", accent: "amber" }, count: shopState.shelf.length },
+    ...SHOP_DISPLAY_CATEGORIES.map((c) => ({ key: c, meta: SHOP_CATEGORY_META[c], count: countByCategory[c] ?? 0 }))];
+  document.getElementById("shop-tabs").innerHTML = tabs
+    .map(({ key, meta, count }) => {
+      const active = key === shopCategory;
+      return `<button data-shop-cat="${escapeHtml(key)}" class="shop-tab shop-tab-${meta.accent} ${active ? "is-active" : ""}">` +
+        `<i class="fas ${meta.icon}"></i><span>${escapeHtml(key)}</span>` +
+        `<span class="shop-tab-count">${count}</span></button>`;
     })
     .join("");
 
-  const items = shopState.shelf.filter((s) => shopCategory === "全部" || s.good.category === shopCategory);
-  document.getElementById("shop-shelf").innerHTML = items.map(shopItemHtml).join("");
+  const items = shopState.shelf.filter((s) => shopCategory === "全部" || shopDisplayCategory(s.good) === shopCategory);
+  document.getElementById("shop-shelf").innerHTML = items.length
+    ? items.map(shopItemHtml).join("")
+    : `<div class="shop-shelf-empty">「${escapeHtml(shopCategory)}」目前還沒有商品上架，之後會慢慢補進來。</div>`;
 
   renderForms();
 }
@@ -4289,6 +4347,10 @@ async function toggleForm(formId, action) {
 function shopItemHtml(item) {
   const good = item.good;
   const pending = item.status === "掛名";
+  const displayCat = shopDisplayCategory(good);
+  const catMeta = SHOP_CATEGORY_META[displayCat] ?? { icon: "fa-shapes", accent: "zinc" };
+  const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : null;
+
   // 掛名商品的樣式刻意跟「買不起」不一樣：買不起是玩家的問題，掛名是我們還沒做完，
   // 兩者混在一起會讓玩家以為自己再存一點錢就買得到。
   const border = pending
@@ -4321,13 +4383,19 @@ function shopItemHtml(item) {
             : "border hairline-border text-zinc-600 cursor-not-allowed"
         }">兌換</button>`;
 
+  // 分類圖示放在卡片左側，取代原本純文字的「[分類]」標籤——六個分類各自一個顏色，
+  // 一眼掃過去就知道這一排卡片是血統還是技藝，不用逐張讀小字。
+  const rankBadge = good.rank
+    ? `<span class="shop-rank-badge shop-rank-${rankAccent}">${escapeHtml(good.rank)}</span>`
+    : "";
+
   return `
-    <div class="rounded-lg border ${border} p-3 flex gap-3 items-start">
+    <div class="shop-item-card border ${border}">
+      <div class="shop-item-cat-icon shop-item-cat-${catMeta.accent}" title="${escapeHtml(displayCat)}"><i class="fas ${catMeta.icon}"></i></div>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-[10px] font-mono text-zinc-500">[${escapeHtml(good.category)}]</span>
           <span class="text-xs font-bold text-zinc-100">${escapeHtml(good.name)}</span>
-          ${good.rank ? `<span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">${escapeHtml(good.rank)}級</span>` : ""}
+          ${rankBadge}
         </div>
         <div class="text-[11px] font-mono text-amber-300/90 mt-0.5">${escapeHtml(item.price)}</div>
         ${pending && good.pendingReason ? `<div class="text-[10px] text-zinc-500 mt-1 leading-snug">還缺什麼：${escapeHtml(good.pendingReason)}</div>` : ""}
