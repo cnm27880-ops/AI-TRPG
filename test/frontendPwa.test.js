@@ -108,7 +108,7 @@ test("建卡以十選三起始專長取代純敘事特性", () => {
 test("portal 移除白色 first-story 並以暗色慢亮接入，建卡後有全黑祝福過場", () => {
   assert.doesNotMatch(index, /id="portal-first-story"|godspace-first-story/);
   assert.doesNotMatch(app, /GODSPACE_FIRST_STORY_KEY|showFirstGodspaceStory|continueFirstGodspaceStory/);
-  assert.match(index, /html\[data-stage="godspace"\] #portal-screen/);
+  assert.match(index, /html\[data-theme="dark"\]\[data-stage="godspace"\] #portal-screen/);
   assert.match(index, /portalMainReveal 1\.15s/);
   assert.match(index, /filter: brightness\(\.42\)/);
   assert.match(index, /id="chargen-release-overlay"/);

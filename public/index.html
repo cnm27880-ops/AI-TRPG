@@ -221,10 +221,12 @@
             --brush-alpha: .011;
         }
 
-        /* ---- 第三幕：主神空間。過曝的白色平台，同樣不跟隨主題。
-               重點色只有一個：主神的暖銅。這一幕刻意把中性面全部推到接近純白，
-               層次改由描邊、陰影與字級表達，而不是靠底色深淺。 ---- */
-        html[data-stage="godspace"] {
+        /* ---- 第三幕：主神空間，淺色模式。過曝的白色平台，重點色是主神的暖銅。
+               這一幕刻意把中性面全部推到接近純白，層次改由描邊、陰影與字級表達，
+               而不是靠底色深淺。深色模式改用下面 1577 行起的黑幕版本，不吃這組 token——
+               這裡只在 data-theme="light" 生效，不然深色模式會拿到這組「為白底調校」的
+               ink 色階，字疊在黑幕背景上會糊成看不清楚。 ---- */
+        html[data-theme="light"][data-stage="godspace"] {
             --c-ink-100: 31 29 25;
             --c-ink-200: 52 48 42;
             --c-ink-300: 74 69 61;
@@ -938,6 +940,10 @@
         .dm-action-hints { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin-top: .45rem; }
         .dm-hints-label { color: var(--ink-500); font: 700 .56rem/1.3 'JetBrains Mono', monospace; }
         .dm-hint-pill { padding: .2rem .42rem; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: var(--ink-300); background: rgba(255,255,255,.035); font: .58rem/1.3 'Noto Serif TC', 'Songti TC', serif; }
+        /* 行動方向／選項現在是故事流最後一則「訊息」，跟其他 .feed-event 共用同一個
+           置中寬度，並用一條頂線把它跟上面的敘事分開，視覺上讀作「這裡輪到你了」。 */
+        #inline-decision-panel { width: 100%; max-width: 78rem; margin: 1rem auto 0; padding-top: .9rem; border-top: 1px solid rgb(var(--c-line) / .16); }
+        #inline-decision-panel > * + * { margin-top: .5rem; }
         [data-action-count] { min-height: 1rem; }
         .decision-grid { transition: opacity .2s ease; }
         .decision-card {
@@ -1572,9 +1578,13 @@
         /* ================= 主神空間 Hub／輪迴者手錶 HUD =================
            這一層只負責視覺與排版，不讀取、不改寫規則資料。
            擲骰子覆蓋層 #dice-roll-overlay 完全不在這組選擇器範圍內。 */
-        /* 第三幕：保留主神空間的功能 hub，但不再切到過曝白色平台。
-           黑幕接管後只讓低亮度的金屬／終端介面慢慢浮現，避免白閃與眼睛疲勞。 */
-        html[data-stage="godspace"] #portal-screen {
+        /* 第三幕：深色模式下保留主神空間的功能 hub，但不切到過曝白色平台。
+           黑幕接管後只讓低亮度的金屬／終端介面慢慢浮現，避免白閃與眼睛疲勞。
+           [修正] 這組原本沒有掛 data-theme 條件，淺色模式也會被強制套上這片黑幕，
+           結果只有卡片跟頁首（走 token，會吃到上面的淺色 godspace 變數）是亮的，
+           背景卻仍是黑的。改成只在 data-theme="dark" 生效，淺色模式改吃
+           body 的 --bg-void（此時已由上面的淺色 godspace token 推成近白）。 */
+        html[data-theme="dark"][data-stage="godspace"] #portal-screen {
             background:
                 radial-gradient(ellipse 78% 66% at 50% 0%, rgba(62, 76, 78, .2), transparent 70%),
                 linear-gradient(180deg, #101518 0%, #080b0d 100%);
@@ -1624,27 +1634,30 @@
         .portal-platform #portal-resume-box button:hover { background: rgb(var(--c-accent-base) / .2); }
         @keyframes platformOrbBreath { 0%,100% { transform: translateX(-50%) scale(.98); opacity: .78; } 50% { transform: translateX(-50%) scale(1.04); opacity: .95; } }
 
-        /* 暗色主神空間覆寫：功能與資料不變，只把原本的白平台材質降為低亮度終端。 */
-        html[data-stage="godspace"] .portal-platform { color: #e4e7e4; }
-        html[data-stage="godspace"] .platform-backdrop { background: radial-gradient(circle at 50% 4%, rgba(86, 111, 111, .18), transparent 42%), linear-gradient(180deg, rgba(14, 20, 22, .98), rgba(7, 10, 12, .98)); }
-        html[data-stage="godspace"] .platform-backdrop::before { opacity: .16; background-image: radial-gradient(rgba(148, 163, 163, .16) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(167, 185, 182, .06) 0 1px, transparent 1px 5px); mix-blend-mode: screen; }
-        html[data-stage="godspace"] .platform-orb { background: radial-gradient(circle at 50% 48%, rgba(171, 205, 195, .18) 0 10%, rgba(95, 142, 132, .13) 24%, transparent 70%); box-shadow: 0 0 90px rgba(83, 153, 139, .12), 0 0 170px rgba(56, 189, 171, .08); opacity: .58; }
-        html[data-stage="godspace"] .platform-orb::after { border-color: rgba(167, 243, 208, .18); box-shadow: inset 0 0 35px rgba(52, 211, 153, .12); }
-        html[data-stage="godspace"] .platform-horizon { border-top-color: rgba(110, 231, 183, .16); opacity: .28; }
-        html[data-stage="godspace"] .platform-arrival-mark { color: #7b918e; }
-        html[data-stage="godspace"] .platform-arrival-line { background: rgba(110, 231, 183, .34); }
-        html[data-stage="godspace"] .platform-heading { border-color: rgba(148, 163, 163, .22); background: rgba(12, 17, 19, .82); box-shadow: 0 20px 55px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(167, 243, 208, .04); }
-        html[data-stage="godspace"] .portal-platform #portal-title { color: #e4e7e4; text-shadow: 0 0 24px rgba(110, 231, 183, .12); }
-        html[data-stage="godspace"] .portal-platform #portal-subtitle { color: #9aa9a6; }
-        html[data-stage="godspace"] .portal-platform .hub-object { border-color: rgba(148, 163, 163, .2); background: rgba(14, 21, 23, .88); box-shadow: 0 9px 24px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(167, 243, 208, .035); color: #e4e7e4; }
-        html[data-stage="godspace"] .portal-platform .hub-object:hover, html[data-stage="godspace"] .portal-platform .hub-object:focus-visible { border-color: rgba(110, 231, 183, .45); background: rgba(22, 34, 34, .96); box-shadow: 0 16px 32px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(167, 243, 208, .1); }
-        html[data-stage="godspace"] .portal-platform .hub-object .action-tile-label { color: #e4e7e4; }
-        html[data-stage="godspace"] .portal-platform .hub-object .action-tile-sub { color: #82938f; }
-        html[data-stage="godspace"] .portal-platform .hub-object-mission { border-color: rgba(110, 231, 183, .42); background: linear-gradient(145deg, rgba(21, 43, 40, .92), rgba(29, 78, 67, .26)); }
-        html[data-stage="godspace"] .portal-platform .platform-status { color: #9fd2c1; border-color: rgba(110, 231, 183, .22); background: rgba(16, 185, 129, .08); }
-        html[data-stage="godspace"] .portal-platform .platform-footnote { color: #71807d; }
-        html[data-stage="godspace"] .portal-platform #portal-resume-box { border-color: rgba(110, 231, 183, .28); background: rgba(10, 25, 24, .72); box-shadow: 0 14px 32px rgba(0, 0, 0, .3); }
-        html[data-stage="godspace"] .portal-platform #portal-resume-box button { border-color: rgba(110, 231, 183, .52); background: rgba(16, 185, 129, .1); color: #a7f3d0; }
+        /* 暗色主神空間覆寫：功能與資料不變，只把原本的白平台材質降為低亮度終端。
+           [修正] 補上 data-theme="dark" 條件——原本不分主題套用，於是淺色模式下
+           大部分主神空間元件（背景、卡磚、標題匾…）被強制拉黑，只有走 token 的
+           頁首和卡片（找到你的輪迴者檔案）還是亮的，兩者混在一起。 */
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform { color: #e4e7e4; }
+        html[data-theme="dark"][data-stage="godspace"] .platform-backdrop { background: radial-gradient(circle at 50% 4%, rgba(86, 111, 111, .18), transparent 42%), linear-gradient(180deg, rgba(14, 20, 22, .98), rgba(7, 10, 12, .98)); }
+        html[data-theme="dark"][data-stage="godspace"] .platform-backdrop::before { opacity: .16; background-image: radial-gradient(rgba(148, 163, 163, .16) .45px, transparent .7px), repeating-linear-gradient(0deg, rgba(167, 185, 182, .06) 0 1px, transparent 1px 5px); mix-blend-mode: screen; }
+        html[data-theme="dark"][data-stage="godspace"] .platform-orb { background: radial-gradient(circle at 50% 48%, rgba(171, 205, 195, .18) 0 10%, rgba(95, 142, 132, .13) 24%, transparent 70%); box-shadow: 0 0 90px rgba(83, 153, 139, .12), 0 0 170px rgba(56, 189, 171, .08); opacity: .58; }
+        html[data-theme="dark"][data-stage="godspace"] .platform-orb::after { border-color: rgba(167, 243, 208, .18); box-shadow: inset 0 0 35px rgba(52, 211, 153, .12); }
+        html[data-theme="dark"][data-stage="godspace"] .platform-horizon { border-top-color: rgba(110, 231, 183, .16); opacity: .28; }
+        html[data-theme="dark"][data-stage="godspace"] .platform-arrival-mark { color: #7b918e; }
+        html[data-theme="dark"][data-stage="godspace"] .platform-arrival-line { background: rgba(110, 231, 183, .34); }
+        html[data-theme="dark"][data-stage="godspace"] .platform-heading { border-color: rgba(148, 163, 163, .22); background: rgba(12, 17, 19, .82); box-shadow: 0 20px 55px rgba(0, 0, 0, .34), inset 0 0 0 1px rgba(167, 243, 208, .04); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform #portal-title { color: #e4e7e4; text-shadow: 0 0 24px rgba(110, 231, 183, .12); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform #portal-subtitle { color: #9aa9a6; }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object { border-color: rgba(148, 163, 163, .2); background: rgba(14, 21, 23, .88); box-shadow: 0 9px 24px rgba(0, 0, 0, .28), inset 0 0 0 1px rgba(167, 243, 208, .035); color: #e4e7e4; }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object:hover, html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object:focus-visible { border-color: rgba(110, 231, 183, .45); background: rgba(22, 34, 34, .96); box-shadow: 0 16px 32px rgba(0, 0, 0, .38), inset 0 0 0 1px rgba(167, 243, 208, .1); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object .action-tile-label { color: #e4e7e4; }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object .action-tile-sub { color: #82938f; }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .hub-object-mission { border-color: rgba(110, 231, 183, .42); background: linear-gradient(145deg, rgba(21, 43, 40, .92), rgba(29, 78, 67, .26)); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .platform-status { color: #9fd2c1; border-color: rgba(110, 231, 183, .22); background: rgba(16, 185, 129, .08); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform .platform-footnote { color: #71807d; }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform #portal-resume-box { border-color: rgba(110, 231, 183, .28); background: rgba(10, 25, 24, .72); box-shadow: 0 14px 32px rgba(0, 0, 0, .3); }
+        html[data-theme="dark"][data-stage="godspace"] .portal-platform #portal-resume-box button { border-color: rgba(110, 231, 183, .52); background: rgba(16, 185, 129, .1); color: #a7f3d0; }
 
         /* ---- 輪迴者手錶 HUD ----
            [2026-08-21] 這一整組原本寫死成紙白（rgba(250,249,246,.96) 之類），
@@ -2000,7 +2013,7 @@
 
         /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。 */
         #story-action-panel { padding: .52rem clamp(.75rem, 2vw, 2rem) .62rem; }
-        #story-action-panel .decision-panel-heading { gap: .5rem; }
+        #inline-decision-panel .decision-panel-heading { gap: .5rem; }
         #option-grid { gap: .45rem; }
         .decision-card { min-height: 4.15rem; padding: .48rem .62rem; }
         .decision-card-label { font-size: .72rem; line-height: 1.25; }
@@ -2222,8 +2235,8 @@
            而是規則的實作——把它們拿掉，戰鬥中就會重新出現一個可以打字的框。 */
         body.is-game-screen.is-combat-v2-view #story-action-panel { display: none !important; }
         body.is-game-screen.is-combat-v2-view #story-current { display: none !important; }
-        #story-action-panel .decision-panel-heading { min-height: 1.7rem; }
-        #story-action-panel #option-grid { min-height: 0; }
+        #inline-decision-panel .decision-panel-heading { min-height: 1.7rem; }
+        #inline-decision-panel #option-grid { min-height: 0; }
 
         html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
         html[data-theme="light"] #char-hud #char-hud-titlebar { border-color: rgba(60,55,47,.16); }
@@ -3340,6 +3353,24 @@
             <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-label="故事現場">
                 <div id="recent-story-list" class="story-current-content flex-1 min-h-0 overflow-y-auto" aria-live="polite" aria-label="最近五則故事訊息">
                     <div class="story-current-empty">等待第一段故事回應……</div>
+                    <!-- 行動方向／選項跟故事文字一起捲動，不再固定佔住輸入框上方——
+                         手機上舊版會把可讀高度壓縮到剩一兩行。這個節點永遠留在
+                         #recent-story-list 裡：見 app.js 的 renderRecentStoryWindow，
+                         每次重繪都會把它排進 desired 清單的最後一位，不會被當成過期節點清掉。 -->
+                    <div id="inline-decision-panel">
+                        <div class="decision-panel-heading">
+                            <div>
+                                <div id="decision-kicker" class="decision-kicker">行動方向</div>
+                                <div id="decision-title" class="decision-title">可參考的情境線索</div>
+                            </div>
+                            <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
+                        </div>
+                        <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
+                            <div id="dm-action-hint" class="dm-action-hint">以下僅供參考，你也可以自由行動。</div>
+                            <div id="dm-action-hints" class="dm-action-hints"></div>
+                        </div>
+                        <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
+                    </div>
                 </div>
             </section>
 
@@ -3430,19 +3461,7 @@
                 </div>
             </div>
 
-            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 space-y-2 shrink-0 backdrop-blur">
-                <div class="decision-panel-heading">
-                    <div>
-                        <div id="decision-kicker" class="decision-kicker">行動方向</div>
-                        <div id="decision-title" class="decision-title">可參考的情境線索</div>
-                    </div>
-                    <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
-                </div>
-                <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
-                                        <div id="dm-action-hint" class="dm-action-hint">可參考的行動方向如下；你也可以描述其他合理行動，提示不是限制。</div>
-                    <div id="dm-action-hints" class="dm-action-hints"></div>
-                </div>
-                <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
+            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur">
                 <div class="flex gap-2 items-end">
                     <div class="relative flex-1">
                         <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
