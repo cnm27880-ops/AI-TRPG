@@ -24,7 +24,7 @@ import { featCost } from "../core/xp.js";
 import { emptyCharacter } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from "../content/shop/catalog.js";
-import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor } from "../content/shop/effects.js";
+import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor, effectiveSpellPower } from "../content/shop/effects.js";
 import { ATTACK_CHECK_KEYS } from "../core/combat/attackTypes.js";
 import {
   createFormsState,
@@ -248,13 +248,18 @@ test("武器特殊能力已轉為固定效果或明確未實作標記", () => {
 
   const warglaive = items.戰闊劍;
   assert.equal(warglaive.effects.find((e) => e.kind === "防御").amount, 2, "防禦加值應轉為固定防御 +2");
-  assert.ok(warglaive.droppedTraits.some((d) => d.reason === "情境條件"), "反噬等條件效果需明確標記");
+  assert.equal(warglaive.droppedTraits.length, 0, "條件式能力已轉換，不應留下未實作標記");
+  assert.ok(warglaive.effects.some((e) => e.kind === "敘事"), "無法等價數值化的反噬效果需公開保留為敘事提示");
 
   const crusader = items.十字軍;
-  assert.ok(crusader.droppedTraits.some((d) => d.trait === "聖痕心念射擊"), "屬性替換不能假裝已接線");
+  assert.equal(crusader.effects.find((e) => e.kind === "武器").weaponDamage, 4, "屬性替換應轉為十字軍固定武器傷害 +1");
+  assert.equal(crusader.droppedTraits.length, 0, "屬性替換已轉換，不應留下未實作標記");
 
   const staff = items.阿爾法法杖;
-  assert.ok(staff.droppedTraits.some((d) => d.trait.includes("法術共鳴")), "法術威力值 +2 在法術結算端接線前需明確標記");
+  assert.equal(staff.effects.find((e) => e.kind === "法術增幅").amount, 2, "法術增幅應正式接入威力值 +2");
+  assert.equal(staff.droppedTraits.length, 0, "法術增幅已接入，不應留下未實作標記");
+  const mage = { abilities: [staff] };
+  assert.equal(effectiveSpellPower(mage, 2), 4, "D 級法術威力值 2 應被法杖提高至 4");
 });
 
 test("角色卡上沒有前提時，需要前提的商品確實買不到(手杖劍需要格鬥3/交涉2)", () => {

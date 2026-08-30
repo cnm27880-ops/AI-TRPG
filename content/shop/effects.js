@@ -80,6 +80,10 @@ export const EFFECT_KINDS = Object.freeze({
     target: "背包 → content/combat/placeholderEncounters.js 的武器形狀 → core/combat/attackTypes.js",
     fields: ["label", "attackType", "weaponDamage"],
   },
+  法術增幅: {
+    target: "法術結算端的 effectivePower = basePower + spellPowerBonus",
+    fields: ["amount"],
+  },
   治療: { target: "core/health.js 的傷勢軌(使用時才套用，不是購買時)", fields: ["severity", "amount"] },
   好感度: { target: "content/affection.js 的好感度點數", fields: ["amount"] },
   敘事: { target: "(無數值效果)只送進AI敘事的背景資訊", fields: ["text"] },
@@ -702,6 +706,22 @@ function gatherModifiers(character, { attribute, skill, scope }, extraSources) {
 export function attackModifiersFor(character, attackType, { extraSources = [] } = {}) {
   const { attribute, skill } = attackCheckKeys(attackType);
   return gatherModifiers(character, { attribute, skill, scope: "攻擊" }, extraSources);
+}
+
+/**
+ * 取得持有物提供的法術威力值固定加成。
+ * 法術本身的施法流程可直接把這個結果加到原始威力值；它同時影響施法 DP
+ * 與規則指定的成功數上限，不會污染一般秘識檢定或武器攻擊。
+ */
+export function spellPowerBonusFrom(character, { extraSources = [] } = {}) {
+  return effectSources(character, extraSources).reduce(
+    (sum, owned) => sum + (owned.effects ?? []).reduce((total, effect) => total + (effect.kind === "法術增幅" ? effect.amount : 0), 0),
+    0
+  );
+}
+
+export function effectiveSpellPower(character, basePower, { extraSources = [] } = {}) {
+  return basePower + spellPowerBonusFrom(character, { extraSources });
 }
 
 /**

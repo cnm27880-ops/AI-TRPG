@@ -27,19 +27,14 @@
         {
           "kind": "防御",
           "amount": 2
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "型態切換、格擋、免疫陽光、撐開後無法攻擊",
-          "reason": "格擋"
         },
         {
-          "trait": "型態切換的啟動與結束條件",
-          "reason": "動作經濟細節"
+          "kind": "敘事",
+          "text": "撐開後視為防禦姿態；原本的陽光免疫與不能攻擊限制已轉為敘事提示。"
         }
       ],
-      "conversionNote": "原「撐開防禦態／格擋」已轉為持有期間固定防御 +2；型態切換、不能攻擊、陽光免疫與體積效果不納入戰鬥引擎。",
+      "droppedTraits": [],
+      "conversionNote": "原「撐開防禦態／格擋」轉為固定防御 +2；型態切換本身以敘事提示呈現。",
       "narrative": "斯卡雷特家族特別定制的洋傘。閉合時可作白刃打擊，撐開時轉化為具備格擋與陽光防護的掩體。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -64,19 +59,16 @@
         {
           "kind": "防御",
           "amount": 1
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "格擋",
-          "reason": "格擋"
         },
         {
-          "trait": "重骰保底",
-          "reason": "重擲"
+          "kind": "附加成功",
+          "amount": 1,
+          "scope": "攻擊",
+          "skill": "格鬥"
         }
       ],
-      "conversionNote": "原「格擋」已轉為持有期間固定防御 +1。 原「重骰保底」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "原「格擋」已轉為持有期間固定防御 +1。 重骰保底轉為持有本武器進行白刃攻擊時附加成功 +1；目前系統沒有玩家宣告重骰接口。",
       "narrative": "如圓月般冰冷優雅的扇刃。閉合時體積2易於攜帶，展開時體積4並啟動完整殺傷與重擲保底機制。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -103,18 +95,13 @@
           "skill": "交涉",
           "amount": 2,
           "scope": "全部"
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "破甲2",
-          "reason": "破甲"
         },
         {
-          "trait": "情境條件：持用者為女性",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原條件「持用者為女性」已轉為無條件固定加值。"
         }
       ],
+      "droppedTraits": [],
       "conversionNote": "原「破甲2」轉為固定武器傷害 +2；目前系統沒有獨立破甲層。 原條件「持用者為女性」無對應欄位，已轉為無條件固定加值。",
       "narrative": "華貴優雅的女士細劍。具備高破甲穿刺性能，女性持用時在社交檢定中獲得顯著表現加值。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
@@ -148,23 +135,18 @@
           "skill": "交涉",
           "amount": 1,
           "scope": "檢定"
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "破甲1",
-          "reason": "破甲"
         },
         {
-          "trait": "常規安檢免疫",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "常規安檢免疫保留為敘事提示。"
         },
         {
-          "trait": "偽裝外鞘",
-          "reason": "目前沒有型態切換與副武器狀態的戰鬥接口，無法安全轉換"
+          "kind": "敘事",
+          "text": "原副型態武器「偽裝外鞘」保留為敘事描述，未另建立第二把可選武器。"
         }
       ],
-      "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 社交檢定加骰已轉為交涉檢定 +1；安檢免疫保留為敘事資訊。 原「偽裝外鞘」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 社交檢定加骰已轉為交涉檢定 +1；安檢免疫保留為敘事資訊。 副型態武器改為敘事描述，避免同一商品在裝備表生成無法切換的第二把武器。",
       "narrative": "紳士手杖內藏鋒芒。未拔劍時外鞘可作鈍擊武器並通過常規安檢，戰鬥中可迅捷出鞘奇襲。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -202,14 +184,13 @@
           "attribute": "意志",
           "amount": 1,
           "scope": "檢定"
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "恐慌抗性",
-          "reason": "豁免"
+          "kind": "敘事",
+          "text": "原恐慌抗性已轉為意志檢定 +1。"
         }
       ],
+      "droppedTraits": [],
       "conversionNote": "恐慌抗性已轉為意志檢定 +1；目前沒有獨立恐慌狀態與抗性軸。",
       "narrative": "沉香木所鑄長矛，柔韌輕盈。持用時幽香陣陣，令人心神堅定、意志高昂。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
@@ -237,15 +218,20 @@
           "severity": "L",
           "ranged": false,
           "weaponRange": 10
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "鐘擺蓄力",
-          "reason": "進階戰鬥動作"
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1,
+          "scope": "攻擊"
+        },
+        {
+          "kind": "敘事",
+          "text": "原戰術效果「鐘擺蓄力」轉為白刃攻擊固定 +1DP；原始條件保留於商品描述。"
         }
       ],
-      "conversionNote": "原「鐘擺蓄力」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "戰術攻擊增幅轉為白刃攻擊固定 +1DP；原動作經濟條件保留為敘事提示。",
       "narrative": "中空圓環構造的重型鐘擺斧。可藉由旋轉慣性蓄力投擲，造成毀滅性的遠距劈砍殺傷。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -270,23 +256,28 @@
         {
           "kind": "防御",
           "amount": 2
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "原防禦條件：格擋或全防禦",
-          "reason": "情境條件"
         },
         {
-          "trait": "反噬懲罰",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原防禦條件：格擋或全防禦；目前已改為固定防御 +2。"
         },
         {
-          "trait": "全力攻擊防禦補正",
-          "reason": "進階戰鬥動作"
+          "kind": "敘事",
+          "text": "原反噬條件「攻擊檢定0成功」保留為敘事提示；目前系統沒有攻擊失敗後自傷的結算鉤子。"
+        },
+        {
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1,
+          "scope": "攻擊"
+        },
+        {
+          "kind": "敘事",
+          "text": "原戰術效果「全力攻擊防禦補正」轉為白刃攻擊固定 +1DP；原始條件保留於商品描述。"
         }
       ],
-      "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +2。 原「反噬懲罰」目前沒有可安全對應的戰鬥接口，明確標記為未實作。 原「全力攻擊防禦補正」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +2。 反噬懲罰改為公開敘事提示，不新增會被誤讀的固定傷害。 戰術攻擊增幅轉為白刃攻擊固定 +1DP；原動作經濟條件保留為敘事提示。",
       "narrative": "惡魔獵手鍾愛的月牙形弧刃。雙持攻守兼備且全力攻擊代價更低，但失手時容易反噬傷及自身。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -317,15 +308,20 @@
         {
           "kind": "先攻",
           "amount": 3
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "疾風脫離",
-          "reason": "進階戰鬥動作"
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1,
+          "scope": "攻擊"
+        },
+        {
+          "kind": "敘事",
+          "text": "原戰術效果「疾風脫離」轉為白刃攻擊固定 +1DP；原始條件保留於商品描述。"
         }
       ],
-      "conversionNote": "原「疾風脫離」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "戰術攻擊增幅轉為白刃攻擊固定 +1DP；原動作經濟條件保留為敘事提示。",
       "narrative": "極其輕靈的近戰短刃。賦予持用者極高的出手速度與近戰拉扯能力，亦可精準投擲。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -351,19 +347,16 @@
           "weaponDamage": 4,
           "severity": "L",
           "ranged": false
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "破甲1",
-          "reason": "破甲"
         },
         {
-          "trait": "剛柔並濟",
-          "reason": "情境條件"
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1,
+          "scope": "攻擊"
         }
       ],
-      "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 原「剛柔並濟」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 力量／敏捷複合加值轉為該武器白刃攻擊固定 +1DP。",
       "narrative": "剛柔並濟的刺劍。能將力量與敏捷兩種截然不同的戰鬥風格互相轉化並疊加於打擊之中。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -396,14 +389,13 @@
         {
           "kind": "防御",
           "amount": 1
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "原防禦條件：持用者力量>=4進行格擋",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原防禦條件：持用者力量>=4進行格擋；目前已改為固定防御 +1。"
         }
       ],
+      "droppedTraits": [],
       "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +1。",
       "narrative": "純粹重型劍刃的代表作。厚重的劍脊既可釋放致命的劈斬，亦能在巨力加持下化作堅固壁壘。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
@@ -422,7 +414,7 @@
           "kind": "武器",
           "label": "念珠",
           "attackType": "白刃",
-          "weaponDamage": 2,
+          "weaponDamage": 3,
           "severity": "B",
           "ranged": false
         },
@@ -431,15 +423,14 @@
           "attribute": "意志",
           "amount": 1,
           "scope": "全部"
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "特攻轉化",
-          "reason": "傷害類型"
+          "kind": "敘事",
+          "text": "原特殊目標條件「靈體/虛體」已泛化為本武器固定傷害 +1。"
         }
       ],
-      "conversionNote": "原「特攻轉化」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "特攻／陣營特攻轉為本武器固定傷害 +1，原目標條件保留為敘事提示。",
       "narrative": "佛門修行念珠。持用增強心神定力，對常人僅為鈍擊，但接觸靈體鬼怪時會迸發破煞金光。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -464,14 +455,13 @@
         {
           "kind": "防御",
           "amount": 2
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "原防禦條件：對抗未持白刃/長兵武器之近戰攻擊者",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原防禦條件：對抗未持白刃/長兵武器之近戰攻擊者；目前已改為固定防御 +2。"
         }
       ],
+      "droppedTraits": [],
       "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +2。",
       "narrative": "長柄弧刃刀。善於利用距離優勢壓制短兵、空手與野獸撲擊，形成嚴密的近戰防線。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
@@ -501,15 +491,14 @@
           "weaponDamage": 2,
           "severity": "B",
           "ranged": false
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "法術共鳴：法術威力值 +2",
-          "reason": "法術攻擊結算端尚未接線，無法由現有系統讀取"
+          "kind": "法術增幅",
+          "amount": 2
         }
       ],
-      "conversionNote": "已確認的法術共鳴設計先保留為未接線標記；待法術攻擊結算端接入後，改為正式法術威力值 +2 效果。",
+      "droppedTraits": [],
+      "conversionNote": "法術共鳴已接入：使用法術時威力值固定 +2。",
       "narrative": "銘刻基礎奧術迴路的法杖。近戰時僅作防身短棍，但能顯著穩定並增幅各類法術的輸出威力。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -533,19 +522,18 @@
           "kind": "武器",
           "label": "十字軍",
           "attackType": "槍械",
-          "weaponDamage": 3,
+          "weaponDamage": 4,
           "severity": "L",
           "ranged": true,
           "weaponRange": 20
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "聖痕心念射擊",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原智力＋秘識替代敏捷＋射擊已轉為本武器固定武器傷害 +1。"
         }
       ],
-      "conversionNote": "原「聖痕心念射擊」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "屬性替換轉為十字軍本身固定武器傷害 +1，避免影響其他槍械。",
       "narrative": "銘刻十字聖痕的轉輪手槍。允許智力法系角色將精神力量注入彈丸，以心念進行精準射擊。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -577,15 +565,20 @@
           "skill": "格鬥",
           "amount": 1,
           "scope": "攻擊"
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "全力一擊強化",
-          "reason": "進階戰鬥動作"
+          "kind": "檢定加骰",
+          "skill": "格鬥",
+          "amount": 1,
+          "scope": "攻擊"
+        },
+        {
+          "kind": "敘事",
+          "text": "原戰術效果「全力一擊強化」轉為白刃攻擊固定 +1DP；原始條件保留於商品描述。"
         }
       ],
-      "conversionNote": "原「劍術附加成功」已轉為攻擊附加成功。 原「全力一擊強化」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "原「劍術附加成功」已轉為攻擊附加成功。 戰術攻擊增幅轉為白刃攻擊固定 +1DP；原動作經濟條件保留為敘事提示。",
       "narrative": "倣古名劍打造的青刃長劍。劍路如水銀瀉地，兼具極高的劈斬加值與破陣破甲威力。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -603,28 +596,27 @@
           "kind": "武器",
           "label": "桃木劍",
           "attackType": "白刃",
-          "weaponDamage": 4,
+          "weaponDamage": 5,
           "severity": "L",
           "ranged": false
+        },
+        {
+          "kind": "敘事",
+          "text": "原特殊目標條件「非黑暗生物」已泛化為本武器固定傷害 +1。"
         },
         {
           "kind": "附加成功",
           "skill": "秘識",
           "amount": 1,
           "scope": "攻擊"
-        }
-      ],
-      "droppedTraits": [
-        {
-          "trait": "陣營特攻",
-          "reason": "傷害類型"
         },
         {
-          "trait": "情境條件：施展道術或消耗道力/符咒技能",
-          "reason": "情境條件"
+          "kind": "敘事",
+          "text": "原條件「施展道術或消耗道力/符咒技能」已轉為無條件固定加值。"
         }
       ],
-      "conversionNote": "原「陣營特攻」目前沒有可安全對應的戰鬥接口，明確標記為未實作。 原「道術符咒加成」已轉為攻擊附加成功。 原條件「施展道術或消耗道力/符咒技能」無對應欄位，已轉為無條件固定加值。",
+      "droppedTraits": [],
+      "conversionNote": "特攻／陣營特攻轉為本武器固定傷害 +1，原目標條件保留為敘事提示。 原「道術符咒加成」已轉為攻擊附加成功。 原條件「施展道術或消耗道力/符咒技能」無對應欄位，已轉為無條件固定加值。",
       "narrative": "百年桃木雕琢的法劍。斬擊常人僅為鈍痛，但克制妖邪鬼魅，為施展道術符法的上佳法器。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     },
@@ -645,15 +637,20 @@
           "weaponDamage": 3,
           "severity": "L",
           "ranged": false
-        }
-      ],
-      "droppedTraits": [
+        },
         {
-          "trait": "同生共死誓約",
-          "reason": "隊友"
+          "kind": "檢定加骰",
+          "attribute": "意志",
+          "amount": 1,
+          "scope": "檢定"
+        },
+        {
+          "kind": "敘事",
+          "text": "原共生契約轉為意志檢定 +1；傷害分攤與共享抵抗仍以敘事描述呈現。"
         }
       ],
-      "conversionNote": "原「同生共死誓約」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+      "droppedTraits": [],
+      "conversionNote": "共生契約轉為持有者意志檢定 +1，隊友傷害分攤保留為敘事提示。",
       "narrative": "刻有「執子之手，與子偕老」的特殊誓約古劍。可用於與夥伴締結生命與意志共擔的同生共死契約。",
       "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
     }

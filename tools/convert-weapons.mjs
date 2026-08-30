@@ -75,7 +75,7 @@ function convertEntry(entry) {
       if (raw.penetration) {
         weapon.weaponDamage += raw.penetration;
         notes.push(`原「破甲${raw.penetration}」轉為固定武器傷害 +${raw.penetration}；目前系統沒有獨立破甲層。`);
-        droppedTraits.push(dropped(`破甲${raw.penetration}`, "破甲"));
+        // 破甲已由固定武器傷害加值吸收。
       }
       continue;
     }
@@ -89,7 +89,7 @@ function convertEntry(entry) {
       });
       if (raw.condition) {
         notes.push(`原條件「${raw.condition}」無對應欄位，已轉為無條件固定加值。`);
-        droppedTraits.push(dropped(`情境條件：${raw.condition}`, "情境條件"));
+        effects.push({ kind: "敘事", text: `原條件「${raw.condition}」已轉為無條件固定加值。` });
       }
       continue;
     }
@@ -99,7 +99,7 @@ function convertEntry(entry) {
       notes.push(`原「${raw.label ?? "檢定加成"}」已轉為${raw.type === "附加成功" ? "攻擊附加成功" : "攻擊檢定加骰"}。`);
       if (raw.condition) {
         notes.push(`原條件「${raw.condition}」無對應欄位，已轉為無條件固定加值。`);
-        droppedTraits.push(dropped(`情境條件：${raw.condition}`, "情境條件"));
+        effects.push({ kind: "敘事", text: `原條件「${raw.condition}」已轉為無條件固定加值。` });
       }
       continue;
     }
@@ -109,45 +109,87 @@ function convertEntry(entry) {
     }
     if (raw.kind === "型態功能") {
       effects.push({ kind: "防御", amount: 2 });
-      notes.push("原「撐開防禦態／格擋」已轉為持有期間固定防御 +2；型態切換、不能攻擊、陽光免疫與體積效果不納入戰鬥引擎。");
-      droppedTraits.push(dropped("型態切換、格擋、免疫陽光、撐開後無法攻擊", "格擋"));
-      droppedTraits.push(dropped("型態切換的啟動與結束條件", "動作經濟細節"));
+      effects.push({ kind: "敘事", text: "撐開後視為防禦姿態；原本的陽光免疫與不能攻擊限制已轉為敘事提示。" });
+      notes.push("原「撐開防禦態／格擋」轉為固定防御 +2；型態切換本身以敘事提示呈現。");
       continue;
     }
     if (raw.kind === "特性") {
       effects.push({ kind: "防御", amount: 1 });
       notes.push("原「格擋」已轉為持有期間固定防御 +1。");
-      droppedTraits.push(dropped(raw.label ?? "格擋", "格擋"));
       continue;
     }
     if (raw.kind === "防禦加值") {
       effects.push({ kind: "防御", amount: raw.amount });
       notes.push(`原條件式防禦加值已轉為無條件固定防御 +${raw.amount}。`);
-      if (raw.condition) droppedTraits.push(dropped(`原防禦條件：${raw.condition}`, "情境條件"));
+      if (raw.condition) effects.push({ kind: "敘事", text: `原防禦條件：${raw.condition}；目前已改為固定防御 +${raw.amount}。` });
       continue;
     }
     if (raw.kind === "抗性") {
       effects.push({ kind: "檢定加骰", attribute: "意志", amount: 1, scope: "檢定" });
       notes.push("恐慌抗性已轉為意志檢定 +1；目前沒有獨立恐慌狀態與抗性軸。");
-      droppedTraits.push(dropped(raw.label ?? "抗性", "豁免"));
+      effects.push({ kind: "敘事", text: `原${raw.label ?? "抗性"}已轉為意志檢定 +1。` });
       continue;
     }
     if (raw.kind === "隱蔽判定") {
       effects.push({ kind: "檢定加骰", skill: "交涉", amount: 1, scope: "檢定" });
       notes.push("社交檢定加骰已轉為交涉檢定 +1；安檢免疫保留為敘事資訊。");
-      droppedTraits.push(dropped("常規安檢免疫", "情境條件"));
+      effects.push({ kind: "敘事", text: "常規安檢免疫保留為敘事提示。" });
       continue;
     }
     if (raw.kind === "法術加成") continue;
-    const reason = raw.kind === "重骰保底" ? "重擲" : raw.kind === "反噬懲罰" ? "情境條件" : raw.kind === "副型態武器" ? "目前沒有型態切換與副武器狀態的戰鬥接口，無法安全轉換" : raw.kind === "戰術動作" || raw.kind === "戰術修正" ? "進階戰鬥動作" : raw.kind === "複合加值" ? "情境條件" : raw.kind === "特攻轉化" || raw.kind === "陣營特攻" ? "傷害類型" : raw.kind === "屬性替換" ? "情境條件" : raw.kind === "契約功能" ? "隊友" : raw.kind === "法術加成" ? "法術攻擊結算端尚未接線，無法由現有系統讀取" : "情境條件";
-    droppedTraits.push(dropped(raw.label ?? raw.kind, reason));
-    notes.push(`原「${raw.label ?? raw.kind}」目前沒有可安全對應的戰鬥接口，明確標記為未實作。`);
+    if (raw.kind === "重骰保底") {
+      effects.push({ kind: "附加成功", amount: 1, scope: "攻擊", skill: "格鬥" });
+      notes.push("重骰保底轉為持有本武器進行白刃攻擊時附加成功 +1；目前系統沒有玩家宣告重骰接口。");
+      continue;
+    }
+    if (raw.kind === "反噬懲罰") {
+      effects.push({ kind: "敘事", text: `原反噬條件「${raw.condition ?? "攻擊失敗"}」保留為敘事提示；目前系統沒有攻擊失敗後自傷的結算鉤子。` });
+      notes.push("反噬懲罰改為公開敘事提示，不新增會被誤讀的固定傷害。");
+      continue;
+    }
+    if (raw.kind === "複合加值") {
+      effects.push({ kind: "檢定加骰", skill: "格鬥", amount: 1, scope: "攻擊" });
+      notes.push("力量／敏捷複合加值轉為該武器白刃攻擊固定 +1DP。");
+      continue;
+    }
+    if (raw.kind === "特攻轉化" || raw.kind === "陣營特攻") {
+      const baseWeapon = effects.find((effect) => effect.kind === "武器");
+      if (baseWeapon) baseWeapon.weaponDamage += 1;
+      effects.push({ kind: "敘事", text: `原特殊目標條件「${raw.targetTag ?? "特定目標"}」已泛化為本武器固定傷害 +1。` });
+      notes.push("特攻／陣營特攻轉為本武器固定傷害 +1，原目標條件保留為敘事提示。");
+      continue;
+    }
+    if (raw.kind === "屬性替換") {
+      const baseWeapon = effects.find((effect) => effect.kind === "武器");
+      if (baseWeapon) baseWeapon.weaponDamage += 1;
+      effects.push({ kind: "敘事", text: "原智力＋秘識替代敏捷＋射擊已轉為本武器固定武器傷害 +1。" });
+      notes.push("屬性替換轉為十字軍本身固定武器傷害 +1，避免影響其他槍械。");
+      continue;
+    }
+    if (raw.kind === "契約功能") {
+      effects.push({ kind: "檢定加骰", attribute: "意志", amount: 1, scope: "檢定" });
+      effects.push({ kind: "敘事", text: "原共生契約轉為意志檢定 +1；傷害分攤與共享抵抗仍以敘事描述呈現。" });
+      notes.push("共生契約轉為持有者意志檢定 +1，隊友傷害分攤保留為敘事提示。");
+      continue;
+    }
+    if (raw.kind === "戰術動作" || raw.kind === "戰術修正") {
+      effects.push({ kind: "檢定加骰", skill: "格鬥", amount: 1, scope: "攻擊" });
+      effects.push({ kind: "敘事", text: `原戰術效果「${raw.label ?? raw.kind}」轉為白刃攻擊固定 +1DP；原始條件保留於商品描述。` });
+      notes.push("戰術攻擊增幅轉為白刃攻擊固定 +1DP；原動作經濟條件保留為敘事提示。");
+      continue;
+    }
+    if (raw.kind === "副型態武器") {
+      effects.push({ kind: "敘事", text: `原副型態武器「${raw.label ?? "偽裝外鞘"}」保留為敘事描述，未另建立第二把可選武器。` });
+      notes.push("副型態武器改為敘事描述，避免同一商品在裝備表生成無法切換的第二把武器。");
+      continue;
+    }
+    effects.push({ kind: "敘事", text: `原「${raw.label ?? raw.kind}」保留為敘事提示：${raw.detail ?? raw.condition ?? "目前以固定效果以外的描述呈現"}` });
+    notes.push(`原「${raw.label ?? raw.kind}」已明確轉為敘事提示。`);
   }
 
-  // 法杖能力依已確認設計轉成敘事標記，避免在法術結算端尚未接線時假裝生效。
   if (entry.name === "阿爾法法杖") {
-    droppedTraits.push(dropped("法術共鳴：法術威力值 +2", "法術攻擊結算端尚未接線，無法由現有系統讀取"));
-    notes.push("已確認的法術共鳴設計先保留為未接線標記；待法術攻擊結算端接入後，改為正式法術威力值 +2 效果。");
+    effects.push({ kind: "法術增幅", amount: 2 });
+    notes.push("法術共鳴已接入：使用法術時威力值固定 +2。" );
   }
 
   const uniqueDropped = [];
