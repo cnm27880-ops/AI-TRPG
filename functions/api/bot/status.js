@@ -11,8 +11,7 @@ import { listSessionsForOwner } from "../../../content/auth/ownership.js";
 import { isRetiredScenarioId } from "../../../content/scenario/registry.js";
 import { isBotApiConfigured, verifyBotSecret } from "../../../content/discord/botAuth.js";
 import { buildDiscordStatusView } from "../../../content/discord/statusView.js";
-
-const DISCORD_SUB_PREFIX = "discord:";
+import { DISCORD_SUB_PREFIX } from "../../../content/auth/discordOAuth.js";
 
 export async function onRequestGet(context) {
   const env = context.env ?? {};

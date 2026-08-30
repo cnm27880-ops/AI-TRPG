@@ -1,8 +1,8 @@
 // Cloudflare Pages Function —— 開始 Discord 登入。
 // 路由：GET /api/auth/discord-login
 //
-// 結構跟 login.js（Google）完全對應：產生 state 與 PKCE verifier、放進短命的
-// HttpOnly cookie、把瀏覽器導去 Discord。回來的處理在 discord-callback.js。
+// 做三件事：產生 state 與 PKCE verifier、把它們放進一個短命的 HttpOnly cookie、
+// 然後把瀏覽器導去 Discord。回來的處理在 discord-callback.js。
 
 import {
   randomToken,
@@ -31,8 +31,8 @@ export async function onRequestGet(context) {
   const codeVerifier = randomToken();
   const codeChallenge = await deriveCodeChallenge(codeVerifier);
 
-  // state 與 verifier 一起放在同一個 cookie 裡，理由跟 login.js 一樣：
-  // KV 是選配的，登入流程不該因為沒設 KV 就壞掉。這個 cookie 只活10分鐘。
+  // state 與 verifier 一起放在同一個 cookie 裡而不是 KV：KV 是選配的，
+  // 登入流程不該因為沒設 KV 就壞掉。這個 cookie 只活10分鐘。
   const stateCookie = buildCookie(
     LOGIN_STATE_COOKIE,
     btoa(JSON.stringify({ state, codeVerifier })).replace(/=+$/, ""),

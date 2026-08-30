@@ -120,60 +120,12 @@ npx wrangler pages dev
 - 將 Tailwind Play CDN 改成 build-time CSS，降低正式環境對外部 CDN 的依賴。
 - 為 fallback chain 增加帳戶／每日 request counter 與更細緻的 paid-spend hard stop；目前 `LLM_ALLOW_PAID_FALLBACK` 只控制付費候補是否能加入，不是計費平台的硬斷路器。
 - 在 Cloudflare production 上用各帳戶實際 secret 完成 Groq、SiliconFlow、NVIDIA、Mistral 的 smoke test，確認模型 ID、免費資格與 JSON 支援仍有效。
-- 設定自訂網域與登入 OAuth；這些設定依你的 Cloudflare／Google 帳戶而異，請以官方文件為準。
-
-## Google 登入（選配）
-
-登入是**選配的**：三個環境變數都沒設時，前端會自動把登入按鈕整塊藏起來，遊戲照樣以匿名模式運作。
-設定好之後，玩家可以用 Google 帳號登入，存檔會綁在帳號底下、跨裝置讀得到。
-
-### 1. 在 Google Cloud Console 建立 OAuth 用戶端
-
-1. 開 <https://console.cloud.google.com/apis/credentials>，建立（或選擇）一個專案
-2. 「設定同意畫面」→ 使用者類型選 **外部**，填好應用程式名稱與聯絡信箱
-   - 只會用到 `openid` / `email` / `profile` 三個範圍，都屬於非敏感範圍，不需要 Google 審核
-3. 「建立憑證」→ **OAuth 用戶端 ID** → 應用程式類型選 **網頁應用程式**
-4. 在「已授權的重新導向 URI」加入你的 callback 網址：
-
-   ```
-   https://你的網域/api/auth/callback
-   ```
-
-   > **這個網址必須一字不差。** 差一個結尾斜線、差 `http`/`https`、差 `www` 都會被 Google 直接拒絕，
-   > 而且錯誤訊息（`redirect_uri_mismatch`）不會告訴你差在哪裡。
-   > Cloudflare Pages 的 preview 部署每次都是新網域，如果要在 preview 上測登入，
-   > 就把那個 preview 網域也加進這份清單（Google 的白名單**不吃萬用字元**）。
-
-5. 建立完成後會拿到 **用戶端 ID** 與 **用戶端密鑰**
-
-### 2. 設定環境變數
-
-```bash
-# 兩個都是機密，一定要用 secret，不可以寫進 wrangler.toml 或任何會被 commit 的檔案
-npx wrangler pages secret put GOOGLE_CLIENT_ID --project-name=wxh-engine
-npx wrangler pages secret put GOOGLE_CLIENT_SECRET --project-name=wxh-engine
-
-# 簽發登入憑證用的密鑰，自己產生一段夠長的隨機字串
-openssl rand -base64 32
-npx wrangler pages secret put AUTH_SESSION_SECRET --project-name=wxh-engine
-```
-
-正式環境建議再設一個非機密的 `AUTH_REDIRECT_URI`（放 Dashboard 環境變數或 `[vars]` 即可）：
-
-```
-AUTH_REDIRECT_URI=https://你的網域/api/auth/callback
-```
-
-不設的話程式會從這次請求的網址推導。推導在多數情況下是對的，但只要前面有任何會改寫
-`Host` 標頭的東西，推出來的值就會跟 Google 登記的不一致而登入失敗——明確指定最保險。
-
-> **換掉 `AUTH_SESSION_SECRET` 會讓所有人被登出**（既有的登入票全部驗不過）。
-> 這也正是懷疑密鑰外洩時的處理方式。
+- 設定自訂網域與登入 OAuth；這些設定依你的 Cloudflare／Discord 帳戶而異，請以官方文件為準。
 
 ## Discord 登入（選配）
 
-跟 Google 登入一樣是選配的、一樣共用同一份存檔歸屬機制，兩者可以同時開，也可以只開一個。
-玩家用哪一個平台登入，看到的功能完全一樣（存檔綁帳號、跨裝置讀得到）。
+登入是**選配的**：三個環境變數都沒設時，前端會自動把登入按鈕整塊藏起來，遊戲照樣以匿名模式運作。
+設定好之後，玩家可以用 Discord 帳號登入，存檔會綁在帳號底下、跨裝置讀得到。
 
 ### 1. 在 Discord Developer Portal 建立應用
 
@@ -184,21 +136,24 @@ AUTH_REDIRECT_URI=https://你的網域/api/auth/callback
    https://你的網域/api/auth/discord-callback
    ```
 
-   > 這個網址必須一字不差，理由跟 Google 那邊一樣：差一個結尾斜線、差 `http`/`https`
-   > 都會被 Discord 拒絕。要在 Cloudflare Pages 的 preview 部署上測，也要把那個
-   > preview 網域加進這份清單。
+   > **這個網址必須一字不差。** 差一個結尾斜線、差 `http`/`https` 都會被 Discord 直接拒絕，
+   > 而且錯誤訊息（「無效的 OAuth2 redirect_uri」）不會告訴你差在哪裡。
+   > Cloudflare Pages 的 preview 部署每次都是新網域，如果要在 preview 上測登入，
+   > 就把那個 preview 網域也加進這份清單。
 
 3. 同一頁可以看到 **Client ID**；「Client Secret」在旁邊按 Reset Secret 產生
 
 ### 2. 設定環境變數
 
 ```bash
+# 兩個都是機密，一定要用 secret，不可以寫進 wrangler.toml 或任何會被 commit 的檔案
 npx wrangler pages secret put DISCORD_CLIENT_ID --project-name=wxh-engine
 npx wrangler pages secret put DISCORD_CLIENT_SECRET --project-name=wxh-engine
-```
 
-`AUTH_SESSION_SECRET` 跟 Google 登入共用同一把——如果已經設定過 Google 登入，這一步不用重做；
-如果這個部署只打算開 Discord 登入，一樣要設定它（見上面 Google 登入一節的第 2 步）。
+# 簽發登入憑證用的密鑰，自己產生一段夠長的隨機字串
+openssl rand -base64 32
+npx wrangler pages secret put AUTH_SESSION_SECRET --project-name=wxh-engine
+```
 
 正式環境建議再設一個非機密的 `DISCORD_AUTH_REDIRECT_URI`：
 
@@ -206,7 +161,11 @@ npx wrangler pages secret put DISCORD_CLIENT_SECRET --project-name=wxh-engine
 DISCORD_AUTH_REDIRECT_URI=https://你的網域/api/auth/discord-callback
 ```
 
-不設的話程式會從這次請求的網址推導，理由跟 `AUTH_REDIRECT_URI` 完全一樣（見上一節）。
+不設的話程式會從這次請求的網址推導。推導在多數情況下是對的，但只要前面有任何會改寫
+`Host` 標頭的東西，推出來的值就會跟 Discord 登記的不一致而登入失敗——明確指定最保險。
+
+> **換掉 `AUTH_SESSION_SECRET` 會讓所有人被登出**（既有的登入票全部驗不過）。
+> 這也正是懷疑密鑰外洩時的處理方式。
 
 ### 3. `prompt=none` 的取捨
 
@@ -216,11 +175,7 @@ DISCORD_AUTH_REDIRECT_URI=https://你的網域/api/auth/discord-callback
 這兩種情況會自動重新導向一次不省略同意畫面的登入，所以玩家最終還是看得到同意畫面，
 只是會多轉一次頁面，這是目前這個實作已知的體驗代價。
 
-## 存檔歸屬的行為（Google／Discord 共用）
-
-這一節跟下面「已知取捨」都跟你選哪個登入平台無關——存檔歸屬只認登入票裡的 `sub`，
-不管那是 Google 的 sub 還是 Discord 的使用者 id（見 `content/auth/discordOAuth.js`
-的 `normalizeDiscordUser()`：兩個 provider 的 id 命名空間刻意不重疊）。
+## 存檔歸屬的行為
 
 | 情況 | 行為 |
 |---|---|
@@ -231,7 +186,7 @@ DISCORD_AUTH_REDIRECT_URI=https://你的網域/api/auth/discord-callback
 
 回 404 而不是 403 是刻意的：回 403 等於告訴對方「這個 ID 存在，只是你不能看」。
 
-## 已知取捨（Google／Discord 共用）
+## 已知取捨
 
 登入狀態是一張 **HMAC 簽章的 cookie**，不是資料庫 session。這樣即使沒設定 KV binding，
 登入也能正常運作（見 `content/auth/sessionToken.js` 的檔頭說明）。

@@ -2939,21 +2939,17 @@
             <span>無限恐怖 TRPG · 2.35</span>
         </div>
         <div class="flex items-center gap-2">
-            <!-- 登入區：未登入時依這個部署設定好的provider顯示「以 Google 登入」／
-                 「以 Discord 登入」（兩個都設定好就都顯示），登入後顯示頭像與名字。
-                 沒有任何provider設定好的部署會整塊隱藏（見 /api/auth/me 的 googleEnabled／
-                 discordEnabled 欄位），不要給玩家一顆按下去一定失敗的按鈕。 -->
+            <!-- 登入區：未登入顯示「以 Discord 登入」，登入後顯示頭像與名字。
+                 沒設定好 Discord 登入的部署會整塊隱藏（見 /api/auth/me 的 discordEnabled 欄位），
+                 不要給玩家一顆按下去一定失敗的按鈕。 -->
             <div id="auth-box" style="display:none" class="flex items-center gap-1.5">
-                <button id="auth-login-btn" data-auth-login data-auth-provider="google" onclick="startGoogleLogin()" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40">
-                    <i class="fab fa-google text-[11px]"></i><span class="hidden sm:inline">以 Google 登入</span>
-                </button>
-                <button id="auth-login-discord-btn" data-auth-login data-auth-provider="discord" onclick="startDiscordLogin()" class="px-2.5 py-1 rounded text-xs font-mono flex items-center gap-1.5 transition-all hover:-translate-y-px" style="background:#5865F2;color:#fff">
+                <button id="auth-login-btn" onclick="startDiscordLogin()" class="px-2.5 py-1 rounded text-xs font-mono flex items-center gap-1.5 transition-all hover:-translate-y-px" style="background:#5865F2;color:#fff">
                     <i class="fab fa-discord text-[11px]"></i><span class="hidden sm:inline">以 Discord 登入</span>
                 </button>
                 <div id="auth-user" style="display:none" class="flex items-center gap-1.5">
                     <img id="auth-avatar" alt="" class="w-5 h-5 rounded-full border hairline-border" referrerpolicy="no-referrer">
                     <span id="auth-name" class="text-xs font-mono text-zinc-300 hidden sm:inline max-w-[8rem] truncate"></span>
-                    <button onclick="googleLogout()" title="登出" class="px-2 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-400 transition-all hover:-translate-y-px">
+                    <button onclick="discordLogout()" title="登出" class="px-2 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-400 transition-all hover:-translate-y-px">
                         <i class="fas fa-right-from-bracket text-[11px]"></i>
                     </button>
                 </div>
@@ -3791,12 +3787,11 @@
         <div class="system-tool-panel">
             <div class="system-tool-heading">系統工具 <span>GAME UTILS</span></div>
             <div data-auth-box class="system-tool-auth" style="display:none">
-                <button data-auth-login data-auth-provider="google" type="button" onclick="startGoogleLogin()"><i class="fab fa-google"></i><span>以 Google 登入</span></button>
-                <button data-auth-login data-auth-provider="discord" type="button" onclick="startDiscordLogin()" style="background:#5865F2;color:#fff"><i class="fab fa-discord"></i><span>以 Discord 登入</span></button>
+                <button data-auth-login type="button" onclick="startDiscordLogin()" style="background:#5865F2;color:#fff"><i class="fab fa-discord"></i><span>以 Discord 登入</span></button>
                 <div data-auth-user style="display:none" class="system-tool-user">
                     <img data-auth-avatar alt="" referrerpolicy="no-referrer">
                     <span data-auth-name></span>
-                    <button type="button" onclick="googleLogout()" title="登出" aria-label="登出"><i class="fas fa-right-from-bracket"></i></button>
+                    <button type="button" onclick="discordLogout()" title="登出" aria-label="登出"><i class="fas fa-right-from-bracket"></i></button>
                 </div>
             </div>
             <div class="system-tool-actions">

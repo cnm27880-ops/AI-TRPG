@@ -1,20 +1,20 @@
-// [設計] Discord 登入（OAuth2）—— 跟 googleOidc.js 同一種純邏輯層，不含任何框架、不裝任何 SDK。
-// 理由跟那份檔案的檔頭一樣：Cloudflare Pages Functions 跑的是 Workers runtime，
+// [設計] Discord 登入（OAuth2）—— 純邏輯層，不含任何框架、不裝任何 SDK。
+// 為什麼自己實作而不是用現成套件：Cloudflare Pages Functions 跑的是 Workers runtime，
 // 保證有 fetch 與 Web Crypto，不保證能跑 Node 專用套件；自己串可以讓整條路徑用
 // 依賴注入（塞假的 fetchFn）離線測試。
 //
 // ============================================================================
-// [跟 Google 那份的關鍵差異 —— 這裡才是真正需要讀的部分]
+// [安全設計說明 —— 這一段請在改動前先讀完]
+//
+// 採用 Authorization Code Flow + PKCE（state 防 CSRF、code_verifier/challenge
+// 防授權碼被攔截後盜用），這兩個共用工具在 content/auth/pkce.js。
 //
 // Discord 的 OAuth2 **不是** OpenID Connect：它不支援 `openid` scope，
 // 換回來的只有一個不透明的 access_token，沒有可以驗 claims 的 id_token(JWT)。
-// 所以這裡的流程比 Google 那份多一步：換到 access_token 之後，還要再用它
-// 呼叫 Discord 的 /users/@me 拿使用者資料。信任基礎跟 googleOidc.js 檔頭說的
-// 「伺服器端直接跟供應商換」是同一種——這支 fetch 是我們的伺服器直接對 Discord API
-// 發出、TLS 保護、剛換到的 access_token 只可能是這次授權碼換來的，不需要額外簽章驗證。
-//
-// state（CSRF）與 PKCE(S256) 兩條防線跟 Google 一樣重要，也是同一組實作——
-// 直接從 googleOidc.js 匯入，不重寫一份一樣的密碼學工具。
+// 所以流程比一般 OIDC 多一步：換到 access_token 之後，還要再用它呼叫 Discord 的
+// /users/@me 拿使用者資料。信任基礎是「伺服器端直接跟供應商換」——這支 fetch 是
+// 我們的伺服器直接對 Discord API 發出、TLS 保護、剛換到的 access_token 只可能是
+// 這次授權碼換來的，不需要額外簽章驗證。
 //
 // [prompt=none 的取捨] Discord 支援用 prompt=none 讓「已登入 Discord 且先前同意過
 // 這個應用」的玩家跳過同意畫面。但玩家如果沒登入 Discord、或是第一次授權，
@@ -25,7 +25,10 @@
 // 導向一次不帶 prompt=none 的登入，讓玩家看到正常的同意畫面。
 // ============================================================================
 
-import { randomToken, deriveCodeChallenge } from "./googleOidc.js";
+import { randomToken, deriveCodeChallenge } from "./pkce.js";
+
+/** Discord 使用者 sub 的命名空間前綴，見 normalizeDiscordUser() 的說明。 */
+export const DISCORD_SUB_PREFIX = "discord:";
 
 export { randomToken, deriveCodeChallenge };
 
@@ -104,11 +107,10 @@ export async function exchangeCodeForTokens({
 }
 
 /**
- * 拿 access_token 去跟 Discord 的 /users/@me 換使用者資料，並整理成跟
- * googleOidc.verifyIdTokenClaims() 一樣的形狀（sub/email/name/picture），
- * 讓上層（callback、sessionToken）不用分辨這個使用者是從哪個 provider 來的。
+ * 拿 access_token 去跟 Discord 的 /users/@me 換使用者資料，並整理成登入票要放的
+ * 形狀（sub/email/name/picture）。
  *
- * @returns {Promise<{sub: string, email: string|null, emailVerified: boolean, name: string|null, picture: string|null, provider: "discord"}>}
+ * @returns {Promise<{sub: string, email: string|null, emailVerified: boolean, name: string|null, picture: string|null}>}
  */
 export async function fetchDiscordUser(accessToken, { fetchFn = fetch } = {}) {
   const response = await fetchFn(DISCORD_USER_ENDPOINT, {
@@ -124,18 +126,18 @@ export async function fetchDiscordUser(accessToken, { fetchFn = fetch } = {}) {
 }
 
 /**
- * sub 刻意加上 "discord:" 前綴——Discord 的使用者 id 跟 Google 的 sub 都是純數字
- * 字串，直接混用有極小機率撞在一起，兩個不同 provider 的人就會共用同一份存檔。
- * 前綴讓兩個 provider 的命名空間永遠不會重疊，Google 那邊完全不用改。
+ * sub 刻意加上 "discord:" 前綴，而不是直接用 Discord 的數字 id——這個網站目前
+ * 只有 Discord 一種登入方式，但存檔歸屬（content/auth/ownership.js）認的是
+ * sub 字串本身，前綴讓這個命名空間未來要是又加了別的登入方式，也不會跟純數字的
+ * id 撞在一起，不需要再改一次既有存檔的 ownerId 格式。
  */
 export function normalizeDiscordUser(raw) {
   return {
-    sub: `discord:${raw.id}`,
+    sub: `${DISCORD_SUB_PREFIX}${raw.id}`,
     email: raw.email ?? null,
     emailVerified: raw.verified === true,
     name: raw.global_name || raw.username || null,
     picture: discordAvatarUrl(raw),
-    provider: "discord",
   };
 }
 

@@ -2,9 +2,7 @@
 // 路由：GET /api/auth/discord-callback?code=...&state=...
 //
 // 驗 state（CSRF）→ 用 code + PKCE verifier 換 access_token → 呼叫 /users/@me
-// 拿使用者資料 → 簽發我們自己的登入票。結構跟 callback.js（Google）對應，
-// 差異只在 Discord 沒有 id_token 可以驗 claims，換成多打一支 API（見
-// content/auth/discordOAuth.js 檔頭說明）。
+// 拿使用者資料 → 簽發我們自己的登入票（見 content/auth/discordOAuth.js 檔頭說明）。
 
 import {
   exchangeCodeForTokens,
@@ -80,7 +78,7 @@ export async function onRequestGet(context) {
   }
 
   const token = await signSessionToken(
-    { sub: user.sub, email: user.email, name: user.name, picture: user.picture, provider: "discord" },
+    { sub: user.sub, email: user.email, name: user.name, picture: user.picture },
     env.AUTH_SESSION_SECRET
   );
 
