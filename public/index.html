@@ -1525,11 +1525,16 @@
         .modal-panel { background: rgba(27,25,21,.98) !important; border-color: rgba(222,214,200,.18) !important; border-radius: 4px; box-shadow: 0 22px 70px rgba(0,0,0,.3); }
         .modal-backdrop { background: rgba(8,7,6,.76); backdrop-filter: blur(10px) grayscale(.15); }
 
-        /* P0 探索 HUD：位置與事件是玩家的空間座標，不應只藏在故事文字裡。 */
+        /* P0 探索 HUD：位置與事件是玩家的空間座標，不應只藏在故事文字裡。
+           [修正] 這三個文字色原本寫死成 rgb(236 253 245)（近白）跟 rgb(161 161 170)（灰），
+           是為深色背景調的，沒有跟著 --ink-* token 走。淺色主題底下背景變成近白紙色，
+           「目前位置」的地點名稱（近白字）幾乎完全看不見。改吃 token 之後，跟同一個
+           手錶 HUD 裡其他文字（.mission-eyebrow / .mission-objective-title 等）用同一套
+           規則，深淺色都會自動對到看得清楚的對比度。 */
         .mission-location-block { min-width: 10.5rem; max-width: 15rem; padding-left: .85rem; border-left: 1px solid rgb(16 185 129 / .24); }
-        .mission-location-kicker { color: rgb(161 161 170); font: 700 .58rem/1.2 'JetBrains Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
-        .mission-location-name { color: rgb(236 253 245); font: 700 .78rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .mission-event-name { color: rgb(161 161 170); font: .62rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mission-location-kicker { color: var(--ink-500); font: 700 .58rem/1.2 'JetBrains Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
+        .mission-location-name { color: var(--ink-100); font: 700 .78rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .mission-event-name { color: var(--ink-400); font: .62rem/1.35 'Noto Serif TC', serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .exploration-terminal-panel { max-height: min(760px, calc(100dvh - 2rem)); }
         .exploration-terminal-scroll { max-height: min(610px, calc(100dvh - 10rem)); overflow-y: auto; }
         .exploration-map { background: rgb(9 9 11 / .76); border: 1px solid rgb(16 185 129 / .22); border-radius: .5rem; padding: .8rem; }
@@ -3625,16 +3630,26 @@
             </div>
 
             <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur">
+                <!-- [修正] 字數計數原本擠在輸入框正下方，於是輸入框那一欄比按鈕那一欄多長出
+                     一行，items-end 對齊之下輸入框反而比「執行」鍵矮一截、底部對不齊。
+                     把計數搬到按鈕正上方的空白處，讓輸入框自己單獨決定那一欄的高度，
+                     兩欄底部才會齊平。 -->
                 <div class="flex gap-2 items-end">
                     <div class="relative flex-1">
-                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
+                        <!-- block：textarea 預設是 inline-block，跟其他文字一樣會在底部留一截
+                             baseline 的行高空隙（經典的「圖片/textarea下方多一截空白」）。
+                             這一截空隙撐高了它外層的 .relative.flex-1，跟旁邊按鈕欄的
+                             items-end 對齊基準點就對不齊了，改成 block 就沒有這個問題。 -->
+                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="block w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
-                        <div id="action-input-counter" data-action-count class="mt-1 text-right text-[10px] font-mono text-zinc-500" aria-live="polite">0 / 1000</div>
                     </div>
-                    <button type="button" data-send-custom class="bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
-                        <span>執行</span>
-                        <i class="fas fa-arrow-right text-[10px]"></i>
-                    </button>
+                    <div class="flex flex-col items-end gap-1 shrink-0">
+                        <div id="action-input-counter" data-action-count class="text-right text-[10px] font-mono text-zinc-500" aria-live="polite">0 / 1000</div>
+                        <button type="button" data-send-custom class="bg-gradient-to-r from-emerald-500/25 to-emerald-500/10 border border-emerald-500/60 text-emerald-200 pl-5 pr-6 py-2.5 font-mono text-xs hover:from-emerald-500/35 hover:to-emerald-500/15 transition-all hover:-translate-y-px shrink-0 font-bold flex items-center gap-1.5">
+                            <span>執行</span>
+                            <i class="fas fa-arrow-right text-[10px]"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </main>
