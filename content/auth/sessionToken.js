@@ -149,5 +149,15 @@ export async function getCurrentUser(request, env) {
   if (!token) return null;
   const payload = await verifySessionToken(token, env?.AUTH_SESSION_SECRET);
   if (!payload?.sub) return null;
-  return { sub: payload.sub, email: payload.email ?? null, name: payload.name ?? null, picture: payload.picture ?? null };
+  // provider 只有 Discord 的登入票會寫（見 functions/api/auth/discord-callback.js）；
+  // Google 那條路徑一直沒有這個欄位，缺少時當成 "google" 而不是留空——
+  // 這樣舊票（部署這個欄位之前簽出去的）跟新的 Google 票行為一致，不用強迫重新登入。
+  const provider = payload.provider === "discord" ? "discord" : "google";
+  return {
+    sub: payload.sub,
+    email: payload.email ?? null,
+    name: payload.name ?? null,
+    picture: payload.picture ?? null,
+    provider,
+  };
 }
