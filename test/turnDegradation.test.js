@@ -161,6 +161,41 @@ test("/api/turn：server-managed primary 429 時切到下一家，規則層只�
   }
 });
 
+test("/api/turn：server-managed primary 413 時切到下一家，不能把 request-too-large 當成整回合終止", async () => {
+  const originalFetch = globalThis.fetch;
+  const fetchFn = responseSequence([
+    { ok: false, status: 413, body: { error: "request too large" } },
+    { ok: true, status: 200, body: {
+      choices: [{ message: { content: JSON.stringify({
+        narration: "候補 provider 描寫了翻滾造成的衣料摩擦聲；走廊燈光在你抬頭時短暫熄滅。你接下來打算怎麼做？",
+        options: [],
+      }) } }],
+    } },
+  ]);
+  globalThis.fetch = fetchFn;
+  try {
+    const env = {
+      GROQ_API_KEY: "groq-key",
+      MISTRAL_API_KEY: "mistral-key",
+      LLM_FALLBACK_PROVIDERS: "mistral=mistral-small-latest",
+    };
+    const sessionId = await newSession(env);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "我原地翻跟斗",
+      turnRequestId: "http-413-fallback-1",
+    })));
+    assert.equal(result.status, 200);
+    assert.equal(result.body.ok, true);
+    assert.equal(result.body.provider, "mistral");
+    assert.equal(fetchFn.calls.length, 2);
+    const saved = await resolveSessionStore(env).get(sessionId);
+    assert.equal(saved.turns, 1, "fallback 成功後只應提交一個回合");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 // ---------------------------------------------------------------------------
 // 這個bug本身
 // ---------------------------------------------------------------------------

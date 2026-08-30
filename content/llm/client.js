@@ -203,14 +203,16 @@ export async function callLlm({
 /**
  * 判斷一次 provider 失敗是否值得交給下一個 server-managed provider。
  *
- * 可切換：429／408／425／5xx、timeout、Workers binding failure、回應 shape 不符。
+ * 可切換：413／429／408／425／5xx、timeout、Workers binding failure、回應 shape 不符。
+ * 413 代表這家供應商拒絕目前 request 的大小或 context 形狀；不同 provider 的 context
+ * 限制與 schema 支援不同，因此 server-managed chain 應讓候補家接手，而不是把回合卡死。
  * 不可切換：400／401／403／404、SSRF block、其他 config 錯誤。這樣不會把錯誤的模型名、
  * 金鑰或安全設定，悄悄掩蓋成「另一家剛好能用」。
  */
 export function isRetryableLlmError(err) {
   if (err?.stage === "timeout" || err?.stage === "binding" || err?.stage === "shape") return true;
   if (err?.stage !== "http") return false;
-  return new Set([408, 425, 429, 500, 502, 503, 504, 529]).has(Number(err.status));
+  return new Set([408, 413, 425, 429, 500, 502, 503, 504, 529]).has(Number(err.status));
 }
 
 export const DEFAULT_AUTO_RETRY_MAX_DELAY_MS = 5_000;

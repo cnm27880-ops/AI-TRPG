@@ -164,6 +164,22 @@ test("callLlmWithFallback：primary 429 時切到下一家，回傳實際成功 
   assert.equal(ff.calls[1].url, "https://api.mistral.ai/v1/chat/completions");
 });
 
+test("callLlmWithFallback：Groq 413(request too large) 後切到下一家 provider", async () => {
+  const ff = sequenceFetch([
+    { ok: false, status: 413, body: { error: "request too large" } },
+    { ok: true, status: 200, body: OPENAI_OK },
+  ]);
+  const result = await callLlmWithFallback({
+    env: { GROQ_API_KEY: "groq-key", MISTRAL_API_KEY: "mistral-key" },
+    prompt: "x".repeat(1000),
+    fetchFn: ff,
+  });
+  assert.equal(result.provider, "mistral");
+  assert.equal(ff.calls.length, 2);
+  assert.equal(ff.calls[0].url, "https://api.groq.com/openai/v1/chat/completions");
+  assert.equal(ff.calls[1].url, "https://api.mistral.ai/v1/chat/completions");
+});
+
 test("callLlmWithFallback：Groq 429 後可退到免金鑰 Workers AI", async () => {
   const ff = sequenceFetch([{ ok: false, status: 429, body: { error: "rate limited" } }]);
   const calls = [];

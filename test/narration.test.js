@@ -70,6 +70,15 @@ test("失敗指令要求「位置/方法/在場的人」三者至少改變一樣
   assert.match(tier.directive, /現場多了／少了誰/);
 });
 
+test("失敗指令要求先描寫畫面與即時反應，不得只給失敗結論或替玩家決定下一步", () => {
+  const tier = OUTCOME_TIERS.find((t) => t.id === "失敗");
+  assert.match(tier.directive, /失敗也要有畫面/);
+  assert.match(tier.directive, /可觀察動作結果/);
+  assert.match(tier.directive, /具體的環境／物件／聲音／光線細節/);
+  assert.match(tier.directive, /NPC 或威脅的即時反應/);
+  assert.match(tier.directive, /不得替玩家決定下一步/);
+});
+
 test("失敗指令把失敗寫成兩種形狀：完成但引發更糟後果 / 徹底失敗且更危險", () => {
   const tier = OUTCOME_TIERS.find((t) => t.id === "失敗");
   assert.match(tier.directive, /動作其實完成了，但引發了更糟的後果/);
