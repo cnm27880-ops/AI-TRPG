@@ -521,7 +521,7 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
     });
   }
 
-  const raw = await response.json();
+  const raw = await parseJsonResponse(response, { provider: cfg.id, model: cfg.model });
   const text = raw?.choices?.[0]?.message?.content;
   if (typeof text !== "string") {
     throw new LlmError(
@@ -637,7 +637,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
     });
   }
 
-  const raw = await response.json();
+  const raw = await parseJsonResponse(response, { provider: cfg.id, model: cfg.model });
   const text = raw?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (typeof text !== "string") {
     throw new LlmError(
@@ -796,5 +796,29 @@ async function safeReadText(response) {
     return await response.text();
   } catch {
     return "(無法讀取錯誤內容)";
+  }
+}
+
+/**
+ * HTTP 狀態是 2xx，但 body 不是合法JSON時的保護。
+ *
+ * [2026-08-30 修正] 這之前是直接 `await response.json()`，解析失敗就丟出原生的
+ * SyntaxError——那個錯誤沒有 provider/stage 欄位，isRetryableLlmError() 判斷
+ * err.stage !== "http"/"timeout"/"binding"/"shape" 一律當成不可切換，於是「這家
+ * 回了HTTP 200但body是空的/壞掉的JSON」(常見成因：Cloudflare/反向代理誤把錯誤頁
+ * 包成200、或上游中斷連線只送出半截body)會讓整條 server fallback chain **提早
+ * 中止**，明明後面還有能用的免費 provider 卻不會被嘗試。
+ * 現在統一包成 stage="shape" 的 LlmError，跟「回應形狀不符」同一組處理——
+ * 這類狀況本來就代表這家這次回應不可信，換下一家才是正確行為。
+ */
+async function parseJsonResponse(response, { provider, model }) {
+  try {
+    return await response.json();
+  } catch (err) {
+    const body = await safeReadText(response);
+    throw new LlmError(
+      `供應商回傳HTTP ${response.status}但body不是合法JSON：${body}`,
+      { provider, model, status: response.status, stage: "shape", bodySnippet: snippet(body), cause: err }
+    );
   }
 }

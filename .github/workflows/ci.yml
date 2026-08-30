@@ -30,8 +30,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run complete regression suite
-        run: npm test
+      - name: Lint GitHub Actions workflow files
+        run: npm run lint:workflows
+
+      - name: Run complete regression suite with coverage gate
+        run: npm run test:coverage
 
       - name: Run extreme turn and provider matrix
         run: npm run test:extreme
+
+  # 只在手動觸發時才會真的打真實API：這支job刻意不掛在push/pull_request上，
+  # 因為每次push都打真實供應商會很快耗盡免費額度、也會讓CI對外部服務的可用性
+  # 產生依賴(對方剛好429/維護，CI就變紅，但那跟這次PR的程式碼品質無關)。
+  # 沒有設定對應的repository secret時，scripts/real-provider-smoke-test.mjs
+  # 自己會優雅跳過(exit 0)，所以這個job不需要額外判斷secret存不存在。
+  real-provider-smoke:
+    name: Real provider smoke test (manual only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run real Groq/Mistral smoke test
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        run: npm run test:real-provider
