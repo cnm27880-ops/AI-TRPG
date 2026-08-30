@@ -977,6 +977,86 @@
         .decision-card-enter { animation: decisionCardEnter .38s cubic-bezier(.2,.8,.2,1) both; }
         @keyframes decisionCardEnter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
+        /* ================= 主神商店 v2：分類頁籤與貨架卡片 =================
+           [2026-08-30 重製] 舊版只有一長串同色的橫條，六種分類全部混在「模板能力」
+           跟「體系」兩個籠統標籤底下——玩家分不出「這件是血統還是瞳術」，貨架
+           看起來只有一種灰。現在改成：分頁跟卡片各自帶一個分類色（見 app.js 的
+           SHOP_CATEGORY_META），色彩本身就是分類線索，不用逐張讀小字。
+
+           六種分類色刻意跟 rank 色階（見下面 .shop-rank-*）分開挑，兩套顏色
+           出現在同一張卡片上時不會撞色混淆。 */
+        .shop-tabs {
+            display: flex; gap: .4rem; padding: .5rem .75rem;
+            overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-padding-inline: .75rem;
+        }
+        .shop-tab {
+            display: inline-flex; align-items: center; gap: .35rem; flex: 0 0 auto;
+            padding: .32rem .6rem; border-radius: 999px; border: 1px solid rgb(var(--c-line) / .18);
+            background: rgb(var(--c-surface-2) / .55); color: var(--ink-400);
+            font: 700 .68rem/1 'JetBrains Mono', monospace; white-space: nowrap;
+            transition: background .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .shop-tab:hover { color: var(--ink-100); border-color: rgb(var(--c-line) / .38); }
+        .shop-tab-count {
+            display: inline-flex; align-items: center; justify-content: center; min-width: 1.1rem; height: 1.1rem;
+            padding-inline: .25rem; border-radius: 999px; background: rgb(var(--c-line) / .12);
+            font-size: .58rem; color: var(--ink-500);
+        }
+        .shop-tab.is-active .shop-tab-count { color: inherit; background: rgba(255,255,255,.16); }
+        /* 每個分類一組配色：素色分頁 → 選中時才點亮對應顏色，避免七個分頁全部同時搶眼。 */
+        .shop-tab-amber.is-active { background: rgba(245,158,11,.18); border-color: rgba(245,158,11,.55); color: #fbbf24; }
+        .shop-tab-zinc.is-active { background: rgba(161,161,170,.16); border-color: rgba(161,161,170,.5); color: #d4d4d8; }
+        .shop-tab-rose.is-active { background: rgba(244,63,94,.16); border-color: rgba(244,63,94,.5); color: #fb7185; }
+        .shop-tab-violet.is-active { background: rgba(139,92,246,.16); border-color: rgba(139,92,246,.5); color: #a78bfa; }
+        .shop-tab-sky.is-active { background: rgba(14,165,233,.16); border-color: rgba(14,165,233,.5); color: #38bdf8; }
+        .shop-tab-emerald.is-active { background: rgba(16,185,129,.16); border-color: rgba(16,185,129,.5); color: #34d399; }
+
+        /* 貨架本體：兩欄卡片網格取代單欄長條列表。同樣的可視高度能放進兩倍的商品，
+           不用一直往下捲，也比一整排長得一模一樣的橫條有變化。手機寬度不夠擠兩欄時
+           自動退回單欄（grid-cols-1），不強行壓縮卡片內容。 */
+        .shop-shelf-grid {
+            display: grid; grid-template-columns: 1fr; gap: .6rem;
+            padding: .75rem;
+            align-content: start;
+        }
+        @media (min-width: 640px) {
+            .shop-shelf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        .shop-shelf-empty {
+            grid-column: 1 / -1; padding: 1.5rem .75rem; border: 1px dashed rgb(var(--c-line) / .2); border-radius: 8px;
+            color: var(--ink-500); text-align: center; font: .72rem/1.6 'JetBrains Mono', monospace;
+        }
+        .shop-item-card {
+            border-radius: 10px; padding: .65rem .7rem; display: flex; gap: .6rem; align-items: flex-start;
+        }
+        .shop-item-cat-icon {
+            flex: 0 0 auto; width: 1.7rem; height: 1.7rem; border-radius: 7px;
+            display: flex; align-items: center; justify-content: center; font-size: .72rem;
+            margin-top: .05rem;
+        }
+        .shop-item-cat-amber { background: rgba(245,158,11,.14); color: #fbbf24; }
+        .shop-item-cat-zinc { background: rgba(161,161,170,.12); color: #a1a1aa; }
+        .shop-item-cat-rose { background: rgba(244,63,94,.14); color: #fb7185; }
+        .shop-item-cat-violet { background: rgba(139,92,246,.14); color: #a78bfa; }
+        .shop-item-cat-sky { background: rgba(14,165,233,.14); color: #38bdf8; }
+        .shop-item-cat-emerald { background: rgba(16,185,129,.14); color: #34d399; }
+
+        /* rank 徽章：D 到 S 的視覺份量遞增（顏色從灰到金），一眼看出「這件是入門還是頂級」，
+           跟上面的分類色刻意分開一套色階，避免同一張卡上兩種顏色互相搶戲混淆。 */
+        .shop-rank-badge {
+            display: inline-flex; align-items: center; padding: .08rem .38rem; border-radius: 4px;
+            font: 700 .58rem/1.3 'JetBrains Mono', monospace; border: 1px solid transparent;
+        }
+        .shop-rank-zinc { background: rgba(161,161,170,.12); color: #a1a1aa; border-color: rgba(161,161,170,.3); }
+        .shop-rank-emerald { background: rgba(16,185,129,.12); color: #34d399; border-color: rgba(16,185,129,.32); }
+        .shop-rank-sky { background: rgba(14,165,233,.12); color: #38bdf8; border-color: rgba(14,165,233,.32); }
+        .shop-rank-violet { background: rgba(139,92,246,.14); color: #a78bfa; border-color: rgba(139,92,246,.34); }
+        .shop-rank-amber { background: rgba(245,158,11,.16); color: #fbbf24; border-color: rgba(245,158,11,.4); }
+        .shop-rank-rose { background: rgba(244,63,94,.16); color: #fb7185; border-color: rgba(244,63,94,.42); }
+
+        html[data-theme="light"] .shop-tab { background: rgba(37,35,31,.045); color: var(--ink-400); }
+        html[data-theme="light"] .shop-item-card { background: rgba(255,255,255,.6); }
+
         /* ================= 黑白邀請頁 → 主神接管過場 =================
            初始頁面刻意脫離現有黑綠終端：它是一個看似普通的網站。
            主神只在玩家接受邀請後才進入畫面，避免整站從第一秒就像工程控制台。 */
@@ -3654,9 +3734,9 @@
     <!-- 主神商店。整個貨架由 GET /api/shop 產生，前端不做任何價格或可否購買的判斷——
          那些全部是 content/shop/ 底下的純函式算好的（本專案第4條最高原則：數值不交給前端也不交給AI）。 -->
     <div id="shopModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-3xl rounded-lg shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="主神商店" tabindex="-1">
-            <div class="flex items-center justify-between p-4 pb-3 hairline-b shrink-0">
-                <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2">
+        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-4xl rounded-lg shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="主神商店" tabindex="-1">
+            <div class="flex items-center justify-between px-4 py-2.5 hairline-b shrink-0">
+                <h3 class="font-mono font-bold text-amber-300 flex items-center gap-2 text-sm">
                     <i class="fas fa-store"></i> 主神商店
                 </h3>
                 <button onclick="closeModal('shopModal')" class="text-zinc-500 hover:text-zinc-200 transition-colors px-2">
@@ -3665,26 +3745,31 @@
             </div>
 
             <!-- 地點門禁橫幅：玩家在副本中打開商店時，最需要知道的是「為什麼大部分東西是灰的」 -->
-            <div id="shop-access" class="px-4 py-2 text-[11px] font-mono shrink-0 flex items-start gap-2 hairline-b"></div>
+            <div id="shop-access" class="px-3 py-1.5 text-[11px] font-mono shrink-0 flex items-start gap-2 hairline-b"></div>
 
-            <!-- 錢包 -->
-            <div class="px-4 py-2.5 flex flex-wrap items-center gap-3 text-xs font-mono shrink-0 hairline-b bg-zinc-950/40">
+            <!-- 錢包。[2026-08-30 瘦身] 原本跟門禁橫幅各佔一整條、加起來將近三行，
+                 手機上商店還沒捲到商品就先吃掉四分之一螢幕高。padding 與字級都收窄，
+                 「支線/獎勵點數/經驗」三個 chip 保留完整字樣（不像頁首那樣縮成圖示）
+                 是因為玩家在這裡真的要讀數字決定買不買得起，不是純導覽用的按鈕。 -->
+            <div class="px-3 py-1.5 flex flex-wrap items-center gap-2 text-[11px] font-mono shrink-0 hairline-b bg-zinc-950/40">
                 <span class="text-zinc-500">錢包</span>
-                <span class="px-2 py-0.5 rounded bg-panel border hairline-border">支線 <span id="shop-wallet-tokens" class="text-cyan-300 font-bold">—</span></span>
-                <span class="px-2 py-0.5 rounded bg-panel border hairline-border">獎勵點數 <span id="shop-wallet-points" class="text-amber-300 font-bold">0</span></span>
-                <span class="px-2 py-0.5 rounded bg-panel border hairline-border">經驗 <span id="shop-wallet-xp" class="text-emerald-300 font-bold">0</span></span>
+                <span class="px-1.5 py-0.5 rounded bg-panel border hairline-border">支線 <span id="shop-wallet-tokens" class="text-cyan-300 font-bold">—</span></span>
+                <span class="px-1.5 py-0.5 rounded bg-panel border hairline-border">獎勵點數 <span id="shop-wallet-points" class="text-amber-300 font-bold">0</span></span>
+                <span class="px-1.5 py-0.5 rounded bg-panel border hairline-border">經驗 <span id="shop-wallet-xp" class="text-emerald-300 font-bold">0</span></span>
                 <span id="shop-summary" class="ml-auto text-zinc-500"></span>
             </div>
 
             <!-- 型態（變身／開眼／爆發）。買了血統或瞳術才會出現。
                  這一區的按鈕打的是 /api/forms，不是 /api/shop——啟動要扣意志力與能量池，
                  而且「持續一個場景」的到期條件是離開當下所在的地點（見 content/shop/access.js 的 sceneKeyOf）。 -->
-            <div id="shop-forms" style="display:none" class="px-4 py-2.5 shrink-0 hairline-b bg-zinc-950/40 space-y-1.5"></div>
+            <div id="shop-forms" style="display:none" class="px-3 py-1.5 shrink-0 hairline-b bg-zinc-950/40 space-y-1.5"></div>
 
-            <!-- 分類頁籤 -->
-            <div id="shop-tabs" class="px-4 py-2 flex flex-wrap gap-1.5 text-[11px] font-mono shrink-0 hairline-b"></div>
+            <!-- 分類頁籤。[2026-08-30] 原本 flex-wrap，七個分頁在手機寬度一定會擠成兩行，
+                 平白多佔一整條高度。改成橫向捲動、單行不換行：分頁數再多也只長寬度，
+                 不會再去搶下面貨架的高度。 -->
+            <div id="shop-tabs" class="shop-tabs shrink-0 hairline-b"></div>
 
-            <div id="shop-shelf" class="modal-scroll p-4 space-y-2"></div>
+            <div id="shop-shelf" class="modal-scroll shop-shelf-grid"></div>
 
             <div id="shop-toast" style="display:none" class="px-4 py-2 text-[11px] font-mono shrink-0 hairline-t"></div>
         </div>
