@@ -13,6 +13,19 @@ const turnApi = fs.readFileSync(path.join(root, "functions/api/turn.js"), "utf8"
 const manifest = JSON.parse(fs.readFileSync(path.join(root, "public/manifest.webmanifest"), "utf8"));
 const sw = fs.readFileSync(path.join(root, "public/sw.js"), "utf8");
 
+
+test("免費 LLM provider 僅由後端管理，不暴露在玩家設定清單", () => {
+  for (const id of ["groq", "siliconflow", "nvidia", "mistral", "openrouter", "workers-ai"]) {
+    assert.doesNotMatch(index, new RegExp(`<option\\s+value=["']${id}["']>`));
+  }
+  assert.ok(index.includes('<option value="">（使用伺服器預設）</option>'));
+  assert.ok(index.includes('<option value="gemini">Google Gemini（官方）</option>'));
+  assert.ok(index.includes('<option value="deepseek">DeepSeek（官方）</option>'));
+  assert.match(index, /<option value="custom">自訂（相容OpenAI/);
+  assert.match(app, /const meta = PROVIDER_UI_META\[provider\];/);
+  assert.match(app, /if \(!meta\) return \{ ok: true, payload: \{\} \};/);
+});
+
 test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約", () => {
   assert.doesNotMatch(index, />近期現場</);
   assert.match(app, /data-chronicle-hint/);

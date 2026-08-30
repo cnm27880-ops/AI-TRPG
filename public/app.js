@@ -22,20 +22,13 @@ const RETIRED_SCENARIO_ID = "scenario.nostromo-01";
  * [設計] 這份表刻意跟後端 content/llm/providers.js 的 PROVIDERS 分開，只抄「玩家設定畫面
  * 需要的欄位」，不抄 baseUrl / defaultModel 那些會變動的值——前端猜不到也不需要知道，
  * 真正的解析一律在後端做（後端 turn.js 也有同一組檢查當最後防線）。
- * 新增一家OpenAI相容供應商時，這裡加一列、index.html 的 <option> 加一行，不用改任何邏輯。
+ * 只有允許玩家 BYOK 的 provider 才在這裡與 index.html 建立設定項目；免費 provider
+ * 屬於後端 server-managed fallback，不得加回玩家清單。
  */
 const PROVIDER_UI_META = {
-  groq: { label: "Groq（官方 Free Plan）", needsKey: true, needsBaseUrl: false, needsModel: false },
+  // 免費 provider 由後端 server-managed fallback 統一管理，不開放玩家自行選擇。
   gemini: { label: "Google Gemini（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
   deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  siliconflow: { label: "SiliconFlow 硅基流動", needsKey: true, needsBaseUrl: false, needsModel: false },
-  nvidia: { label: "NVIDIA NIM（build.nvidia.com）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  mistral: { label: "Mistral（官方 Free mode）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  // [2026-08-20] openrouter 在 2026-08-18 被指定了預設模型，所以 needsModel 從 true 改成 false——
-  // 留著 true 的話，前端會擋下「選了 OpenRouter 但沒填模型」的回合，
-  // 但後端其實有預設模型可以用，變成前端自己擋自己。
-  openrouter: { label: "OpenRouter（聚合）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  "workers-ai": { label: "Cloudflare Workers AI（免金鑰）", needsKey: false, needsBaseUrl: false, needsModel: false },
   custom: { label: "自訂（相容OpenAI）", needsKey: true, needsBaseUrl: true, needsModel: true },
 };
 
@@ -1096,7 +1089,10 @@ function buildLlmOverrides() {
   const provider = profile.provider || "";
   if (!provider) return { ok: true, payload: {} }; // 用伺服器預設，什麼都不帶
 
-  const meta = PROVIDER_UI_META[provider] ?? {};
+  // 免費 provider 僅供後端 server-managed fallback 使用。若舊版 localStorage
+  // 還留著已下架的選項，不得因為直接組 payload 而繞過新的前端邊界。
+  const meta = PROVIDER_UI_META[provider];
+  if (!meta) return { ok: true, payload: {} };
   const apiKey = (profile.apiKey || "").trim();
   const baseUrl = (profile.baseUrl || "").trim();
   const model = (profile.model || "").trim();

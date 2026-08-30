@@ -3932,23 +3932,17 @@
                     </div>
                     <div>
                         <label class="text-zinc-300 block mb-1">設定檔名稱</label>
-                        <input id="setting-profile-name" type="text" placeholder="例：SiliconFlow 免費版" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
+                        <input id="setting-profile-name" type="text" placeholder="例：我的 API 設定" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                     </div>
                     <div>
                         <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
-                        <!-- 新增一家OpenAI相容的供應商 = 在這裡加一行 <option>，再到 app.js 的
-                             PROVIDER_UI_META 與 content/llm/providers.js 的 PROVIDERS 各加一列資料。
-                             後端不需要為任何一家多寫整合邏輯（見 providers.js 檔頭的線路格式說明）。 -->
+                        <!-- 這裡只列出允許玩家自行 BYOK 的 provider；免費 provider 由後端
+                             server-managed fallback 統一選擇，不公開在玩家清單。新增可用的 BYOK
+                             provider 時，需同步更新 app.js 的 PROVIDER_UI_META 與本區欄位對照表。 -->
                         <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
                             <option value="">（使用伺服器預設）</option>
-                            <option value="groq">Groq（官方 Free Plan）</option>
                             <option value="gemini">Google Gemini（官方）</option>
                             <option value="deepseek">DeepSeek（官方）</option>
-                            <option value="siliconflow">SiliconFlow 硅基流動（含免費模型）</option>
-                            <option value="nvidia">NVIDIA NIM（官方，自行申請金鑰）</option>
-                            <option value="mistral">Mistral（官方 Free mode）</option>
-                            <option value="openrouter">OpenRouter（聚合，含免費模型）</option>
-                            <option value="workers-ai">Cloudflare Workers AI（免金鑰）</option>
                             <option value="custom">自訂（相容OpenAI：Azure OpenAI／Cohere／AI21／自架 vLLM・LiteLLM…）</option>
                         </select>
                     </div>
@@ -4166,17 +4160,12 @@
         /**
          * 依選到的供應商顯示／隱藏金鑰、Base URL、模型三個欄位。
          * 用不到的欄位一律藏起來，避免玩家以為填了才算數（或以為沒填就不能用）。
-         * 這份對照表跟 app.js 的 PROVIDER_UI_META 是同一件事，新增供應商時兩邊都要加。
+         * 這份對照表跟 app.js 的 PROVIDER_UI_META 是同一件事；免費 provider 由後端管理，
+         * 不在玩家設定畫面公開。
          */
         const PROVIDER_FIELDS = {
-            groq:          { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Groq 模型；Free Plan 限流依模型與帳戶而變。' },
             gemini:        { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Gemini 模型。' },
             deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
-            siliconflow:   { key: true,  baseUrl: false, model: false, modelHint: '留空＝用預設的免費模型。免費模型清單會輪替，請到 cloud.siliconflow.com/models 確認目前可用的 slug。注意：DeepSeek R1／V3 系列不支援 JSON 結構化輸出，選了會讓保底選項變多。' },
-            nvidia:        { key: true,  baseUrl: false, model: false, modelHint: '金鑰請自己到 build.nvidia.com 申請。留空＝用預設模型。' },
-            mistral:       { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Mistral 模型；Free mode 額度依帳戶而變。' },
-            openrouter:    { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡指定的預設模型。免費模型（:free 結尾）的 slug 會輪替，收到 404 時請到 openrouter.ai/models 挑一個目前存在的貼上。' },
-            'workers-ai':  { key: false, baseUrl: false, model: false, modelHint: '免金鑰，用你自己 Cloudflare 帳號的額度。留空＝用預設模型。' },
             custom:        { key: true,  baseUrl: true,  model: true,  modelHint: '必填：自訂接口沒有預設模型，請填你的服務接受的模型名稱。' },
         };
         function onSettingProviderChange() {
