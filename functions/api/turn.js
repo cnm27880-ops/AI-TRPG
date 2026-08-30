@@ -1721,6 +1721,11 @@ async function executeTurn(context, streamHooks = null) {
     session.scene = { context: sceneContext ?? session.scene?.context ?? "", options };
     // pendingTurn 只存在於「規則已算、敘事未完成」的窗口；成功寫回後不可再次重播。
     session.pendingTurn = null;
+    // [2026-08-30] 這一回合成功寫回，一律用這一回合的結果覆蓋 lastLlmDiagnostic
+    // （llmDiagnostic 有值代表這一回合真的 fallback 過；沒有就清成 null）。
+    // 沒有這一行，Discord `/status` 會一直顯示上一次 fallback 的診斷，即使後面
+    // 好幾輪都是主要 provider 正常完成——那會誤導看診斷的人以為問題還在發生。
+    session.lastLlmDiagnostic = llmDiagnostic;
     try {
       await store.put(session, { expectedRev: session.rev ?? 0 });
     } catch (err) {

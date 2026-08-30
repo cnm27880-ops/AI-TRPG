@@ -325,7 +325,16 @@ export function parseTurnResponse(text) {
   for (const candidate of candidates) {
     try {
       const data = JSON.parse(candidate);
-      if (data && typeof data === "object" && !Array.isArray(data)) return { ok: true, data };
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        // [2026-08-30] HTTP 200 + 合法JSON，但 narration 是空字串(或只有空白)，
+        // 不算「有效敘事」——那等於前端顯示一片空白，卻被 degraded.parseFailed 標成
+        // 成功回合。narration 是唯一沒有引擎兜底的欄位(options 有 FALLBACK_OPTIONS)，
+        // 空白內容視同解析失敗，讓既有的「重講一次」與保底降級流程接手處理。
+        if (typeof data.narration !== "string" || !data.narration.trim()) {
+          return { ok: false, error: "AI回傳的JSON缺少narration內容(欄位是空字串或缺漏)" };
+        }
+        return { ok: true, data };
+      }
     } catch {
       // 換下一種挖法
     }

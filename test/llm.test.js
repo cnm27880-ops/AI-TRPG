@@ -417,6 +417,93 @@ test("OpenAI相容線路：非2xx要丟出含HTTP狀態碼的錯誤，不是靜�
   );
 });
 
+// ---------------------------------------------------------------------------
+// [2026-08-30] HTTP 200 但 body 本身不是合法JSON（空字串／半截JSON／Cloudflare或反向
+// 代理誤把錯誤頁包成200 這幾種常見成因）。修正前這裡是直接 response.json()，解析失敗
+// 會丟出原生 SyntaxError（沒有 stage 欄位），isRetryableLlmError() 就會判成不可切換，
+// 讓 server fallback chain 提早中止、後面能用的免費 provider 完全不會被嘗試到。
+// ---------------------------------------------------------------------------
+
+function malformedBodyFetch(rawText, { status = 200 } = {}) {
+  const calls = [];
+  const fn = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => { throw new SyntaxError(`Unexpected token in JSON: ${rawText.slice(0, 20)}`); },
+      text: async () => rawText,
+    };
+  };
+  fn.calls = calls;
+  return fn;
+}
+
+test("OpenAI相容線路：HTTP 200 但 body 是空字串時，要包成 stage=shape 而不是丟出原生 SyntaxError", async () => {
+  const ff = malformedBodyFetch("");
+  await assert.rejects(
+    () => callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", fetchFn: ff }),
+    (err) => {
+      assert.ok(err instanceof LlmError, "必須是 LlmError，不能是原生 SyntaxError");
+      assert.equal(err.stage, "shape");
+      assert.equal(err.provider, "deepseek");
+      assert.equal(isRetryableLlmError(err), true, "空body要能讓 server fallback 換下一家");
+      return true;
+    }
+  );
+});
+
+test("OpenAI相容線路：HTTP 200 但 body 是半截JSON時，同樣要包成 stage=shape", async () => {
+  const ff = malformedBodyFetch('{"choices":[{"message":{"content":"寫到一半');
+  await assert.rejects(
+    () => callLlm({ provider: "deepseek", env: { DEEPSEEK_API_KEY: "k" }, prompt: "x", fetchFn: ff }),
+    (err) => {
+      assert.equal(err.stage, "shape");
+      assert.ok(err.bodySnippet.includes("寫到一半"), "錯誤要留下原始片段方便排查");
+      return true;
+    }
+  );
+});
+
+test("callLlmWithFallback：HTTP 200 但 body 不是合法JSON 時要換下一家 provider，不能提早中止整條 chain", async () => {
+  const calls = [];
+  const fetchFn = async (url, options) => {
+    calls.push(url);
+    if (url.includes("groq")) {
+      return { ok: true, status: 200, json: async () => { throw new SyntaxError("bad json"); }, text: async () => "" };
+    }
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "Mistral 接手完成敘事" } }] }),
+      text: async () => "",
+    };
+  };
+  const result = await callLlmWithFallback({
+    env: {
+      GROQ_API_KEY: "g", MISTRAL_API_KEY: "m",
+      LLM_FALLBACK_PROVIDERS: "mistral=mistral-small-latest",
+    },
+    prompt: "x",
+    fetchFn,
+  });
+  assert.equal(result.provider, "mistral");
+  assert.equal(result.text, "Mistral 接手完成敘事");
+  assert.equal(calls.length, 2, "Groq body壞掉時應該換Mistral，不能整條chain提早中止");
+});
+
+test("Gemini：HTTP 200 但 body 是空字串時，要包成 stage=shape 而不是丟出原生 SyntaxError", async () => {
+  const ff = malformedBodyFetch("");
+  await assert.rejects(
+    () => callLlm({ provider: "gemini", env: { GEMINI_API_KEY: "g-key" }, prompt: "x", fetchFn: ff }),
+    (err) => {
+      assert.ok(err instanceof LlmError);
+      assert.equal(err.stage, "shape");
+      return true;
+    }
+  );
+});
+
 test("isRetryableLlmError：只把暫時性 provider failure 判為可切換", () => {
   assert.equal(isRetryableLlmError({ stage: "http", status: 429 }), true);
   assert.equal(isRetryableLlmError({ stage: "timeout" }), true);

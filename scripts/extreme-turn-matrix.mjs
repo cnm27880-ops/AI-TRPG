@@ -299,6 +299,346 @@ async function run429RetryAfterMatrix() {
   return 3;
 }
 
+/** 只用單一 groq provider 做 bounded auto-retry 測試共用的環境（不混入 provider fallback）。 */
+function boundedRetryEnv(overrides = {}) {
+  const env = serverEnv();
+  delete env.MISTRAL_API_KEY;
+  env.LLM_FALLBACK_PROVIDERS = "";
+  env.LLM_AUTO_RETRY_MAX_DELAY_MS = "10";
+  env.LLM_AUTO_RETRY_TIMEOUT_MS = "1000";
+  return { ...env, ...overrides };
+}
+
+/**
+ * P1：擴充 Retry-After 格式矩陣。
+ *
+ * 已有的測試涵蓋了 "0"、缺少 header、與超過上限的一般數字；這裡把 HTTP-date 格式、
+ * 負數、浮點數、非數字字串、以及極大數值都補齊——這些全部要嘛落在 client.js 的
+ * `retryAfterMsFromHeaders()` 的 Date.parse() 備援路徑，要嘛落在「解析不出來就當作沒有
+ * Retry-After，改用 bounded default」這條路徑，任何一種都不該讓回合卡死或直接爆炸。
+ */
+async function runRetryAfterCase({ id, headerValue, expectImmediateRetry, maxDelayMs = 10 }) {
+  const env = boundedRetryEnv({ LLM_AUTO_RETRY_MAX_DELAY_MS: String(maxDelayMs) });
+  const responses = expectImmediateRetry
+    ? [
+        httpFailure(429, { error: "rate limited" }, { "retry-after": headerValue }),
+        { ok: true, status: 200, body: bridgeSuccess(`Retry-After 格式案例(${id})重試成功。你打算怎麼做？`) },
+      ]
+    : [httpFailure(429, { error: "rate limited" }, { "retry-after": headerValue })];
+  const fetchFn = responseSequence(responses);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env, REFERENCE_SCENARIO);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: `我測試 Retry-After 格式案例：${id}。`,
+      turnRequestId: `retry-after-format-${id}`,
+    })));
+    if (expectImmediateRetry) {
+      assert.equal(result.status, 200, `${id}：應在 bounded window 內立即重試成功：${JSON.stringify(result.body)}`);
+      assert.equal(result.body.degraded?.autoRetryAttempts, 1, `${id}：應該恰好重試一次`);
+      assert.equal(fetchFn.calls.length, 2, `${id}：應該剛好打兩次（原始 + 重試）`);
+    } else {
+      assert.equal(result.status, 502, `${id}：Retry-After 超過上限時不該硬等，應直接進 pending gate：${JSON.stringify(result.body)}`);
+      assert.equal(fetchFn.calls.length, 1, `${id}：超過上限時不該再打第二次`);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+async function runRetryAfterFormatMatrix() {
+  const nearNowDate = new Date(Date.now()).toUTCString();
+  const farFutureDate = new Date(Date.now() + 3_600_000).toUTCString();
+  const cases = [
+    // 負數：不是合法的等待秒數，應視同「沒有 Retry-After」，改用 bounded default，不可讓回合卡死。
+    { id: "negative-seconds", headerValue: "-5", expectImmediateRetry: true, maxDelayMs: 5000 },
+    // 浮點數：Number("0.001") 是合法數字，四捨五入成毫秒後應該落在 bounded window 內。
+    { id: "float-seconds", headerValue: "0.001", expectImmediateRetry: true, maxDelayMs: 5000 },
+    // 非數字字串：Number()/Date.parse() 都會是 NaN，一樣退回 bounded default。
+    { id: "non-numeric-garbage", headerValue: "soon-ish", expectImmediateRetry: true, maxDelayMs: 5000 },
+    // HTTP-date 格式（RFC 7231），且時間點就在當下：應該透過 Date.parse() 備援算出很小的延遲。
+    { id: "http-date-near-now", headerValue: nearNowDate, expectImmediateRetry: true, maxDelayMs: 5000 },
+    // HTTP-date 但排到一小時後：超過 bounded 上限，不可硬等一小時。
+    { id: "http-date-far-future", headerValue: farFutureDate, expectImmediateRetry: false, maxDelayMs: 10 },
+    // 極大數值：供應商標錯或惡意回應都可能發生，一樣要落在 bounded gate，不可以真的等這麼久。
+    { id: "huge-numeric-seconds", headerValue: "999999999", expectImmediateRetry: false, maxDelayMs: 10 },
+  ];
+  for (const testCase of cases) await runRetryAfterCase(testCase);
+  return cases.length;
+}
+
+/**
+ * P1：「多次 retry 不得超過全回合上限」—— bounded auto-retry 每個 turn 最多只能用一次，
+ * 就算後續的「JSON格式重試」又踩到一次暫時性失敗，也不能再觸發第二次網路層 retry。
+ *
+ * 情境設計：第一次呼叫 429（觸發自動重試），重試後 HTTP 成功但內容不是合法JSON
+ * （觸發既有的「重講一次」JSON修復機制），JSON修復的那次呼叫又踩到 429——此時
+ * retryState 已經用掉了，不能再等待重試，必須讓這次真的失敗、直接照舊降級流程
+ * 處理，而不是再等一次、也不可以让整個請求掛起或無限重試。
+ */
+async function runBoundedRetryCapCase() {
+  const env = boundedRetryEnv();
+  const fetchFn = responseSequence([
+    httpFailure(429, { error: "rate limited" }, { "retry-after": "0" }),
+    // 網路層重試成功了(HTTP 200)，但內容本身不是合法JSON——觸發「重講一次」機制。
+    { ok: true, status: 200, body: { choices: [{ message: { content: "這不是JSON，只是一段沒頭沒尾的散文。" } }] } },
+    // JSON修復的重試又踩到 429；這次不能再觸發網路層 auto-retry(已經用掉了)。
+    httpFailure(429, { error: "rate limited again" }, { "retry-after": "0" }),
+  ]);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env, REFERENCE_SCENARIO);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "我測試 bounded retry 上限：連續兩次暫時性失敗不能疊加成兩次重試。",
+      turnRequestId: "bounded-retry-cap",
+    })));
+    // 整體仍然完成（HTTP 200）：JSON修復失敗時既有邏輯會保留降級後的敘事，不會讓請求掛掉。
+    assert.equal(result.status, 200, `bounded retry 上限案例應該以降級內容完成回合：${JSON.stringify(result.body)}`);
+    assert.equal(result.body.ok, true);
+    assert.equal(result.body.degraded?.autoRetryAttempts, 1, "即使踩到兩次暫時性失敗，公開的retry次數也不能超過1");
+    // 注意：retriedForInvalidJson 只在「重講一次」真的拿到新回覆時才是true(見turn.js)；
+    // 這裡JSON修復呼叫本身直接失敗(沒有拿到新內容可解析)，所以維持既有的false語意，
+    // 不是這個測試要驗證的重點——重點是parseFailed、呼叫次數與retry次數上限。
+    assert.equal(result.body.degraded?.retriedForInvalidJson, false);
+    assert.equal(result.body.degraded?.parseFailed, true, "JSON修復重試本身失敗，這一輪最終仍是解析失敗");
+    // 3次＝原始呼叫 + 1次網路層auto-retry + 1次JSON修復重試；修復重試失敗後不可再觸發第4次呼叫。
+    assert.equal(fetchFn.calls.length, 3, "bounded retry 上限案例的LLM呼叫總數必須恰好是3次，不能再往上疊加");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  return 1;
+}
+
+/**
+ * P1：清除或標記過期的 lastLlmDiagnostic —— 上一輪 fallback 恢復留下的診斷，
+ * 不能在下一輪主要 provider 正常完成後繼續殘留，否則 Discord `/status` 會一直
+ * 顯示已經不存在的問題，讓看診斷的人誤以為現在還在 fallback。
+ */
+async function runLastLlmDiagnosticClearsCase() {
+  const env = serverEnv();
+  const fetchFn = responseSequence([
+    { ok: true, status: 200, body: openAiSuccess("開場由 Groq 直接完成，沒有任何 fallback。") },
+    httpFailure(413, { error: "request too large" }),
+    { ok: true, status: 200, body: openAiSuccess("這一輪由 Mistral 接手，留下 fallback 診斷。") },
+    { ok: true, status: 200, body: openAiSuccess("這一輪 Groq 直接完成，不該再看到上一輪的診斷。") },
+  ]);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+
+    const fallbackTurn = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "第一次行動，Groq 這次會失敗、由 Mistral 接手。",
+      turnRequestId: "diagnostic-clear-fallback-turn",
+    })));
+    assert.equal(fallbackTurn.status, 200);
+    assert.equal(fallbackTurn.body.provider, "mistral");
+    const afterFallback = await resolveSessionStore(env).get(sessionId);
+    assert.ok(afterFallback.lastLlmDiagnostic, "fallback 成功後應該留下診斷");
+    assert.equal(afterFallback.lastLlmDiagnostic.outcome, "recovered");
+
+    const cleanTurn = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "第二次行動，這次 Groq 直接完成，不需要任何 fallback。",
+      turnRequestId: "diagnostic-clear-clean-turn",
+    })));
+    assert.equal(cleanTurn.status, 200);
+    assert.equal(cleanTurn.body.provider, "groq");
+    const afterClean = await resolveSessionStore(env).get(sessionId);
+    assert.equal(afterClean.lastLlmDiagnostic, null, "沒有 fallback 的正常回合，必須清掉上一輪殘留的診斷");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  return 1;
+}
+
+/**
+ * P1：malformed response 矩陣 —— HTTP 200 不代表內容可信。
+ *
+ * 涵蓋：合法JSON但narration是空字串（且測試「重講一次」能不能自我修復，以及兩次都
+ * 空白時是否老實標成降級）、body缺少choices欄位（要能觸發provider fallback，不是
+ * 整條chain提早中止）、finish_reason=length但JSON恰好還是能解析（要照樣標記
+ * truncated，不能因為JSON解析成功就假裝這次輸出沒有被截斷）。
+ */
+async function runMalformedResponseMatrix() {
+  let checked = 0;
+
+  // A1：空 narration，但「重講一次」那次拿到正常內容——確認既有的JSON修復機制
+  // 同樣能救援「合法JSON但內容空白」這種情況，不是只救援「JSON壞掉」。
+  {
+    const env = serverEnv();
+    const fetchFn = responseSequence([
+      { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+      { ok: true, status: 200, body: openAiSuccess("") },
+      { ok: true, status: 200, body: openAiSuccess("重講一次之後拿到的正常敘事內容。") },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchFn;
+    try {
+      const sessionId = await createSession(env);
+      const opening = await readJson(await turnPost(req(env, { sessionId })));
+      assert.equal(opening.status, 200);
+      const result = await readJson(await turnPost(req(env, {
+        sessionId,
+        playerAction: "測試空narration能不能靠重講一次救回來。",
+        turnRequestId: "malformed-empty-narration-recovers",
+      })));
+      assert.equal(result.status, 200);
+      assert.equal(result.body.ok, true);
+      assert.equal(result.body.degraded.retriedForInvalidJson, true, "空narration應該觸發既有的重講一次機制");
+      assert.equal(result.body.degraded.parseFailed, false, "重講一次成功後不該再標成解析失敗");
+      assert.equal(result.body.narration, "重講一次之後拿到的正常敘事內容。");
+      assert.equal(fetchFn.calls.length, 3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    checked += 1;
+  }
+
+  // A2：連續兩次都是空 narration——確認最終老實標成降級，不能把空白內容當成成功敘事。
+  {
+    const env = serverEnv();
+    const fetchFn = responseSequence([
+      { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+      { ok: true, status: 200, body: openAiSuccess("") },
+      { ok: true, status: 200, body: openAiSuccess("") },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchFn;
+    try {
+      const sessionId = await createSession(env);
+      const opening = await readJson(await turnPost(req(env, { sessionId })));
+      assert.equal(opening.status, 200);
+      const result = await readJson(await turnPost(req(env, {
+        sessionId,
+        playerAction: "測試連續兩次空narration會不會被誤判成成功敘事。",
+        turnRequestId: "malformed-empty-narration-persists",
+      })));
+      assert.equal(result.status, 200, "降級仍要維持一致的版面，不能整個請求失敗");
+      assert.equal(result.body.ok, true);
+      assert.equal(result.body.degraded.parseFailed, true, "連續空白內容必須老實標成解析失敗，不能誤判成有效敘事");
+      assert.ok(result.body.narration.trim().length > 0, "就算降級，版面也不能真的是一片空白");
+      assert.equal(result.body.options.length, 4);
+      assert.ok(result.body.options.every((o) => o.source === "fallback"));
+      assert.equal(fetchFn.calls.length, 3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    checked += 1;
+  }
+
+  // B：body缺少choices欄位——要能正確判定成 stage=shape 並換下一家provider，而不是
+  // 整條fallback chain因為一個沒有status欄位的原生錯誤而提早中止。
+  {
+    const env = serverEnv();
+    const fetchFn = responseSequence([
+      { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+      { ok: true, status: 200, body: { id: "resp_1", object: "chat.completion" } }, // 沒有 choices
+      { ok: true, status: 200, body: openAiSuccess("Mistral 接手，因為 Groq 這次的回應缺少 choices。") },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchFn;
+    try {
+      const sessionId = await createSession(env);
+      const opening = await readJson(await turnPost(req(env, { sessionId })));
+      assert.equal(opening.status, 200);
+      const result = await readJson(await turnPost(req(env, {
+        sessionId,
+        playerAction: "測試缺少choices欄位能不能正確fallback。",
+        turnRequestId: "malformed-missing-choices",
+      })));
+      assert.equal(result.status, 200, `缺少choices不該讓整個請求失敗：${JSON.stringify(result.body)}`);
+      assert.equal(result.body.ok, true);
+      assert.equal(result.body.provider, "mistral", "缺少choices應該換下一家provider，不是整條chain中止");
+      assert.equal(fetchFn.calls.length, 3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    checked += 1;
+  }
+
+  // C：HTTP 200 但body是空字串——同樣要能觸發fallback。
+  {
+    const env = serverEnv();
+    const calls = [];
+    const fetchFn = async (url, options) => {
+      calls.push({ url, options });
+      if (calls.length === 1) {
+        return { ok: true, status: 200, json: async () => openAiSuccess("開場建立了可互動的走廊畫面。"), text: async () => "" };
+      }
+      if (url.includes("groq")) {
+        return { ok: true, status: 200, json: async () => { throw new SyntaxError("empty body"); }, text: async () => "" };
+      }
+      return { ok: true, status: 200, json: async () => openAiSuccess("Mistral 接手，因為 Groq 這次回傳空字串。"), text: async () => "" };
+    };
+    fetchFn.calls = calls;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchFn;
+    try {
+      const sessionId = await createSession(env);
+      const opening = await readJson(await turnPost(req(env, { sessionId })));
+      assert.equal(opening.status, 200);
+      const result = await readJson(await turnPost(req(env, {
+        sessionId,
+        playerAction: "測試HTTP 200但空字串body能不能正確fallback。",
+        turnRequestId: "malformed-empty-body",
+      })));
+      assert.equal(result.status, 200, `空字串body不該讓整個請求失敗：${JSON.stringify(result.body)}`);
+      assert.equal(result.body.ok, true);
+      assert.equal(result.body.provider, "mistral");
+      assert.equal(calls.length, 3);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    checked += 1;
+  }
+
+  // D：finish_reason=length，但這次JSON剛好還能完整解析——truncated仍必須誠實標成true，
+  // 不能因為「這次剛好解析成功」就假裝輸出沒有被截斷。
+  {
+    const env = serverEnv();
+    const truncatedButParseable = openAiSuccess("內容看起來完整，但供應商回報這其實是被截斷的。");
+    truncatedButParseable.choices[0].finish_reason = "length";
+    const fetchFn = responseSequence([
+      { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+      { ok: true, status: 200, body: truncatedButParseable },
+    ]);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchFn;
+    try {
+      const sessionId = await createSession(env);
+      const opening = await readJson(await turnPost(req(env, { sessionId })));
+      assert.equal(opening.status, 200);
+      const result = await readJson(await turnPost(req(env, {
+        sessionId,
+        playerAction: "測試finish_reason=length時就算JSON能解析也要標記truncated。",
+        turnRequestId: "malformed-finish-reason-length",
+      })));
+      assert.equal(result.status, 200);
+      assert.equal(result.body.ok, true);
+      assert.equal(result.body.degraded.parseFailed, false, "這次JSON確實能解析");
+      assert.equal(result.body.degraded.truncated, true, "finish_reason=length必須誠實標記，不能因為JSON解析成功就假裝沒被截斷");
+      assert.equal(result.body.degraded.finishReason, "length");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    checked += 1;
+  }
+
+  return checked;
+}
+
 async function runNonRetryableMatrix() {
   const statuses = [400, 401, 402, 403, 404, 405, 406, 409, 410, 415, 422, 429 - 1, 451];
   for (const status of statuses) {
@@ -330,6 +670,76 @@ async function runExhaustedChainCase() {
   return 1;
 }
 
+/** 三家 server-managed provider 的環境：模擬「連免費 fallback 都用完了」的極端狀況。 */
+function threeProviderServerEnv() {
+  return {
+    ...serverEnv(),
+    SILICONFLOW_API_KEY: "synthetic-siliconflow-key",
+    LLM_FALLBACK_PROVIDERS: "mistral=mistral-small-latest,siliconflow=Qwen/Qwen3-30B-A3B-Instruct",
+  };
+}
+
+/**
+ * P0：所有 server-managed provider 都失敗、且連續多家都回 413／429 這個組合。
+ *
+ * 只測 callLlmWithFallback() 沒辦法涵蓋一個很現實的風險：三家全滅之後，/api/turn
+ * 這一層有沒有老實把完整診斷保存進 pendingTurn、有沒有因為某處重複呼叫而多打一次
+ * 已經確定失敗的 provider、以及在同一個 requestId 重試時是否會再打三家一次
+ * （而不是先看 pendingTurn 是否還在同一個 baseTurn 上直接擋下）。
+ */
+async function runAllProvidersExhaustedApiCase() {
+  const env = threeProviderServerEnv();
+  const fetchFn = responseSequence([
+    { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+    httpFailure(413, { error: "request too large" }),
+    httpFailure(429, { error: "rate limited" }, { "retry-after": "0" }),
+    httpFailure(500, { error: "upstream error" }),
+  ]);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "我同時測試三家 provider 全部失敗的極端狀況。",
+      turnRequestId: "all-providers-exhausted",
+    })));
+    assert.equal(result.status, 502, `三家都失敗時應該回502：${JSON.stringify(result.body)}`);
+    assert.equal(result.body.ok, false);
+    assert.equal(result.body.retryable, true);
+    // 三個 attempt 都要留著：呼叫端要能一眼看出「哪一家、哪個HTTP碼」，不能因為
+    // 最後一家失敗就把前兩家的診斷蓋掉或截斷。
+    const attempts = result.body.llmFailure?.providerAttempts ?? [];
+    assert.deepEqual(attempts.map((a) => a.provider), ["groq", "mistral", "siliconflow"]);
+    assert.deepEqual(attempts.map((a) => a.httpStatus), [413, 429, 500]);
+    assert.equal(result.body.pendingTurn?.llmDiagnostic?.attempts?.length, 3);
+    // 開場1次 + 這次3家各1次 = 4；三家都失敗不能多打或少打任何一家。
+    assert.equal(fetchFn.calls.length, 4, "三家全滅時應該恰好各打一次，不多不少");
+
+    const saved = await resolveSessionStore(env).get(sessionId);
+    assert.equal(saved.turns, 1, "三家全滅時規則層不能被當成已結算，回合數不能增加");
+    assert.equal(saved.pendingTurn?.requestId, "all-providers-exhausted");
+
+    // 用同一個 requestId 重試（retryPending），但這次沒有任何 provider 會成功——
+    // 驗證「上一次已經三家都打過」不會被忽略、重試不會把三家全部再打一輪。
+    const retried = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "我同時測試三家 provider 全部失敗的極端狀況。",
+      turnRequestId: "all-providers-exhausted",
+      retryPending: true,
+    })));
+    assert.equal(retried.status, 502, `retryPending 應該再走一次完整 chain 並仍然失敗：${JSON.stringify(retried.body)}`);
+    assert.equal(fetchFn.calls.length, 7, "retryPending 重新嘗試時，三家 provider 應該各再打一次（不多打）");
+    const afterRetry = await resolveSessionStore(env).get(sessionId);
+    assert.equal(afterRetry.turns, 1, "retryPending 失敗後仍然不能誤增回合數");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  return 1;
+}
+
 const EXTREME_ACTIONS = [
   {
     id: "npc-fear",
@@ -356,9 +766,56 @@ const EXTREME_ACTIONS = [
     text: "嗯。",
     response: "短促的聲音落在空曠走廊裡；回音比預期晚了一拍才消失。你打算怎麼做？",
   },
+  // [P1 擴充] 零寬字元：trim() 不會清掉 U+200B，所以這段文字對JS來說「非空白」，
+  // 必須能正常一路送到LLM，不能因為視覺上看起來像空白就被引擎用不同方式處理。
+  {
+    id: "zero-width-only",
+    text: "​​​​​",
+    response: "沒有任何動作被清楚表達；周遭的寂靜持續了一會兒，遠處管線傳來滴水聲。你打算怎麼做？",
+  },
+  // [P1 擴充] 單一超短字元：不是空字串，但短到只有一個字，考驗關鍵字推導與prompt組裝
+  // 不會因為輸入太短就出錯。
+  {
+    id: "single-char",
+    text: "走",
+    response: "你邁開步伐，鞋底摩擦地面的聲音在走廊裡格外清晰。你打算怎麼做？",
+  },
+  // [P1 擴充] 混合中/英/日/韓文：確認多語言混排不會讓字數計算或prompt組裝出錯。
+  {
+    id: "mixed-language",
+    text: "I slowly 走向 ドア 그리고 조용히 待著，watching для any 動靜。",
+    response: "混雜的低語沒有驚動任何人；門後的陰影維持原樣，沒有新的聲音出現。你打算怎麼做？",
+  },
+  // [P1 擴充] Emoji 洗版：多組多重碼位(surrogate pair / ZWJ序列)的emoji，
+  // 確認 countActionCharacters()／prompt 組裝在astral平面字元下不會算錯或壞掉。
+  {
+    id: "emoji-spam",
+    text: "🔥💀👻🚀🧟‍♂️👨‍👩‍👧‍👦🐉🎃💥⚡".repeat(6),
+    response: "一連串誇張的手勢沒有改變任何實際狀況；走廊的燈光照舊明滅。你打算怎麼做？",
+  },
+  // [P1 擴充] 重複輸入：同一個字重複洗版，確認引擎不會把它誤判成特殊指令或當機。
+  {
+    id: "repeated-char-spam",
+    text: "啊".repeat(300),
+    response: "持續的喊聲在走廊裡迴盪，直到你自己的呼吸聲蓋過了它。你打算怎麼做？",
+  },
+  // [P0/P1 擴充] astral平面字元(surrogate pair)的長字串：600個emoji按code point算是600字
+  // (在限制以內)，但如果字數計算不小心按UTF-16長度算會變成1200(會被誤判超長而拒絕)。
+  // 這裡確認「code point數在限制內」的astral字串仍然能正常送進LLM，不會被誤傷。
+  {
+    id: "long-emoji-codepoint-count",
+    text: "🔥".repeat(600),
+    response: "大量重複的符號沒有引發任何額外效果；場景維持原樣。你打算怎麼做？",
+  },
  ];
 
 const LONG_ACTION = `我把一連串互相矛盾、沒有明確規則授權的細節全部說完：${"我描述一個不應被直接視為世界事實的念頭。".repeat(240)}`;
+
+// [P0/P1 擴充] 超長 Unicode 字串不能只用 BMP 的中文字測——astral平面的emoji在UTF-16裡
+// 是兩個code unit(surrogate pair)，如果字數計算不小心按UTF-16長度算會多算一倍，也可能
+// 反過來被除以2少算，讓上限形同虛設(允許超過預期的內容送進LLM)。這裡確認真的超過
+// 1000個code point的emoji字串一樣會被擋下，不會因為換成astral字元就繞過上限。
+const OVERLONG_EMOJI_ACTION = "🔥".repeat(1500);
 
 async function runExtremeActionCase(action) {
   const env = serverEnv();
@@ -426,6 +883,62 @@ async function runOverlongActionCase() {
   }
 }
 
+/** 超過1000個code point的emoji字串：確認長度限制是照Unicode code point算，不是UTF-16長度。 */
+async function runOverlongEmojiActionCase() {
+  const env = serverEnv();
+  const originalFetch = globalThis.fetch;
+  const fetchFn = responseSequence([
+    { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+    () => { throw new Error("超長emoji輸入不應進入 LLM"); },
+  ]);
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: OVERLONG_EMOJI_ACTION,
+      turnRequestId: "extreme-overlong-emoji-input",
+    })));
+    assert.equal(result.status, 422, "超過1000個code point的emoji輸入應在API層被拒絕");
+    assert.equal(result.body.code, "PLAYER_ACTION_TOO_LONG");
+    assert.equal(result.body.actualCharacters, 1500, "字數必須照code point算(1500)，不是UTF-16長度(3000)");
+    assert.equal(fetchFn.calls.length, 1, "輸入超長時不應呼叫 LLM");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+/** 純空白(含全形空白/換行/tab)行動：trim()後是空字串，必須明確擋下，不能被靜默當成合法自由行動。 */
+async function runWhitespaceActionCase() {
+  const env = serverEnv();
+  const originalFetch = globalThis.fetch;
+  const fetchFn = responseSequence([
+    { ok: true, status: 200, body: openAiSuccess("開場建立了可互動的走廊畫面。") },
+    () => { throw new Error("純空白輸入不應進入 LLM"); },
+  ]);
+  globalThis.fetch = fetchFn;
+  try {
+    const sessionId = await createSession(env);
+    const opening = await readJson(await turnPost(req(env, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(env, {
+      sessionId,
+      playerAction: "   \n\t　　  \n",
+      turnRequestId: "extreme-whitespace-input",
+    })));
+    assert.equal(result.status, 400, "純空白行動必須被明確擋下");
+    assert.equal(result.body.ok, false);
+    assert.match(result.body.error, /空字串/);
+    assert.equal(fetchFn.calls.length, 1, "純空白輸入不應呼叫 LLM");
+    const saved = await resolveSessionStore(env).get(sessionId);
+    assert.equal(saved.turns, 1, "被拒絕的空白輸入不可增加回合數");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 async function runReferenceFreeActionCase(action) {
   const env = serverEnv();
   // nostromo-v2 有作者固定開場；開場不呼叫 LLM，所以這裡只準備玩家行動的回應。
@@ -467,6 +980,11 @@ async function main() {
     retryableFallbacks: await runProviderFallbackMatrix(),
     apiFallbacks: 0,
     rateLimitRetries: 0,
+    retryAfterFormats: 0,
+    boundedRetryCap: 0,
+    allProvidersExhausted: 0,
+    lastDiagnosticClears: 0,
+    malformedResponses: 0,
     nonRetryableStatuses: await runNonRetryableMatrix(),
     exhaustedChains: await runExhaustedChainCase(),
     extremeActions: 0,
@@ -482,11 +1000,18 @@ async function main() {
   await runReferenceFreeActionCase(EXTREME_ACTIONS[1]);
   counts.referenceActions = 2;
   await runOverlongActionCase();
-  counts.rejectedInputs = 1;
+  await runOverlongEmojiActionCase();
+  await runWhitespaceActionCase();
+  counts.rejectedInputs = 3;
 
   await runApi413FallbackCase();
   counts.apiFallbacks = 1;
   counts.rateLimitRetries = await run429RetryAfterMatrix();
+  counts.retryAfterFormats = await runRetryAfterFormatMatrix();
+  counts.boundedRetryCap = await runBoundedRetryCapCase();
+  counts.allProvidersExhausted = await runAllProvidersExhaustedApiCase();
+  counts.lastDiagnosticClears = await runLastLlmDiagnosticClearsCase();
+  counts.malformedResponses = await runMalformedResponseMatrix();
 
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   console.log(`極端回合矩陣通過：${total} 個檢查，耗時 ${Date.now() - startedAt}ms`);

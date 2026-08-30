@@ -6,13 +6,17 @@
   "description": "無限恐怖TRPG 2.35 核心運算引擎——純規則運算，不含AI/LLM呼叫。",
   "scripts": {
     "test": "node --test test/*.test.js",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=95 --test-coverage-branches=75 --test-coverage-functions=90 test/*.test.js",
     "test:extreme": "node scripts/extreme-turn-matrix.mjs",
     "test:real-gemini": "node test/runRealGeminiSmoke.mjs && node test/runRealGeminiV2Interaction.mjs",
+    "test:real-provider": "node scripts/real-provider-smoke-test.mjs",
+    "lint:workflows": "node scripts/lint-workflows.mjs",
     "deploy": "wrangler pages deploy",
     "build:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --minify",
     "watch:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --watch"
   },
   "devDependencies": {
+    "js-yaml": "^5.4.1",
     "tailwindcss": "^3.4.19"
   }
 }
