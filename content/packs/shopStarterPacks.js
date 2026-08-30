@@ -13,18 +13,19 @@ export const SHOP_STARTER_PACKS = [
     "id": "shop-starter.物品",
     "type": "商品",
     "version": "1.0.0",
-    "sourceRef": "rules-2.35.txt 第276789行起(無支線武器.htm)、第277258行起(D級武器/武器.htm)",
-    "note": "第一批『型錄條目 → 簡化規則商品』的轉換成果，全部是書中真實條目，不是自編。挑選標準是『武器基本屬性寫得明確、可以直接餵給 core/combat/attackTypes.js』。每一條的 droppedTraits 都寫明了哪個原文特性沒被轉換、理由對應 content/shop/effects.js 的 UNSUPPORTED_MECHANICS。",
-    "skillMappingNote": "書中前提使用的是原始22技能(白刃/掩飾/運動/調查…)，本專案是十技能。這批用到的對映：白刃→格鬥、運動→體魄、調查→偵察、掩飾→交涉、學識→秘識。這是轉換時的人工判斷，不是書上的欄位，原文前提保留在各條目的 originalPrerequisite。",
+    "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)；附件 tier-d-equipment-weapons",
+    "note": "17 件特殊武器以純分數定價。可執行的能力已轉成現有效果；無法安全對應 Combat V2 的能力均列入 droppedTraits 並附轉換說明。",
+    "skillMappingNote": "原始技能白刃→格鬥、掩飾→交涉、神秘→秘識；前置與固定效果均採本專案十技能鍵。",
     "entries": [
       {
         "name": "特別定制的太陽傘",
-        "goodId": "item.特別定制的太陽傘",
+        "goodId": "item.weapon.magical.sun_umbrella",
         "category": "物品",
         "resourceType": "物品",
         "rank": null,
-        "price": "200",
+        "price": 700,
         "consumable": false,
+        "prerequisites": {},
         "effects": [
           {
             "kind": "武器",
@@ -33,29 +34,35 @@ export const SHOP_STARTER_PACKS = [
             "weaponDamage": 3,
             "severity": "L",
             "ranged": false
+          },
+          {
+            "kind": "防御",
+            "amount": 2
           }
         ],
         "droppedTraits": [
           {
-            "trait": "太陽傘：撐開時體積變為5並獲得【格擋】特性，此時無法用於攻擊",
+            "trait": "型態切換、格擋、免疫陽光、撐開後無法攻擊",
             "reason": "格擋"
           },
           {
-            "trait": "體積3",
-            "reason": "體積"
+            "trait": "型態切換的啟動與結束條件",
+            "reason": "動作經濟細節"
           }
         ],
-        "narrative": "斯卡雷特家族特別定制的太陽傘，用於讓她們得以在白天出去賞花。",
-        "sourceRef": "rules-2.35.txt 第276792行(無支線武器.htm)：價格200，分類特殊武器(傘)，武器傷害3L"
+        "conversionNote": "原「撐開防禦態／格擋」已轉為持有期間固定防御 +2；型態切換、不能攻擊、陽光免疫與體積效果不納入戰鬥引擎。",
+        "narrative": "斯卡雷特家族特別定制的洋傘。閉合時可作白刃打擊，撐開時轉化為具備格擋與陽光防護的掩體。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       },
       {
         "name": "圓月扇刃",
-        "goodId": "item.圓月扇刃",
+        "goodId": "item.weapon.magical.moon_fan_blade",
         "category": "物品",
         "resourceType": "物品",
         "rank": null,
-        "price": "200",
+        "price": 700,
         "consumable": false,
+        "prerequisites": {},
         "effects": [
           {
             "kind": "武器",
@@ -64,46 +71,49 @@ export const SHOP_STARTER_PACKS = [
             "weaponDamage": 3,
             "severity": "L",
             "ranged": false
+          },
+          {
+            "kind": "防御",
+            "amount": 1
           }
         ],
         "droppedTraits": [
           {
-            "trait": "武器特殊屬性【格擋】",
+            "trait": "格擋",
             "reason": "格擋"
           },
           {
-            "trait": "回還：每回合一次，如果你的一次攻擊沒有獲得任何成功數，你獲得重擲此攻擊的機會",
+            "trait": "重骰保底",
             "reason": "重擲"
-          },
-          {
-            "trait": "扇子只有在展開時才具有武器基礎屬性(閉合體積2/展開4)",
-            "reason": "體積"
           }
         ],
-        "narrative": "如同圓月一般寒氣奪人、有著完美圓形曲線的武器，仔細看依然是如同扇子的紋路。",
-        "sourceRef": "rules-2.35.txt 第276807行(無支線武器.htm)：價格200，分類扇子，武器傷害3L"
+        "conversionNote": "原「格擋」已轉為持有期間固定防御 +1。 原「重骰保底」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "如圓月般冰冷優雅的扇刃。閉合時體積2易於攜帶，展開時體積4並啟動完整殺傷與重擲保底機制。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       },
       {
         "name": "處女座",
-        "goodId": "item.處女座",
+        "goodId": "item.weapon.magical.virgo_rapier",
         "category": "物品",
         "resourceType": "物品",
         "rank": null,
-        "price": "200",
+        "price": 700,
         "consumable": false,
+        "prerequisites": {},
         "effects": [
           {
             "kind": "武器",
             "label": "處女座",
             "attackType": "白刃",
-            "weaponDamage": 4,
+            "weaponDamage": 6,
             "severity": "L",
             "ranged": false
           },
           {
             "kind": "檢定加骰",
             "skill": "交涉",
-            "amount": 2
+            "amount": 2,
+            "scope": "全部"
           }
         ],
         "droppedTraits": [
@@ -112,27 +122,21 @@ export const SHOP_STARTER_PACKS = [
             "reason": "破甲"
           },
           {
-            "trait": "女性：本武器女士才可以佩戴，若男性佩戴則所有社交檢定-2附加成功；華貴加值同樣只在佩戴者為女士時生效",
+            "trait": "情境條件：持用者為女性",
             "reason": "情境條件"
           }
         ],
-        "conversionNote": "書上的『華貴：所有社交檢定+2DP表現加值』帶有『佩戴者為女士』的條件。簡化規則沒有性別欄位，而讓AI臨場判斷條件成不成立是被禁止的，所以這裡把+2DP轉成無條件常態生效，並把性別條款(含男性的-2附加成功懲罰)整條記進 droppedTraits。這是本批唯一一條『刻意放寬』的轉換，不是漏抄。",
-        "balanceNote": {
-          "direction": "放寬範圍",
-          "what": "書上這把武器限女性佩戴：男性佩戴則所有社交檢定 -2 附加成功，而且華貴的 +2DP 也只在佩戴者為女士時生效。現在的版本任何人佩戴都吃得到 +2DP，也沒有那個 -2。",
-          "why": "簡化規則的角色卡沒有性別欄位(建卡是生平問答，不收性別)，引擎判斷不了佩戴者符不符合條件——照收就是讓 AI 敘事時決定加值有沒有生效，那是第4條最高原則明文禁止的。",
-          "ifRebalancing": "要補的話，便宜的做法不是加一個性別欄位(那會為了一件武器動到建卡)，而是把這把武器的價格往上調一點，當作『少了一個限制』的定價。它目前是200分，跟同批沒有任何條件的太陽傘/圓月扇刃同價。"
-        },
-        "narrative": "一把女士細劍，從內到外透露出一種華麗的感覺。",
-        "sourceRef": "rules-2.35.txt 第276824行(無支線武器.htm)：價格200分，分類突刺劍，武器傷害4L破甲2"
+        "conversionNote": "原「破甲2」轉為固定武器傷害 +2；目前系統沒有獨立破甲層。 原條件「持用者為女性」無對應欄位，已轉為無條件固定加值。",
+        "narrative": "華貴優雅的女士細劍。具備高破甲穿刺性能，女性持用時在社交檢定中獲得顯著表現加值。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       },
       {
         "name": "手杖劍",
-        "goodId": "item.手杖劍",
+        "goodId": "item.weapon.magical.cane_sword",
         "category": "物品",
         "resourceType": "物品",
         "rank": null,
-        "price": "200",
+        "price": 700,
         "consumable": false,
         "prerequisites": {
           "skills": {
@@ -140,28 +144,21 @@ export const SHOP_STARTER_PACKS = [
             "交涉": 2
           }
         },
-        "originalPrerequisite": "需求白刃等級3，需求掩飾等級2",
+        "originalPrerequisite": "白刃3、掩飾2",
         "effects": [
           {
             "kind": "武器",
-            "label": "手杖劍(拔劍)",
+            "label": "手杖劍",
             "attackType": "白刃",
-            "weaponDamage": 4,
+            "weaponDamage": 5,
             "severity": "L",
-            "ranged": false
-          },
-          {
-            "kind": "武器",
-            "label": "手杖劍(偽裝鞘)",
-            "attackType": "白刃",
-            "weaponDamage": 0,
-            "severity": "B",
             "ranged": false
           },
           {
             "kind": "檢定加骰",
             "skill": "交涉",
-            "amount": 2
+            "amount": 1,
+            "scope": "檢定"
           }
         ],
         "droppedTraits": [
@@ -170,143 +167,506 @@ export const SHOP_STARTER_PACKS = [
             "reason": "破甲"
           },
           {
-            "trait": "偽裝鞘：可以以一個迅捷動作從手杖中拔出劍",
-            "reason": "動作經濟細節"
-          },
-          {
-            "trait": "功能性偽裝：收入鞘中時，無支線等級的安檢裝置無法識別內置的武器",
+            "trait": "常規安檢免疫",
             "reason": "情境條件"
           },
           {
-            "trait": "社會性偽裝的加值『與看到過本武器真面目的角色社交時無效』這條例外",
-            "reason": "情境條件"
+            "trait": "偽裝外鞘",
+            "reason": "目前沒有型態切換與副武器狀態的戰鬥接口，無法安全轉換"
           }
         ],
-        "narrative": "一桿彰顯紳士優雅風度的手杖，裡面配置了防身用的刺劍。購買時也可以要求把手杖型偽裝鞘替換成女式洋傘或扁擔等常見物品。",
-        "sourceRef": "rules-2.35.txt 第276843行(無支線武器.htm)：價格200，武器傷害4L破甲1，社會性偽裝社交檢定+2DP器械加值"
+        "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 社交檢定加骰已轉為交涉檢定 +1；安檢免疫保留為敘事資訊。 原「偽裝外鞘」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "紳士手杖內藏鋒芒。未拔劍時外鞘可作鈍擊武器並通過常規安檢，戰鬥中可迅捷出鞘奇襲。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       },
       {
-        "name": "黑曜石制匕首",
-        "goodId": "item.黑曜石制匕首",
+        "name": "龍膽",
+        "goodId": "item.weapon.magical.dragon_bravery_spear",
         "category": "物品",
         "resourceType": "物品",
-        "rank": "D",
-        "lineageId": "item.黑曜石制匕首",
-        "startsAtRank": true,
-        "price": "D+500",
+        "rank": null,
+        "price": 750,
         "consumable": false,
+        "prerequisites": {
+          "attributes": {
+            "力量": 2
+          }
+        },
+        "originalPrerequisite": "力量2",
         "effects": [
           {
             "kind": "武器",
-            "label": "黑曜石制匕首",
+            "label": "龍膽",
             "attackType": "白刃",
-            "weaponDamage": 1,
+            "weaponDamage": 5,
             "severity": "L",
             "ranged": false
           },
           {
-            "kind": "敘事",
-            "text": "持有者可以進行一個持續1小時的儀式(智力+秘識檢定，DC4)，活剝一個無助狀態對象的皮並披在身上，取得對方的外貌。成功則維持成功數×1天，失敗則被剝皮目標承受3點惡性傷害。"
+            "kind": "檢定加骰",
+            "attribute": "意志",
+            "amount": 1,
+            "scope": "全部"
+          },
+          {
+            "kind": "檢定加骰",
+            "attribute": "意志",
+            "amount": 1,
+            "scope": "檢定"
           }
         ],
         "droppedTraits": [
           {
-            "trait": "剝皮儀式的完整判定與後果(DC4的智力+神秘學檢定、3點不可避免惡性傷害、外貌持續時間)",
-            "reason": "情境條件"
+            "trait": "恐慌抗性",
+            "reason": "豁免"
           }
         ],
-        "conversionNote": "儀式的數值部分不是不能算(智力+秘識 DC4 正好是 core/check.js 吃得下的參數)，但它需要一個『對無助目標執行儀式』的流程觸發點，而遊戲迴圈裡沒有那個觸發點。所以這裡轉成敘事效果並保留完整數字，等之後有『情境動作』系統時再接成真的判定。",
-        "narrative": "一把純黑曜石製成的原始刀具，製作粗糙、年代久遠，極其鋒利且完全不需要保養。",
-        "sourceRef": "rules-2.35.txt 第277261行(D級武器/武器.htm)：本質魔幻，價格D+500，分類匕首，體積1，武器傷害1L"
+        "conversionNote": "恐慌抗性已轉為意志檢定 +1；目前沒有獨立恐慌狀態與抗性軸。",
+        "narrative": "沉香木所鑄長矛，柔韌輕盈。持用時幽香陣陣，令人心神堅定、意志高昂。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       },
       {
-        "name": "生命短杖",
-        "goodId": "item.生命短杖",
+        "name": "惡德戰斧",
+        "goodId": "item.weapon.magical.vicious_battleaxe",
         "category": "物品",
         "resourceType": "物品",
-        "rank": "D",
-        "lineageId": "item.生命短杖",
-        "startsAtRank": true,
-        "price": "D+500",
-        "consumable": false,
-        "effects": [
-          {
-            "kind": "武器",
-            "label": "生命短杖",
-            "attackType": "白刃",
-            "weaponDamage": 2,
-            "severity": "L",
-            "ranged": false
-          },
-          {
-            "kind": "治療",
-            "severity": "L",
-            "amount": 4
-          }
-        ],
-        "droppedTraits": [
-          {
-            "trait": "生命恢復：持有者每經過10輪，自動將1點嚴重傷害恢復完好",
-            "reason": "自然恢復"
-          },
-          {
-            "trait": "爆發回復的替代選項(改為回復1點惡性傷害)與『接下來5天生命恢復失效』的冷卻",
-            "reason": "長期計時"
-          }
-        ],
-        "conversionNote": "『爆發回復』的兩個選項(4點嚴重 或 1點惡性)在簡化規則裡只留下前者當一次性治療效果——本引擎沒有冷卻計時器，如果兩個選項都留下、又沒有冷卻，玩家可以無限回血。留4點L是兩者中較保守的一邊(惡性傷害才是致命的那一軌)。",
-        "narrative": "一根木質的兩指寬、兩根筷子長的木棍，看起來像小型擀麵杖，實際上比鋼鐵還硬。某位法師模仿薩滿治療圖騰時的失敗品。",
-        "sourceRef": "rules-2.35.txt 第277330行(D級武器/武器.htm)：本質魔幻，價格D+500，分類短棍，武器傷害2L，爆發回復立即將4點嚴重傷害或1點惡性傷害回復完好"
-      },
-      {
-        "name": "鳳翅鎦金镋",
-        "goodId": "item.鳳翅鎦金镋",
-        "category": "物品",
-        "resourceType": "物品",
-        "rank": "D",
-        "lineageId": "item.鳳翅鎦金镋",
-        "startsAtRank": true,
-        "price": "D+500",
+        "rank": null,
+        "price": 700,
         "consumable": false,
         "prerequisites": {
           "attributes": {
             "力量": 5
-          },
-          "skills": {
-            "格鬥": 4
           }
         },
-        "originalPrerequisite": "需求力量5，需求白刃技能4",
+        "originalPrerequisite": "力量5",
         "effects": [
           {
             "kind": "武器",
-            "label": "鳳翅鎦金镋",
+            "label": "惡德戰斧",
             "attackType": "白刃",
-            "weaponDamage": 8,
+            "weaponDamage": 5,
+            "severity": "L",
+            "ranged": false,
+            "weaponRange": 10
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "鐘擺蓄力",
+            "reason": "進階戰鬥動作"
+          }
+        ],
+        "conversionNote": "原「鐘擺蓄力」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "中空圓環構造的重型鐘擺斧。可藉由旋轉慣性蓄力投擲，造成毀滅性的遠距劈砍殺傷。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "戰闊劍",
+        "goodId": "item.weapon.magical.warglaive",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 800,
+        "consumable": false,
+        "prerequisites": {},
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "戰闊劍",
+            "attackType": "白刃",
+            "weaponDamage": 5,
+            "severity": "L",
+            "ranged": false
+          },
+          {
+            "kind": "防御",
+            "amount": 2
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "原防禦條件：格擋或全防禦",
+            "reason": "情境條件"
+          },
+          {
+            "trait": "反噬懲罰",
+            "reason": "情境條件"
+          },
+          {
+            "trait": "全力攻擊防禦補正",
+            "reason": "進階戰鬥動作"
+          }
+        ],
+        "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +2。 原「反噬懲罰」目前沒有可安全對應的戰鬥接口，明確標記為未實作。 原「全力攻擊防禦補正」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "惡魔獵手鍾愛的月牙形弧刃。雙持攻守兼備且全力攻擊代價更低，但失手時容易反噬傷及自身。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "風切之刃",
+        "goodId": "item.weapon.magical.wind_sever_blade",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 650,
+        "consumable": false,
+        "prerequisites": {
+          "skills": {
+            "格鬥": 3
+          }
+        },
+        "originalPrerequisite": "白刃3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "風切之刃",
+            "attackType": "白刃",
+            "weaponDamage": 3,
+            "severity": "L",
+            "ranged": false,
+            "weaponRange": 10
+          },
+          {
+            "kind": "先攻",
+            "amount": 3
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "疾風脫離",
+            "reason": "進階戰鬥動作"
+          }
+        ],
+        "conversionNote": "原「疾風脫離」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "極其輕靈的近戰短刃。賦予持用者極高的出手速度與近戰拉扯能力，亦可精準投擲。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "落陽",
+        "goodId": "item.weapon.magical.setting_sun_rapier",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 650,
+        "consumable": false,
+        "prerequisites": {
+          "skills": {
+            "格鬥": 3
+          }
+        },
+        "originalPrerequisite": "白刃3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "落陽",
+            "attackType": "白刃",
+            "weaponDamage": 4,
             "severity": "L",
             "ranged": false
           }
         ],
         "droppedTraits": [
           {
-            "trait": "破甲2",
+            "trait": "破甲1",
             "reason": "破甲"
           },
           {
-            "trait": "武器特殊屬性【威猛】【長柄武器】",
-            "reason": "加值類型"
+            "trait": "剛柔並濟",
+            "reason": "情境條件"
+          }
+        ],
+        "conversionNote": "原「破甲1」轉為固定武器傷害 +1；目前系統沒有獨立破甲層。 原「剛柔並濟」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "剛柔並濟的刺劍。能將力量與敏捷兩種截然不同的戰鬥風格互相轉化並疊加於打擊之中。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "勇士巨劍",
+        "goodId": "item.weapon.magical.warrior_greatsword",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 900,
+        "consumable": false,
+        "prerequisites": {
+          "attributes": {
+            "力量": 4
+          },
+          "skills": {
+            "格鬥": 3
+          }
+        },
+        "originalPrerequisite": "力量4、白刃3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "勇士巨劍",
+            "attackType": "白刃",
+            "weaponDamage": 6,
+            "severity": "L",
+            "ranged": false
           },
           {
-            "trait": "鳳翅：目標體積小於你的體積與本武器體積之和時，攻擊檢定獲得4DP器械加值",
-            "reason": "體積"
+            "kind": "防御",
+            "amount": 1
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "原防禦條件：持用者力量>=4進行格擋",
+            "reason": "情境條件"
+          }
+        ],
+        "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +1。",
+        "narrative": "純粹重型劍刃的代表作。厚重的劍脊既可釋放致命的劈斬，亦能在巨力加持下化作堅固壁壘。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "念珠",
+        "goodId": "item.weapon.magical.prayer_beads",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 350,
+        "consumable": false,
+        "prerequisites": {},
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "念珠",
+            "attackType": "白刃",
+            "weaponDamage": 2,
+            "severity": "B",
+            "ranged": false
           },
           {
-            "trait": "提振士氣：處於其他友方單位的模糊範圍內時，這些友方單位的下次攻擊獲得2DP器械加值",
+            "kind": "檢定加骰",
+            "attribute": "意志",
+            "amount": 1,
+            "scope": "全部"
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "特攻轉化",
+            "reason": "傷害類型"
+          }
+        ],
+        "conversionNote": "原「特攻轉化」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "佛門修行念珠。持用增強心神定力，對常人僅為鈍擊，但接觸靈體鬼怪時會迸發破煞金光。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "薙刀",
+        "goodId": "item.weapon.magical.naginata",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 700,
+        "consumable": false,
+        "prerequisites": {},
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "薙刀",
+            "attackType": "白刃",
+            "weaponDamage": 4,
+            "severity": "L",
+            "ranged": false
+          },
+          {
+            "kind": "防御",
+            "amount": 2
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "原防禦條件：對抗未持白刃/長兵武器之近戰攻擊者",
+            "reason": "情境條件"
+          }
+        ],
+        "conversionNote": "原條件式防禦加值已轉為無條件固定防御 +2。",
+        "narrative": "長柄弧刃刀。善於利用距離優勢壓制短兵、空手與野獸撲擊，形成嚴密的近戰防線。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "阿爾法法杖",
+        "goodId": "item.weapon.magical.alpha_staff",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 450,
+        "consumable": false,
+        "prerequisites": {
+          "attributes": {
+            "力量": 1
+          },
+          "skills": {
+            "秘識": 3
+          }
+        },
+        "originalPrerequisite": "力量1、神秘3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "阿爾法法杖",
+            "attackType": "白刃",
+            "weaponDamage": 2,
+            "severity": "B",
+            "ranged": false
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "法術共鳴：法術威力值 +2",
+            "reason": "法術攻擊結算端尚未接線，無法由現有系統讀取"
+          }
+        ],
+        "conversionNote": "已確認的法術共鳴設計先保留為未接線標記；待法術攻擊結算端接入後，改為正式法術威力值 +2 效果。",
+        "narrative": "銘刻基礎奧術迴路的法杖。近戰時僅作防身短棍，但能顯著穩定並增幅各類法術的輸出威力。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "十字軍",
+        "goodId": "item.weapon.magical.crusader_pistol",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 750,
+        "consumable": false,
+        "prerequisites": {
+          "attributes": {
+            "智力": 3,
+            "敏捷": 3
+          }
+        },
+        "originalPrerequisite": "智力3、敏捷3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "十字軍",
+            "attackType": "槍械",
+            "weaponDamage": 3,
+            "severity": "L",
+            "ranged": true,
+            "weaponRange": 20
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "聖痕心念射擊",
+            "reason": "情境條件"
+          }
+        ],
+        "conversionNote": "原「聖痕心念射擊」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "銘刻十字聖痕的轉輪手槍。允許智力法系角色將精神力量注入彈丸，以心念進行精準射擊。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "名劍工布（偽）",
+        "goodId": "item.weapon.magical.gongbu_sword_replica",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 900,
+        "consumable": false,
+        "prerequisites": {
+          "skills": {
+            "格鬥": 3
+          }
+        },
+        "originalPrerequisite": "白刃3",
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "名劍工布（偽）",
+            "attackType": "白刃",
+            "weaponDamage": 4,
+            "severity": "L",
+            "ranged": false
+          },
+          {
+            "kind": "附加成功",
+            "skill": "格鬥",
+            "amount": 1,
+            "scope": "攻擊"
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "全力一擊強化",
+            "reason": "進階戰鬥動作"
+          }
+        ],
+        "conversionNote": "原「劍術附加成功」已轉為攻擊附加成功。 原「全力一擊強化」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "倣古名劍打造的青刃長劍。劍路如水銀瀉地，兼具極高的劈斬加值與破陣破甲威力。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "桃木劍",
+        "goodId": "item.weapon.magical.peach_wood_sword",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 750,
+        "consumable": false,
+        "prerequisites": {},
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "桃木劍",
+            "attackType": "白刃",
+            "weaponDamage": 4,
+            "severity": "L",
+            "ranged": false
+          },
+          {
+            "kind": "附加成功",
+            "skill": "秘識",
+            "amount": 1,
+            "scope": "攻擊"
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "陣營特攻",
+            "reason": "傷害類型"
+          },
+          {
+            "trait": "情境條件：施展道術或消耗道力/符咒技能",
+            "reason": "情境條件"
+          }
+        ],
+        "conversionNote": "原「陣營特攻」目前沒有可安全對應的戰鬥接口，明確標記為未實作。 原「道術符咒加成」已轉為攻擊附加成功。 原條件「施展道術或消耗道力/符咒技能」無對應欄位，已轉為無條件固定加值。",
+        "narrative": "百年桃木雕琢的法劍。斬擊常人僅為鈍痛，但克制妖邪鬼魅，為施展道術符法的上佳法器。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
+      },
+      {
+        "name": "執子",
+        "goodId": "item.weapon.magical.zhizi_twin_vow",
+        "category": "物品",
+        "resourceType": "物品",
+        "rank": null,
+        "price": 600,
+        "consumable": false,
+        "prerequisites": {},
+        "effects": [
+          {
+            "kind": "武器",
+            "label": "執子",
+            "attackType": "白刃",
+            "weaponDamage": 3,
+            "severity": "L",
+            "ranged": false
+          }
+        ],
+        "droppedTraits": [
+          {
+            "trait": "同生共死誓約",
             "reason": "隊友"
           }
         ],
-        "narrative": "隋朝大將天寶將軍宇文成都的武器，威猛罕匹。",
-        "sourceRef": "rules-2.35.txt 第277306行(D級武器/武器.htm)：本質魔幻，價格D+500，分類戟，體積5，武器傷害8L破甲2"
+        "conversionNote": "原「同生共死誓約」目前沒有可安全對應的戰鬥接口，明確標記為未實作。",
+        "narrative": "刻有「執子之手，與子偕老」的特殊誓約古劍。可用於與夥伴締結生命與意志共擔的同生共死契約。",
+        "sourceRef": "rules-2.35.txt 第276789行起(武器型錄轉換)：附件 tier-d-equipment-weapons；固定效果依目前 Combat V2 轉化。"
       }
     ]
   },

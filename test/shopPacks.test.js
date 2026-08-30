@@ -97,27 +97,40 @@ test("每一個商品的 sourceRef 都指得出 rules-2.35.txt 的行號", () =>
 
 // ---------- 物品包 ----------
 
-test("物品包：7件商品，全部給得出可用的武器或檢定效果(不是只有敘事)", () => {
+test("物品包：17件武器全部有可用的武器或固定數值效果", () => {
   const items = packs[0].entries;
-  assert.equal(items.length, 7);
+  assert.equal(items.length, 17);
   for (const good of items) {
-    const 有數值效果 = good.effects.some((e) => e.kind !== "敘事");
-    assert.ok(有數值效果, `${good.name} 只有敘事效果，不該上架在物品包`);
+    assert.equal(good.category, "物品");
+    assert.equal(good.resourceType, "物品");
+    assert.ok(good.effects.some((e) => e.kind !== "敘事"), `${good.name} 只有敘事效果，不該上架在物品包`);
   }
 });
 
-test("物品包：書上寫 200 的就是 200，寫 D+500 的就是 D+500(不自行調價)", () => {
+test("物品包：武器價格依平衡表採純分數，且全部落在 350～900 分", () => {
   const expected = {
-    特別定制的太陽傘: "200",
-    圓月扇刃: "200",
-    處女座: "200",
-    手杖劍: "200",
-    黑曜石制匕首: "D+500",
-    生命短杖: "D+500",
-    鳳翅鎦金镋: "D+500",
+    特別定制的太陽傘: 700,
+    圓月扇刃: 700,
+    處女座: 700,
+    手杖劍: 700,
+    龍膽: 750,
+    惡德戰斧: 700,
+    戰闊劍: 800,
+    風切之刃: 650,
+    落陽: 650,
+    勇士巨劍: 900,
+    念珠: 350,
+    薙刀: 700,
+    阿爾法法杖: 450,
+    十字軍: 750,
+    "名劍工布（偽）": 900,
+    桃木劍: 750,
+    執子: 600,
   };
   for (const good of packs[0].entries) {
-    assert.equal(good.price, expected[good.name], `${good.name} 的價格跟書上不符`);
+    assert.equal(good.price, expected[good.name], `${good.name} 的價格跟平衡表不符`);
+    assert.equal(typeof good.price, "number", `${good.name} 必須是純分數價格`);
+    assert.ok(good.price >= 350 && good.price <= 900);
   }
 });
 
@@ -202,17 +215,17 @@ test("同一張角色卡買下多件商品後，武器/檢定加值/戰鬥檔案
   c.attributes.敏捷 = 3;
   c.attributes.感知 = 3;
   c.skills.求生 = 3;
-  c.skills.格鬥 = 2;
+  c.skills.格鬥 = 3;
 
   let character = c;
   let wallet = createWallet({ tokens: { C: 1 }, points: 2000, xp: 50 });
 
   const 太陽傘 = packs[0].entries.find((g) => g.name === "特別定制的太陽傘");
-  const 匕首 = packs[0].entries.find((g) => g.name === "黑曜石制匕首");
+  const 第二把武器 = packs[0].entries.find((g) => g.name === "風切之刃");
   const 方向感 = packs[1].entries.find((g) => g.name === "方向感(1級)");
   const 先攻1 = packs[1].entries.find((g) => g.goodId === "feat.精通先攻.1");
 
-  for (const good of [太陽傘, 匕首, 方向感, 先攻1]) {
+  for (const good of [太陽傘, 第二把武器, 方向感, 先攻1]) {
     const result = purchase(character, wallet, good);
     assert.equal(result.ok, true, `${good.name}：${JSON.stringify(result.blockers)}`);
     character = result.character;
@@ -221,10 +234,27 @@ test("同一張角色卡買下多件商品後，武器/檢定加值/戰鬥檔案
 
   assert.equal(weaponsFrom(character).length, 2);
   assert.equal(checkModifiersFor(character, { attribute: "感知", skill: "求生" }).dp, 2);
-  assert.equal(combatProfileFrom(character).initiativeBonus, 1);
-  // 太陽傘200 + 匕首D+500 = D+700，剩下 C(3D) - D = 2D 與 1300分
-  assert.equal(wallet.points, 1300);
+  assert.equal(combatProfileFrom(character).initiativeBonus, 4);
+  // 太陽傘700 + 風切之刃650 = 1350，剩下 650 分。
+  assert.equal(wallet.points, 650);
   assert.equal(wallet.xp, 44); // 3+3
+});
+
+test("武器特殊能力已轉為固定效果或明確未實作標記", () => {
+  const items = Object.fromEntries(packs[0].entries.map((good) => [good.name, good]));
+  const virgo = items.處女座;
+  assert.equal(virgo.effects.find((e) => e.kind === "武器").weaponDamage, 6, "破甲2 應轉為固定武器傷害 +2");
+  assert.deepEqual(virgo.prerequisites, {}, "新附件沒有前置時不可憑空新增前置");
+
+  const warglaive = items.戰闊劍;
+  assert.equal(warglaive.effects.find((e) => e.kind === "防御").amount, 2, "防禦加值應轉為固定防御 +2");
+  assert.ok(warglaive.droppedTraits.some((d) => d.reason === "情境條件"), "反噬等條件效果需明確標記");
+
+  const crusader = items.十字軍;
+  assert.ok(crusader.droppedTraits.some((d) => d.trait === "聖痕心念射擊"), "屬性替換不能假裝已接線");
+
+  const staff = items.阿爾法法杖;
+  assert.ok(staff.droppedTraits.some((d) => d.trait.includes("法術共鳴")), "法術威力值 +2 在法術結算端接線前需明確標記");
 });
 
 test("角色卡上沒有前提時，需要前提的商品確實買不到(手杖劍需要格鬥3/交涉2)", () => {
