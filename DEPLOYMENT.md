@@ -170,7 +170,57 @@ AUTH_REDIRECT_URI=https://你的網域/api/auth/callback
 > **換掉 `AUTH_SESSION_SECRET` 會讓所有人被登出**（既有的登入票全部驗不過）。
 > 這也正是懷疑密鑰外洩時的處理方式。
 
-### 3. 存檔歸屬的行為
+## Discord 登入（選配）
+
+跟 Google 登入一樣是選配的、一樣共用同一份存檔歸屬機制，兩者可以同時開，也可以只開一個。
+玩家用哪一個平台登入，看到的功能完全一樣（存檔綁帳號、跨裝置讀得到）。
+
+### 1. 在 Discord Developer Portal 建立應用
+
+1. 開 <https://discord.com/developers/applications>，建立一個新應用
+2. 左側「OAuth2」→「General」，在「Redirects」加入你的 callback 網址：
+
+   ```
+   https://你的網域/api/auth/discord-callback
+   ```
+
+   > 這個網址必須一字不差，理由跟 Google 那邊一樣：差一個結尾斜線、差 `http`/`https`
+   > 都會被 Discord 拒絕。要在 Cloudflare Pages 的 preview 部署上測，也要把那個
+   > preview 網域加進這份清單。
+
+3. 同一頁可以看到 **Client ID**；「Client Secret」在旁邊按 Reset Secret 產生
+
+### 2. 設定環境變數
+
+```bash
+npx wrangler pages secret put DISCORD_CLIENT_ID --project-name=wxh-engine
+npx wrangler pages secret put DISCORD_CLIENT_SECRET --project-name=wxh-engine
+```
+
+`AUTH_SESSION_SECRET` 跟 Google 登入共用同一把——如果已經設定過 Google 登入，這一步不用重做；
+如果這個部署只打算開 Discord 登入，一樣要設定它（見上面 Google 登入一節的第 2 步）。
+
+正式環境建議再設一個非機密的 `DISCORD_AUTH_REDIRECT_URI`：
+
+```
+DISCORD_AUTH_REDIRECT_URI=https://你的網域/api/auth/discord-callback
+```
+
+不設的話程式會從這次請求的網址推導，理由跟 `AUTH_REDIRECT_URI` 完全一樣（見上一節）。
+
+### 3. `prompt=none` 的取捨
+
+登入按鈕預設會帶 `prompt=none`：玩家如果已經登入 Discord、且先前同意過這個應用的權限，
+可以直接跳過「是否授權」畫面。代價是玩家第一次登入、或撤銷過授權時，Discord 不會顯示
+同意畫面，而是回報 `login_required`／`consent_required`——`discord-callback.js` 偵測到
+這兩種情況會自動重新導向一次不省略同意畫面的登入，所以玩家最終還是看得到同意畫面，
+只是會多轉一次頁面，這是目前這個實作已知的體驗代價。
+
+## 存檔歸屬的行為（Google／Discord 共用）
+
+這一節跟下面「已知取捨」都跟你選哪個登入平台無關——存檔歸屬只認登入票裡的 `sub`，
+不管那是 Google 的 sub 還是 Discord 的使用者 id（見 `content/auth/discordOAuth.js`
+的 `normalizeDiscordUser()`：兩個 provider 的 id 命名空間刻意不重疊）。
 
 | 情況 | 行為 |
 |---|---|
@@ -181,7 +231,7 @@ AUTH_REDIRECT_URI=https://你的網域/api/auth/callback
 
 回 404 而不是 403 是刻意的：回 403 等於告訴對方「這個 ID 存在，只是你不能看」。
 
-### 4. 已知取捨
+## 已知取捨（Google／Discord 共用）
 
 登入狀態是一張 **HMAC 簽章的 cookie**，不是資料庫 session。這樣即使沒設定 KV binding，
 登入也能正常運作（見 `content/auth/sessionToken.js` 的檔頭說明）。

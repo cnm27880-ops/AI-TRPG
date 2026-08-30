@@ -723,11 +723,19 @@ async function playChargenReleaseTransition() {
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const lines = ["防護罩解除。", "你的名字，已經不再屬於原本的世界。", "那麼，祝你好運。"];
   overlay.style.display = "flex";
-  overlay.classList.remove("is-leaving");
-  overlay.classList.add("is-visible");
+  overlay.classList.remove("is-leaving", "is-visible");
   overlay.setAttribute("aria-hidden", "false");
   overlay.setAttribute("aria-busy", "true");
   message.textContent = "";
+
+  // 先讓瀏覽器畫出 display:flex + opacity:0 這一格，class 才補在下一格加上，
+  // 不然 display 跟 opacity 同一拍改完，CSS transition 沒有起點可以補間，
+  // 畫面就會直接「跳」成全黑，而不是淡入。
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  if (run !== chargenReleaseRun) return;
+  overlay.classList.add("is-visible");
+  await sleepForTransition(reducedMotion ? 0 : 900);
+  if (run !== chargenReleaseRun) return;
   message.focus();
 
   try {
@@ -740,7 +748,7 @@ async function playChargenReleaseTransition() {
     await sleepForTransition(reducedMotion ? 80 : 900);
     if (run !== chargenReleaseRun) return;
     overlay.classList.add("is-leaving");
-    await sleepForTransition(reducedMotion ? 0 : 720);
+    await sleepForTransition(reducedMotion ? 0 : 900);
   } finally {
     if (run === chargenReleaseRun) {
       overlay.classList.remove("is-visible", "is-leaving");
@@ -3312,7 +3320,7 @@ async function checkLocalSession() {
           accountText.textContent = `這個帳號底下還有 ${mySessions.length - 1} 名其他輪迴者，可到「輪迴者檔案」切換。`;
           accountNote.style.display = "block";
         } else if (currentUser && res.persistent) {
-          accountText.textContent = "已綁定你的 Google 帳號，換裝置登入就找得回來。";
+          accountText.textContent = `已綁定你的 ${authProviderLabel(currentUser)} 帳號，換裝置登入就找得回來。`;
           accountNote.style.display = "block";
         } else {
           accountNote.style.display = "none";
@@ -3385,8 +3393,8 @@ function renderSaveStatus(persistent) {
   el.textContent = text;
   el.className = `px-2 py-0.5 rounded bg-panel border hairline-border ${cls}`;
   el.title = currentUser
-    ? "輪迴者檔案已綁定你的 Google 帳號，換裝置登入後可以在「輪迴者檔案」裡找到。"
-    : "輪迴者檔案目前只跟這台瀏覽器綁在一起。登入 Google 之後才會綁到帳號。";
+    ? `輪迴者檔案已綁定你的 ${authProviderLabel(currentUser)} 帳號，換裝置登入後可以在「輪迴者檔案」裡找到。`
+    : "輪迴者檔案目前只跟這台瀏覽器綁在一起。登入之後才會綁到帳號。";
   if (changed) flashElement(el);
 }
 
@@ -3539,18 +3547,33 @@ async function handleResumeFromModal() {
   }
 }
 
-// --- Google 登入 ---------------------------------------------------------
+// --- 登入（Google / Discord） ---------------------------------------------
 // 前端這一側刻意做得很薄：登入票是 HttpOnly cookie，JavaScript 讀不到也不需要讀
 // （那正是它防 XSS 的方式）。這裡只負責「問後端我是誰」與「畫出來」。
+// 兩個 provider 共用同一張登入票（見 content/auth/sessionToken.js），差別只在
+// /api/auth/me 回傳的 user.provider——前端幾乎所有地方都不用分辨是哪個provider，
+// 只有「登入按鈕要顯示哪一顆」跟「帳號提示文字要講哪個平台」需要用到它。
 
 let currentUser = null;
-/** 這個部署到底有沒有設定 Google 登入（沒設定就不要給玩家一顆一定失敗的按鈕）。 */
+/** 這個部署有沒有至少設定好一種登入方式（沒有的話，整個登入區塊都不該出現）。 */
 let authEnabled = false;
+/** 這個部署個別設定好了哪些登入方式（沒設定的provider，按鈕不該出現）。 */
+let googleAuthEnabled = false;
+let discordAuthEnabled = false;
+
+/** 登入使用者要顯示給玩家看的平台名稱，給那些「已綁定你的OO帳號」提示文字用。 */
+function authProviderLabel(user) {
+  return user?.provider === "discord" ? "Discord" : "Google";
+}
 
 function startGoogleLogin() {
   // 整頁導向而不是開彈出視窗：OAuth 流程要跨網域，彈出視窗常被瀏覽器擋，
   // 而且行動裝置上的體驗更差。導回來時網址會帶 ?login=ok。
   window.location.href = "/api/auth/login";
+}
+
+function startDiscordLogin() {
+  window.location.href = "/api/auth/discord-login";
 }
 
 async function googleLogout() {
@@ -3597,19 +3620,27 @@ async function loadSessionList() {
 
   if (!currentUser) {
     // 沒登入不是錯誤，是一個可以修正的狀態——所以這裡給的是一個入口，不是一句抱怨。
-    // 但如果這個部署根本沒設定 Google 登入，就不能給一顆按下去一定失敗的按鈕。
+    // 但如果這個部署一種登入方式都沒設定，就不能給一顆按下去一定失敗的按鈕。
+    const googleButton = googleAuthEnabled
+      ? `<button onclick="startGoogleLogin()" class="px-3 py-1.5 rounded bg-panel hover:bg-zinc-800 border hairline-border text-[11px] text-zinc-200 transition-all">
+          <i class="fab fa-google text-[10px]"></i> 以 Google 登入
+        </button>`
+      : "";
+    const discordButton = discordAuthEnabled
+      ? `<button onclick="startDiscordLogin()" class="px-3 py-1.5 rounded text-[11px] transition-all" style="background:#5865F2;color:#fff">
+          <i class="fab fa-discord text-[10px]"></i> 以 Discord 登入
+        </button>`
+      : "";
     list.innerHTML = authEnabled
       ? `<div class="p-3 rounded border hairline-border border-dashed text-center space-y-2">
           <div class="text-[11px] text-zinc-400 leading-snug">
-            輪迴者檔案目前只跟這台瀏覽器綁在一起。登入之後，檔案會綁到你的 Google 帳號，
+            輪迴者檔案目前只跟這台瀏覽器綁在一起。登入之後，檔案會綁到你的帳號，
             換裝置或清掉瀏覽器資料都找得回來。
           </div>
-          <button onclick="startGoogleLogin()" class="px-3 py-1.5 rounded bg-panel hover:bg-zinc-800 border hairline-border text-[11px] text-zinc-200 transition-all">
-            <i class="fab fa-google text-[10px]"></i> 以 Google 登入
-          </button>
+          <div class="flex items-center justify-center gap-1.5 flex-wrap">${googleButton}${discordButton}</div>
         </div>`
       : `<div class="p-3 rounded border hairline-border border-dashed text-[11px] text-zinc-400 leading-snug">
-          這個部署沒有設定 Google 登入，輪迴者檔案只跟這台瀏覽器綁在一起。
+          這個部署沒有設定登入，輪迴者檔案只跟這台瀏覽器綁在一起。
           用下面的 Session ID 手動保存，換裝置時貼回來就能接續目前輪迴。
         </div>`;
     if (status) status.textContent = "";
@@ -3695,9 +3726,15 @@ async function refreshAuthState() {
   const boxes = [...document.querySelectorAll("#auth-box, [data-auth-box]")];
   try {
     const res = await (await fetch("/api/auth/me")).json();
-    if (!res.enabled) {
-      // 這個部署沒設定 Google 登入：整塊藏起來，不要給一顆一定會失敗的按鈕。
+    // res.enabled 是舊欄位名稱（語意等於 googleEnabled），這裡改吃新的兩個獨立欄位，
+    // 用 ?? 接住舊欄位只是保底，部署更新前後端不同步時不會整塊消失。
+    googleAuthEnabled = Boolean(res.googleEnabled ?? res.enabled);
+    discordAuthEnabled = Boolean(res.discordEnabled);
+    authEnabled = googleAuthEnabled || discordAuthEnabled;
+    if (!authEnabled) {
+      // 這個部署一種登入方式都沒設定：整塊藏起來，不要給一顆一定會失敗的按鈕。
       boxes.forEach((box) => { box.style.display = "none"; });
+      currentUser = null;
       return;
     }
     boxes.forEach((box) => { box.style.display = "flex"; });
@@ -3710,11 +3747,16 @@ async function refreshAuthState() {
 }
 
 function renderAuthState(user) {
-  const loginButtons = [...document.querySelectorAll("#auth-login-btn, [data-auth-login]")];
+  const googleButtons = [...document.querySelectorAll('[data-auth-provider="google"]')];
+  const discordButtons = [...document.querySelectorAll('[data-auth-provider="discord"]')];
   const userBoxes = [...document.querySelectorAll("#auth-user, [data-auth-user]")];
-  if (!loginButtons.length && !userBoxes.length) return;
+  if (!googleButtons.length && !discordButtons.length && !userBoxes.length) return;
 
-  loginButtons.forEach((button) => { button.style.display = user ? "none" : ""; });
+  // 每顆登入按鈕要同時滿足兩個條件才顯示：沒登入、而且這個部署設定好了那個provider。
+  // 兩個條件分開算，而不是「沒登入就把所有登入按鈕都打開」——不然沒設定 Discord 的
+  // 部署，沒登入時會冒出一顆按下去一定失敗的 Discord 按鈕。
+  googleButtons.forEach((button) => { button.style.display = !user && googleAuthEnabled ? "" : "none"; });
+  discordButtons.forEach((button) => { button.style.display = !user && discordAuthEnabled ? "" : "none"; });
   userBoxes.forEach((box) => { box.style.display = user ? "flex" : "none"; });
   if (!user) return;
 
@@ -3747,24 +3789,28 @@ function consumeLoginRedirect() {
 
   if (status === "ok") {
     console.info("[AUTH] 登入成功");
-    if (localStorage.getItem(SESSION_KEY)) {
-      pendingLoginNotice = "已登入。這台瀏覽器上的輪迴者檔案已經綁定到你的 Google 帳號，換裝置登入後也找得回來。";
-    }
+    if (localStorage.getItem(SESSION_KEY)) pendingLoginNotice = true;
   } else if (status === "cancelled") {
     console.info("[AUTH] 使用者取消了登入");
   }
 }
 
-/** 登入回來要顯示給玩家的一句話（等首頁畫好之後才顯示，否則會被後續渲染蓋掉）。 */
-let pendingLoginNotice = null;
+/**
+ * 登入回來要不要顯示提示（等首頁畫好之後才顯示，否則會被後續渲染蓋掉）。
+ *
+ * 存布林值而不是先組好的字串：consumeLoginRedirect() 執行時 refreshAuthState()
+ * 還沒回來，currentUser.provider 還不知道是哪個平台，實際文字要等 flushLoginNotice()
+ * 被呼叫（那時 currentUser 已經確定）才能組。
+ */
+let pendingLoginNotice = false;
 
 function flushLoginNotice() {
   if (!pendingLoginNotice) return;
+  pendingLoginNotice = false;
   const box = document.getElementById("portal-login-notice");
   if (!box) return;
-  box.textContent = pendingLoginNotice;
+  box.textContent = `已登入。這台瀏覽器上的輪迴者檔案已經綁定到你的 ${authProviderLabel(currentUser)} 帳號，換裝置登入後也找得回來。`;
   box.style.display = "block";
-  pendingLoginNotice = null;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
