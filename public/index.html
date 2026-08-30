@@ -1569,6 +1569,47 @@
         .exploration-terminal-panel .exploration-route-card strong { font-size: .76rem; }
         .exploration-terminal-panel .exploration-route-card span { font-size: .68rem; line-height: 1.55; }
         html[data-stage="godspace"] .exploration-terminal-guide { border-left-color: rgba(110, 231, 183, .45); background: rgba(16, 185, 129, .08); color: #a7f3d0; }
+
+        /* ---- 副本情報／探索終端機的淺色版重新上色 ----
+           這整組（地圖、路線卡、快速讀法提示……）原本是深色終端機的青綠色霓虹配色，
+           從來沒有跟著 data-theme="light" 切換過，所以淺色模式下這個面板看起來
+           跟切成深色時一模一樣，跟頁面其他地方已經紙白化的介面格格不入。
+           改用 #recent-story-list 的 .feed-event-action／.npc-card 已經在用的
+           那組茶褐色（#8c5b30 / #a66f3d 一系），讓這裡跟同一頁其他強調文字是
+           同一種材質，不是自成一格的霓虹配色。 */
+        html[data-theme="light"] #exploration-open-btn { background: rgba(194,154,98,.1); border-color: rgba(140,96,45,.4); color: #8c5b30; }
+        html[data-theme="light"] #exploration-open-btn:hover { background: rgba(194,154,98,.18); }
+        html[data-theme="light"] .exploration-terminal-eyebrow { color: #8c5b30; }
+        html[data-theme="light"] .exploration-terminal-section-title { color: #8c5b30; }
+        html[data-theme="light"] .exploration-terminal-guide { border-left-color: rgba(140,96,45,.5); background: rgba(194,154,98,.13); color: #6b4423; }
+        html[data-theme="light"] .exploration-terminal-highlight { border-color: rgba(140,96,45,.28) !important; background: rgba(194,154,98,.07) !important; }
+        html[data-theme="light"] .exploration-terminal-panel #exploration-current-location { color: #8c5b30; }
+        html[data-theme="light"] .exploration-terminal-panel #exploration-current-objective { color: #8c5b30; }
+        html[data-theme="light"] .exploration-map { background: rgba(255,255,255,.55); border-color: rgba(140,96,45,.28); }
+        html[data-theme="light"] .exploration-map-legend { color: var(--ink-400); }
+        html[data-theme="light"] .exploration-map-legend b { color: #8c5b30; }
+        html[data-theme="light"] .exploration-map-node { border-color: rgba(37,35,31,.22); color: var(--ink-300); background: rgba(37,35,31,.045); }
+        html[data-theme="light"] .exploration-map-node.is-current { border-color: rgba(140,96,45,.6); color: #8c5b30; background: rgba(194,154,98,.14); box-shadow: none; }
+        html[data-theme="light"] .exploration-map-node.is-visited { color: var(--ink-100); }
+        html[data-theme="light"] .exploration-map-node.is-known { color: var(--ink-400); }
+        html[data-theme="light"] .exploration-map-node.is-unknown { color: var(--ink-700); }
+        html[data-theme="light"] .exploration-map-link { color: var(--ink-500); }
+        html[data-theme="light"] .exploration-route-card { border-color: rgba(37,35,31,.16); background: rgba(255,255,255,.6); }
+        html[data-theme="light"] .exploration-route-card strong { color: var(--ink-100); }
+        html[data-theme="light"] .exploration-route-card span { color: var(--ink-400); }
+        html[data-theme="light"] .exploration-route-card.is-available { border-color: rgba(140,96,45,.42); background: rgba(194,154,98,.08); }
+        html[data-theme="light"] .exploration-route-action { color: #8c5b30 !important; }
+        html[data-theme="light"] .exploration-route-card.is-locked .exploration-route-action { color: var(--ink-500) !important; }
+        html[data-theme="light"] .exploration-route-risk { color: #9a6631 !important; }
+        html[data-theme="light"] .exploration-question { border-left-color: rgba(37,35,31,.3); background: rgba(37,35,31,.035); }
+        html[data-theme="light"] .exploration-question.is-updated { border-left-color: #9a6631; }
+        html[data-theme="light"] .exploration-question.is-answered { border-left-color: #47734e; }
+        html[data-theme="light"] .exploration-question-status { color: var(--ink-500); }
+        html[data-theme="light"] #exploration-terminal-discoveries,
+        html[data-theme="light"] #exploration-terminal-npcs,
+        html[data-theme="light"] #exploration-terminal-questions,
+        html[data-theme="light"] #exploration-terminal-environment { background: rgba(255,255,255,.55); }
+
         @media (max-width: 767px) {
             .mission-location-block { min-width: 0; max-width: 9rem; padding-left: .55rem; }
             .mission-location-name { font-size: .7rem; }
@@ -3475,7 +3516,7 @@
                 <div class="modal-panel exploration-terminal-panel bg-zinc-900 border hairline-border w-full max-w-2xl rounded-lg p-4 sm:p-5 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-labelledby="exploration-terminal-title" tabindex="-1">
                     <div class="flex items-start justify-between gap-3 pb-3 hairline-b">
                         <div class="min-w-0">
-                            <div class="text-[10px] font-mono tracking-[.22em] text-cyan-300/90 uppercase">副本情報 / EXPLORATION BRIEF</div>
+                            <div class="text-[10px] font-mono tracking-[.22em] text-cyan-300/90 uppercase exploration-terminal-eyebrow">副本情報 / EXPLORATION BRIEF</div>
                             <h2 id="exploration-terminal-title" class="text-lg font-bold text-zinc-100 mt-1">副本情報</h2>
                             <p id="exploration-terminal-subtitle" class="text-[11px] font-mono text-zinc-400 mt-1">先看目前位置，再看目前目標；這裡只顯示你已經發現的資訊。</p>
                             <div id="exploration-terminal-guide" class="exploration-terminal-guide mt-2">快速讀法：綠色標記是目前位置；可用路線會顯示移動回合與風險。</div>
@@ -3483,7 +3524,7 @@
                         <button type="button" onclick="closeModal('explorationTerminal')" class="shrink-0 text-zinc-400 hover:text-red-300 transition-colors text-lg leading-none" aria-label="關閉探索終端"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="exploration-terminal-scroll pt-3 space-y-4 font-mono text-xs">
-                        <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2" aria-label="目前探索情勢" aria-live="polite" aria-atomic="false">
+                        <section class="rounded border border-cyan-500/25 bg-cyan-500/5 p-3 space-y-2 exploration-terminal-highlight" aria-label="目前探索情勢" aria-live="polite" aria-atomic="false">
                             <div class="exploration-terminal-section-title">先看這裡 / CURRENT SITUATION</div>
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div><div class="text-[10px] text-zinc-500">你現在在哪裡</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>

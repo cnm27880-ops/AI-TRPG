@@ -239,3 +239,31 @@ DISCORD_AUTH_REDIRECT_URI=https://你的網域/api/auth/discord-callback
 代價是：**沒辦法在到期前主動撤銷某一張票**。玩家按登出只是清掉自己瀏覽器上的 cookie，
 那張票本身在 30 天到期前仍然有效。對單人遊戲來說這個取捨可以接受；
 之後若真的需要「把某個使用者踢出去」，作法是加一份 KV 撤銷清單，而不是整套換掉。
+
+## Discord bot 查詢玩家資料（選配）
+
+`GET /api/bot/status?discordId=xxx` 是給你自己的 Discord bot（例如 `/status` 指令）查詢
+「這個 Discord 使用者的輪迴者檔案」用的端點——只有先用 Discord 帳號登入過這個網站的玩家
+（見上面「Discord 登入」一節）才查得到，沒登入過的人回 `linked:false`。
+
+這**不是**玩家會直接打的端點，呼叫端是你的 bot 進程本身，所以驗證方式不是 OAuth，
+而是一把只有 bot 與這個 Cloudflare Pages 部署知道的共用密鑰：
+
+```bash
+openssl rand -base64 32
+npx wrangler pages secret put BOT_API_SECRET --project-name=wxh-engine
+```
+
+bot 那邊打這支端點時要帶一樣的值：
+
+```js
+const res = await fetch(`https://你的網域/api/bot/status?discordId=${discordId}`, {
+  headers: { "x-bot-secret": process.env.BOT_API_SECRET },
+});
+const { ok, linked, status } = await res.json();
+```
+
+沒設定 `BOT_API_SECRET` 時這支端點整支回 503，不會半開放；密鑰不符一律回 401，
+不分「密鑰錯」跟「沒帶密鑰」（都算未授權）。回傳形狀見 `content/discord/statusView.js`
+的 `buildDiscordStatusView()`——只有六維屬性、血統/改造、支線與分數、上一場主神評價，
+不含事件日誌或劇情全文。
