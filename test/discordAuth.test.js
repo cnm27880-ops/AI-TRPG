@@ -2,7 +2,6 @@
 //
 // 跟 test/auth.test.js 同樣的重點：這條路徑寫錯會讓別人讀到別人的存檔，
 // 所以除了「正常流程會動」，也測：
-//   - Discord 的 sub 跟 Google 的 sub 不會撞在一起（兩個 provider 共用同一套 ownership）
 //   - state / PKCE 兩條防線不可以省略
 //   - token / user endpoint 回傳異常時要丟出看得懂的錯，不能讓呼叫端拿到半個使用者
 //   - prompt=none 這個體驗優化不能被誤用成「预设值」而悄悄套用
@@ -20,7 +19,6 @@ import {
   isDiscordAuthConfigured,
   discordAuthConfigError,
   resolveDiscordRedirectUri,
-  resolveRedirectUri,
 } from "../content/auth/config.js";
 
 const CLIENT_ID = "discord-client-id";
@@ -105,7 +103,7 @@ test("exchangeCodeForTokens：回應裡沒有access_token也要丟錯，不能�
 // /users/@me —— 使用者資料正規化
 // ---------------------------------------------------------------------------
 
-test("fetchDiscordUser：正常拿到使用者資料，並整理成跟Google那份一樣的形狀", async () => {
+test("fetchDiscordUser：正常拿到使用者資料，整理成登入票要放的形狀", async () => {
   const fetchFn = async (url, init) => {
     assert.equal(url, "https://discord.com/api/users/@me");
     assert.equal(init.headers.authorization, "Bearer at-1");
@@ -119,7 +117,6 @@ test("fetchDiscordUser：正常拿到使用者資料，並整理成跟Google那�
   assert.equal(user.name, "阿露", "global_name優先於username");
   assert.equal(user.email, "p@example.com");
   assert.equal(user.emailVerified, true);
-  assert.equal(user.provider, "discord");
   assert.match(user.picture, /^https:\/\/cdn\.discordapp\.com\/avatars\/123456789012345678\/abc123\.png/);
 });
 
@@ -133,13 +130,11 @@ test("fetchDiscordUser：缺少id要丟錯（沒有唯一識別碼就沒辦法�
   await assert.rejects(() => fetchDiscordUser("t", { fetchFn }), /id/);
 });
 
-test("normalizeDiscordUser：sub 一律加上 discord: 前綴，不會跟Google的sub撞在一起", () => {
-  // Discord 的使用者id跟Google的sub都是純數字字串，如果不加前綴，這兩個id
-  // 剛好相等時，兩個不同provider的人就會共用同一份存檔——這條測試就是在擋這件事。
-  const googleLikeId = "108623491234567890123";
-  const user = normalizeDiscordUser({ id: googleLikeId, username: "u", verified: false });
-  assert.equal(user.sub, `discord:${googleLikeId}`);
-  assert.notEqual(user.sub, googleLikeId);
+test("normalizeDiscordUser：sub 一律加上 discord: 前綴，不是Discord的裸id", () => {
+  const rawId = "108623491234567890123";
+  const user = normalizeDiscordUser({ id: rawId, username: "u", verified: false });
+  assert.equal(user.sub, `discord:${rawId}`);
+  assert.notEqual(user.sub, rawId);
 });
 
 test("normalizeDiscordUser：沒有global_name時退回username，兩個都沒有時name是null", () => {
@@ -177,31 +172,18 @@ test("isDiscordAuthConfigured／discordAuthConfigError：三個環境變數缺�
   assert.equal(discordAuthConfigError(full), null);
 });
 
-test("resolveDiscordRedirectUri：走 discord-callback 路徑，跟 Google 的 resolveRedirectUri 不會互相干擾", () => {
+test("resolveDiscordRedirectUri：預設從請求網址推導，設定 DISCORD_AUTH_REDIRECT_URI 就用那個值", () => {
   const request = { url: "https://example.com/anything" };
   assert.equal(resolveDiscordRedirectUri(request, {}), "https://example.com/api/auth/discord-callback");
-  assert.equal(resolveRedirectUri(request, {}), "https://example.com/api/auth/callback", "Google那條預設路徑不能被Discord的變更影響");
 
-  const withOverride = { DISCORD_AUTH_REDIRECT_URI: "https://正式站/api/auth/discord-callback", AUTH_REDIRECT_URI: "https://正式站/api/auth/callback" };
+  const withOverride = { DISCORD_AUTH_REDIRECT_URI: "https://正式站/api/auth/discord-callback" };
   assert.equal(resolveDiscordRedirectUri(request, withOverride), "https://正式站/api/auth/discord-callback");
-  assert.equal(resolveRedirectUri(request, withOverride), "https://正式站/api/auth/callback");
 });
 
-// ---------------------------------------------------------------------------
-// 登入票裡的 provider 欄位
-// ---------------------------------------------------------------------------
-
-test("getCurrentUser：Discord登入的票能認得出provider，且sub保留discord:前綴", async () => {
-  const token = await signSessionToken({ sub: "discord:999", name: "小怪", provider: "discord" }, SECRET);
+test("getCurrentUser：Discord登入的票，sub保留discord:前綴", async () => {
+  const token = await signSessionToken({ sub: "discord:999", name: "小怪" }, SECRET);
   const request = { headers: { get: (h) => (h === "cookie" ? `__Host-wxh_session=${token}` : null) } };
   const user = await getCurrentUser(request, { AUTH_SESSION_SECRET: SECRET });
-  assert.equal(user.provider, "discord");
   assert.equal(user.sub, "discord:999");
-});
-
-test("getCurrentUser：沒有provider欄位的舊票（既有的Google登入）預設當成google，不是undefined", async () => {
-  const token = await signSessionToken({ sub: "google-user-1", name: "老玩家" }, SECRET);
-  const request = { headers: { get: (h) => (h === "cookie" ? `__Host-wxh_session=${token}` : null) } };
-  const user = await getCurrentUser(request, { AUTH_SESSION_SECRET: SECRET });
-  assert.equal(user.provider, "google");
+  assert.equal(user.name, "小怪");
 });

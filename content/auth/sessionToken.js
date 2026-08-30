@@ -14,7 +14,7 @@
 // 用 Web Crypto 的 HMAC-SHA256：Workers 與現代 Node 都有 crypto.subtle，
 // 不需要任何套件，測試也能直接跑。
 
-import { base64UrlEncode, base64UrlDecode } from "./googleOidc.js";
+import { base64UrlEncode, base64UrlDecode } from "./pkce.js";
 
 /** 登入狀態的有效期。30天是「不要一直要求重新登入」與「票不要活太久」的折衷。 */
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;
@@ -149,15 +149,10 @@ export async function getCurrentUser(request, env) {
   if (!token) return null;
   const payload = await verifySessionToken(token, env?.AUTH_SESSION_SECRET);
   if (!payload?.sub) return null;
-  // provider 只有 Discord 的登入票會寫（見 functions/api/auth/discord-callback.js）；
-  // Google 那條路徑一直沒有這個欄位，缺少時當成 "google" 而不是留空——
-  // 這樣舊票（部署這個欄位之前簽出去的）跟新的 Google 票行為一致，不用強迫重新登入。
-  const provider = payload.provider === "discord" ? "discord" : "google";
   return {
     sub: payload.sub,
     email: payload.email ?? null,
     name: payload.name ?? null,
     picture: payload.picture ?? null,
-    provider,
   };
 }
