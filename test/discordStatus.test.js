@@ -130,3 +130,58 @@ test("verifyBotSecret：長度不同的字串要擋下，不能因為提早retur
   assert.equal(verifyBotSecret("short", env), false);
   assert.equal(verifyBotSecret("a-fairly-long-secret-value-but-longer", env), false);
 });
+
+
+test("buildDiscordStatusView：lastLlmDiagnostic 清楚列出 fallback chain 但不暴露供應商原文", () => {
+  const session = baseSession();
+  session.lastLlmDiagnostic = {
+    outcome: "recovered",
+    finalProvider: "mistral",
+    finalModel: "mistral-small-latest",
+    autoRetryAttempts: 0,
+    recordedAt: "2026-08-30T12:00:00.000Z",
+    attempts: [
+      {
+        provider: "groq",
+        model: "openai/gpt-oss-120b",
+        stage: "http",
+        httpStatus: 413,
+        bodySnippet: "不要把這段第三方原文送到 Discord",
+      },
+      {
+        provider: "mistral",
+        model: "mistral-small-latest",
+        stage: "success",
+        httpStatus: null,
+      },
+    ],
+  };
+
+  const view = buildDiscordStatusView(session);
+  assert.deepEqual(view.lastLlmDiagnostic, {
+    outcome: "recovered",
+    finalProvider: "mistral",
+    finalProviderLabel: "Mistral",
+    finalModel: "mistral-small-latest",
+    attempts: [
+      {
+        provider: "groq",
+        providerLabel: "Groq",
+        model: "openai/gpt-oss-120b",
+        stage: "http",
+        httpStatus: 413,
+      },
+      {
+        provider: "mistral",
+        providerLabel: "Mistral",
+        model: "mistral-small-latest",
+        stage: "success",
+        httpStatus: null,
+      },
+    ],
+    autoRetryAttempts: 0,
+    summary: "Groq/openai/gpt-oss-120b HTTP 413 → Mistral/mistral-small-latest success",
+    recordedAt: "2026-08-30T12:00:00.000Z",
+  });
+  assert.equal(JSON.stringify(view.lastLlmDiagnostic).includes("不要把這段第三方原文"), false);
+});

@@ -10,6 +10,7 @@ import { ATTRIBUTES } from "../../core/schema.js";
 import { getDownState } from "../downState.js";
 import { EXCLUSIVE_TEMPLATE_TYPES } from "../shop/catalog.js";
 import { tokenValueInD, normalizeTokens } from "../shop/wallet.js";
+import { buildLlmDiagnostic } from "../llm/diagnostics.js";
 
 /**
  * 把一份存檔整理成 `/status` 指令要顯示的形狀。
@@ -33,6 +34,16 @@ export function buildDiscordStatusView(session) {
   // 上一場副本主神給的評價（見 content/scenario/settlement.js 的 deriveEvaluation()）；
   // 副本還沒結算過的話沒有這筆資料，回 null 讓呼叫端顯示「尚無評價紀錄」而不是空字串。
   const evaluation = session.scenario?.progress?.runSummary?.evaluation ?? null;
+  const lastLlmDiagnostic = session.lastLlmDiagnostic
+    ? buildLlmDiagnostic({
+        attempts: session.lastLlmDiagnostic.attempts,
+        provider: session.lastLlmDiagnostic.finalProvider,
+        model: session.lastLlmDiagnostic.finalModel,
+        autoRetryAttempts: session.lastLlmDiagnostic.autoRetryAttempts,
+        outcome: session.lastLlmDiagnostic.outcome,
+        recordedAt: session.lastLlmDiagnostic.recordedAt,
+      })
+    : null;
 
   return {
     sessionId: session.id,
@@ -51,6 +62,9 @@ export function buildDiscordStatusView(session) {
     evaluation: evaluation
       ? { grade: evaluation.grade, label: evaluation.label, summary: evaluation.summary }
       : null,
+    // Discord 只顯示安全白名單，讓 bot 可以指出「哪一家失敗、哪一家接手」，
+    // 但不會把 API key、Base URL 或第三方原始回應送進頻道。
+    lastLlmDiagnostic,
     scenarioId: session.scenario?.packId ?? null,
     updatedAt: session.updatedAt ?? session.createdAt ?? null,
   };

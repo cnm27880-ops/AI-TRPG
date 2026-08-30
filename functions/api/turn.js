@@ -43,6 +43,7 @@ import {
   autoRetryDelayMs,
   resolveAutoRetryConfig,
 } from "../../content/llm/client.js";
+import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
@@ -144,18 +145,44 @@ const NARRATIVE_MODE_GUIDANCE = Object.freeze({
  * `npx wrangler pages deployment tail` 是完全查不到的，只能靠玩家回報「畫面怪怪的」。
  * 這裡刻意用 console.error 印出單行前綴 [LLM_FAILURE]，方便之後直接在 tail 輸出裡 grep。
  */
-function logLlmFailure(err, { provider, sessionId, note }) {
-  console.error("[LLM_FAILURE]", JSON.stringify({
-    where: "POST /api/turn",
-    sessionId: sessionId ?? null,
+function logLlmFailure(err, { provider, sessionId, note, diagnostic = null }) {
+  const safeDiagnostic = diagnostic ?? buildLlmDiagnostic({
+    attempts: err?.fallbackAttempts,
     provider: err?.provider ?? provider,
     model: err?.model ?? null,
     stage: err?.stage ?? "unknown",
+    status: err?.status ?? null,
+    autoRetryAttempts: err?.autoRetryAttempts ?? 0,
+    outcome: "failed",
+  });
+  console.error("[LLM_FAILURE]", JSON.stringify({
+    where: "POST /api/turn",
+    sessionId: sessionId ?? null,
+    provider: safeDiagnostic.finalProvider ?? err?.provider ?? provider,
+    providerLabel: safeDiagnostic.finalProviderLabel,
+    model: safeDiagnostic.finalModel ?? err?.model ?? null,
+    stage: err?.stage ?? "unknown",
     httpStatus: err?.status ?? null,
-    ...(Array.isArray(err?.fallbackAttempts) ? { fallbackAttempts: err.fallbackAttempts } : {}),
+    fallbackAttempts: safeDiagnostic.attempts,
+    diagnosticSummary: safeDiagnostic.summary,
+    autoRetryAttempts: safeDiagnostic.autoRetryAttempts,
     message: err?.message ?? String(err),
     bodySnippet: err?.bodySnippet ?? null,
     ...(note ? { note } : {}),
+  }));
+}
+
+function logLlmFallbackRecovered(diagnostic, { sessionId, where = "POST /api/turn" } = {}) {
+  if (!diagnostic) return;
+  console.warn("[LLM_FALLBACK_RECOVERED]", JSON.stringify({
+    where,
+    sessionId: sessionId ?? null,
+    provider: diagnostic.finalProvider,
+    providerLabel: diagnostic.finalProviderLabel,
+    model: diagnostic.finalModel,
+    fallbackAttempts: diagnostic.attempts,
+    diagnosticSummary: diagnostic.summary,
+    autoRetryAttempts: diagnostic.autoRetryAttempts,
   }));
 }
 
@@ -181,7 +208,7 @@ function sleepMs(ms) {
  * 使用一次「暫時性錯誤」retry；玩家也不會得到一個可反覆刷骰的操作入口。
  */
 async function callBridgeLlmWithRetry({ call, params, env, retryState }) {
-  const state = retryState ?? { used: false };
+  const state = retryState ?? { used: false, retryAttempts: [] };
   const first = await call(params).catch(async (err) => {
     const retryable = isRetryableLlmError(err);
     const delay = retryable ? autoRetryDelayMs(err, env) : null;
@@ -193,6 +220,15 @@ async function callBridgeLlmWithRetry({ call, params, env, retryState }) {
 
     state.used = true;
     const { retryTimeoutMs } = resolveAutoRetryConfig(env);
+    state.retryAttempts = [
+      ...(state.retryAttempts ?? []),
+      ...(Array.isArray(err?.fallbackAttempts) ? err.fallbackAttempts : [{
+        provider: err?.provider ?? null,
+        model: err?.model ?? null,
+        stage: err?.stage ?? "unknown",
+        status: err?.status ?? null,
+      }]),
+    ];
     console.warn("[LLM_AUTO_RETRY]", JSON.stringify({
       where: "POST /api/turn",
       provider: err?.provider ?? null,
@@ -206,7 +242,14 @@ async function callBridgeLlmWithRetry({ call, params, env, retryState }) {
     try {
       const retryEnv = { ...env, LLM_REQUEST_TIMEOUT_MS: String(retryTimeoutMs) };
       const result = await call({ ...params, env: retryEnv });
-      return { ...result, autoRetryAttempts: 1 };
+      return {
+        ...result,
+        autoRetryAttempts: 1,
+        fallbackAttempts: [
+          ...(state.retryAttempts ?? []),
+          ...(Array.isArray(result?.fallbackAttempts) ? result.fallbackAttempts : []),
+        ],
+      };
     } catch (retryErr) {
       if (retryErr && typeof retryErr === "object") retryErr.autoRetryAttempts = 1;
       throw retryErr;
@@ -231,6 +274,7 @@ function publicPendingTurn(pending) {
     playerAction: pending.playerAction ?? null,
     opening: Boolean(pending.opening),
     baseTurn: Number.isFinite(Number(pending.baseTurn)) ? Number(pending.baseTurn) : 0,
+    llmDiagnostic: pending.llmDiagnostic ?? null,
   };
 }
 
@@ -251,6 +295,7 @@ async function persistPendingTurn({
   retread,
   referenceState,
   warnings,
+  llmDiagnostic = null,
 }) {
   if (!session || !store) return null;
   session.pendingTurn = {
@@ -270,6 +315,7 @@ async function persistPendingTurn({
     retread: retread ?? null,
     referenceState: referenceState ?? null,
     warnings: Array.isArray(warnings) ? [...warnings] : [],
+    ...(llmDiagnostic ? { llmDiagnostic } : {}),
     createdAt: new Date().toISOString(),
   };
   if (session.scenario && (scenarioProgress || referenceState)) {
@@ -1064,6 +1110,7 @@ async function executeTurn(context, streamHooks = null) {
   let model = null;
   let usedProvider = canonicalDirectSend ? null : provider;
   let finishReason = null;
+  let llmDiagnostic = null;
   const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
   const autoRetryState = { used: false };
   const invokeNarrativeLlm = referenceFreeInputPending
@@ -1094,8 +1141,30 @@ async function executeTurn(context, streamHooks = null) {
     model = res.model;
     usedProvider = res.provider ?? provider;
     finishReason = res.finishReason ?? null;
+    if (Array.isArray(res.fallbackAttempts) && res.fallbackAttempts.length) {
+      llmDiagnostic = buildLlmDiagnostic({
+        attempts: res.fallbackAttempts,
+        provider: usedProvider,
+        model,
+        autoRetryAttempts,
+        outcome: "recovered",
+      });
+      logLlmFallbackRecovered(llmDiagnostic, { sessionId: session?.id });
+      warnings.push(`AI provider fallback：${llmDiagnostic.summary}；已由 ${llmDiagnostic.finalProviderLabel} 接手。`);
+      if (session) session.lastLlmDiagnostic = llmDiagnostic;
+    }
   } catch (err) {
-    logLlmFailure(err, { provider: err?.provider ?? provider, sessionId: session?.id });
+    llmDiagnostic = buildLlmDiagnostic({
+      attempts: err?.fallbackAttempts,
+      provider: err?.provider ?? provider,
+      model: err?.model ?? null,
+      stage: err?.stage ?? "unknown",
+      status: err?.status ?? null,
+      autoRetryAttempts: err?.autoRetryAttempts ?? autoRetryAttempts,
+      outcome: "failed",
+    });
+    if (session) session.lastLlmDiagnostic = llmDiagnostic;
+    logLlmFailure(err, { provider: err?.provider ?? provider, sessionId: session?.id, diagnostic: llmDiagnostic });
     logReferenceAction();
     await persistReferenceTurn();
     return await jsonPartial(
@@ -1111,12 +1180,14 @@ async function executeTurn(context, streamHooks = null) {
           stage: err?.stage ?? "unknown",
           httpStatus: err?.status ?? null,
           autoRetryAttempts: err?.autoRetryAttempts ?? autoRetryAttempts,
+          providerAttempts: llmDiagnostic.attempts,
+          diagnosticSummary: llmDiagnostic.summary,
         },
       },
       {
         session, checkParams, checkResult, outcome, warnings, store,
         reusedCheck: Boolean(pendingReplay),
-        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState },
+        pending: { requestId, chosenOption, playerAction, opening: isOpening, actionText, freeAction, checkParams, checkResult, outcome, scenarioProgress, retread, threatChange, referenceState, llmDiagnostic },
       },
       502
     );
@@ -1687,6 +1758,7 @@ async function executeTurn(context, streamHooks = null) {
     turnCount: session?.turns ?? 0,
     recentChronicleTotal: Array.isArray(session?.chronicle) ? session.chronicle.length : 0,
     warnings,
+    ...(llmDiagnostic ? { llmDiagnostic } : {}),
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,
   };

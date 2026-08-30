@@ -35,6 +35,7 @@ import {
 import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { sanitizeProvidedCharacter } from "../../content/characterBuilder.js";
 import { callLlm, callLlmWithFallback, describeLlmFailure } from "../../content/llm/client.js";
+import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
@@ -49,16 +50,39 @@ import {
  * 就是那幾個欄位——抽成共用模組之後反而要多傳一個參數進去，沒有比較清楚。
  * 但兩邊的前綴必須一致（[LLM_FAILURE]），否則 log 就 grep 不到同一組。
  */
-function logLlmFailure(err, { provider }) {
-  console.error("[LLM_FAILURE]", JSON.stringify({
-    where: "POST /api/narrate",
+function logLlmFailure(err, { provider, diagnostic = null }) {
+  const safeDiagnostic = diagnostic ?? buildLlmDiagnostic({
+    attempts: err?.fallbackAttempts,
     provider: err?.provider ?? provider,
     model: err?.model ?? null,
     stage: err?.stage ?? "unknown",
+    status: err?.status ?? null,
+    outcome: "failed",
+  });
+  console.error("[LLM_FAILURE]", JSON.stringify({
+    where: "POST /api/narrate",
+    provider: safeDiagnostic.finalProvider ?? err?.provider ?? provider,
+    providerLabel: safeDiagnostic.finalProviderLabel,
+    model: safeDiagnostic.finalModel ?? err?.model ?? null,
+    stage: err?.stage ?? "unknown",
     httpStatus: err?.status ?? null,
-    ...(Array.isArray(err?.fallbackAttempts) ? { fallbackAttempts: err.fallbackAttempts } : {}),
+    fallbackAttempts: safeDiagnostic.attempts,
+    diagnosticSummary: safeDiagnostic.summary,
+    autoRetryAttempts: safeDiagnostic.autoRetryAttempts,
     message: err?.message ?? String(err),
     bodySnippet: err?.bodySnippet ?? null,
+  }));
+}
+
+function logLlmFallbackRecovered(diagnostic) {
+  if (!diagnostic) return;
+  console.warn("[LLM_FALLBACK_RECOVERED]", JSON.stringify({
+    where: "POST /api/narrate",
+    provider: diagnostic.finalProvider,
+    providerLabel: diagnostic.finalProviderLabel,
+    model: diagnostic.finalModel,
+    fallbackAttempts: diagnostic.attempts,
+    diagnosticSummary: diagnostic.summary,
   }));
 }
 
@@ -216,6 +240,15 @@ export async function onRequestPost(context) {
       prompt,
       ...(bodyProvider ? llmOverrides : {}),
     });
+    const diagnostic = Array.isArray(result.fallbackAttempts) && result.fallbackAttempts.length
+      ? buildLlmDiagnostic({
+          attempts: result.fallbackAttempts,
+          provider: result.provider ?? provider,
+          model: result.model,
+          outcome: "recovered",
+        })
+      : null;
+    logLlmFallbackRecovered(diagnostic);
     return new Response(
       JSON.stringify({
         ok: true,
@@ -231,7 +264,15 @@ export async function onRequestPost(context) {
   } catch (err) {
     // AI敘事失敗時，仍然把算好的判定結果回傳，讓前端至少知道規則層面發生了什麼，
     // 不會因為AI敘事失敗就連帶掩蓋掉「其實判定已經算完了」這件事。
-    logLlmFailure(err, { provider: err?.provider ?? provider });
+    const diagnostic = buildLlmDiagnostic({
+      attempts: err?.fallbackAttempts,
+      provider: err?.provider ?? provider,
+      model: err?.model ?? null,
+      stage: err?.stage ?? "unknown",
+      status: err?.status ?? null,
+      outcome: "failed",
+    });
+    logLlmFailure(err, { provider: err?.provider ?? provider, diagnostic });
     return jsonWithCheck(
       {
         provider: err?.provider ?? provider,
@@ -240,7 +281,12 @@ export async function onRequestPost(context) {
         // 供應商的原始回應本文，不能原樣送回瀏覽器。完整原因已經在上面 logLlmFailure()
         // 寫進 server log。
         error: `敘事生成失敗（${err?.provider ?? provider}）：${describeLlmFailure(err)}`,
-        llmFailure: { stage: err?.stage ?? "unknown", httpStatus: err?.status ?? null },
+        llmFailure: {
+          stage: err?.stage ?? "unknown",
+          httpStatus: err?.status ?? null,
+          providerAttempts: diagnostic.attempts,
+          diagnosticSummary: diagnostic.summary,
+        },
       },
       { resolvedParams, checkResult, outcome },
       502

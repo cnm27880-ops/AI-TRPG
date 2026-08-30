@@ -301,12 +301,14 @@ export async function callLlmWithFallback(params = {}) {
           : { ...env, LLM_BASE_URL: undefined })
       : { ...env, LLM_MODEL: undefined, LLM_BASE_URL: undefined };
     try {
-      return await callLlm({
+      const result = await callLlm({
         ...shared,
         env: candidateEnv,
         provider: candidate.id,
         ...(candidate.model ? { model: candidate.model } : {}),
       });
+      // 保留「誰先失敗、最後誰接手」；沒有 fallback 時不增加欄位，維持既有 response 形狀。
+      return attempts.length ? { ...result, fallbackAttempts: attempts } : result;
     } catch (err) {
       lastError = err;
       attempts.push({

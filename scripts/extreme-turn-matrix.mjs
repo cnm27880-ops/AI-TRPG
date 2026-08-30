@@ -114,8 +114,8 @@ function responseSequence(responses) {
   return fetchFn;
 }
 
-function httpFailure(status, body = { error: `synthetic HTTP ${status}` }) {
-  return { ok: false, status, body };
+function httpFailure(status, body = { error: `synthetic HTTP ${status}` }, headers = {}) {
+  return { ok: false, status, body, headers };
 }
 
 function requestBody(call) {
@@ -218,6 +218,85 @@ async function runApi413FallbackCase() {
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+async function run429RetryAfterMatrix() {
+  const retryEnv = serverEnv();
+  delete retryEnv.MISTRAL_API_KEY;
+  retryEnv.LLM_FALLBACK_PROVIDERS = "";
+  retryEnv.LLM_AUTO_RETRY_MAX_DELAY_MS = "10";
+  retryEnv.LLM_AUTO_RETRY_TIMEOUT_MS = "1000";
+
+  const immediateRetryFetch = responseSequence([
+    httpFailure(429, { error: "rate limited" }, { "retry-after": "0" }),
+    { ok: true, status: 200, body: bridgeSuccess("429 後立即重試成功；紅色指示燈閃了一次又恢復。你打算怎麼做？") },
+  ]);
+  // 沒有 Retry-After 時，使用 bounded default delay，不得因缺 header 而失去 retry。
+  const noHeaderFetch = responseSequence([
+    httpFailure(429, { error: "rate limited without retry-after" }),
+    { ok: true, status: 200, body: bridgeSuccess("沒有 Retry-After 仍在 bounded window 內重試成功。你打算怎麼做？") },
+  ]);
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = immediateRetryFetch;
+    const immediateSession = await createSession(retryEnv, REFERENCE_SCENARIO);
+    const immediateOpening = await readJson(await turnPost(req(retryEnv, { sessionId: immediateSession })));
+    assert.equal(immediateOpening.status, 200);
+    const immediate = await readJson(await turnPost(req(retryEnv, {
+      sessionId: immediateSession,
+      playerAction: "我先對 NPC 說我害怕，然後觀察他是否有即時反應。",
+      turnRequestId: "429-retry-after-zero",
+    })));
+    assert.equal(immediate.status, 200, `Retry-After: 0 不應卡住回合：${JSON.stringify(immediate.body)}`);
+    assert.equal(immediate.body.degraded?.autoRetryAttempts, 1);
+    assert.equal(immediate.body.llmDiagnostic?.outcome, "recovered");
+    assert.equal(immediate.body.llmDiagnostic?.attempts?.[0]?.httpStatus, 429);
+    assert.equal(immediate.body.llmDiagnostic?.attempts?.at(-1)?.stage, "success");
+    assert.equal(immediateRetryFetch.calls.length, 2);
+
+    globalThis.fetch = noHeaderFetch;
+    const noHeaderSession = await createSession(retryEnv, REFERENCE_SCENARIO);
+    const noHeaderOpening = await readJson(await turnPost(req(retryEnv, { sessionId: noHeaderSession })));
+    assert.equal(noHeaderOpening.status, 200);
+    const noHeader = await readJson(await turnPost(req(retryEnv, {
+      sessionId: noHeaderSession,
+      playerAction: "我原地翻跟斗，但不碰任何物件。",
+      turnRequestId: "429-retry-after-missing",
+    })));
+    assert.equal(noHeader.status, 200, `缺少 Retry-After 不應卡住回合：${JSON.stringify(noHeader.body)}`);
+    assert.equal(noHeader.body.degraded?.autoRetryAttempts, 1);
+    assert.equal(noHeaderFetch.calls.length, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const gatedEnv = { ...retryEnv, LLM_AUTO_RETRY_MAX_DELAY_MS: "10" };
+  const gatedFetch = responseSequence([
+    httpFailure(429, { error: "retry later" }, { "retry-after": "1" }),
+  ]);
+  // Retry-After 超過上限時不可硬等；要以可重試的 pending 回應保存診斷。
+  gatedFetch.calls.length = 0;
+  const gatedOriginalFetch = globalThis.fetch;
+  globalThis.fetch = gatedFetch;
+  try {
+    const sessionId = await createSession(gatedEnv, REFERENCE_SCENARIO);
+    const opening = await readJson(await turnPost(req(gatedEnv, { sessionId })));
+    assert.equal(opening.status, 200);
+    const result = await readJson(await turnPost(req(gatedEnv, {
+      sessionId,
+      playerAction: "我請 NPC 告訴我出口在哪裡。",
+      turnRequestId: "429-retry-after-too-long",
+    })));
+    assert.equal(result.status, 502);
+    assert.equal(result.body.retryable, true);
+    assert.equal(result.body.llmFailure?.httpStatus, 429);
+    assert.equal(result.body.llmFailure?.providerAttempts?.[0]?.httpStatus, 429);
+    assert.equal(result.body.pendingTurn?.llmDiagnostic?.attempts?.[0]?.httpStatus, 429);
+    assert.equal(gatedFetch.calls.length, 1, "Retry-After 超過 bounded 上限時不可再次呼叫 provider");
+  } finally {
+    globalThis.fetch = gatedOriginalFetch;
+  }
+  return 3;
 }
 
 async function runNonRetryableMatrix() {
@@ -387,6 +466,7 @@ async function main() {
     statusCodes: await runStatusClassifierMatrix(),
     retryableFallbacks: await runProviderFallbackMatrix(),
     apiFallbacks: 0,
+    rateLimitRetries: 0,
     nonRetryableStatuses: await runNonRetryableMatrix(),
     exhaustedChains: await runExhaustedChainCase(),
     extremeActions: 0,
@@ -406,6 +486,7 @@ async function main() {
 
   await runApi413FallbackCase();
   counts.apiFallbacks = 1;
+  counts.rateLimitRetries = await run429RetryAfterMatrix();
 
   const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
   console.log(`極端回合矩陣通過：${total} 個檢查，耗時 ${Date.now() - startedAt}ms`);
