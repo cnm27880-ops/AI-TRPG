@@ -1,3 +1,8 @@
+// 多 NPC 同回合的壓力測試。
+//
+// [2026-08-31 重構後的斷言] entryId 換成 interactionType：那些寫死的 entry 已經移除，
+// 但這一組真正在問的問題沒有變——同一句話同時踩到兩個 NPC 時，兩個人會不會各自
+// 進到**自己的**階段，而不是互相覆蓋 state。那才是這個檔案存在的理由。
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -7,6 +12,8 @@ import { applyNpcCooperationForAction } from "../content/scenario/npcCooperation
 import { applyRipleyCooperationForAction } from "../content/scenario/ripleyCooperationPolicy.js";
 import { applyParkerCooperationForAction } from "../content/scenario/parkerCooperationPolicy.js";
 import { applyLambertCooperationForAction } from "../content/scenario/lambertCooperationPolicy.js";
+import { NPC_PERSONAS } from "../content/scenario/npcPersonaRegistry.js";
+import { NPC_COOPERATION_CONTRACT } from "../content/scenario/npcCooperationContract.js";
 
 const ENGINE_SCENE = "evt_engine_coolant_prep";
 const RIPLEY_SCENE = "evt_meet_ripley";
@@ -48,14 +55,14 @@ test("極端多 NPC 壓力：同一回合威脅 Parker 與大吼 Lambert，各�
   );
 
   assert.equal(result.decisions.filter((decision) => decision.changed).length, 2);
-  assert.equal(cooperation(result.state, "npc_luyuan").lastEntryId, null);
-  assert.equal(cooperation(result.state, "npc_ripley").lastEntryId, null);
-  assert.equal(cooperation(result.state, "npc_parker").lastEntryId, "parker_boundary_coercion_02");
+  assert.equal(cooperation(result.state, "npc_luyuan").lastInteractionType, null);
+  assert.equal(cooperation(result.state, "npc_ripley").lastInteractionType, null);
+  assert.equal(cooperation(result.state, "npc_parker").lastInteractionType, "coercive_pressure");
   assert.equal(cooperation(result.state, "npc_parker").state, "angry");
-  assert.equal(cooperation(result.state, "npc_parker").boundaryIncidents, 1);
-  assert.equal(cooperation(result.state, "npc_lambert").lastEntryId, "lambert_pressure_shout_01");
+  assert.equal(cooperation(result.state, "npc_parker").incidents, 1);
+  assert.equal(cooperation(result.state, "npc_lambert").lastInteractionType, "pressure_or_dismissal");
   assert.equal(cooperation(result.state, "npc_lambert").state, "panic");
-  assert.equal(cooperation(result.state, "npc_lambert").pressureIncidents, 1);
+  assert.equal(cooperation(result.state, "npc_lambert").incidents, 1);
 });
 
 test("極端多 NPC 壓力續行：第二次施壓升級各自策略，不會互相覆蓋 state", () => {
@@ -72,14 +79,14 @@ test("極端多 NPC 壓力續行：第二次施壓升級各自策略，不會互
     2,
   );
 
-  assert.equal(cooperation(second.state, "npc_parker").lastEntryId, "parker_boundary_repeat_03");
+  assert.equal(cooperation(second.state, "npc_parker").lastInteractionType, "coercive_pressure");
   assert.equal(cooperation(second.state, "npc_parker").state, "withdrawn");
-  assert.equal(cooperation(second.state, "npc_parker").boundaryIncidents, 2);
-  assert.equal(cooperation(second.state, "npc_lambert").lastEntryId, "lambert_pressure_threat_02");
+  assert.equal(cooperation(second.state, "npc_parker").incidents, 2);
+  assert.equal(cooperation(second.state, "npc_lambert").lastInteractionType, "pressure_or_dismissal");
   assert.equal(cooperation(second.state, "npc_lambert").state, "withdrawn");
-  assert.equal(cooperation(second.state, "npc_lambert").pressureIncidents, 2);
-  assert.equal(cooperation(second.state, "npc_ripley").lastEntryId, null);
-  assert.equal(cooperation(second.state, "npc_luyuan").lastEntryId, null);
+  assert.equal(cooperation(second.state, "npc_lambert").incidents, 2);
+  assert.equal(cooperation(second.state, "npc_ripley").lastInteractionType, null);
+  assert.equal(cooperation(second.state, "npc_luyuan").lastInteractionType, null);
 });
 
 test("多 NPC 優先級：威脅分類優先於一般合作，但降壓分類優先於恐慌／壓力", () => {
@@ -89,8 +96,8 @@ test("多 NPC 優先級：威脅分類優先於一般合作，但降壓分類優
     ENGINE_SCENE,
     1,
   );
-  assert.equal(cooperation(pressure.state, "npc_parker").lastEntryId, "parker_boundary_resource_01");
-  assert.equal(cooperation(pressure.state, "npc_lambert").lastEntryId, "lambert_pressure_shout_01");
+  assert.equal(cooperation(pressure.state, "npc_parker").lastInteractionType, "resource_pressure");
+  assert.equal(cooperation(pressure.state, "npc_lambert").lastInteractionType, "pressure_or_dismissal");
 
   const calmed = applyAll(
     pressure.state,
@@ -98,8 +105,8 @@ test("多 NPC 優先級：威脅分類優先於一般合作，但降壓分類優
     ENGINE_SCENE,
     2,
   );
-  assert.equal(cooperation(calmed.state, "npc_parker").lastEntryId, "parker_deescalate_01");
-  assert.equal(cooperation(calmed.state, "npc_lambert").lastEntryId, "lambert_deescalate_space_01");
+  assert.equal(cooperation(calmed.state, "npc_parker").lastInteractionType, "deescalate_and_work");
+  assert.equal(cooperation(calmed.state, "npc_lambert").lastInteractionType, "deescalate");
   assert.equal(cooperation(calmed.state, "npc_lambert").state, "stabilizing");
 });
 
@@ -110,12 +117,12 @@ test("跨 NPC 協調：安撫 Lambert 並請 Ripley 指揮時，兩個 decision 
     RIPLEY_SCENE,
     1,
   );
-  assert.equal(cooperation(result.state, "npc_ripley").lastEntryId, "ripley_cooperate_lambert_02");
-  assert.equal(cooperation(result.state, "npc_lambert").lastEntryId, "lambert_cooperate_reassurance_01");
+  assert.equal(cooperation(result.state, "npc_ripley").lastInteractionType, "calm_lambert");
+  assert.equal(cooperation(result.state, "npc_lambert").lastInteractionType, "offer_reassurance");
   assert.equal(cooperation(result.state, "npc_ripley").state, "functional");
   assert.equal(cooperation(result.state, "npc_lambert").state, "stabilizing");
-  assert.equal(cooperation(result.state, "npc_parker").lastEntryId, null);
-  assert.equal(cooperation(result.state, "npc_luyuan").lastEntryId, null);
+  assert.equal(cooperation(result.state, "npc_parker").lastInteractionType, null);
+  assert.equal(cooperation(result.state, "npc_luyuan").lastInteractionType, null);
 });
 
 test("turn.js 與 reference prompt 共同維持明確的四位 NPC 順序", () => {
@@ -126,12 +133,17 @@ test("turn.js 與 reference prompt 共同維持明確的四位 NPC 順序", () =
   const policyNames = [...turnSource.slice(start, end).matchAll(/apply([A-Za-z]+)ForAction/g)].map((match) => match[1]);
   assert.deepEqual(policyNames, ["NpcCooperation", "RipleyCooperation", "ParkerCooperation", "LambertCooperation"]);
 
-  const adapterSource = readFileSync(new URL("../content/scenario/referenceAdapter.js", import.meta.url), "utf8");
-  const adapterStart = adapterSource.indexOf("const npcCooperationBlocks = [");
-  const adapterEnd = adapterSource.indexOf("].filter(Boolean);", adapterStart);
-  assert.ok(adapterStart >= 0 && adapterEnd > adapterStart);
-  const blockNames = [...adapterSource.slice(adapterStart, adapterEnd).matchAll(/build([A-Za-z]+)CooperationPromptBlock/g)].map((match) => match[1]);
-  assert.deepEqual(blockNames, ["Npc", "Ripley", "Parker", "Lambert"]);
+  // [2026-08-31] referenceAdapter 不再拼接四段 <NPC_Cooperation_Contract>：
+  // 共用規則搬進靜態層（npcCooperationContract.js），每回合會變的合作階段
+  // 併進 npcStateMachine 的 [NPC_ACTIVE_STATE]。這裡改成檢查靜態契約的人設順序——
+  // 靜態層的內容只要順序變動就整段 cache miss，所以順序仍然要被釘住。
+  const personaOrder = NPC_PERSONAS.map((persona) => persona.npcId);
+  assert.deepEqual(personaOrder.slice(0, 4), ["npc_luyuan", "npc_ripley", "npc_parker", "npc_lambert"]);
+  const contractOrder = personaOrder.map((npcId) => NPC_COOPERATION_CONTRACT.indexOf(npcId));
+  assert.ok(contractOrder.every((index) => index >= 0), "每個 NPC 都要出現在靜態契約裡");
+  for (let i = 1; i < contractOrder.length; i += 1) {
+    assert.ok(contractOrder[i] > contractOrder[i - 1], "靜態契約的人設順序必須是固定的陣列順序");
+  }
 
   const state = applyAll(createReferenceState(reference), "我安撫 Lambert，請 Ripley 說明下一步，也請 Parker 回報工程", RIPLEY_SCENE, 1).state;
   const prompt = buildReferencePromptBlock({
@@ -141,13 +153,7 @@ test("turn.js 與 reference prompt 共同維持明確的四位 NPC 順序", () =
     actionText: "我安撫 Lambert，請 Ripley 說明下一步，也請 Parker 回報工程",
     turnNumber: 1,
   });
-  const promptOrder = [
-    '<NPC_Cooperation_Contract npc="npc_ripley">',
-    '<NPC_Cooperation_Contract npc="npc_parker">',
-    '<NPC_Cooperation_Contract npc="npc_lambert">',
-  ].map((marker) => prompt.indexOf(marker));
-  assert.ok(promptOrder.every((index) => index >= 0));
-  assert.ok(promptOrder[1] > promptOrder[0] && promptOrder[2] > promptOrder[1]);
+  assert.doesNotMatch(prompt, /NPC_Cooperation_Contract/, "合作契約已經是靜態層的一段，不該再出現在每回合的 reference block");
 });
 
 test("四位 NPC 同回合 public response 仍不暴露 cooperation metadata", () => {
@@ -161,5 +167,5 @@ test("四位 NPC 同回合 public response 仍不暴露 cooperation metadata", (
   assert.equal("npcCooperation" in publicState, false);
   assert.equal("privateAssessment" in publicState, false);
   assert.equal("withheldFacts" in publicState, false);
-  assert.equal("lastEntryId" in publicState, false);
+  assert.equal("lastInteractionType" in publicState, false);
 });

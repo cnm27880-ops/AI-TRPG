@@ -38,7 +38,7 @@
 
 | 層 | 送到哪 | 放什麼 | 多久變一次 |
 | --- | --- | --- | --- |
-| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、文筆層＋規則契約 | 整場遊戲不變 |
+| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、NPC 合作契約（`NPC_COOPERATION_CONTRACT`）、文筆層＋規則契約 | 整場遊戲不變 |
 | **history** | 中段的 `user` / `assistant` messages | `session.history` 拆成的對話輪次 | **只在尾端追加** |
 | **dynamic** | **最後一個** `user` message | NPC 狀態矩陣的**數值**（`[NPC_ACTIVE_STATE]`，排在這一層最頂端）、DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、reference 事件資料、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
 
@@ -48,6 +48,9 @@
 - `functions/api/turn.js` 的 `buildPromptLayers()` —— 主要遊戲回合的組裝
 - `functions/api/narrate.js` —— demo/BYOK 端點，同一套分層
 - `content/llm/client.js` —— **唯一**可以組 provider `messages` 陣列的檔案
+- `content/scenario/npcCooperationContract.js` —— NPC 合作契約。它是「一段整場不變的文字被抄成
+  四份、住在動態層」的修復結果（2026-08-31）：四個 NPC 的安全規則九成逐字相同，
+  場上兩個 NPC 就每回合白付兩份。現在只有一份，而且住在 `system`
 - `content/scenario/npcStateMachine.js` —— NPC 狀態矩陣。**同一個檔案同時產出靜態與動態兩段**
   （`NPC_STATE_LEGEND` 是靜態的軸定義，`buildNpcActiveStateBlock()` 是每回合的數值）。
   這是這份契約在實務上最容易被「順手合併」的一組：兩段講的是同一件事，讀起來像該放在一起，
@@ -126,6 +129,10 @@
 npm run lint:prompt-cache   # 結構鎖：原始碼的形狀
 npm test                    # 含 test/promptCache.test.js 的四個不變式
 ```
+
+`scripts/lint-prompt-cache.mjs` 另外釘住兩個方向：`REQUIRED_IN_DYNAMIC`（動態值不可以被搬進
+`system`）與 `REQUIRED_IN_STATIC`（整場不變的大區塊不可以被搬回動態層）。後者是 2026-08-31
+那次重構換來的——把靜態文字搬回動態層不會壞掉任何功能，只會讓帳單重新變貴。
 
 `test/promptCache.test.js` 釘住的四件事：
 

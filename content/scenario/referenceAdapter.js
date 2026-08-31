@@ -23,25 +23,25 @@ import {
   narrativeMajorSceneVariant,
   buildNarrativeNpcPromptBlock,
 } from "./narrativePackageAdapter.js";
+// [2026-08-31] 這裡以前還 import 四個 build*CooperationPromptBlock，把四段
+// 600 字的動態區塊拼進 reference block。那些區塊有九成是逐字相同的規則文字，
+// 已經搬進靜態層（npcCooperationContract.js）；每回合真的會變的合作階段
+// 併進了 npcStateMachine.js 的 [NPC_ACTIVE_STATE] 那一行（Stance / Beat）。
 import {
   createNpcCooperationState,
   normalizeNpcCooperationState,
-  buildNpcCooperationPromptBlock,
 } from "./npcCooperationPolicy.js";
 import {
   createRipleyCooperationState,
   normalizeRipleyCooperationState,
-  buildRipleyCooperationPromptBlock,
 } from "./ripleyCooperationPolicy.js";
 import {
   createParkerCooperationState,
   normalizeParkerCooperationState,
-  buildParkerCooperationPromptBlock,
 } from "./parkerCooperationPolicy.js";
 import {
   createLambertCooperationState,
   normalizeLambertCooperationState,
-  buildLambertCooperationPromptBlock,
 } from "./lambertCooperationPolicy.js";
 import {
   createNpcRuntimeState,
@@ -1104,29 +1104,6 @@ export function buildReferencePromptBlock({
   }
   const npcVoiceBlock = buildNarrativeNpcPromptBlock(reference, state);
   if (npcVoiceBlock) lines.push("", npcVoiceBlock);
-  const npcCooperationBlocks = [
-    buildNpcCooperationPromptBlock(reference, state, {
-      actionText,
-      sceneId: scene?.id ?? currentScene?.id ?? null,
-      turnNumber,
-    }),
-    buildRipleyCooperationPromptBlock(reference, state, {
-      actionText,
-      sceneId: scene?.id ?? currentScene?.id ?? null,
-      turnNumber,
-    }),
-    buildParkerCooperationPromptBlock(reference, state, {
-      actionText,
-      sceneId: scene?.id ?? currentScene?.id ?? null,
-      turnNumber,
-    }),
-    buildLambertCooperationPromptBlock(reference, state, {
-      actionText,
-      sceneId: scene?.id ?? currentScene?.id ?? null,
-      turnNumber,
-    }),
-  ].filter(Boolean);
-  if (npcCooperationBlocks.length) lines.push("", ...npcCooperationBlocks);
   lines.push("</Reference_Event>");
   return lines.join("\n");
 }
