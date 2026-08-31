@@ -126,6 +126,11 @@ import { applyNpcCooperationForAction } from "../../content/scenario/npcCooperat
 import { applyRipleyCooperationForAction } from "../../content/scenario/ripleyCooperationPolicy.js";
 import { applyParkerCooperationForAction } from "../../content/scenario/parkerCooperationPolicy.js";
 import { applyLambertCooperationForAction } from "../../content/scenario/lambertCooperationPolicy.js";
+import {
+  applyNpcRuntimeTurn,
+  buildNpcActiveStateBlock,
+  NPC_STATE_LEGEND,
+} from "../../content/scenario/npcStateMachine.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -883,6 +888,45 @@ async function executeTurn(context, streamHooks = null) {
     }
   }
 
+  // --- 副本節點：這回合「應該推進哪個節點」，餵進 prompt 讓AI知道關鍵事件是什麼 ---
+  // 這一段算得比它的使用點（buildNodeGuidance）早，是因為 NPC 狀態機也要吃 stalledRounds：
+  // 「玩家已經卡在同一個節點幾回合」正是耐心值最主要的扣分來源。算兩次會漂移，所以只算一次。
+  const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
+  // 這個節點已經卡了幾回合都沒結算，餵進 buildNodeGuidance() 讓提醒語氣隨著卡關時間拉長而加重
+  // (見 progress.js 的 getNodeStallRounds() 說明)。
+  const stalledRounds = activeNode ? getNodeStallRounds(scenarioProgress, activeNode.id) : 0;
+
+  // ---------------------------------------------------------------------
+  // NPC 動態狀態機（S.A.E.P.）：把「他現在什麼心情」從提示詞搬回程式。
+  // ---------------------------------------------------------------------
+  // 必須排在 cooperation policy **之後**：狀態機會讀這回合的互動分類與合作狀態。
+  // 也必須排在 LLM 呼叫**之前**：這些數值是這回合演出的前提，不是對模型輸出的事後檢查。
+  // 它不產生任何 engine effect，只更新 referenceState.npcRuntime（見 npcStateMachine.js）。
+  //
+  // 跟 cooperation policy 一樣要求 actionText 非空：開場與回坐那兩種回合沒有玩家行動，
+  // 不該被算成「玩家又空轉了一回合」而扣耐心——那會讓每一場遊戲從第一句話就開始倒數。
+  // pendingReplay（LLM 失敗重試）同樣跳過，否則同一個行動會被扣兩次。
+  if (scenarioReference && referenceState && actionText && !pendingReplay) {
+    referenceState = applyNpcRuntimeTurn({
+      reference: scenarioReference,
+      state: referenceState,
+      turnNumber: (session?.turns ?? 0) + 1,
+      signals: {
+        actionText,
+        // checkParams 為 null 或 requiresCheck=false ＝ 引擎判定這回合沒有「會失敗的目標」
+        // （純演出、情緒、閒聊）。連著來就是原地空轉，NPC 有權表現出不耐煩。
+        requiresCheck: Boolean(checkParams?.requiresCheck),
+        outcomeTier: outcome?.tier ?? null,
+        matched: Boolean(referenceResolution.matched),
+        sceneTurnCount: referenceState.sceneTurnCount ?? 0,
+        stalledRounds,
+        // 在場的 NPC 跟玩家看到同一批線索；情報差只在「他不在場」時才成立。
+        newClues: referenceApplied?.applied ? referenceApplied.effects?.cluesAdd ?? [] : [],
+      },
+    });
+    if (session?.scenario) session.scenario.referenceState = referenceState;
+  }
+
   // ---------------------------------------------------------------------
   // 第二段：敘事層。canonical result 先於 AI；只有沒有授權原文時才需要 AI。
   // ---------------------------------------------------------------------
@@ -1005,12 +1049,6 @@ async function executeTurn(context, streamHooks = null) {
   // [新增] 生成 DM 備忘錄狀態表
   const dmMemo = buildDmMemo(character, session);
 
-  // --- 副本節點：這回合「應該推進哪個節點」，餵進 prompt 讓AI知道關鍵事件是什麼 ---
-  const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
-  // 這個節點已經卡了幾回合都沒結算，餵進 buildNodeGuidance() 讓提醒語氣隨著卡關時間拉長而加重
-  // (見 progress.js 的 getNodeStallRounds() 說明)。
-  const stalledRounds = activeNode ? getNodeStallRounds(scenarioProgress, activeNode.id) : 0;
-
   const layers = buildPromptLayers({
     styleAndRules,
     actionText,
@@ -1024,6 +1062,10 @@ async function executeTurn(context, streamHooks = null) {
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
+    // S.A.E.P. 數值矩陣：動態層的**第一段**，見 buildPromptLayers() 裡的說明。
+    npcActiveState: scenarioReference && referenceState
+      ? buildNpcActiveStateBlock(scenarioReference, referenceState)
+      : null,
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
@@ -1813,6 +1855,7 @@ function buildPromptLayers({
   character,
   nodeGuidance,
   dmMemo,
+  npcActiveState = null,
   referenceBlock,
   freeActionContractPrompt = null,
   threatDirective,
@@ -1828,6 +1871,10 @@ function buildPromptLayers({
   const staticBlocks = [
     ...buildStaticContextBlocks({ personaKey, sceneContext }),
     optionsSpec,
+    // S.A.E.P. 狀態矩陣的**讀法**。數字每回合都變，但「SOC 是什麼意思」整場不變，
+    // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
+    // 把說明跟數字寫在一起是很自然的直覺，也是這裡最貴的一種錯法。
+    referenceMode ? NPC_STATE_LEGEND : null,
     // 已封存副本摘要：整場只在「打完一個副本」時變一次，是靜態層裡唯一會變的一段。
     completedChronicles,
     // styleAndRules 放**最後**，而且是刻意的，不是順手排的：
@@ -1843,6 +1890,11 @@ function buildPromptLayers({
   // 層內順序同樣按「這一回合裡誰最晚定案」排：狀態表 -> 場面指令 -> 玩家輸入 -> 判定結果。
   // 這一層每回合必然全部重算，所以要短；不要把任何靜態內容接在它後面。
   const dynamicBlocks = [];
+  // NPC 狀態矩陣排在動態層的**最頂端**，比 DM 備忘錄還前面。
+  // 理由是它是這一回合所有演出決策的前提：模型讀提示有順序偏誤，把前提放在
+  // 備忘錄、事件日誌與玩家輸入之後，等於要它讀完一整頁再回頭修正語氣。
+  // 放最前面，後面每一段都會在這個框架下被解讀。
+  if (npcActiveState) dynamicBlocks.push(npcActiveState);
   if (dmMemo) dynamicBlocks.push(dmMemo);
   // 事件日誌與前情提要不同：它是「已判定事實」的滑動窗口摘要，不走 history 訊息，
   // 但也因此每回合都可能改開頭，所以歸在動態層而不是靜態層。

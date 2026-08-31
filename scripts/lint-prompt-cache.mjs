@@ -46,6 +46,10 @@ const DYNAMIC_IDENTIFIERS = [
   "narrativeMode",
   "historyMessages",
   "stalledRounds",
+  // S.A.E.P. 數值矩陣（見 content/scenario/npcStateMachine.js）。它每回合都不一樣，
+  // 但它旁邊那份「怎麼讀這些數字」的 legend 是靜態的——這兩段長得很像，
+  // 很容易在後續改動裡被順手合併成一段塞進 system。這一條就是擋那件事。
+  "npcActiveState",
 ];
 
 /** 這些動態來源必須**留在**動態層。少一個代表有人把它搬走或刪掉了。 */
@@ -56,6 +60,7 @@ const REQUIRED_IN_DYNAMIC = [
   "retreadDirective",
   "nodeGuidance",
   "referenceBlock",
+  "npcActiveState",
 ];
 
 const problems = [];

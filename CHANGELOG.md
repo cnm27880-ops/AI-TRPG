@@ -2,6 +2,61 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [FEATURE-2026.08.31] — NPC 動態狀態機（S.A.E.P.）與全域反客服協定
+
+**影響範圍：** 新增 `content/scenario/npcStateMachine.js`、`test/npcStateMachine.test.js`；
+修改 `content/narrativeStyle.js`、`content/scenario/referenceAdapter.js`、
+`content/scenario/narrativePackageAdapter.js`、`functions/api/turn.js`、
+`scripts/lint-prompt-cache.mjs`、`AGENTS.md`、`ARCHITECTURE.md`、`docs/PROMPT_CACHE_CONTRACT.md`
+
+**變更性質：** 新增。判定公式、骰池、傷害、獎勵、角色卡格式與既有存檔一行都沒有動——
+狀態機不產生任何 engine effect，只決定「NPC 這回合用什麼姿態演出」。
+舊存檔沒有 `npcRuntime` 欄位時由 `normalizeReferenceState()` 補上基線。
+
+### 為什麼
+
+NPC 的劇本提示詞越寫越長之後，模型反而退化成客服小幫手：有問必答、句句順著玩家、
+每一段都以「你接下來想怎麼做？」收尾。成因是**指令超載**——幾千字的 IF-ELSE 劇本文字丟給
+輕量級／高速模型，它會挑最容易照做的那一條執行，而「當一個樂於助人的助理」正是它最熟的行為。
+
+作法是把「判斷」交還給程式、只把「演出」留給 AI：NPC 生不生氣由 JavaScript 算（0 token、
+決定性、可存檔），送進 prompt 的只有一行極短的數值矩陣。
+
+### 新增
+
+- **S.A.E.P. 四維矩陣**（0-10）：`SOC` 社交意願／`ACT` 行動主導權／`EGO` 利己主義／
+  `PAT` 耐心值。PAT 是唯一有累積記憶的軸，扣分來源全部是引擎已知的事實：
+  玩家卡在同一個場景或節點、這回合沒有可判定的目標（純演出／情緒／閒聊）、NPC 自己受傷、
+  玩家對他動手、踩到禁忌；道歉、完成交辦與局勢推進會回補，上限鎖在基線。
+- **CRPG 狀態標籤**：`Status`（引擎判定過的狀態）、`Knowledge`（**白名單**，防 AI 劇透）、
+  `Agenda`（來自 reference 的 canonical 私人目標）、`Taboo`（踩到當回合標記 `(TRIPPED)`）。
+- **`Override: "SEIZE_CONTROL"`**：耐心見底時強制 NPC 奪走場面主導權（打斷／否決／獨走）。
+  只在觸發的那一回合出現，而且奪權後回補耐心——常駐的旗標會被當成背景噪音忽略，
+  連續回合都奪權則會讓 NPC 從客服變成連環喝斥機器。
+- **`ANTI_ASSISTANT_PROTOCOL`**（`content/narrativeStyle.js`，文筆層）：世界不等玩家、
+  NPC 嚴禁把決策丟回給玩家、低耐心強制沒收場面主導權、第四面牆條款（引擎的數字不存在於世界裡）。
+
+### 分層
+
+狀態機同時產出兩段文字，而且刻意分開：軸的定義（`NPC_STATE_LEGEND`）整場不變，進 `system`；
+數字每回合都變，進動態層的**最頂端**（比 DM 備忘錄還前面——它是這一回合所有演出決策的前提）。
+`scripts/lint-prompt-cache.mjs` 把 `npcActiveState` 同時列進「不可進靜態層」與「必須留在動態層」，
+所以之後把 legend 跟數值「順手合併」會讓 CI 變紅，而不是只讓帳單變貴。
+
+### 刻意沒做的事
+
+- **不輸出「HP 80%」。** 引擎從來沒有替 NPC 記過血量，生一個百分比出來就是編造數值，
+  而且模型會很樂意把它寫進敘事變成玩家看得到的假事實。Status 只送 reference 判定過的狀態軸。
+- **不在狀態行裡重複 cooperation objective。** 那份資料已經由既有的
+  `<NPC_Cooperation_Contract>` 區塊逐字送出，再送一次只是加 token。
+
+### 測試
+
+新增 `test/npcStateMachine.test.js`（14 項）：基線與舊存檔相容、耐心曲線的升降與回復上限、
+威脅／道歉、奪權與其遲滯、禁忌標記、不在場的 NPC 不跑狀態機也不進 prompt、
+狀態行不含 HP 百分比與內部欄位、legend 與數值分層、反客服協定四條約束都在。
+全套 1222 項通過，`lint:prompt-cache`、`lint:workflows`、`test:extreme` 皆綠。
+
 ## [BREAKING-2026.08.29] — 移除舊戰鬥系統，戰術戰鬥成為唯一戰鬥；戰鬥改由局勢觸發
 
 **影響範圍：** 移除 `core/combat/actionEconomy.js`、`content/combat/encounterState.js`、`content/combat/placeholderEncounters.js`、`functions/api/combat/{start,act,resolve}.js`、`public/index.html` 的 `#combat-panel` 與「遭遇戰鬥」按鈕；新增 `content/combat/v2/weapons.js`、`core/combat/README.md`；修改 `content/shop/forms.js`、`functions/api/session.js`、`public/app.js`、`public/combatV2.js`、`content/combat/v2/{encountersV2,battleFactory}.js`、`functions/api/combat/v2/start.js`
