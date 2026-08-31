@@ -2,6 +2,79 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [REFACTOR-2026.08.31] — 共用樣板抽離：四份合作策略瘦身成一個引擎 + 四份人設
+
+**影響範圍：** 新增 `content/scenario/npcCooperationEngine.js`、`npcCooperationContract.js`、
+`npcPersonaRegistry.js`；重寫 `content/scenario/{npcCooperationPolicy,ripleyCooperationPolicy,parkerCooperationPolicy,lambertCooperationPolicy}.js`；
+修改 `content/scenario/npcStateMachine.js`、`referenceAdapter.js`、`examples/alienNostromo_v2_contentPackage.js`、
+`functions/api/turn.js`、`scripts/lint-prompt-cache.mjs`；更新六個測試檔
+
+**變更性質：** 重構。判定公式、骰池、傷害、獎勵與角色卡格式一行都沒有動。
+合作狀態的欄位名有變（見下方「存檔相容」）。
+
+### 為什麼
+
+四個 `*CooperationPolicy.js` 各 450~650 行，其中只有約八十行是那個角色獨有的。
+其餘全是同一套東西抄四遍。抄四遍的代價不是行數，是**它們會各自漂移**——而且已經漂了：
+四個 NPC 的「玩家越線次數」分別叫 `threatCount` / `boundaryIncidents` / `pressureIncidents`，
+於是狀態機必須寫成 `threatCount ?? boundaryIncidents ?? pressureIncidents` 才讀得到同一個概念。
+
+### 調整
+
+| 位置 | 原本 | 現在 |
+|---|---|---|
+| 分類、計數、轉場的流程 | 四份各自實作 | `npcCooperationEngine.js` 一份，`defineCooperationPolicy(persona)` |
+| 安全規則與人設描述 | 四段**動態**區塊各抄一份 | `npcCooperationContract.js`，**靜態層**一份 |
+| 角色檔 | 450~650 行（含罐頭台詞表） | 110~176 行，只有人設資料 |
+| 越線次數 | `threatCount` / `boundaryIncidents` / `pressureIncidents` | 統一的 `incidents` |
+| 每回合的合作狀態 | 兩段 600 字區塊 | 併進 `[NPC_ACTIVE_STATE]` 的 `Stance` / `Beat` |
+
+程式碼：四個 policy 檔 **2124 行 → 1035 行**（含新增的引擎、契約與登記處三個檔）。
+提示詞（場上兩名 NPC 的一回合）：動態層 **1695 字元 → 併進既有那一行的 +80 字元**，
+搬出去的 1226 字元合作契約住進整場只付一次的靜態層。
+
+### 移除
+
+- **四張 ENTRIES 表**（陸遠 32 筆、Ripley 18、Parker 13、Lambert 14）。它們是寫死的分支走向：
+  每一筆是一個 IF 配一段預先寫好的 NPC 台詞。階段一的 S.A.E.P. 狀態機已經能算出
+  「他現在什麼心情」，演出就該交還給模型。ENTRIES 裡唯一不能交給模型的東西——
+  合作階段的轉場——留了下來，變成每個角色的 `transitions` 表。
+- **`reviewedRuntimeText()`**（六十行的字串替換表）。它存在的唯一理由是消毒那些罐頭台詞，
+  確保它們不會宣告未授權的世界事實；罐頭沒了，消毒也就不需要了。
+- `contentPackage.approvedNpcCooperation` 的 runtime 接線。原始的 Gemini 劇本文字仍保存在
+  `examples/alienNostromo_v2_luyuanCooperation.js` 作為寫作參考，但不再 import 進 runtime，
+  也不再每回合送進 prompt（`test/npcCooperationPolicy.test.js` 有一條斷言擋著「有人順手接回去」）。
+
+### 存檔相容
+
+`normalizeReferenceState()` 會把舊存檔的 `npcCooperation` 正規化成新的欄位組，
+合作階段（`state`）、`trust` 與 `contactEstablished` 照原樣保留。
+
+舊的角色專屬越線計數（`threatCount` / `boundaryIncidents` / `pressureIncidents` /
+`panicIncidents` / `commandChallenges`）會**搬進**統一的 `incidents`。這一步是必要的：
+不搬移的話計數歸零，合作階段還在（`self_preserving` 仍是 `self_preserving`），
+但威脅階梯的位置沒了，下一次威脅會落回第一階——玩家會看到「NPC 忽然原諒我了」。
+其餘不再被讀取的角色專屬計數器（`evidenceConfidence`、`crewCohesion`…）不搬移：
+它們只餵給已經移除的 entry 選擇條件。
+
+### 怎麼確認沒改壞
+
+這種重構最危險的是「分類器的行為悄悄變了」，而那不會讓任何既有測試變紅。所以先做**差分測試**：
+把重構前的四個檔案從 git 取出來，用 642 句語料跨 4 個 NPC × 2~4 個場景跑 **8346 組比對**，
+要求新舊分類逐欄相同。第一輪抓到兩個真的回歸（「工程師／自毀程序協助者」被判成玩家在提問、
+Lambert 的 question topic 順序被改掉），修好之後 8346 組全等。
+階段轉場另跑 1600 條隨機六步序列，98.7% 相同；剩下 1.3% 集中在 Ripley 的 evidence／risk
+交互作用，那是把 11 個角色專屬計數器收斂成 3 個共用計數器的直接後果。
+
+### 測試
+
+六個測試檔的斷言從 `entryId` 與罐頭台詞改成規則問題（大吼會不會進恐慌？再吼一次會不會封閉？
+降溫會不會抹掉紀錄？三次威脅走不走完階梯？）。**一條行為問題都沒有刪**，
+另外補了幾條新的（還沒吵架就先道歉不該推進階段、abandoned 是終點、
+純敘述文字不該被當成提問）。`scripts/lint-prompt-cache.mjs` 新增 `REQUIRED_IN_STATIC`：
+把整場不變的大區塊搬回動態層會讓 CI 變紅，而不是只讓帳單變貴。
+全套 1226 項通過，`lint:prompt-cache`、`lint:workflows`、`test:extreme` 皆綠。
+
 ## [FEATURE-2026.08.31] — NPC 動態狀態機（S.A.E.P.）與全域反客服協定
 
 **影響範圍：** 新增 `content/scenario/npcStateMachine.js`、`test/npcStateMachine.test.js`；

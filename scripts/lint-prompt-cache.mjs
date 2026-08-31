@@ -52,6 +52,21 @@ const DYNAMIC_IDENTIFIERS = [
   "npcActiveState",
 ];
 
+/**
+ * 這些整場不變的大區塊必須**留在**靜態層。
+ *
+ * 這一條是 2026-08-31 那次重構換來的：四個 NPC 合作策略各自在動態層輸出一段
+ * 600 字的區塊，而其中九成是逐字相同的規則文字——場上兩個 NPC 就每回合白付兩份。
+ * 搬進靜態層之後，把它「順手」搬回動態層（例如為了「只送在場的 NPC」）
+ * 不會壞掉任何功能，只會讓帳單重新變貴。所以寫成檢查。
+ */
+const REQUIRED_IN_STATIC = [
+  "optionsSpec",
+  "NPC_STATE_LEGEND",
+  "NPC_COOPERATION_CONTRACT",
+  "styleAndRules",
+];
+
 /** 這些動態來源必須**留在**動態層。少一個代表有人把它搬走或刪掉了。 */
 const REQUIRED_IN_DYNAMIC = [
   "dmMemo",
@@ -158,6 +173,16 @@ async function rulePartition() {
     fail(rel, "partition", "找不到 `const staticBlocks = [...]`——分層的靜態層不見了。");
   } else {
     const code = stripComments(staticLiteral);
+    for (const id of REQUIRED_IN_STATIC) {
+      if (!mentionsIdentifier(code, id)) {
+        fail(
+          rel,
+          "static-layer-completeness",
+          `靜態層不再包含 \`${id}\`。它整場遊戲逐字不變：` +
+            `搬去動態層會讓它每回合重新計費，而遊戲行為完全不會改變。`
+        );
+      }
+    }
     for (const id of DYNAMIC_IDENTIFIERS) {
       if (mentionsIdentifier(code, id)) {
         fail(

@@ -38,6 +38,7 @@
 // 它只決定一件事：**NPC 這回合用什麼姿態演出**。
 
 import { onStageNpcIds } from "./narrativePackageAdapter.js";
+import { personaFor } from "./npcPersonaRegistry.js";
 
 /** 四個軸的固定順序。送進 prompt 的陣列就是照這個順序，不可以改成 Object.keys()。 */
 export const SAEP_AXIS_IDS = Object.freeze(["SOC", "ACT", "EGO", "PAT"]);
@@ -88,68 +89,12 @@ const SCENE_PATIENCE_GRACE = 4;
 const SEIZE_CONTROL_REBOUND = 3;
 
 /**
- * 各 NPC 的 S.A.E.P. 基線與禁忌。
+ * 副本沒登記、也沒在 reference 宣告時的通用人設：一個普通的、會累的人。
  *
- * [設計] 這些數值是草案，之後依實際測玩調整（專案慣例：`[設計]` 標記的數字都是起點）。
- * 每一筆的來源都是 reference JSON 裡已經寫好的 canonical 人設
- * （alienNostromo_v2_gm_reference.js 的 npcs[]：role / privateGoals / memoryRules），
- * 不是憑空發明的新設定——狀態機只是把那些散文轉成引擎算得動的數字。
- *
- * 副本可以在 reference.npcs[] 用 saep / taboo / tabooPatterns / agenda 覆寫，
- * 新副本不必為了接上狀態機來改引擎程式。
+ * [2026-08-31] 各 NPC 的基線、禁忌與自保狀態表以前寫在這個檔案的 NPC_PROFILES 裡，
+ * 現在改由 npcPersonaRegistry.js 供應——同一個角色的人設散在兩個檔案，
+ * 改了一邊忘了另一邊的症狀是「他的耐心值對，但禁忌沒反應」，很難聯想到成因。
  */
-const NPC_PROFILES = Object.freeze({
-  npc_luyuan: {
-    // 資深輪迴者：話少（SOC 低）、極度主導（ACT 高）、利己但仍願意帶新人（EGO 偏高）、
-    // 對拖時間的容忍度本來就不高（PAT 5）。
-    saep: { SOC: 3, ACT: 9, EGO: 7, PAT: 5 },
-    taboo: "浪費時間與資源、把同伴當誘餌",
-    tabooPatterns: [
-      /當(?:誘餌|肉盾|擋箭牌)/,
-      /(?:把|拿|讓|叫)(?:他|你|陸遠|同伴|隊友)[^。！？]{0,6}(?:去)?(?:擋|頂|送死|斷後)/,
-      /犧牲(?:他|陸遠|同伴|隊友)/,
-      // 兩個語序都要抓：「丟掉物資」跟「把物資丟掉」在中文裡一樣自然。
-      /丟(?:掉|棄)[^。！？]{0,4}(?:物資|補給|彈藥|子彈)/,
-      /(?:物資|補給|彈藥|子彈)[^。！？]{0,4}(?:丟掉|丟棄|扔掉|扔了)/,
-      /浪費(?:子彈|彈藥|物資|時間)/,
-    ],
-    selfPreservingStates: ["strained", "self_preserving", "abandoned"],
-  },
-  npc_ripley: {
-    // 理性生存者：願意溝通（SOC 高）、會設定優先順序（ACT 高）、以隊伍為先（EGO 低）、
-    // 對「講不出證據卻要求信任」很快就會失去耐心。
-    saep: { SOC: 6, ACT: 8, EGO: 3, PAT: 6 },
-    taboo: "違反檢疫程序、把生化風險帶進活人區",
-    tabooPatterns: [/(?:帶|搬|拿)(?:樣本|抱臉|卵|寄生)[^。]{0,8}(?:進|回|上)/, /打開(?:檢疫|隔離)|解除(?:檢疫|隔離|封鎖)/],
-    selfPreservingStates: ["angry", "withdrawn", "biohazard_boundary"],
-  },
-  npc_parker: {
-    // 總工程師：直來直往（SOC 中）、在自己的機艙裡說了算（ACT 高）、
-    // 不想被當工具人（EGO 中）、對亂動設備的容忍度極低。
-    saep: { SOC: 5, ACT: 7, EGO: 5, PAT: 4 },
-    taboo: "未經協調亂動工程設備與冷卻程序",
-    tabooPatterns: [/(?:亂|隨便|直接)(?:動|拆|扳|按|拉)[^。]{0,6}(?:閥|管線|控制|面板|開關)/, /自己(?:來|動手)(?:啟動|超載|拆)/],
-    selfPreservingStates: ["angry", "withdrawn", "resource_guarded"],
-  },
-  npc_lambert: {
-    // 導航員：高壓下話多但抓不住重點（SOC 高）、幾乎不主導（ACT 低）、
-    // 先保住自己（EGO 高）、耐心本來就被恐懼吃掉一半。
-    saep: { SOC: 7, ACT: 2, EGO: 7, PAT: 3 },
-    taboo: "被人用言語施壓、被要求單獨行動",
-    tabooPatterns: [/(?:吼|罵|逼|威脅|恐嚇)(?:她|Lambert|蘭伯特)/, /(?:叫|要|讓)(?:她|Lambert|蘭伯特)(?:一個人|單獨|自己)(?:去|走|留)/],
-    selfPreservingStates: ["panic", "overloaded", "withdrawn"],
-  },
-  npc_ash: {
-    // 937 執行者：表面配合（SOC 高）、暗中主導（ACT 高）、極度利己（EGO 滿）、
-    // 耐心高到不自然——他不需要玩家配合，只需要玩家不要礙事。
-    saep: { SOC: 6, ACT: 6, EGO: 10, PAT: 8 },
-    taboo: "破壞或處置樣本",
-    tabooPatterns: [/(?:燒|毀|殺|處理掉|丟掉|清除)[^。]{0,6}(?:樣本|標本|生物|卵)/, /(?:曝露|公開)(?:937|特別指令)/],
-    selfPreservingStates: ["hostile", "hostile_pending"],
-  },
-});
-
-/** 副本沒登記、也沒在 reference 宣告時的通用人設：一個普通的、會累的人。 */
 const DEFAULT_PROFILE = Object.freeze({
   saep: { SOC: 5, ACT: 5, EGO: 5, PAT: 5 },
   taboo: null,
@@ -158,31 +103,21 @@ const DEFAULT_PROFILE = Object.freeze({
 });
 
 /**
- * 互動類型 → 對耐心的影響。
+ * 互動的性質 → 對耐心的影響。
  *
- * 這裡刻意用**明列的集合**而不是關鍵字比對：四個 cooperation policy 各自定義了
- * 自己的 interactionType，用 `/pressure|threat/` 這種模糊比對去猜，
- * 只要有人新增一個名字裡剛好有 "pressure" 的友善互動就會靜靜地算錯。
- * 明列表會在新增互動類型時漏掉（落到中性），漏掉是安全的；猜錯不是。
+ * [2026-08-31] 以前這裡有四個明列的 Set（HOSTILE_INTERACTIONS / FRICTION_… 等），
+ * 各自列出所有 interactionType 的名字。那是第二份資料：新增一種互動時要同時改
+ * policy 檔跟這裡，漏改的症狀是「這個 NPC 好像特別好脾氣」——沒有人會回報。
+ * 現在性質由 persona 的規則自己宣告（npcCooperationEngine.js 的 rule.kind），
+ * 這裡只剩「每一種性質值多少耐心」。
  */
-const HOSTILE_INTERACTIONS = new Set([
-  "attempt_grab_weapon", "sudden_rush", "physical_push", "verbal_intimidation",
-  "coercive_pressure", "sabotage_risk", "resource_pressure", "pressure_or_dismissal",
-  "biohazard_risk", "panic_trigger",
-]);
-const FRICTION_INTERACTIONS = new Set([
-  "express_distrust", "reject_path", "declare_solo", "passive_questioning", "challenge_command",
-]);
-const DEESCALATION_INTERACTIONS = new Set([
-  "player_step_back", "admit_panic", "apologize_and_cooperate", "complete_assigned_task",
-  "deescalate", "deescalate_and_work", "deescalate_protocol", "calm_lambert", "offer_reassurance",
-]);
-const COOPERATIVE_INTERACTIONS = new Set([
-  "offer_scout", "offer_repair_or_operate", "offer_carry_supplies", "offer_rear_guard",
-  "offer_evidence", "offer_group_protection", "offer_navigation_help", "offer_overload_help",
-  "offer_protocol", "offer_repair", "offer_small_task", "offer_task",
-  "report_crew_status", "report_task", "command_support", "request_command",
-]);
+const PATIENCE_BY_KIND = Object.freeze({
+  hostile: -3,
+  friction: -1,
+  deescalation: +2,
+  cooperation: +1,
+  briefing: 0,
+});
 
 /** 引擎已知的 NPC 狀態 → 送進 prompt 的短標籤。不編造 HP 百分比，理由見 statusTag()。 */
 const STATUS_LABELS = Object.freeze({
@@ -234,22 +169,21 @@ function referenceNpc(reference, npcId) {
  */
 export function npcProfile(reference, npcId) {
   const declared = referenceNpc(reference, npcId);
-  const builtin = NPC_PROFILES[npcId] ?? DEFAULT_PROFILE;
-  const saep = { ...DEFAULT_PROFILE.saep, ...builtin.saep, ...(declared?.saep ?? {}) };
+  const persona = personaFor(npcId);
+  const saep = { ...DEFAULT_PROFILE.saep, ...(persona?.saep ?? {}), ...(declared?.saep ?? {}) };
   return {
     saep: Object.fromEntries(SAEP_AXIS_IDS.map((axis) => [axis, clampAxis(saep[axis], 5)])),
-    taboo: declared?.taboo ?? builtin.taboo ?? null,
-    // 偵測用的 pattern 只從內建表拿，不吃 reference 宣告的字串：
+    taboo: declared?.taboo ?? persona?.taboo ?? null,
+    // 偵測用的 pattern 只從人設檔拿，不吃 reference 宣告的字串：
     // reference 是 JSON，宣告出來的只會是字串，把使用者資料編譯成 RegExp 是一條
-    // 不需要為了省事而開的口子。副本要改「顯示的禁忌文字」用 taboo 就夠了；
-    // 要新增偵測規則，就在這裡加一筆並附上它防的是什麼。
-    tabooPatterns: builtin.tabooPatterns ?? [],
-    selfPreservingStates: builtin.selfPreservingStates ?? DEFAULT_PROFILE.selfPreservingStates,
-    // Agenda 用 reference 的 privateGoals[0]：那是作者寫好的 canonical 私人目標，
-    // 引擎不需要（也不應該）自己發明一個 NPC 想幹嘛。
-    agenda: declared?.agenda ?? (Array.isArray(declared?.privateGoals) ? declared.privateGoals[0] : null),
+    // 不需要為了省事而開的口子。副本要改「顯示的禁忌文字」用 taboo 就夠了。
+    tabooPatterns: persona?.tabooPatterns ?? [],
+    selfPreservingStates: persona?.states?.selfPreserving ?? DEFAULT_PROFILE.selfPreservingStates,
+    // Agenda 先看人設檔，再退回 reference 的 privateGoals[0]：兩者都是作者寫好的
+    // canonical 目標，引擎不需要（也不應該）自己發明一個 NPC 想幹嘛。
+    agenda: declared?.agenda ?? persona?.agenda ?? (Array.isArray(declared?.privateGoals) ? declared.privateGoals[0] : null),
     knowledge: Array.isArray(declared?.knowledge) ? declared.knowledge : [],
-    name: declared?.name ?? npcId,
+    name: declared?.name ?? persona?.name ?? npcId,
   };
 }
 
@@ -324,18 +258,19 @@ function cooperationSignal(state, npcId, turnNumber) {
   return {
     state: coop.state ?? null,
     interactionType: fresh ? coop.lastInteractionType ?? null : null,
-    // 刻意**不**帶 currentObjective：那份資料已經由既有的 <NPC_Cooperation_Contract>
-    // 區塊逐字送進同一次請求，在狀態行裡再送一次只是加 token，不是加資訊。
-    // 各 policy 的「玩家越線次數」欄位名不同（陸遠是 threatCount，其餘是 boundaryIncidents／
-    // pressureIncidents）。這裡取得到哪個算哪個，取不到就當 0。
-    incidents: Math.max(
-      0,
-      Number(coop.threatCount ?? 0) || 0,
-      Number(coop.boundaryIncidents ?? 0) || 0,
-      Number(coop.pressureIncidents ?? 0) || 0
-    ),
+    // [2026-08-31] 以前這裡是 `threatCount ?? boundaryIncidents ?? pressureIncidents`——
+    // 三個名字指的是同一個概念，只因為四個 policy 各自命名。合作狀態統一之後
+    // 只剩一個 incidents，這一行也就不需要再猜了。
+    incidents: Math.max(0, Number(coop.incidents ?? 0) || 0),
     trust: Number(coop.trust ?? 0) || 0,
   };
+}
+
+/** 這一回合的互動屬於哪一種性質（由 persona 的規則宣告，見 npcCooperationEngine.js）。 */
+function interactionKind(npcId, interactionType) {
+  if (!interactionType) return null;
+  const persona = personaFor(npcId);
+  return persona?.rules?.find((rule) => rule.interactionType === interactionType)?.kind ?? null;
 }
 
 function statusOf(state, reference, npcId) {
@@ -357,7 +292,7 @@ function tabooTripped(profile, actionText) {
  *
  * 回傳 delta，不直接改狀態——這樣單一條規則可以獨立測試。
  */
-function patienceDelta({ profile, coop, worsened, tripped, stallStreak, progressed, signals }) {
+function patienceDelta({ profile, kind, worsened, tripped, stallStreak, progressed, signals }) {
   let delta = 0;
 
   // 玩家長時間卡在同一個場景／同一個節點：NPC 是來逃命的，不是來陪你逛的。
@@ -373,12 +308,7 @@ function patienceDelta({ profile, coop, worsened, tripped, stallStreak, progress
 
   if (tripped) delta -= 3;
 
-  if (coop?.interactionType) {
-    if (HOSTILE_INTERACTIONS.has(coop.interactionType)) delta -= 3;
-    else if (FRICTION_INTERACTIONS.has(coop.interactionType)) delta -= 1;
-    else if (DEESCALATION_INTERACTIONS.has(coop.interactionType)) delta += 2;
-    else if (COOPERATIVE_INTERACTIONS.has(coop.interactionType)) delta += 1;
-  }
+  delta += PATIENCE_BY_KIND[kind] ?? 0;
 
   // 局勢真的往前走了。這是 PAT 唯一的自然回復來源——
   // 不給回復的話所有 NPC 最後都會停在爆炸狀態，那跟停在客服狀態一樣是壞掉的。
@@ -456,7 +386,8 @@ export function applyNpcRuntimeTurn({ reference, state, turnNumber = 0, signals 
     const tripped = tabooTripped(profile, signals.actionText);
     const stallStreak = progressed ? 0 : Math.min(9, Math.max(0, stalled));
 
-    const { delta, ceiling } = patienceDelta({ profile, signals, coop, worsened, tripped, stallStreak, progressed });
+    const kind = interactionKind(npcId, coop?.interactionType);
+    const { delta, ceiling } = patienceDelta({ profile, signals, kind, worsened, tripped, stallStreak, progressed });
     let pat = clampAxis(Math.min(entry.PAT + delta, Math.max(entry.PAT, ceiling)), entry.PAT);
 
     // 上一回合已經奪過權：張力洩掉一截，這回合不會再打斷一次。見 SEIZE_CONTROL_REBOUND。
@@ -542,10 +473,17 @@ export function buildNpcActiveStateBlock(reference, state) {
 
     const profile = npcProfile(reference, npcId);
     const coop = cooperationSignal(state, npcId, entry.lastUpdatedTurn);
+
     const fields = [
       `SAEP: [${entry.SOC}, ${entry.ACT}, ${entry.EGO}, ${entry.PAT}(${patienceLabel(entry.PAT)})]`,
       `Status: "${statusTag(state, reference, npcId)}"`,
     ];
+    // [2026-08-31] Stance / Beat 是併進來的合作狀態。以前它們各自住在一個
+    // 600 字的 <NPC_Cooperation_Contract> 動態區塊裡，而那個區塊有九成是整場不變的
+    // 規則文字——那些已經搬進靜態層的 NPC_COOPERATION_CONTRACT。
+    // 每回合真的會變的就是這兩個字串，所以併進這一行，不再自成一段。
+    if (coop?.state) fields.push(`Stance: "${coop.state}"`);
+    if (coop?.interactionType) fields.push(`Beat: "${coop.interactionType}"`);
     const known = knowledgeFor(profile, entry);
     if (known.length) fields.push(`Knowledge: "${known.join("／")}"`);
     fields.push(`Agenda: "${agendaFor(profile, coop)}"`);
@@ -590,6 +528,10 @@ SAEP 四個軸，範圍 0-10，順序固定是 [SOC, ACT, EGO, PAT]：
 - Agenda：他自己的當前目標。他會朝這個目標行動，即使玩家沒有要求，也即使玩家在做別的事。
 - Taboo：他的絕對禁忌。標記 (TRIPPED) 代表玩家這一回合剛好踩到了——
   這一回合必須出現明確的敵意反應（拒絕、警告、拉開距離或收回支援），不可以輕輕帶過。
+- Stance：他目前的合作階段（由伺服器裁定）。階段只描述**他願意怎麼配合**，
+  不描述世界發生了什麼；不可以把階段名稱、或「他現在進入自保狀態」這種說法寫進敘事。
+- Beat：伺服器認出的、玩家這一回合對他做的事。用它決定他這一句話回應的是什麼，
+  不要把分類名稱本身寫出來。
 - Override: "SEIZE_CONTROL"：耐心已經見底。這一回合他**必須**主動奪走場面主導權：
   打斷玩家的話、直接下令、或不等玩家回應就自己行動。
 

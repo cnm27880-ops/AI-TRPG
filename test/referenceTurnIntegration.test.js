@@ -71,7 +71,7 @@ test("Ripley cooperation state is persisted before an unavailable LLM response",
 
   const saved = await store.get(sessionId);
   assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.state, "angry");
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_boundary_force_01");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastInteractionType, "coercive_pressure");
   assert.equal(saved.pendingTurn.referenceState.npcCooperation.npc_ripley.lastUpdatedTurn, 2);
 
   const retry = await playTurn({
@@ -87,8 +87,8 @@ test("Ripley cooperation state is persisted before an unavailable LLM response",
   const retryBody = await retry.json();
   assert.equal(retryBody.ok, false);
   const replayed = await store.get(sessionId);
-  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.boundaryIncidents, 1);
-  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_boundary_force_01");
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.incidents, 1);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_ripley.lastInteractionType, "coercive_pressure");
 });
 
 test("同一回合的 Ripley／Lambert cooperation state 會依序合併而不互相覆蓋", async () => {
@@ -131,8 +131,8 @@ test("同一回合的 Ripley／Lambert cooperation state 會依序合併而不�
   assert.equal(actionBody.pendingTurn, null);
 
   const saved = await store.get(sessionId);
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastEntryId, "ripley_cooperate_lambert_02");
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_cooperate_reassurance_01");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_ripley.lastInteractionType, "calm_lambert");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastInteractionType, "offer_reassurance");
   assert.equal(saved.pendingTurn, null);
 });
 
@@ -171,10 +171,10 @@ test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPend
   assert.equal(body.pendingTurn?.referenceState, undefined);
 
   const saved = await store.get(sessionId);
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.lastEntryId, "parker_boundary_coercion_02");
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastEntryId, "lambert_pressure_shout_01");
-  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.lastInteractionType, "coercive_pressure");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_parker.incidents, 1);
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.lastInteractionType, "pressure_or_dismissal");
+  assert.equal(saved.scenario.referenceState.npcCooperation.npc_lambert.incidents, 1);
 
   const retry = await playTurn({
     request: request("https://test.local/api/turn", { sessionId, requestId, retryPending: true, playerAction: actionText }),
@@ -182,10 +182,10 @@ test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPend
   });
   assert.equal(retry.status, 503);
   const replayed = await store.get(sessionId);
-  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
-  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
-  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_parker.boundaryIncidents, 1);
-  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_lambert.pressureIncidents, 1);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_parker.incidents, 1);
+  assert.equal(replayed.scenario.referenceState.npcCooperation.npc_lambert.incidents, 1);
+  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_parker.incidents, 1);
+  assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_lambert.incidents, 1);
 });
 
 test("V2 reference action uses canonical direct-send without an LLM response", async () => {
