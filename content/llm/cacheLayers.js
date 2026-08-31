@@ -81,17 +81,41 @@ function joinBlocks(blocks) {
  * 從它開始往後的所有 token 全部 cache miss。拆成獨立訊息之後，
  * 「新增一輪」在序列化之後就只是在尾端多接一段——前面每一則的 token 完全沒動。
  *
- * @param {Array<{action?: string|null, narration?: string|null}>} history
+ * [2026-08-31] 多了場景簡報：每一則歷史可以帶 sceneId，換場景的那一則之前會插入一段
+ * 由 sceneBriefFor(sceneId) 產生的簡報。這讓「整個場景都不會變的素材」從每回合重送
+ * 變成只送一次，而且仍然是尾端追加——簡報插在時間軸上它該在的位置，不是插在最前面。
+ *
+ * @param {Array<{action?: string|null, narration?: string|null, sceneId?: string|null}>} history
+ * @param {object} [options]
+ * @param {(sceneId: string) => string|null} [options.sceneBriefFor] 只能吃 sceneId，不能吃 state
  * @returns {Array<{role: "user"|"assistant", content: string}>}
  */
-export function historyToMessages(history) {
+export function historyToMessages(history, { sceneBriefFor = null } = {}) {
   if (!Array.isArray(history) || history.length === 0) return [];
   const messages = [];
+  // 上一則歷史屬於哪個場景。用來決定「這裡要不要插一段場景簡報」。
+  let briefedSceneId = null;
   for (const turn of history) {
     if (!turn) continue;
     const action = typeof turn.action === "string" ? turn.action.trim() : "";
     const narration = typeof turn.narration === "string" ? turn.narration.trim() : "";
     if (!action && !narration) continue;
+
+    // 場景簡報：在「場景換了」的那一則之前插入一次。
+    //
+    // 這是把場景固定素材（事件真相、節拍、環境描述）從每回合重送改成只送一次的機制。
+    // 它必須插在**歷史的時間軸上**，不能放在最前面：放最前面的話，每換一次場景
+    // 就會改寫歷史層的開頭，等於把 prefix cache 關掉——那正是這件事要解決的問題。
+    //
+    // sceneBriefFor 只能吃 sceneId，不能吃 state：舊場景的簡報必須永遠產生同一段文字，
+    // 否則玩家一撿到線索，前面每一段簡報就跟著變，整條歷史前綴一起失效。
+    const sceneId = typeof turn.sceneId === "string" ? turn.sceneId : null;
+    if (sceneBriefFor && sceneId && sceneId !== briefedSceneId) {
+      const brief = sceneBriefFor(sceneId);
+      if (brief) messages.push({ role: "user", content: brief });
+      briefedSceneId = sceneId;
+    }
+
     // 沒有玩家行動的那幾輪（開場、回坐重述）照樣要放一則 user 訊息，內容是固定字串。
     // 不放的話 messages 會以 assistant 開頭，部分 OpenAI 相容端點會直接回 400；
     // 而且固定字串本身是靜態的，不影響快取。
