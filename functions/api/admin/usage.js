@@ -42,6 +42,13 @@ export async function onRequestGet(context) {
   const cost = estimateCost(total, pricing);
   const costWithoutCache = estimateCostWithoutCache(total, pricing);
 
+  // 估算命中率／省下的錢：只算「供應商沒回報、用字元比例推算」的那一小塊回合，
+  // 跟上面 cost/costWithoutCache（真實回報）分開算，絕對不相加——見
+  // content/storage/usageLedger.js 的 estimatedCachedTokens 說明。
+  const estimatedTotals = { promptTokens: total.estimatedPromptTokens, outputTokens: 0, cachedTokens: total.estimatedCachedTokens };
+  const estimatedCost = estimateCost(estimatedTotals, pricing);
+  const estimatedCostWithoutCache = estimateCostWithoutCache(estimatedTotals, pricing);
+
   const withCost = (entry) => {
     const c = estimateCost(entry, pricing);
     return {
@@ -49,6 +56,10 @@ export async function onRequestGet(context) {
       // 命中率：分母是「有回報的 prompt token」，不是全部回合。
       cacheHitRatio: entry.promptTokens ? entry.cachedTokens / entry.promptTokens : null,
       cost: c ? c.total : null,
+      // 推算值，非供應商回報——見上面 estimatedTotals 的說明，跟 cacheHitRatio 分開看。
+      estimatedCacheHitRatio: entry.estimatedPromptTokens
+        ? entry.estimatedCachedTokens / entry.estimatedPromptTokens
+        : null,
     };
   };
 
@@ -72,6 +83,12 @@ export async function onRequestGet(context) {
         costWithoutCache: costWithoutCache ? costWithoutCache.total : null,
         cacheSaving:
           cost && costWithoutCache ? costWithoutCache.total - cost.total : null,
+        // 推算省下的錢：只涵蓋「供應商沒回報、用字元比例猜」的那些回合，不是真實數字，
+        // 不算進上面的 cacheSaving。前端必須用不同的視覺樣式標示，不能跟 cacheSaving 並排成同一件事。
+        estimatedCacheSaving:
+          estimatedCost && estimatedCostWithoutCache
+            ? estimatedCostWithoutCache.total - estimatedCost.total
+            : null,
         perTurn: {
           promptTokens: perTurn(total.promptTokens, total.measuredTurns),
           outputTokens: perTurn(total.outputTokens, total.measuredTurns),

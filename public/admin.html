@@ -28,6 +28,11 @@
   .card .v { font-size: 1.35rem; font-weight: 700; margin-top: .25rem; }
   .card .n { color: var(--dim); font-size: .66rem; margin-top: .2rem; }
   .accent { color: var(--accent); }
+  /* 推算值（非供應商回報，字元比例猜的）刻意用跟真實數字不一樣的樣式：虛線框＋警示色，
+     不能讓人一眼把它跟上面真正的快取命中率／省下金額看成同一種數字。 */
+  .card.estimate { border-style: dashed; border-color: var(--warn); }
+  .card.estimate .k::after { content: " · 推算"; color: var(--warn); text-transform: none; letter-spacing: 0; }
+  .card.estimate .v { color: var(--warn); }
   .notice {
     border: 1px solid var(--warn); background: rgba(251,191,36,.08); color: var(--warn);
     border-radius: 6px; padding: .7rem .9rem; font-size: .72rem; margin-bottom: 1.1rem;
@@ -89,8 +94,8 @@ function fmtMoney(v, currency) {
   return `${v.toFixed(digits)} ${currency}`;
 }
 
-function card(k, v, note) {
-  return `<div class="card"><div class="k">${k}</div><div class="v">${v}</div>${
+function card(k, v, note, cls = "") {
+  return `<div class="card ${cls}"><div class="k">${k}</div><div class="v">${v}</div>${
     note ? `<div class="n">${note}</div>` : ""
   }</div>`;
 }
@@ -118,19 +123,32 @@ function render(data) {
       `沒回報的供應商不會進 token 與成本統計（「沒回報」不等於「用了 0」）。`
     );
   }
+  if (t.estimatedTurns > 0) {
+    notices.push(
+      `其中 ${fmtInt(t.estimatedTurns)} 個回合的供應商沒有回報快取命中欄位，下面標「· 推算」的卡片` +
+      `是用訊息字元長度比例回推的猜測值，<strong>不是</strong>供應商回報的真實命中數，` +
+      `跟「快取命中率」「快取省下」是兩組不相關的數字，不會相加也不會互相取代。`
+    );
+  }
   document.getElementById("notice").innerHTML =
     notices.map((n) => `<div class="notice">${n}</div>`).join("");
 
   document.getElementById("cards").innerHTML = [
     card("回合數", fmtInt(t.turns), `其中 ${fmtInt(t.measuredTurns)} 回合有計量`),
     card("快取命中率", `<span class="accent">${fmtPct(t.cacheHitRatio)}</span>`,
-         `${fmtInt(t.cachedTokens)} / ${fmtInt(t.promptTokens)} 輸入 token`),
+         `${fmtInt(t.cachedTokens)} / ${fmtInt(t.promptTokens)} 輸入 token（供應商回報）`),
     card("總成本", fmtMoney(t.cost, cur),
          data.pricing.configured ? `依 ${data.pricing.modelLabel} 費率換算` : "未設定費率"),
     card("每回合平均", fmtMoney(t.perTurn.cost, cur),
          `輸入 ${fmtInt(t.perTurn.promptTokens)} / 輸出 ${fmtInt(t.perTurn.outputTokens)} token`),
     card("快取省下", fmtMoney(t.cacheSaving, cur),
          t.costWithoutCache != null ? `沒有快取的話是 ${fmtMoney(t.costWithoutCache, cur)}` : "未設定費率"),
+    ...(t.estimatedTurns > 0 ? [
+      card("命中率", fmtPct(t.estimatedCacheHitRatio),
+           `字元比例猜的，${fmtInt(t.estimatedTurns)} 個未回報回合，非官方數字`, "estimate"),
+      card("省下金額", fmtMoney(t.estimatedCacheSaving, cur),
+           "同樣是猜的，僅供參考，不計入「快取省下」", "estimate"),
+    ] : []),
   ].join("");
 
   document.getElementById("rows").innerHTML = data.daily.map((d) => `
@@ -156,6 +174,11 @@ function render(data) {
     `成本是<strong>虛擬換算</strong>：不管這些 token 實際上是誰服務的，一律用上面那組費率計算。` +
       `所以用測試供應商跑出來的數字，就是正式站固定用該模型時會看到的數字。`,
     `快取命中率是 prompt cache 分層的唯一產出，說明見 docs/PROMPT_CACHE_CONTRACT.md。`,
+    t.estimatedTurns > 0
+      ? `標「· 推算」的數字來自 content/llm/cacheLayers.js 的 estimateCacheStats()：` +
+        `供應商沒回報命中欄位時，用訊息字元長度比例回推。這是啟發式猜測，不是真實 token 帳目，` +
+        `不保證跟供應商實際命中一致，請只當參考，不要拿來對帳。`
+      : "",
   ].filter(Boolean).join("<br>");
 }
 

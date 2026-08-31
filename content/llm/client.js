@@ -10,7 +10,7 @@
 
 import { PROTOCOLS, resolveProvider, resolveServerProviderChain } from "./providers.js";
 import { assertSafeOutboundUrl } from "./urlSafety.js";
-import { extractCacheStats } from "./cacheLayers.js";
+import { extractCacheStats, estimateCacheStats } from "./cacheLayers.js";
 
 /**
  * LLM呼叫失敗時丟出的錯誤型別。
@@ -587,14 +587,24 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, history = [], ma
     );
   }
 
+  // 命中率是這條路徑唯一可觀測的成本指標；撈不到就是 null（代表這家沒回報），
+  // 不要退化成 0——那會讓監控把「沒回報」誤判成「快取完全失效」。
+  const cacheStats = extractCacheStats(raw);
+  // 第三方中轉常見不回報 prompt cache 欄位（DeepSeek/OpenAI 官方會回，很多中轉不會）。
+  // 這種情況下 cacheStats 是 null，我們用字元比例補一個**估算值**——但它必須待在獨立欄位、
+  // 帶著 estimated:true，絕對不能取代 cacheStats：那個 null 是「沒回報」的唯一表達方式，
+  // 見 cacheLayers.js 的 estimateCacheStats() 說明與 docs/PROMPT_CACHE_CONTRACT.md。
+  const cacheStatsEstimate = cacheStats
+    ? null
+    : estimateCacheStats({ messages, promptTokens: Number(raw?.usage?.prompt_tokens) });
+
   return {
     text,
     provider: cfg.id,
     model: cfg.model,
     finishReason: raw?.choices?.[0]?.finish_reason ?? null,
-    // 命中率是這條路徑唯一可觀測的成本指標；撈不到就是 null（代表這家沒回報），
-    // 不要退化成 0——那會讓監控把「沒回報」誤判成「快取完全失效」。
-    cacheStats: extractCacheStats(raw),
+    cacheStats,
+    cacheStatsEstimate,
     raw,
   };
 }

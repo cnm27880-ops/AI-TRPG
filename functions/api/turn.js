@@ -1074,6 +1074,7 @@ async function executeTurn(context, streamHooks = null) {
   let finishReason = null;
   let llmDiagnostic = null;
   let cacheStats = null;
+  let cacheStatsEstimate = null;
   // 一律走 server-managed fallback chain。玩家不再自備金鑰，也就沒有「單一 provider 直送」
   // 這條路了；少一條分支，就少一個只有在特定設定下才會被執行到的程式路徑。
   const callNarrativeLlm = callLlmWithFallback;
@@ -1110,11 +1111,6 @@ async function executeTurn(context, streamHooks = null) {
     // 供應商沒回報 usage 快取欄位時 cacheStats 是 null，不記——不要把「沒回報」記成 0。
     // 用量帳本：一天一筆彙總，給 /api/admin/usage 的面板用。
     // 寫入是盡力而為——帳本壞掉不可以影響玩家的回合（見 usageLedger.js）。
-    await recordTurnUsage(store, {
-      provider: usedProvider,
-      model,
-      tokens: extractTokenUsage(res.raw),
-    });
     if (res.cacheStats) {
       cacheStats = res.cacheStats;
       console.log("[PROMPT_CACHE]", JSON.stringify({
@@ -1125,7 +1121,25 @@ async function executeTurn(context, streamHooks = null) {
         promptTokens: res.cacheStats.total,
         ratio: res.cacheStats.ratio,
       }));
+    } else if (res.cacheStatsEstimate) {
+      // 字元比例推算，不是供應商回報——log 用不同的 key 標出來，不能跟上面那條混在一起看。
+      cacheStatsEstimate = res.cacheStatsEstimate;
+      console.log("[PROMPT_CACHE_ESTIMATE]", JSON.stringify({
+        provider: usedProvider,
+        model,
+        hit: cacheStatsEstimate.hit,
+        miss: cacheStatsEstimate.miss,
+        promptTokens: cacheStatsEstimate.total,
+        ratio: cacheStatsEstimate.ratio,
+        note: "字元長度比例推算，非供應商回報",
+      }));
     }
+    await recordTurnUsage(store, {
+      provider: usedProvider,
+      model,
+      tokens: extractTokenUsage(res.raw),
+      cacheEstimate: cacheStatsEstimate,
+    });
     if (Array.isArray(res.fallbackAttempts) && res.fallbackAttempts.length) {
       llmDiagnostic = buildLlmDiagnostic({
         attempts: res.fallbackAttempts,
@@ -1752,6 +1766,7 @@ async function executeTurn(context, streamHooks = null) {
     // 只有 token 計數，沒有任何供應商原文或金鑰資訊；沒回報時整個欄位不存在，
     // 維持既有 response 形狀，前端不需要為它加判斷。
     ...(cacheStats ? { promptCache: cacheStats } : {}),
+    ...(cacheStatsEstimate ? { promptCacheEstimate: cacheStatsEstimate } : {}),
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,
   };
