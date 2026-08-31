@@ -79,7 +79,12 @@ npm run test:coverage       # CI 用的覆蓋率門檻版本
 npm run lint:prompt-cache   # prompt cache 分層結構鎖
 npm run lint:workflows      # GitHub Actions YAML 靜態檢查
 npm run test:extreme        # 極端回合／provider 錯誤矩陣
+npm run eval:narrative      # 敘事行為 eval（要金鑰；沒有就跳過）
 ```
+
+`eval:narrative` 是唯一一支驗「**模型真的照做了嗎**」的檢查。其餘測試對提示詞的斷言
+只能證明「字串在 prompt 裡」，不能證明模型因此改變了行為。改動反客服協定、第四面牆條款
+或任何靜態層的約束之後，這一支才是能告訴你「有沒有效」的東西。
 
 送出改動前，`npm test`、`npm run lint:prompt-cache`、`npm run lint:workflows` 都要綠。
 

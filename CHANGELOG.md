@@ -2,6 +2,65 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [FEATURE-2026.08.31c] — 敘事行為 eval：第一支驗「模型真的照做了嗎」的檢查
+
+**影響範圍：** 新增 `scripts/narrative-behaviour-eval.mjs`、`test/narrativeBehaviourEval.test.js`；
+修改 `package.json`、`.github/workflows/ci.yml`、`AGENTS.md`
+
+**變更性質：** 新增檢查。沒有改動任何 runtime 程式碼。
+
+### 為什麼
+
+到目前為止，所有關於提示詞的斷言長這樣：
+
+```js
+assert.match(ANTI_ASSISTANT_PROTOCOL, /接下來該怎麼辦/);
+```
+
+那只證明**字串在 prompt 裡**，不證明模型因此改變了行為。我們花了三輪把 S.A.E.P.
+算得很精準、把分層壓得很省，但沒有任何證據說明 NPC 真的不再問「你接下來想怎麼做？」、
+`SEIZE_CONTROL` 那一回合真的出現了打斷、白名單以外的事真的沒有被說出來。
+
+最後一項特別值得擔心，而且是重構自己引進的風險：把 1226 字元的合作契約從動態層搬進
+`system` 之後，**模型還讀得到它嗎**？`system` 裡的東西被忽略是很常見的失敗模式，
+而它不會讓任何離線測試變紅。
+
+### 新增
+
+`npm run eval:narrative` —— 四個場景，用 **production 真正在用的組裝函式**
+（`composeSystemInstruction` / `buildNpcCooperationContract` / `buildNpcActiveStateBlock` /
+`buildReferencePromptBlock`）經同一個 `buildLayeredRequest()` 分層，打真實模型，
+然後對**輸出**下斷言。不走 `/api/turn` 端點是因為要驗「耐心見底時會不會奪權」就得先讓
+耐心見底，透過端點得打十幾個真實回合才到得了，又慢又不決定性。
+
+兩種探針：
+
+| | 方式 | 擋不擋 CI | 用途 |
+|---|---|---|---|
+| 硬性 | 機械正則 | 擋（exit 1） | 徵詢句、系統語言、白名單外的秘密——「絕對不可以出現」 |
+| 參考 | LLM judge | 不擋 | 奪權、禁忌反應——「必須出現」，沒辦法用正則做 |
+
+judge 不拿來擋 CI 是因為它自己也會看錯；它的用途是標出哪一回合要人工複查。
+
+沒有金鑰就優雅跳過（exit 0），掛在既有的 `workflow_dispatch` job 上，
+跟 `test:real-provider` 同一個約定。
+
+### 這支 eval 自己也有測試
+
+`test/narrativeBehaviourEval.test.js`（6 項，離線、不發任何請求）。理由很直接：
+**一支沒有人驗過的檢查等於沒有檢查**——探針的正則寫錯不會有任何跡象，
+等到有人真的拿金鑰跑的時候，得到的是一個沒有意義的綠燈或紅燈。
+
+驗三件事：探針抓得到已知違規也不誤傷正常敘事；場景 fixture 真的到得了它要測的那一格
+（狀態行裡真的有 `SEIZE_CONTROL` 與 `TRIPPED`）；eval 組出來的 prompt 是 production
+的那一份而且分層沒有壞。
+
+寫這組測試當場抓到兩個問題：一條 `/等你(決定|開口|回答)/` 沒有任何樣本涵蓋
+（等於永遠不會被驗證），以及 `/骰(子|池)?[^幹]/` 是一條寫壞的正則
+（本意是避開誤判，實際上會讓句尾的「骰」抓不到）。
+
+全套 1251 項通過。
+
 ## [REFACTOR-2026.08.31b] — 把「幾乎不變」的東西全部趕出動態層，並修掉兩個沉默的分類 bug
 
 **影響範圍：** `content/scenario/npcCooperationContract.js`、`npcStateMachine.js`、
