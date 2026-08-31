@@ -58,8 +58,9 @@ LLM 只把**已經定案的結果**翻譯成敘事文字。任何讓 LLM 決定�
    程式不可以在 LLM 失敗時「湊」一段敘事出來冒充 AI 寫的——玩家分不出來，
    那會侵蝕整個遊戲的可信度。失敗就明確回報失敗。
 2. **角色卡以存檔為準**，不吃前端送來的角色卡（否則改 localStorage 就能把屬性改成 99）。
-3. **玩家的 provider／金鑰／Base URL 覆寫**只在 `content/llm/requestOverrides.js`
-   的規則下生效，不要在呼叫點各寫一份。
+3. **玩家不能指定 LLM 供應商或金鑰。** 前端沒有設定面板，`/api/turn` 也不讀 body 的
+   `provider` / `apiKey` / `baseUrl` / `model` / `style` / `persona`。要新增這類設定之前先想清楚：
+   「前端沒有入口」不等於「後端不接受」，兩邊要一起關。
 4. **不要把第三方供應商的原始回應本文送回瀏覽器**。公開錯誤訊息走
    `describeLlmFailure()`，完整原因只寫進 server log。
 5. **註解寫「為什麼」，不寫「做了什麼」。** 這個 codebase 的註解密度偏高而且刻意如此：
@@ -94,6 +95,9 @@ npm run test:extreme        # 極端回合／provider 錯誤矩陣
 | `content/narrativeStyle.js` | 文筆層（面具、文筆設定檔、篇幅節奏）。跟規則契約層嚴格分開 |
 | `content/scenario/` | 副本、節點、迫近度、reference 事件 |
 | `functions/api/` | Cloudflare Pages Functions 的 HTTP 端點 |
+| `content/storage/usageLedger.js` | 每日 token 用量帳本（KV，key 前綴 `usage:`） |
+| `functions/api/admin/` | 管理員專用端點。非管理員一律 404，不是 403 |
+| `public/admin.html` | 用量與成本面板（只有 `ADMIN_DISCORD_IDS` 白名單看得到） |
 | `test/` | Node 內建 test runner，離線、不需要金鑰 |
 
 延伸閱讀：`ARCHITECTURE.md`、`LLM_PROVIDERS.md`、`docs/SCENARIO_AUTHORING_STANDARD.md`。

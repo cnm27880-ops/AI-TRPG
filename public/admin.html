@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-Hant" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>用量與成本 · 無限恐怖 TRPG</title>
+<style>
+  /* 這一頁刻意不共用 index.html 的樣式：那份是 368KB 的遊戲介面，
+     為了一個只有站長看得到的數字面板去載它並不划算，而且兩邊耦合之後
+     改遊戲介面就有機會弄壞這裡。這裡的 CSS 只有幾十行，全部寫在這一頁。 */
+  :root {
+    color-scheme: dark;
+    --bg: #09090b; --card: #131316; --line: #26262b;
+    --ink: #e7e7ea; --dim: #8b8b93; --accent: #34d399; --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 1.6rem 1.1rem 3rem; background: var(--bg); color: var(--ink);
+    font: 13px/1.65 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  main { max-width: 940px; margin: 0 auto; }
+  h1 { font-size: 1.05rem; margin: 0 0 .2rem; letter-spacing: .04em; }
+  .sub { color: var(--dim); font-size: .72rem; margin: 0 0 1.4rem; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .7rem; margin-bottom: 1.2rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: .8rem .9rem; }
+  .card .k { color: var(--dim); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; }
+  .card .v { font-size: 1.35rem; font-weight: 700; margin-top: .25rem; }
+  .card .n { color: var(--dim); font-size: .66rem; margin-top: .2rem; }
+  .accent { color: var(--accent); }
+  .notice {
+    border: 1px solid var(--warn); background: rgba(251,191,36,.08); color: var(--warn);
+    border-radius: 6px; padding: .7rem .9rem; font-size: .72rem; margin-bottom: 1.1rem;
+  }
+  .notice code { background: rgba(0,0,0,.35); padding: .05rem .3rem; border-radius: 3px; }
+  .wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .74rem; }
+  th, td { padding: .45rem .7rem; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--dim); font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr:last-child td { border-bottom: none; }
+  .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: .35rem; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .foot { color: var(--dim); font-size: .68rem; margin-top: 1.4rem; line-height: 1.8; }
+  .err { color: #f87171; }
+  select, button {
+    background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 4px; padding: .3rem .5rem; font: inherit; font-size: .72rem; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>用量與成本</h1>
+  <p class="sub">
+    只有 <code>ADMIN_DISCORD_IDS</code> 白名單裡的帳號看得到這一頁。
+    <label style="margin-left:.6rem">區間
+      <select id="days">
+        <option value="7">7 天</option>
+        <option value="14" selected>14 天</option>
+        <option value="30">30 天</option>
+      </select>
+    </label>
+  </p>
+
+  <div id="notice"></div>
+  <div class="cards" id="cards"></div>
+  <div class="wrap"><table>
+    <thead><tr>
+      <th>日期</th><th>回合</th><th>已計量</th>
+      <th>輸入 token</th><th>命中</th><th>命中率</th><th>輸出 token</th><th>成本</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="foot" id="foot"></p>
+</main>
+
+<script>
+// 這一頁沒有任何框架，也沒有任何寫入操作——它只是把 /api/admin/usage 的 JSON 畫出來。
+// 非管理員拿到的是 404，所以下面的錯誤處理只需要「講清楚要去登入」。
+
+const fmtInt = (n) => (n == null ? "—" : Math.round(n).toLocaleString("en-US"));
+const fmtPct = (r) => (r == null ? "—" : (r * 100).toFixed(1) + "%");
+
+/** 錢的位數要跟金額大小走：一回合可能是 0.0003，一個月可能是 12.4。 */
+function fmtMoney(v, currency) {
+  if (v == null) return "—";
+  const digits = Math.abs(v) >= 1 ? 2 : Math.abs(v) >= 0.01 ? 4 : 6;
+  return `${v.toFixed(digits)} ${currency}`;
+}
+
+function card(k, v, note) {
+  return `<div class="card"><div class="k">${k}</div><div class="v">${v}</div>${
+    note ? `<div class="n">${note}</div>` : ""
+  }</div>`;
+}
+
+function render(data) {
+  const cur = data.pricing.currency;
+  const t = data.total;
+  const notices = [];
+
+  if (!data.pricing.configured) {
+    notices.push(
+      `尚未設定費率，所以這一頁只顯示 token 數，不顯示金額。` +
+      `請在 Cloudflare 的環境變數設定 <code>ADMIN_PRICE_CACHE_HIT_PER_MTOK</code>、` +
+      `<code>ADMIN_PRICE_CACHE_MISS_PER_MTOK</code>、<code>ADMIN_PRICE_OUTPUT_PER_MTOK</code>` +
+      `（單位：每一百萬 token）。這些數字專案不預設，因為各家計價變動很快，` +
+      `寫死一組沒查證的數字比沒有數字更危險——請自己到官方計價頁核對後填入。`
+    );
+  }
+  if (!data.persistent) {
+    notices.push(`目前沒有 KV binding，帳本存在記憶體裡，容器一重啟就歸零。設定方式見 DEPLOYMENT.md。`);
+  }
+  if (t.turns > 0 && t.measuredTurns < t.turns) {
+    notices.push(
+      `${t.turns} 個回合裡只有 ${t.measuredTurns} 個回報了 token 用量。` +
+      `沒回報的供應商不會進 token 與成本統計（「沒回報」不等於「用了 0」）。`
+    );
+  }
+  document.getElementById("notice").innerHTML =
+    notices.map((n) => `<div class="notice">${n}</div>`).join("");
+
+  document.getElementById("cards").innerHTML = [
+    card("回合數", fmtInt(t.turns), `其中 ${fmtInt(t.measuredTurns)} 回合有計量`),
+    card("快取命中率", `<span class="accent">${fmtPct(t.cacheHitRatio)}</span>`,
+         `${fmtInt(t.cachedTokens)} / ${fmtInt(t.promptTokens)} 輸入 token`),
+    card("總成本", fmtMoney(t.cost, cur),
+         data.pricing.configured ? `依 ${data.pricing.modelLabel} 費率換算` : "未設定費率"),
+    card("每回合平均", fmtMoney(t.perTurn.cost, cur),
+         `輸入 ${fmtInt(t.perTurn.promptTokens)} / 輸出 ${fmtInt(t.perTurn.outputTokens)} token`),
+    card("快取省下", fmtMoney(t.cacheSaving, cur),
+         t.costWithoutCache != null ? `沒有快取的話是 ${fmtMoney(t.costWithoutCache, cur)}` : "未設定費率"),
+  ].join("");
+
+  document.getElementById("rows").innerHTML = data.daily.map((d) => `
+    <tr>
+      <td>${d.date}</td>
+      <td>${fmtInt(d.turns)}</td>
+      <td>${fmtInt(d.measuredTurns)}</td>
+      <td>${fmtInt(d.promptTokens)}</td>
+      <td>${fmtInt(d.cachedTokens)}</td>
+      <td>${fmtPct(d.cacheHitRatio)}
+        <div class="bar"><i style="width:${((d.cacheHitRatio ?? 0) * 100).toFixed(1)}%"></i></div>
+      </td>
+      <td>${fmtInt(d.outputTokens)}</td>
+      <td>${fmtMoney(d.cost, cur)}</td>
+    </tr>`).join("");
+
+  const providers = Object.entries(t.byProvider ?? {})
+    .sort((a, b) => b[1].turns - a[1].turns)
+    .map(([id, b]) => `${id}${b.model ? `（${b.model}）` : ""} ${b.turns} 回合`)
+    .join("、");
+  document.getElementById("foot").innerHTML = [
+    providers ? `實際服務的供應商：${providers}` : "",
+    `成本是<strong>虛擬換算</strong>：不管這些 token 實際上是誰服務的，一律用上面那組費率計算。` +
+      `所以用測試供應商跑出來的數字，就是正式站固定用該模型時會看到的數字。`,
+    `快取命中率是 prompt cache 分層的唯一產出，說明見 docs/PROMPT_CACHE_CONTRACT.md。`,
+  ].filter(Boolean).join("<br>");
+}
+
+async function load() {
+  const days = document.getElementById("days").value;
+  try {
+    const res = await fetch(`/api/admin/usage?days=${days}`, { credentials: "same-origin" });
+    if (res.status === 404) {
+      document.getElementById("notice").innerHTML =
+        `<div class="notice err">看不到這一頁。可能是還沒用管理員帳號登入（請先到遊戲主畫面用 Discord 登入），` +
+        `或這個帳號不在 <code>ADMIN_DISCORD_IDS</code> 白名單裡。</div>`;
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    render(await res.json());
+  } catch (err) {
+    document.getElementById("notice").innerHTML =
+      `<div class="notice err">讀取失敗：${String(err.message ?? err)}</div>`;
+  }
+}
+
+document.getElementById("days").addEventListener("change", load);
+load();
+</script>
+</body>
+</html>

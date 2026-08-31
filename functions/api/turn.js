@@ -46,6 +46,8 @@ import {
 } from "../../content/llm/client.js";
 import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
 import { buildLayeredRequest, historyToMessages } from "../../content/llm/cacheLayers.js";
+import { extractTokenUsage } from "../../content/llm/usage.js";
+import { recordTurnUsage } from "../../content/storage/usageLedger.js";
 import { pickProvider, PROVIDER_IDS } from "../../content/llm/providers.js";
 import {
   composeSystemInstruction,
@@ -1106,6 +1108,13 @@ async function executeTurn(context, streamHooks = null) {
     // 快取命中率是分層是否真的有效的**唯一**可觀測證據：分層寫錯不會讓遊戲壞掉，
     // 只會讓帳單變貴、TTFT 變慢。沒有這一行，這個重構就沒有辦法被驗證，也沒有辦法防止退化。
     // 供應商沒回報 usage 快取欄位時 cacheStats 是 null，不記——不要把「沒回報」記成 0。
+    // 用量帳本：一天一筆彙總，給 /api/admin/usage 的面板用。
+    // 寫入是盡力而為——帳本壞掉不可以影響玩家的回合（見 usageLedger.js）。
+    await recordTurnUsage(store, {
+      provider: usedProvider,
+      model,
+      tokens: extractTokenUsage(res.raw),
+    });
     if (res.cacheStats) {
       cacheStats = res.cacheStats;
       console.log("[PROMPT_CACHE]", JSON.stringify({

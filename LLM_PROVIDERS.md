@@ -114,31 +114,28 @@ LLM_FALLBACK_PROVIDERS=groq,workers-ai,siliconflow,nvidia,mistral,gemini=gemini-
 
 Fallback 不會重新擲骰、重新套用 NPC policy 或改變 canonical state。`/api/turn` 仍先完成規則層，只有敘事 provider 失敗時才切換；所有 provider 都失敗時沿用現有 `pendingTurn`，`retryPending` 不會重算規則層。
 
-### 玩家自己在遊戲裡覆寫（「系統與文筆設定」）
+### 玩家不能自己填 API 金鑰（2026-08-31 起）
 
-除了上面的環境變數，玩家也可以在遊戲畫面右上的「系統與文筆設定」裡自己選供應商、
-填自己的金鑰。這條路徑的優先序高於伺服器端的環境變數（見 `content/llm/providers.js`
-的 `resolveProvider()`）。金鑰只存在玩家瀏覽器的 localStorage，只在送出回合時隨該次請求帶上。
+前端的「系統與文筆設定」面板**整個拆掉了**，`/api/turn` 也不再讀 body 裡的
+`provider` / `apiKey` / `baseUrl` / `model` / `maxTokens` / `style` / `persona`——
+送了不會報錯，就只是被忽略。供應商、金鑰、模型、文筆與敘事者面具一律由上面那些
+伺服器端環境變數決定。
 
-| 供應商 | 金鑰 | Base URL | 模型 |
-|---|---|---|---|
-| Groq | 必填 | 內建 | 選填（留空用預設） |
-| Google Gemini | 必填 | 內建 | 選填（留空用預設） |
-| DeepSeek | 必填 | 內建 | 選填 |
-| SiliconFlow 硅基流動 | 必填 | 內建 | 選填（免費模型 slug 會輪替，建議自己填） |
-| NVIDIA NIM | 必填 | 內建 | 選填 |
-| Mistral | 必填 | 內建 | 選填（留空用預設） |
-| OpenRouter | 必填 | 內建 | 選填（有預設值，但 `:free` 的 slug 常變動，收到 404 就自己填一個） |
-| Cloudflare Workers AI | 不需要 | 不適用 | 選填 |
-| 自訂（相容OpenAI） | 必填 | **必填** | **必填** |
+兩件事一起做是刻意的：**前端沒有入口 ≠ 後端不接受**。只拆前端的話，會留下一條
+沒有 UI、沒有人會去看、卻仍然可以用 curl 打進來的路徑，而那種路徑壞掉時不會有人發現。
 
-「自訂」涵蓋沒有共用網址、或不在上面清單裡的服務：Azure OpenAI（每個人的資源名稱不同）、
-Cohere、AI21、自架的 vLLM / LiteLLM 等，只要它是 OpenAI 相容格式就能用，**後端不需要為它多寫任何整合邏輯**。
+順帶消失的還有一整層 SSRF 風險：以前呼叫端可以送 `baseUrl`，所以必須有一層防護去擋
+「baseUrl 指向內網」的請求；現在那個欄位根本不被讀取，攻擊者連一個可以指向內網的
+欄位都沒有（`test/security2026_08_24.test.js` 有一條測試釘住「body 的 baseUrl
+不會抵達任何一次 fetch」）。
 
-必填欄位沒填時，前端在送出前就會擋下並指名缺什麼（`public/index.html` 的 `saveSettings()`
-與 `public/app.js` 的 `buildLlmOverrides()`），後端 `functions/api/turn.js` 另有同一道檢查當最後防線。
-這是刻意的：舊版會讓「選了供應商但沒填金鑰」的半設定請求送到後端，然後偷偷改用伺服器自己的金鑰
-——玩家以為在用自己選的那一家，其實不是。
+正式站與測試站要怎麼各用一家，見 [`DEPLOYMENT.md`](DEPLOYMENT.md) 的
+「在 Cloudflare 上切換 LLM 供應商」——重點是 Cloudflare Pages 的 Production 與
+Preview 是兩套獨立的環境變數，不需要每次測試前後手動改設定。
+
+`custom` 供應商仍然是接第三方服務的萬用入口：Azure OpenAI（每個人的資源名稱不同）、
+自架的 vLLM / LiteLLM、各種中轉，只要是 OpenAI 相容格式就能用，
+**後端不需要為它多寫任何整合邏輯**——設 `LLM_PROVIDER=custom` 加三個環境變數即可。
 
 ### LLM 失敗時要去哪裡看
 
