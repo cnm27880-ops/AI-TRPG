@@ -24,7 +24,12 @@
 
 import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
-import { buildTurnPrompt, SYSTEM_INSTRUCTION } from "../../content/gemini/promptContract.js";
+import {
+  SYSTEM_INSTRUCTION,
+  buildStaticContextBlocks,
+  buildMemoryBlocks,
+  buildDynamicTurnBlocks,
+} from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
 import {
   MAX_SCENE_CONTEXT_CHARS,
@@ -36,6 +41,7 @@ import { applyCheckModifiers } from "../../content/shop/effects.js";
 import { sanitizeProvidedCharacter } from "../../content/characterBuilder.js";
 import { callLlm, callLlmWithFallback, describeLlmFailure } from "../../content/llm/client.js";
 import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
+import { buildLayeredRequest } from "../../content/llm/cacheLayers.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
@@ -205,9 +211,10 @@ export async function onRequestPost(context) {
     );
   }
 
-  let systemInstruction;
+  // 文筆層＋規則契約層。這是靜態層的一段，見 docs/PROMPT_CACHE_CONTRACT.md。
+  let styleAndRules;
   try {
-    systemInstruction = composeSystemInstruction({
+    styleAndRules = composeSystemInstruction({
       rulesContract: SYSTEM_INSTRUCTION,
       // 敘事者人格面具，跟文筆設定檔同一個優先序：body > 環境變數 > 預設。
       personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
@@ -228,7 +235,32 @@ export async function onRequestPost(context) {
       }))
     : [];
 
-  const prompt = buildTurnPrompt({ playerAction, outcome, sceneContext, recentEvents: boundedRecentEvents });
+  // 三層契約（docs/PROMPT_CACHE_CONTRACT.md）：這個端點是無狀態的 demo/BYOK 入口，
+  // 沒有 session 歷史，所以歷史層是空的——但靜態／動態的分界跟 /api/turn 一模一樣，
+  // 而且必須一模一樣：專案裡只有一種組 LLM 請求的方式，多一種就會有一種被寫壞而沒人發現。
+  const layers = buildLayeredRequest({
+    staticBlocks: [
+      // 場景背景在這個端點是呼叫端每次傳的，但同一個呼叫端連續請求通常是同一個場景，
+      // 放靜態層仍然吃得到快取；放動態層則一定吃不到。
+      ...buildStaticContextBlocks({ sceneContext }),
+      // 規則契約放靜態層最後，優先序宣告才會是系統提示的最後一句（同 /api/turn）。
+      styleAndRules,
+    ],
+    // 這個端點沒有 session，歷史層永遠是空的；仍然明確傳出去，讓呼叫形狀跟 /api/turn 一致。
+    historyMessages: [],
+    dynamicBlocks: [
+      // 事件日誌是滑動窗口，每次呼叫的開頭都可能不同，所以歸動態層。
+      ...buildMemoryBlocks({ recentEvents: boundedRecentEvents }),
+      ...buildDynamicTurnBlocks({ playerAction, outcome }),
+    ],
+  });
+  if (layers.leaks.length > 0) {
+    console.warn("[PROMPT_CACHE_STATIC_LEAK]", JSON.stringify({
+      where: "POST /api/narrate",
+      leaks: layers.leaks.map((l) => l.id),
+      hint: "見 docs/PROMPT_CACHE_CONTRACT.md：這些值必須下放到最後一個 user message",
+    }));
+  }
 
 
   const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
@@ -236,8 +268,9 @@ export async function onRequestPost(context) {
     const result = await callNarrativeLlm({
       ...(bodyProvider ? { provider } : {}),
       env,
-      systemInstruction,
-      prompt,
+      systemInstruction: layers.systemInstruction,
+      history: layers.history,
+      prompt: layers.prompt,
       ...(bodyProvider ? llmOverrides : {}),
     });
     const diagnostic = Array.isArray(result.fallbackAttempts) && result.fallbackAttempts.length

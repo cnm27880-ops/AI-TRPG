@@ -14,6 +14,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
+import { onRequestPost as narratePost } from "../functions/api/narrate.js";
+import { callLlm } from "../content/llm/client.js";
 import {
   detectDynamicLeaks,
   historyToMessages,
@@ -217,6 +219,71 @@ test("buildLayeredRequest：空區塊會被丟掉，順序完全照傳入順序�
     dynamicBlocks: ["玩家行動"],
   });
   assert.deepEqual(leaky.leaks.map((l) => l.id), ["round-budget"]);
+});
+
+test("client 拒絕把 role:\"system\" 藏進 history 層", async () => {
+  // 這是最容易「順手」破壞分層的一種寫法：想多塞一段指令，就在歷史中間放一則 system。
+  // 那會把它後面每一則歷史都推離原位，而且靜態內容一旦排在動態內容後面就永遠命不中。
+  // 靜靜過濾掉會讓那段指令消失得無聲無息，所以這裡選擇直接失敗。
+  await assert.rejects(
+    () =>
+      callLlm({
+        provider: "custom",
+        env: { LLM_API_KEY: "k", LLM_BASE_URL: "https://example.invalid/v1", LLM_MODEL: "m" },
+        prompt: "這一回合的輸入",
+        systemInstruction: "靜態規則",
+        history: [
+          { role: "user", content: "【玩家行動】推門" },
+          { role: "system", content: "順手多塞的一段指令" },
+          { role: "assistant", content: "門開了" },
+        ],
+        fetchFn: async () => {
+          throw new Error("不應該送出請求");
+        },
+      }),
+    (err) => {
+      assert.equal(err.stage, "config");
+      assert.match(err.message, /history 層不接受/);
+      return true;
+    }
+  );
+});
+
+test("/api/narrate 走的是同一套三層，不是另外一份組裝邏輯", async () => {
+  // 專案裡只要有第二種組請求的方式，就會有一種被寫壞而沒有人發現。
+  const calls = [];
+  const env = {
+    NARRATE_ALLOW_SERVER_LLM: "true",
+    AI: {
+      run: async (model, payload) => {
+        calls.push(payload);
+        return { response: JSON.stringify({ narration: "一段敘事" }) };
+      },
+    },
+  };
+  const res = await narratePost({
+    request: {
+      json: async () => ({
+        playerAction: "撬開通風口",
+        sceneContext: "回聲研究所的走廊",
+        character: DRAFT,
+        attribute: "力量",
+        skill: "技藝",
+        difficulty: "普通",
+      }),
+    },
+    env,
+  });
+  assert.equal(res.status, 200, await res.clone().text());
+  assert.ok(calls.length > 0, "應該真的打了一次 LLM");
+
+  const { messages } = calls.at(-1);
+  assert.equal(messages[0].role, "system");
+  assert.equal(messages.at(-1).role, "user");
+  assert.deepEqual(detectDynamicLeaks(messages[0].content), [], "system 層不可以有動態值");
+  assert.match(messages[0].content, /【場景背景】/, "場景背景屬於靜態層");
+  assert.match(messages.at(-1).content, /<Player_Action>/, "玩家輸入屬於動態層");
+  assert.doesNotMatch(messages.at(-1).content, /【場景背景】/, "靜態內容不可以重複出現在動態層");
 });
 
 test("extractCacheStats：認得 DeepSeek 與 OpenAI 兩種欄位，沒回報時回 null", () => {

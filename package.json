@@ -11,6 +11,7 @@
     "test:real-gemini": "node test/runRealGeminiSmoke.mjs && node test/runRealGeminiV2Interaction.mjs",
     "test:real-provider": "node scripts/real-provider-smoke-test.mjs",
     "lint:workflows": "node scripts/lint-workflows.mjs",
+    "lint:prompt-cache": "node scripts/lint-prompt-cache.mjs",
     "deploy": "wrangler pages deploy",
     "build:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --minify",
     "watch:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --watch"
