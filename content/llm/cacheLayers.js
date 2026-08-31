@@ -187,3 +187,46 @@ export function extractCacheStats(raw) {
     ratio: total && total > 0 ? Math.round((hit / total) * 1000) / 1000 : null,
   };
 }
+
+/**
+ * [估算，非真實數據] 供應商沒回報 prompt cache 欄位時，用字元長度比例回推一個「推算值」。
+ *
+ * 這**不是**命中率，是猜的。真正的命中發生在供應商那一端的 KV 存取層，我們這裡完全看不到；
+ * 唯一能做的是假設「這回合的動態輸入（最後兩則 messages）不可能命中，其餘照三層契約
+ * 應該命中」，再用字元數的比例去套 promptTokens。跟真實 token 邊界、供應商實際 prefix
+ * 比對結果都對不上，只能當作「大概是這個量級」的參考值。
+ *
+ * 契約要求「沒回報」不能被當成一個數字（見 extractCacheStats 與
+ * docs/PROMPT_CACHE_CONTRACT.md），所以這個函式的輸出**必須**帶著 estimated:true，
+ * 呼叫端只能把它寫進獨立欄位（例如 cacheStatsEstimate），絕對不可以塞進
+ * extractCacheStats() 用的那個欄位——那個欄位的 null 是「沒回報」的唯一表達方式，
+ * 混進一個猜出來的數字，就是拿一個假訊號去餵真正在算錢的儀表板。
+ *
+ * @param {object} params
+ * @param {Array<{role: string, content: string}>} params.messages 這次實際送出的完整訊息陣列
+ *   （含 system/history/最後一則 user），跟 client.js 組給供應商的那份一致。
+ * @param {number} params.promptTokens 供應商回報的 prompt_tokens（真實值，只有 hit 是用猜的）
+ * @returns {{hit: number, miss: number, total: number, ratio: number, estimated: true}|null}
+ */
+export function estimateCacheStats({ messages, promptTokens }) {
+  if (!Array.isArray(messages) || messages.length <= 2) return null;
+  if (!Number.isFinite(promptTokens) || promptTokens <= 0) return null;
+
+  const totalChars = JSON.stringify(messages).length;
+  if (totalChars <= 0) return null;
+  const newTurnChars = JSON.stringify(messages.slice(-2)).length;
+  const cachedChars = Math.max(0, totalChars - newTurnChars);
+  const ratio = cachedChars / totalChars;
+
+  // 乘 0.95 是保守容錯值：字元比例本來就是近似值，寧可低估也不要在儀表板上顯得比實際樂觀。
+  const hit = Math.max(0, Math.min(promptTokens, Math.floor(promptTokens * ratio * 0.95)));
+  const miss = Math.max(0, promptTokens - hit);
+
+  return {
+    hit,
+    miss,
+    total: promptTokens,
+    ratio: Math.round((hit / promptTokens) * 1000) / 1000,
+    estimated: true,
+  };
+}

@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestGet as adminUsageGet } from "../functions/api/admin/usage.js";
+import { resolveSessionStore } from "../content/storage/sessionStore.js";
 import { signSessionToken, SESSION_COOKIE } from "../content/auth/sessionToken.js";
 import { parseAdminIds, isAdminConfigured, resolveAdmin } from "../content/auth/admin.js";
 import {
@@ -149,6 +150,99 @@ test("帳本：寫入失敗不可以讓回合失敗", async () => {
   const broken = { persistent: true, async getRaw() { throw new Error("KV 掛了"); }, async putRaw() {} };
   const ok = await recordTurnUsage(broken, { provider: "deepseek", tokens: { promptTokens: 1, outputTokens: 1, cachedTokens: 0 } });
   assert.equal(ok, false, "回 false，但不丟錯——帳本是儀表板，不是遊戲狀態");
+});
+
+test("帳本：估算值進 estimatedCachedTokens，絕對不加進真實的 cachedTokens", async () => {
+  // 「沒回報、用字元比例猜」跟「供應商真的回報」是兩件事，混在同一個欄位會讓
+  // 帳本上看起來像是有真實依據的數字，實際上是猜的。
+  const store = fakeStore();
+  const now = new Date("2026-08-31T10:00:00Z");
+  await recordTurnUsage(store, {
+    provider: "custom-relay",
+    tokens: { promptTokens: 2000, outputTokens: 50, cachedTokens: null },
+    cacheEstimate: { hit: 1800, miss: 200, total: 2000, ratio: 0.9, estimated: true },
+    now,
+  });
+  const [today] = await readUsageRange(store, { days: 1, now });
+  assert.equal(today.turns, 1);
+  assert.equal(today.measuredTurns, 1, "有回報 promptTokens/outputTokens，算有計量");
+  assert.equal(today.cachedTokens, 0, "真實命中欄位沒回報，不能被推算值填進去");
+  assert.equal(today.estimatedTurns, 1);
+  assert.equal(today.estimatedPromptTokens, 2000);
+  assert.equal(today.estimatedCachedTokens, 1800);
+});
+
+test("帳本：有真實 cachedTokens 時，就算傳了 cacheEstimate 也不記進估算欄位", async () => {
+  const store = fakeStore();
+  const now = new Date("2026-08-31T10:00:00Z");
+  await recordTurnUsage(store, {
+    provider: "deepseek",
+    tokens: { promptTokens: 2000, outputTokens: 50, cachedTokens: 1900 },
+    cacheEstimate: { hit: 1800, miss: 200, total: 2000, ratio: 0.9, estimated: true },
+    now,
+  });
+  const [today] = await readUsageRange(store, { days: 1, now });
+  assert.equal(today.cachedTokens, 1900, "真實值優先，估算值在這種情況下根本不該被呼叫端傳進來，但即使傳了也不能覆蓋真實欄位");
+  assert.equal(today.estimatedTurns, 0);
+  assert.equal(today.estimatedCachedTokens, 0);
+});
+
+/** 跟 test/sessionStore.test.js 同一個假 KV 實作，讓 admin usage handler 走真正的 resolveSessionStore(KV) 路徑。 */
+function fakeKv() {
+  const map = new Map();
+  return {
+    async get(key, type) {
+      const raw = map.get(key);
+      if (raw == null) return null;
+      return type === "json" ? JSON.parse(raw) : raw;
+    },
+    async put(key, value) { map.set(key, value); },
+    async delete(key) { map.delete(key); },
+    async list({ prefix, limit } = {}) {
+      const keys = [...map.keys()].filter((k) => !prefix || k.startsWith(prefix)).slice(0, limit);
+      return { keys: keys.map((name) => ({ name })) };
+    },
+  };
+}
+
+test("面板：estimatedCacheSaving 跟 cacheSaving 分開算，互不影響，且不用於同一筆命中率", async () => {
+  const kv = fakeKv();
+  const env = baseEnv({
+    SAVES: kv,
+    ADMIN_PRICE_CACHE_HIT_PER_MTOK: "1",
+    ADMIN_PRICE_CACHE_MISS_PER_MTOK: "10",
+    ADMIN_PRICE_OUTPUT_PER_MTOK: "100",
+  });
+  const store = resolveSessionStore(env);
+  const now = new Date("2026-08-31T10:00:00Z");
+
+  // 一筆真實回報（DeepSeek 官方回 prompt_cache_hit_tokens），一筆只有字元比例推算值（第三方中轉沒回報）。
+  await recordTurnUsage(store, {
+    provider: "deepseek",
+    tokens: { promptTokens: 1_000_000, outputTokens: 0, cachedTokens: 800_000 },
+    now,
+  });
+  await recordTurnUsage(store, {
+    provider: "custom-relay",
+    tokens: { promptTokens: 1_000_000, outputTokens: 0, cachedTokens: null },
+    cacheEstimate: { hit: 900_000, miss: 100_000, total: 1_000_000, ratio: 0.9, estimated: true },
+    now,
+  });
+
+  const res = await adminUsageGet({ request: await reqAs(ADMIN_ID), env });
+  const { status, body } = await read(res);
+  assert.equal(status, 200);
+
+  // 真實命中率只算 DeepSeek 那一筆：800,000 / 2,000,000（兩筆的 promptTokens 加總）。
+  assert.equal(body.total.cacheHitRatio, 0.4);
+  // 估算命中率只算沒回報的那一筆：900,000 / 1,000,000，不會被真實那筆稀釋，也不會被算進 cacheHitRatio。
+  assert.equal(body.total.estimatedCacheHitRatio, 0.9);
+
+  // 真實省下的錢：只用 cachedTokens=800,000／promptTokens=2,000,000 換算，不含估算的那一筆。
+  assert.ok(body.total.cacheSaving > 0);
+  // 估算省下的錢：獨立欄位，只用估算那一筆的 900,000/1,000,000 換算，兩者不相等也不相加。
+  assert.ok(body.total.estimatedCacheSaving > 0);
+  assert.notEqual(body.total.cacheSaving, body.total.estimatedCacheSaving);
 });
 
 test("帳本：讀不到的日期回空帳，不是缺一格", async () => {

@@ -25,6 +25,12 @@ export function emptyDailyUsage(date) {
     promptTokens: 0,
     cachedTokens: 0,
     outputTokens: 0,
+    // 供應商沒回報 cache 欄位、但用字元比例回推了一個估算值的回合數與 token 數。
+    // 刻意跟上面的真實欄位分開記：estimatedCachedTokens 是猜的，cachedTokens 不是，
+    // 兩者不可以相加或互相替代，見 content/llm/cacheLayers.js 的 estimateCacheStats()。
+    estimatedTurns: 0,
+    estimatedPromptTokens: 0,
+    estimatedCachedTokens: 0,
     // 依供應商分開記，用來看 fallback 有沒有在偷偷換家。
     byProvider: {},
   };
@@ -46,6 +52,9 @@ function normalizeDaily(raw, date) {
     promptTokens: num(raw.promptTokens),
     cachedTokens: num(raw.cachedTokens),
     outputTokens: num(raw.outputTokens),
+    estimatedTurns: num(raw.estimatedTurns),
+    estimatedPromptTokens: num(raw.estimatedPromptTokens),
+    estimatedCachedTokens: num(raw.estimatedCachedTokens),
     byProvider:
       raw.byProvider && typeof raw.byProvider === "object" && !Array.isArray(raw.byProvider)
         ? raw.byProvider
@@ -62,9 +71,13 @@ function normalizeDaily(raw, date) {
  * @param {string|null} entry.model
  * @param {{promptTokens: number, outputTokens: number, cachedTokens: number|null}|null} entry.tokens
  *   content/llm/usage.js 的 extractTokenUsage() 產物；null = 這家沒回報
+ * @param {{hit: number, total: number, estimated: true}|null} [entry.cacheEstimate]
+ *   content/llm/cacheLayers.js 的 estimateCacheStats() 產物。只在 tokens.cachedTokens
+ *   是 null（供應商沒回報真實命中數）時才會被記，而且記到獨立欄位，
+ *   不會加進 daily.cachedTokens——那個欄位只能是真實回報值。
  * @returns {Promise<boolean>} 有沒有成功寫進去（失敗不丟錯）
  */
-export async function recordTurnUsage(store, { provider, model = null, tokens = null, now = new Date() } = {}) {
+export async function recordTurnUsage(store, { provider, model = null, tokens = null, cacheEstimate = null, now = new Date() } = {}) {
   if (!store?.getRaw || !store?.putRaw) return false;
   const date = usageDateKey(now);
   const key = USAGE_KEY_PREFIX + date;
@@ -77,7 +90,13 @@ export async function recordTurnUsage(store, { provider, model = null, tokens = 
       daily.measuredTurns += 1;
       daily.promptTokens += Math.max(0, Number(tokens.promptTokens) || 0);
       daily.outputTokens += Math.max(0, Number(tokens.outputTokens) || 0);
-      daily.cachedTokens += Math.max(0, Number(tokens.cachedTokens) || 0);
+      if (tokens.cachedTokens !== null && tokens.cachedTokens !== undefined) {
+        daily.cachedTokens += Math.max(0, Number(tokens.cachedTokens) || 0);
+      } else if (cacheEstimate) {
+        daily.estimatedTurns += 1;
+        daily.estimatedPromptTokens += Math.max(0, Number(cacheEstimate.total) || 0);
+        daily.estimatedCachedTokens += Math.max(0, Number(cacheEstimate.hit) || 0);
+      }
     }
 
     const providerKey = String(provider ?? "unknown");
@@ -132,6 +151,9 @@ export function sumUsage(dailyList) {
     total.promptTokens += d.promptTokens;
     total.cachedTokens += d.cachedTokens;
     total.outputTokens += d.outputTokens;
+    total.estimatedTurns += d.estimatedTurns ?? 0;
+    total.estimatedPromptTokens += d.estimatedPromptTokens ?? 0;
+    total.estimatedCachedTokens += d.estimatedCachedTokens ?? 0;
     for (const [provider, bucket] of Object.entries(d.byProvider ?? {})) {
       const acc = total.byProvider[provider] ?? { turns: 0, promptTokens: 0, outputTokens: 0, model: null };
       acc.turns += bucket.turns ?? 0;

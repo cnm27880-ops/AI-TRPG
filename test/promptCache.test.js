@@ -21,6 +21,7 @@ import {
   historyToMessages,
   buildLayeredRequest,
   extractCacheStats,
+  estimateCacheStats,
   NO_PLAYER_ACTION_MARKER,
 } from "../content/llm/cacheLayers.js";
 
@@ -302,4 +303,83 @@ test("extractCacheStats：認得 DeepSeek 與 OpenAI 兩種欄位，沒回報時
   assert.equal(extractCacheStats({ usage: { prompt_tokens: 400 } }), null);
   assert.equal(extractCacheStats({}), null);
   assert.equal(extractCacheStats(null), null);
+});
+
+test("estimateCacheStats：字元比例推算值一律帶 estimated:true，且第一回合(messages<=2)不猜", () => {
+  const messages = [
+    { role: "system", content: "x".repeat(3000) },
+    { role: "user", content: "y".repeat(500) },
+    { role: "assistant", content: "z".repeat(500) },
+    { role: "user", content: "這回合的輸入".repeat(5) },
+  ];
+  const est = estimateCacheStats({ messages, promptTokens: 1000 });
+  assert.equal(est.estimated, true, "呼叫端必須能區分這是猜的，不是供應商回報的");
+  assert.ok(est.hit > 0 && est.hit < 1000);
+  assert.equal(est.miss, 1000 - est.hit);
+  assert.equal(est.total, 1000);
+  assert.equal(est.ratio, Math.round((est.hit / 1000) * 1000) / 1000);
+
+  // 第一回合只有 system + user 兩則，代表沒有「已經送過、應該命中」的前綴，不該硬猜一個數字出來。
+  assert.equal(estimateCacheStats({ messages: messages.slice(0, 2), promptTokens: 1000 }), null);
+  assert.equal(estimateCacheStats({ messages, promptTokens: 0 }), null);
+  assert.equal(estimateCacheStats({ messages: null, promptTokens: 1000 }), null);
+});
+
+test("callOpenAiChat：供應商沒回報快取欄位時，估算值只進 cacheStatsEstimate，不會冒充 cacheStats", async () => {
+  const calls = [];
+  const fetchFn = async (url, options) => {
+    calls.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        choices: [{ message: { content: "回覆內容" }, finish_reason: "stop" }],
+        // 這家中轉只回 prompt_tokens，沒有任何快取欄位——典型的「沒回報」情境。
+        usage: { prompt_tokens: 2000, completion_tokens: 50 },
+      }),
+    };
+  };
+
+  const res = await callLlm({
+    provider: "deepseek",
+    env: { LLM_API_KEY: "sk-test", LLM_MODEL: "deepseek-v4-flash" },
+    systemInstruction: "靜態規則契約".repeat(50),
+    history: [
+      { role: "user", content: "第一輪玩家行動" },
+      { role: "assistant", content: "第一輪敘事" },
+    ],
+    prompt: "這一輪的玩家輸入",
+    fetchFn,
+  });
+
+  assert.equal(res.cacheStats, null, "沒回報就是 null，不能被推算值取代");
+  assert.equal(res.cacheStatsEstimate.estimated, true);
+  assert.equal(res.cacheStatsEstimate.total, 2000);
+  assert.ok(res.cacheStatsEstimate.hit > 0);
+  assert.equal(calls.length, 1);
+});
+
+test("callOpenAiChat：供應商真的有回報快取欄位時，不產生估算值", async () => {
+  const fetchFn = async () => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => ({
+      choices: [{ message: { content: "回覆內容" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 2000, completion_tokens: 50, prompt_cache_hit_tokens: 1800, prompt_cache_miss_tokens: 200 },
+    }),
+  });
+
+  const res = await callLlm({
+    provider: "deepseek",
+    env: { LLM_API_KEY: "sk-test", LLM_MODEL: "deepseek-v4-flash" },
+    systemInstruction: "靜態規則契約",
+    history: [{ role: "user", content: "第一輪玩家行動" }, { role: "assistant", content: "第一輪敘事" }],
+    prompt: "這一輪的玩家輸入",
+    fetchFn,
+  });
+
+  assert.equal(res.cacheStats.hit, 1800, "有真實回報就用真實值");
+  assert.equal(res.cacheStatsEstimate, null, "有真實值就不需要、也不該再猜一個");
 });
