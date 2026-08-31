@@ -5,7 +5,7 @@
 // 打錯一個字不會在前端看出來，但會讓 performCheck() 在正式環境直接丟錯。
 import test from "node:test";
 import assert from "node:assert/strict";
-import { inferCheckParams, INTENT_TABLE, FALLBACK_INTENT, DEFAULT_DC } from "../content/checkIntent.js";
+import { inferCheckParams, INTENT_TABLE, FALLBACK_INTENT, DEFAULT_DC, FALLBACK_DC } from "../content/checkIntent.js";
 import { ATTRIBUTES, SKILLS, emptyCharacter } from "../core/schema.js";
 import { performCheck } from "../core/check.js";
 
@@ -47,12 +47,33 @@ test("對照表產生的每一組參數，都能被 performCheck() 實際吃下�
   }
 });
 
-test("沒命中任何關鍵字時退回退路檢定，並標記 matched=false", () => {
-  const params = inferCheckParams("我站在原地什麼都不做");
+// [2026-08-31] 這兩條測試的斷言換了，因為 fallback 的語意換了。
+//
+// 舊行為：沒命中關鍵字 -> 感知純屬性 + DC 3。DC 3 在難度表裡是「困難」，
+// 而純屬性骰池只有 2~3 顆，實測「我很害怕」98.3% 失敗。玩家每打一句
+// 引擎看不懂的話，就被宣告一次失敗；而且全部退回同一個屬性，套路遞減還會再加難度。
+//
+// 新行為分兩種情況，所以測試也分兩條：
+//   1. 沒有可失敗的目標 -> 根本不擲骰（下面這一條）
+//   2. 有目標、但查不到技能 -> 純屬性檢定，難度降到 FALLBACK_DC（再下面那一條）
+test("句子裡沒有可失敗的目標時，根本不進判定", () => {
+  for (const input of ["我站在原地什麼都不做", "我很害怕", "原地翻跟斗", "唱歌"]) {
+    const params = inferCheckParams(input);
+    assert.equal(params.requiresCheck, false, `「${input}」不該被逼著擲骰`);
+    assert.equal(params.actionType, "free_action");
+    assert.equal(params.matched, false);
+  }
+});
+
+test("有目標但查不到技能時，退回純屬性檢定，而且難度是「容易」不是「困難」", () => {
+  // 「抓住」在 HAS_TARGET_MARKERS 裡（失敗會有後果），但不在 INTENT_TABLE 裡。
+  const params = inferCheckParams("我伸手抓住那條晃來晃去的管線");
+  assert.equal(params.requiresCheck, true);
   assert.equal(params.matched, false);
   assert.equal(params.attribute, FALLBACK_INTENT.attribute);
   assert.equal(params.skill, undefined, "退路檢定是純屬性檢定，不該帶技能");
-  assert.equal(params.dc, DEFAULT_DC);
+  assert.equal(params.dc, FALLBACK_DC, "引擎猜不出技能時，該讓的是難度，不是玩家");
+  assert.ok(FALLBACK_DC < DEFAULT_DC, "退路難度必須低於一般推導難度");
 });
 
 test("命中關鍵字時標記 matched=true 並帶出對應技能", () => {
@@ -105,11 +126,13 @@ test("defaultDc 可以被呼叫端覆蓋(難度該由劇本/場景決定，不�
   assert.equal(params.dc, 7);
 });
 
-test("空字串/undefined 不會丟錯，一律退回退路檢定", () => {
+test("空字串/undefined 不會丟錯，而且不會變成一次必敗的判定", () => {
   for (const input of ["", null, undefined]) {
     const params = inferCheckParams(input);
     assert.equal(params.matched, false);
-    assert.equal(params.attribute, FALLBACK_INTENT.attribute);
+    // 空輸入沒有目標，所以不擲骰。以前它會變成一次「困難」的感知檢定——
+    // 對一個根本沒有內容的輸入宣告失敗，是最沒有道理的一種失敗。
+    assert.equal(params.requiresCheck, false);
   }
 });
 

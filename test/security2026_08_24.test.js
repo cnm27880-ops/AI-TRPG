@@ -118,20 +118,42 @@ test("[安全] /api/narrate：body 指定 https 但目標是 127.0.0.1 一樣要
   assert.equal(body.llmFailure.stage, "ssrf-blocked");
 });
 
-test("[安全] /api/turn：body 指定的 baseUrl 是內網位址時，同一套SSRF防護也要生效", async () => {
-  const env = {};
-  const created = await read(await sessionPost(req(env, { character: emptyCharacter("SSRF測試3") })));
-  const sessionId = created.session.id;
+// [2026-08-31] 這一題從「SSRF 有沒有被擋下來」升級成「這條路根本不存在」。
+//
+// 舊版允許呼叫端自備 provider/apiKey/baseUrl（BYOK），所以必須有一層 SSRF 防護
+// 去擋「baseUrl 指向內網」的請求。現在 /api/turn 完全不讀 body 的這些欄位
+// （見 functions/api/turn.js 的說明），所以攻擊者連一個可以指向內網的欄位都沒有。
+//
+// 斷言因此改成更強的一句：帶著內網 baseUrl 打進來，那個值**不會抵達任何一次 fetch**。
+// 「被擋下來」跟「沒有這條路」差一個等級，這裡要釘的是後者。
+test("[安全] /api/turn：body 的 baseUrl 完全不被讀取，不會有任何請求打向它", async () => {
+  const attempted = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    attempted.push(String(url));
+    throw new Error("測試環境沒有真的要送出請求");
+  };
+  try {
+    const env = {};
+    const created = await read(await sessionPost(req(env, { character: emptyCharacter("SSRF測試3") })));
+    const sessionId = created.session.id;
 
-  const body = await read(await turnPost(req(env, {
-    sessionId,
-    playerAction: "推開門",
-    provider: "custom",
-    apiKey: "attacker-key",
-    baseUrl: "http://10.0.0.5/v1",
-    model: "any-model",
-  })));
-  assert.equal(body.llmFailure?.stage, "ssrf-blocked");
+    await read(await turnPost(req(env, {
+      sessionId,
+      playerAction: "推開門",
+      provider: "custom",
+      apiKey: "attacker-key",
+      baseUrl: "http://10.0.0.5/v1",
+      model: "any-model",
+    })));
+
+    assert.ok(
+      !attempted.some((url) => url.includes("10.0.0.5")),
+      `body 的 baseUrl 不該抵達任何一次 fetch，實際嘗試過：${attempted.join(", ")}`
+    );
+  } finally {
+    globalThis.fetch = realFetch;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -606,7 +628,10 @@ test("[安全] /api/turn：沒有指定provider時，帶baseUrl也不會被套�
   }
 });
 
-test("[安全] /api/turn：指定內建provider(非custom)並帶baseUrl時，baseUrl被忽略，仍打到內建端點", async () => {
+// [2026-08-31] 同上：body 的 provider/apiKey 也不再被讀取。
+// 這一題現在驗的是「伺服器端環境變數決定一切，呼叫端送的金鑰不會被使用」——
+// 攻擊者送自己的金鑰不會有事，但**呼叫端也不能藉此指定要打哪一家**。
+test("[安全] /api/turn：呼叫端送的 provider/apiKey 一律忽略，仍走伺服器端設定的供應商", async () => {
   const captured = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, options) => {
@@ -619,22 +644,28 @@ test("[安全] /api/turn：指定內建provider(非custom)並帶baseUrl時，bas
     };
   };
   try {
-    const env = {};
+    // 供應商由環境變數決定，不是由 body 決定。
+    const env = { LLM_PROVIDER: "gemini", GEMINI_API_KEY: "server-side-key" };
     const created = await read(await sessionPost(req(env, { character: emptyCharacter("內建端點測試") })));
     const sessionId = created.session.id;
 
     const body = await read(await turnPost(req(env, {
       sessionId,
       playerAction: "推開門",
-      provider: "gemini",
-      apiKey: "my-own-gemini-key",
+      provider: "deepseek",
+      apiKey: "attacker-supplied-key",
       baseUrl: "https://attacker.example.com/v1",
     })));
 
     assert.equal(body.ok, true, JSON.stringify(body));
     assert.equal(captured.length, 1);
-    assert.match(captured[0].url, /generativelanguage\.googleapis\.com/, "內建供應商的端點不能被body的baseUrl改寫");
-    assert.equal(captured[0].options.headers["x-goog-api-key"], "my-own-gemini-key", "呼叫端自己的金鑰仍然要生效");
+    assert.match(captured[0].url, /generativelanguage\.googleapis\.com/, "端點由環境變數決定，body 改不動");
+    assert.doesNotMatch(captured[0].url, /attacker\.example\.com/);
+    assert.equal(
+      captured[0].options.headers["x-goog-api-key"],
+      "server-side-key",
+      "用的必須是伺服器端的金鑰，不是呼叫端送來的那把"
+    );
   } finally {
     globalThis.fetch = realFetch;
   }

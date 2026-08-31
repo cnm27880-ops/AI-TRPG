@@ -46,13 +46,13 @@ import {
 } from "../../content/llm/client.js";
 import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
 import { buildLayeredRequest, historyToMessages } from "../../content/llm/cacheLayers.js";
-import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
-import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
+import { extractTokenUsage } from "../../content/llm/usage.js";
+import { recordTurnUsage } from "../../content/storage/usageLedger.js";
+import { pickProvider, PROVIDER_IDS } from "../../content/llm/providers.js";
 import {
   composeSystemInstruction,
   DEFAULT_STYLE_ID,
   DEFAULT_PERSONA_KEY,
-  PERSONA_KEYS,
 } from "../../content/narrativeStyle.js";
 import { appendEvent, EVENT_TYPES, summarizeForJournal } from "../../core/eventLog.js";
 import {
@@ -358,18 +358,20 @@ async function executeTurn(context, streamHooks = null) {
     chosenOption,
     playerAction,
     sceneContext: rawSceneContext,
-    style,
-    // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
-    // 跟 style 同一個層級：玩家在設定裡選，沒選就用環境變數，再沒有就用預設。
-    persona,
-    provider: bodyProvider,
-    apiKey: bodyApiKey,
-    baseUrl: bodyBaseUrl,
-    model: bodyModel,
-    maxTokens: bodyMaxTokens,
     turnRequestId,
     retryPending = false,
   } = body ?? {};
+  // [2026-08-31] body 裡的 provider / apiKey / baseUrl / model / maxTokens / style / persona
+  // 一律不再讀取。
+  //
+  // 玩家自備金鑰（BYOK）的入口已經從前端整個拆掉（見 public/index.html 的說明），
+  // 但「前端沒有入口」跟「後端不接受」是兩件事——留著這條路，等於留一個沒有任何 UI、
+  // 沒有人會去看、卻仍然可以用 curl 打進來的分支。這種分支壞掉時不會有人發現。
+  //
+  // 現在供應商、金鑰、Base URL、模型、文筆與敘事者面具全部由伺服器端的環境變數決定
+  // （LLM_PROVIDER / *_API_KEY / LLM_BASE_URL / LLM_MODEL / NARRATIVE_STYLE /
+  //  NARRATOR_PERSONA，見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。
+  // 多送這些欄位不會報錯、也不會生效，就只是被忽略。
   // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
   // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
   const sceneContext = typeof rawSceneContext === "string"
@@ -397,52 +399,6 @@ async function executeTurn(context, streamHooks = null) {
 
   const requestId = makeTurnRequestId({ turnRequestId, chosenOption, playerAction });
 
-  if (persona && !PERSONA_KEYS.includes(persona)) {
-    return jsonError(
-      `未知的敘事者人格面具「${persona}」，可用的有：${PERSONA_KEYS.join(" / ")}`,
-      400
-    );
-  }
-
-  if (bodyProvider && !PROVIDER_IDS.includes(bodyProvider)) {
-    return jsonError(
-      `未知的LLM供應商「${bodyProvider}」，可用的有：${PROVIDER_IDS.join(" / ")}`,
-      400
-    );
-  }
-
-  // [2026-08-16 新增] 「玩家在設定裡選了供應商，但金鑰欄位留空」的攔截。
-  //
-  // 舊行為：金鑰留空就送 apiKey=undefined，伺服器改讀自己的環境變數金鑰。
-  // 那等於玩家以為自己在用A家、實際上跑的是伺服器設定的B家（或伺服器根本沒設，
-  // 於是深入到 client.js 才丟出一句「沒有讀到金鑰」的錯，前端還不顯示）。
-  // 這種「半設定狀態」一律在最前面擋掉，並直接告訴玩家缺什麼。
-  // 前端也有同一道檢查(public/index.html 的 saveSettings 與 app.js 的 runTurn)，
-  // 這裡是伺服器端的最後一道，因為前端可以被繞過、localStorage也可能殘留舊值。
-  if (bodyProvider) {
-    const providerCfg = PROVIDERS[bodyProvider];
-    if (providerCfg.apiKeyEnv && !bodyApiKey) {
-      return jsonError(
-        `你在設定裡選了「${providerCfg.label}」，但沒有提供API金鑰。` +
-          `請到「系統與文筆設定」把金鑰填好，或把供應商改回「（使用伺服器預設）」。`,
-        400
-      );
-    }
-    if (providerCfg.baseUrl === null && providerCfg.apiKeyEnv && !bodyBaseUrl && !env.LLM_BASE_URL) {
-      return jsonError(
-        `供應商「${providerCfg.label}」必須自己指定 Base URL（例如 https://你的服務/v1）。` +
-          `請到「系統與文筆設定」填寫。`,
-        400
-      );
-    }
-    if (!providerCfg.defaultModel && !bodyModel && !env.LLM_MODEL) {
-      return jsonError(
-        `供應商「${providerCfg.label}」沒有預設模型，必須自己指定模型名稱。` +
-          `可用的模型請看 ${providerCfg.docs}，填在「系統與文筆設定」的模型欄位。`,
-        400
-      );
-    }
-  }
 
   // ---------------------------------------------------------------------
   // 載入存檔。角色卡以存檔為準，不信任前端送來的角色卡。
@@ -985,21 +941,9 @@ async function executeTurn(context, streamHooks = null) {
       })
     : null;
 
-  // 玩家在前端設定裡明確選了供應商時優先於伺服器端的猜測/預設(見 content/llm/providers.js
-  // resolveProvider() 的覆寫優先序)；沒選就照舊完全交給伺服器判斷，行為不變。
-  const provider = bodyProvider || (env.LLM_PROVIDER ?? pickProvider(env));
-  // [安全] 這次請求實際可以套用哪些覆寫，見 content/llm/requestOverrides.js 的說明：
-  // 沒帶 provider 就三個欄位全部忽略；帶了 provider 但不是 custom 就不能改寫 baseUrl。
-  // 三處 callLlm() 呼叫(主呼叫、JSON重試、安全重寫)全部共用同一份，不能各自傳一份
-  // bodyApiKey/bodyBaseUrl/bodyModel 進去，那樣任何一處漏改都會讓漏洞繼續存在。
-  const llmOverrides = resolveLlmRequestOverrides({ bodyProvider, bodyApiKey, bodyBaseUrl, bodyModel });
-  if (bodyBaseUrl && bodyProvider !== "custom") {
-    // 不擋這次請求(baseUrl已經被忽略，請求本身是安全的)，但留一筆log——
-    // 這種請求要嘛是呼叫端搞錯了用法，要嘛是有人在探測這條覆寫路徑還通不通。
-    console.warn("[LLM_OVERRIDE_IGNORED]", JSON.stringify({
-      where: "POST /api/turn", reason: "baseUrl只在provider=custom時生效", bodyProvider: bodyProvider ?? null,
-    }));
-  }
+  // 供應商完全由伺服器端決定：環境變數 LLM_PROVIDER，沒設就由 pickProvider() 依現有金鑰挑。
+  // 呼叫端送什麼都不影響這一行（見上面 body 解構處的說明）。
+  const provider = env.LLM_PROVIDER ?? pickProvider(env);
   if (!canonicalDirectSend && !provider) {
     logReferenceAction();
     await persistReferenceTurn();
@@ -1027,8 +971,8 @@ async function executeTurn(context, streamHooks = null) {
     try {
       styleAndRules = composeSystemInstruction({
         rulesContract: SYSTEM_INSTRUCTION,
-        personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
-        styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
+        personaKey: env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
+        styleId: env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
         // 美德/惡德放在最前面：那是這個角色的核心，專長特質是細節。
         // 兩者都走 characterHints（文筆層），不進規則契約層——它們是「這個人容易對什麼有反應」，
         // 不是判定規則，放進契約層有機會被模型讀成「遇到這類情節就必須怎樣」的硬指令。
@@ -1072,7 +1016,7 @@ async function executeTurn(context, streamHooks = null) {
     actionText,
     outcome,
     freeAction,
-    personaKey: persona ?? env.NARRATOR_PERSONA ?? null,
+    personaKey: env.NARRATOR_PERSONA ?? null,
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
     historyMessages,
@@ -1130,7 +1074,9 @@ async function executeTurn(context, streamHooks = null) {
   let finishReason = null;
   let llmDiagnostic = null;
   let cacheStats = null;
-  const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
+  // 一律走 server-managed fallback chain。玩家不再自備金鑰，也就沒有「單一 provider 直送」
+  // 這條路了；少一條分支，就少一個只有在特定設定下才會被執行到的程式路徑。
+  const callNarrativeLlm = callLlmWithFallback;
   const autoRetryState = { used: false };
   const invokeNarrativeLlm = referenceFreeInputPending
     ? (params) => callBridgeLlmWithRetry({ call: callNarrativeLlm, params, env, retryState: autoRetryState })
@@ -1145,13 +1091,11 @@ async function executeTurn(context, streamHooks = null) {
     try {
       await streamHooks?.emit({ type: "narrator_writing" });
     const res = await invokeNarrativeLlm({
-      ...(bodyProvider ? { provider } : {}),
       env,
       systemInstruction,
       history: layers.history,
       prompt,
-      ...(bodyProvider ? llmOverrides : {}),
-      maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
+      maxTokens: narrativeMaxTokens || undefined,
       // 結構化輸出：由供應商端保證回覆格式合法，而不是祈禱模型照著prompt裡的範例寫。
       // reference 回合不要求 AI 生成會被 adapter 丟棄的四個 options。
       responseSchema: scenarioReference ? REFERENCE_TURN_RESPONSE_SCHEMA : TURN_RESPONSE_SCHEMA,
@@ -1164,6 +1108,13 @@ async function executeTurn(context, streamHooks = null) {
     // 快取命中率是分層是否真的有效的**唯一**可觀測證據：分層寫錯不會讓遊戲壞掉，
     // 只會讓帳單變貴、TTFT 變慢。沒有這一行，這個重構就沒有辦法被驗證，也沒有辦法防止退化。
     // 供應商沒回報 usage 快取欄位時 cacheStats 是 null，不記——不要把「沒回報」記成 0。
+    // 用量帳本：一天一筆彙總，給 /api/admin/usage 的面板用。
+    // 寫入是盡力而為——帳本壞掉不可以影響玩家的回合（見 usageLedger.js）。
+    await recordTurnUsage(store, {
+      provider: usedProvider,
+      model,
+      tokens: extractTokenUsage(res.raw),
+    });
     if (res.cacheStats) {
       cacheStats = res.cacheStats;
       console.log("[PROMPT_CACHE]", JSON.stringify({
@@ -1256,15 +1207,13 @@ async function executeTurn(context, streamHooks = null) {
         `請重新產生這一回合的完整內容（劇情與判定不變，只是要把格式寫對）：` +
         `必須是單一個合法的JSON物件，不要有多餘的文字、Markdown或未跳脫的引號/換行。`;
       const retryRes = await invokeNarrativeLlm({
-        ...(bodyProvider ? { provider } : {}),
         env,
         systemInstruction,
         // 重試沿用同一份 static/history 前綴，只換最後一則 user message：
         // 這樣「格式重講一次」的成本只有動態層那幾百個 token。
         history: layers.history,
         prompt: retryPrompt,
-        ...(bodyProvider ? llmOverrides : {}),
-        maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
+        maxTokens: narrativeMaxTokens || undefined,
         responseSchema: scenarioReference ? REFERENCE_TURN_RESPONSE_SCHEMA : TURN_RESPONSE_SCHEMA,
       });
       autoRetryAttempts = Math.max(autoRetryAttempts, retryRes.autoRetryAttempts ?? 0);
@@ -1445,13 +1394,11 @@ async function executeTurn(context, streamHooks = null) {
           String(narration).slice(0, 12000) +
           "\n</UNSAFE_NARRATION>";
         const rewriteRes = await invokeNarrativeLlm({
-          ...(bodyProvider ? { provider } : {}),
           env,
           systemInstruction,
           history: layers.history,
           prompt: rewritePrompt,
-          ...(bodyProvider ? llmOverrides : {}),
-          maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
+          maxTokens: narrativeMaxTokens || undefined,
           responseSchema: REFERENCE_TURN_RESPONSE_SCHEMA,
         });
         autoRetryAttempts = Math.max(autoRetryAttempts, rewriteRes.autoRetryAttempts ?? 0);

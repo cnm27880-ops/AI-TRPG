@@ -115,6 +115,160 @@ npx wrangler pages dev
 任何行動都會跳出 `SYSTEM.ERROR`——這是正常的，因為那樣沒有任何東西在提供 `/api/*`。
 這是刻意設計的：寧可讓你看到「後端沒接上」，也不會假裝擲出了一個骰子結果。
 
+## 在 Cloudflare 上切換 LLM 供應商（正式站 vs 測試站）
+
+**玩家已經不能自己填 API 金鑰了**——設定面板整個拆掉，`/api/turn` 也不再讀 body 裡的
+`provider` / `apiKey` / `baseUrl` / `model`。供應商完全由這裡的環境變數決定。
+
+這一節回答的是最常見的那個需求：**正式站固定用 DeepSeek V4 Flash，但我自己測試的時候
+想用別家（例如第三方 Gemini 中轉）。**
+
+### Cloudflare Pages 有兩套環境，這就是答案
+
+Pages 專案天生分成 **Production** 與 **Preview** 兩套環境，**環境變數可以各設各的**：
+
+| 環境 | 什麼時候會跑到 | 拿來做什麼 |
+| --- | --- | --- |
+| **Production** | 推到正式分支（通常是 `main`）時部署的那一份 | 固定 DeepSeek V4 Flash |
+| **Preview** | 其他分支、以及每一個 PR 自動產生的預覽網址 | 你的第三方 Gemini 中轉 |
+
+也就是說：**你不需要每次測試前後手動改設定**。開一個分支推上去，Cloudflare 會給你一個
+獨立的預覽網址，那個網址跑的是 Preview 的環境變數。正式站完全不受影響。
+
+### 設定位置
+
+Cloudflare Dashboard → **Workers & Pages** → 選你的 Pages 專案 → **Settings** →
+**Variables and Secrets**（舊版介面叫 Environment variables）。
+上方有 **Production / Preview** 的切換，**兩邊要分別設定**。
+
+每個變數有兩種型別，選錯不會報錯，但差很多：
+
+| 型別 | 用在哪 | 說明 |
+| --- | --- | --- |
+| **Secret**（加密） | 所有 `*_API_KEY`、`AUTH_SESSION_SECRET`、`DISCORD_CLIENT_SECRET` | 存進去之後**在介面上再也看不到內容**，只能覆寫。這是正確的行為，不是壞掉 |
+| **Text / Plain**（明文） | 模型名稱、費率、白名單這類非機密設定 | 可以隨時看到與編輯 |
+
+> 改完環境變數要**重新部署一次**才會生效（Deployments → 最新那筆 → Retry deployment，
+> 或直接推一個新 commit）。這一步很容易忘，忘了會以為設定沒有用。
+
+### Production：固定 DeepSeek V4 Flash
+
+| 變數 | 型別 | 值 |
+| --- | --- | --- |
+| `LLM_PROVIDER` | Text | `deepseek` |
+| `DEEPSEEK_API_KEY` | **Secret** | 你的 DeepSeek 金鑰 |
+| `LLM_MODEL` | Text | `deepseek-v4-flash` |
+
+走硅基流動而不是 DeepSeek 官方的話：
+
+| 變數 | 型別 | 值 |
+| --- | --- | --- |
+| `LLM_PROVIDER` | Text | `siliconflow` |
+| `SILICONFLOW_API_KEY` | **Secret** | 你的硅基流動金鑰 |
+| `LLM_MODEL` | Text | 硅基流動上那個 V4 Flash 的完整 slug |
+
+> ⚠️ `siliconflow` 在 `content/llm/providers.js` 的 `defaultModel` 是一個 Qwen 模型，
+> **不是 DeepSeek**。不設 `LLM_MODEL` 的話你會跑到 Qwen 上，而且不會有任何錯誤訊息。
+> 另外 `.com` 與 `.cn` 兩個站的帳號與金鑰是分開的，用錯會是 401 不是 404——
+> 要用 `.cn` 請加 `LLM_BASE_URL=https://api.siliconflow.cn/v1`。
+
+### Preview：你的第三方 Gemini 中轉
+
+第三方中轉幾乎都宣稱相容 OpenAI 格式，那就用內建的 `custom` 供應商，一行程式都不用改：
+
+| 變數 | 型別 | 值 |
+| --- | --- | --- |
+| `LLM_PROVIDER` | Text | `custom` |
+| `LLM_API_KEY` | **Secret** | 中轉商給你的金鑰 |
+| `LLM_BASE_URL` | Text | `https://你的中轉網域/v1`（要含 `/v1`，**不要**含 `/chat/completions`） |
+| `LLM_MODEL` | Text | 中轉商接受的模型名稱 |
+
+如果那個中轉是走 Google 原生的 `generateContent` 格式，改用 `LLM_PROVIDER=gemini` +
+`GEMINI_API_KEY`，需要換網域時再加 `LLM_BASE_URL`。
+
+### 敘事語氣也在這裡設
+
+文筆與敘事者面具也從前端拿掉了，改由環境變數決定（兩個都是 Text，選配）：
+
+| 變數 | 可用值 |
+| --- | --- |
+| `NARRATIVE_STYLE` | `白描` / `恐怖懸疑` / `冷硬寫實` / `電影感` / `標準` |
+| `NARRATOR_PERSONA` | `RUTHLESS_JUDGE` / `GENTLE_GOD` / `PANIC_SURVIVOR` |
+
+值必須跟 `content/narrativeStyle.js` 的 key 一字不差，打錯會讓回合回 400。
+
+### 怎麼確認真的切過去了
+
+打一個回合，然後看回應的 `provider` 與 `model` 欄位，或 Cloudflare 的即時 log：
+
+```
+[PROMPT_CACHE] {"provider":"deepseek","model":"deepseek-v4-flash","hit":8960,...}
+```
+
+---
+
+## 後台用量與成本面板（只有你看得到）
+
+網址：`/admin.html`。它讀 `/api/admin/usage`，**非管理員一律拿到 404**
+（不是 403——403 等於告訴對方「這個網址是真的，只是你沒權限」）。
+
+### 1. 誰是管理員
+
+沿用既有的 Discord 登入，加一個白名單：
+
+| 變數 | 型別 | 值 |
+| --- | --- | --- |
+| `ADMIN_DISCORD_IDS` | Text | 你的 Discord user id，多個用逗號隔開 |
+
+取得方法：Discord → 設定 → 進階 → 開啟「開發者模式」，然後對自己的頭像按右鍵 →
+「複製使用者 ID」。純數字或 `discord:數字` 兩種寫法都收。
+
+> **沒設定 `ADMIN_DISCORD_IDS` 時，沒有任何人是管理員**（不是「所有人都是」）。
+> 前提是 Discord 登入本身已經設好（見下面那一節），否則沒有人能通過驗證。
+
+### 2. 費率（選填，但沒填就只有 token 數）
+
+| 變數 | 型別 | 說明 |
+| --- | --- | --- |
+| `ADMIN_PRICE_CACHE_HIT_PER_MTOK` | Text | 輸入 token **命中快取**的單價（每一百萬 token） |
+| `ADMIN_PRICE_CACHE_MISS_PER_MTOK` | Text | 輸入 token **未命中**的單價 |
+| `ADMIN_PRICE_OUTPUT_PER_MTOK` | Text | 輸出 token 的單價 |
+| `ADMIN_PRICE_CURRENCY` | Text | 幣別標籤，純顯示用，預設 `USD` |
+| `ADMIN_PRICE_MODEL_LABEL` | Text | 這組費率是哪個模型的，純顯示用 |
+
+**這個專案不預設任何價格數字。** 各家計價變動很快，把一組沒查證的數字寫進原始碼，
+會變成一個「看起來很確定、實際上可能早就過期」的謊——這跟 `providers.js` 對
+`baseUrl` / `defaultModel` 的處理原則一致。請自己到官方計價頁核對後填進來。
+
+三個單價**缺一個就整組視為未設定**，面板只顯示 token 數。理由是：用「有的那兩個」
+去算會得到一個看起來合理、但少算了一整類成本的數字，那比沒有數字更危險。
+
+### 3. 成本是「虛擬」的，這正是重點
+
+面板的換算一律是「**實際發生的 token 數** × **你填的那組費率**」，跟這次是哪一家服務的無關。
+
+所以你在 Preview 上用 Gemini 中轉測試，只要費率填的是 V4 Flash 的，
+看到的數字就是**正式站固定用 V4 Flash 時會付的錢**。這就是你要的那個功能。
+
+面板上會有：
+
+- 回合數、以及其中有多少回合真的回報了 token（沒回報的供應商不進統計——
+  「沒回報」不等於「用了 0」）
+- 快取命中率（逐日，含長條圖）
+- 總成本、每回合平均成本
+- **快取省下多少**：拿「完全沒有快取的話要多少錢」減掉實際成本
+
+### 4. 帳本存在哪
+
+存在既有的 `SAVES` KV namespace，key 前綴 `usage:`，**一天一筆彙總**。
+
+刻意不存逐回合明細：明細會隨玩家數線性成長，而且裡面會有 sessionId 與玩家行為資料——
+營運數字不需要那些，不留就不會外洩。同理，`/api/admin/usage` 的回應裡沒有任何
+sessionId、玩家 id 或敘事文字（有一條測試在守這件事）。
+
+沒有 KV binding 時帳本會退到記憶體，容器一重啟就歸零；面板上會照實標示，
+不然數字歸零時看起來會像是「今天沒有人玩」。
+
 ## 目前仍可擴充的項目
 
 - 將 Tailwind Play CDN 改成 build-time CSS，降低正式環境對外部 CDN 的依賴。

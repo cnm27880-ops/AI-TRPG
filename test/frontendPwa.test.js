@@ -14,16 +14,50 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, "public/manifest.web
 const sw = fs.readFileSync(path.join(root, "public/sw.js"), "utf8");
 
 
-test("免費 LLM provider 僅由後端管理，不暴露在玩家設定清單", () => {
-  for (const id of ["groq", "siliconflow", "nvidia", "mistral", "openrouter", "workers-ai"]) {
-    assert.doesNotMatch(index, new RegExp(`<option\\s+value=["']${id}["']>`));
+// [2026-08-31] 這一題的問法整個換掉了，因為前提沒了。
+//
+// 舊版問的是「玩家的供應商下拉選單裡有沒有不該出現的免費 provider」——那假設玩家
+// 有一個供應商下拉選單。現在玩家一個都沒有：API 金鑰、Base URL、模型、文筆、面具
+// 全部改由伺服器端環境變數決定，設定視窗整個拆掉了。
+//
+// 所以現在該問的是更強的一句話：**前端完全不提供任何選供應商或填金鑰的入口**。
+// 這比「清單裡不要有某幾個 id」嚴格得多，而且不會因為新增一家供應商就要回來改測試。
+test("前端不提供任何 LLM 供應商／金鑰入口，一律由伺服器端決定", () => {
+  // 設定視窗與它的每一個欄位都不該存在。
+  assert.doesNotMatch(index, /id="settingsModal"/);
+  for (const id of ["setting-provider", "setting-api-key", "setting-base-url", "setting-model", "setting-max-tokens"]) {
+    assert.doesNotMatch(index, new RegExp(`id="${id}"`), `${id} 應該已經隨設定視窗一起刪掉`);
   }
-  assert.ok(index.includes('<option value="">（使用伺服器預設）</option>'));
-  assert.ok(index.includes('<option value="gemini">Google Gemini（官方）</option>'));
-  assert.ok(index.includes('<option value="deepseek">DeepSeek（官方）</option>'));
-  assert.match(index, /<option value="custom">自訂（相容OpenAI/);
-  assert.match(app, /const meta = PROVIDER_UI_META\[provider\];/);
-  assert.match(app, /if \(!meta\) return \{ ok: true, payload: \{\} \};/);
+  // 供應商 id 不該出現在任何 <option> 裡（含以前開放 BYOK 的那三家）。
+  for (const id of ["groq", "siliconflow", "nvidia", "mistral", "openrouter", "workers-ai", "gemini", "deepseek", "custom"]) {
+    assert.doesNotMatch(index, new RegExp(`<option\\s+value=["']${id}["']`), `不該還有 ${id} 的選項`);
+  }
+  // app.js 這一側的組裝邏輯也要一起消失，否則就是「前端沒有入口、但路還通」。
+  assert.doesNotMatch(app, /const PROVIDER_UI_META\s*=/);
+  assert.doesNotMatch(app, /function buildLlmOverrides\s*\(/);
+  assert.doesNotMatch(app, /function readActiveProfile\s*\(/);
+  // 回合請求不得再帶 provider/apiKey/style/persona。
+  // 比對的是**物件屬性的寫法**（`apiKey:`），不是這個詞本身——
+  // 檔案裡還留著一段說明「這條路已經拆掉了」的註解，那是刻意保留的。
+  for (const field of ["apiKey", "baseUrl", "provider", "style", "persona"]) {
+    assert.doesNotMatch(
+      app,
+      new RegExp(`^\\s*${field}\\s*:`, "m"),
+      `回合請求不該再組出 ${field} 欄位`
+    );
+  }
+  assert.doesNotMatch(app, /localStorage\.getItem\("user_narrative_style"\)/);
+  assert.doesNotMatch(app, /localStorage\.getItem\("user_narrator_persona"\)/);
+});
+
+test("左下角只剩主題切換，設定齒輪已經拆掉", () => {
+  assert.doesNotMatch(index, /id="system-tool-dock"/, "齒輪 dock 應該已經拆掉");
+  assert.match(index, /id="theme-tool-dock"/, "左下角要留一顆主題按鈕");
+  assert.match(index, /data-theme-toggle onclick="toggleTheme\(\)"/);
+  assert.doesNotMatch(index, /openModal\('settingsModal'\)/, "三個設定入口都要移除");
+  // 主題本身仍然要能運作。
+  assert.match(index, /function toggleTheme\(\)/);
+  assert.match(index, /function applyTheme\(/);
 });
 
 test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約", () => {
