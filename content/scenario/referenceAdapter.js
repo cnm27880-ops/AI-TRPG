@@ -43,6 +43,10 @@ import {
   normalizeLambertCooperationState,
   buildLambertCooperationPromptBlock,
 } from "./lambertCooperationPolicy.js";
+import {
+  createNpcRuntimeState,
+  normalizeNpcRuntimeState,
+} from "./npcStateMachine.js";
 
 const SUCCESS_TIERS = new Set(["大成功", "成功", "驚險成功"]);
 const FAILURE_TIERS = new Set(["些微失敗", "失敗", "慘烈失敗", "自動失敗", "大失敗(命定)"]);
@@ -252,6 +256,10 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
       ...createParkerCooperationState(),
       ...createLambertCooperationState(),
     },
+    // S.A.E.P. 狀態機的每回合數值（見 npcStateMachine.js）。跟 npcCooperation 分開存：
+    // cooperation 是「這個 NPC 授權了哪些外在反應」，runtime 是「他現在什麼心情」，
+    // 前者由劇本資料驅動、後者由引擎事實驅動，混在同一個物件裡兩邊都會變得難改。
+    npcRuntime: createNpcRuntimeState(reference),
     injuries: [],
     infectionStatus: "unknown",
     sampleStatus: "none",
@@ -305,6 +313,7 @@ export function normalizeReferenceState(reference, rawState) {
       ...normalizeParkerCooperationState(rawState.npcCooperation),
       ...normalizeLambertCooperationState(rawState.npcCooperation),
     },
+    npcRuntime: normalizeNpcRuntimeState(reference, rawState.npcRuntime),
     injuries: unique(rawState.injuries),
     sceneTurnCount: Number.isInteger(rawState.sceneTurnCount) && rawState.sceneTurnCount >= 0
       ? rawState.sceneTurnCount

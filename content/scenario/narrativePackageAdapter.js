@@ -207,7 +207,13 @@ function declaredContactIds(reference, state) {
     .map((npc) => npc.id);
 }
 
-function publicContactIds(reference, state) {
+/**
+ * 這一刻**在場**的 NPC id（不是「已接觸過」——那是 referenceAdapter 的 npcHasPublicContact）。
+ *
+ * 匯出是為了讓 npcStateMachine.js 共用同一份在場判定。同一個概念在專案裡出現第二份實作，
+ * 兩份遲早會對不上，然後會出現「語氣庫演了他、狀態機沒算他」這種只在特定場景才看得到的 bug。
+ */
+export function onStageNpcIds(reference, state) {
   const sceneId = state?.currentSceneId;
   const declared = declaredContactIds(reference, state);
   const sceneNpcIds = declared.length ? declared : (SCENE_NPCS[sceneId] ?? []);
@@ -255,7 +261,7 @@ function safeNpcFields(npc, npcId, state) {
 export function buildNarrativeNpcPromptBlock(reference, state) {
   const pack = narrativePackageFor(reference);
   if (!pack) return "";
-  const entries = publicContactIds(reference, state)
+  const entries = onStageNpcIds(reference, state)
     .map((npcId) => safeNpcFields(packageNpcById(pack, npcId), npcId, state))
     .filter(Boolean);
   if (!entries.length) return "";

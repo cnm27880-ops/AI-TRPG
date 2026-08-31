@@ -38,9 +38,9 @@
 
 | 層 | 送到哪 | 放什麼 | 多久變一次 |
 | --- | --- | --- | --- |
-| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、文筆層＋規則契約 | 整場遊戲不變 |
+| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、文筆層＋規則契約 | 整場遊戲不變 |
 | **history** | 中段的 `user` / `assistant` messages | `session.history` 拆成的對話輪次 | **只在尾端追加** |
-| **dynamic** | **最後一個** `user` message | DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、reference 事件資料、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
+| **dynamic** | **最後一個** `user` message | NPC 狀態矩陣的**數值**（`[NPC_ACTIVE_STATE]`，排在這一層最頂端）、DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、reference 事件資料、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
 
 實作位置：
 
@@ -48,6 +48,10 @@
 - `functions/api/turn.js` 的 `buildPromptLayers()` —— 主要遊戲回合的組裝
 - `functions/api/narrate.js` —— demo/BYOK 端點，同一套分層
 - `content/llm/client.js` —— **唯一**可以組 provider `messages` 陣列的檔案
+- `content/scenario/npcStateMachine.js` —— NPC 狀態矩陣。**同一個檔案同時產出靜態與動態兩段**
+  （`NPC_STATE_LEGEND` 是靜態的軸定義，`buildNpcActiveStateBlock()` 是每回合的數值）。
+  這是這份契約在實務上最容易被「順手合併」的一組：兩段講的是同一件事，讀起來像該放在一起，
+  合併之後所有測試照樣綠，只有那幾百字的 legend 從此每回合重付一次
 
 ---
 
