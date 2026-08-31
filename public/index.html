@@ -2313,7 +2313,9 @@
             position: fixed; left: max(.75rem, env(safe-area-inset-left, 0px)); bottom: max(.75rem, env(safe-area-inset-bottom, 0px));
             z-index: 35; color: var(--ink-400); font-family: 'JetBrains Mono', monospace;
         }
-        .system-tool-dock > summary {
+        /* [2026-08-31] dock 裡現在只有一顆主題按鈕（原本是 <details> 的 <summary> 齒輪）。
+           兩個選擇器共用同一組樣式，位置與視覺完全不變。 */
+        .system-tool-dock > summary, .system-tool-dock > button {
             display: inline-flex; align-items: center; gap: .45rem; cursor: pointer; list-style: none;
             padding: .52rem .65rem; border: 1px solid rgb(var(--c-line) / .25); border-radius: 5px;
             background: rgb(var(--c-surface-2) / .92); box-shadow: 0 8px 22px rgb(var(--c-shadow) / .2);
@@ -2321,7 +2323,7 @@
             backdrop-filter: blur(12px); transition: border-color .18s ease, color .18s ease, background .18s ease, transform .18s ease;
         }
         .system-tool-dock > summary::-webkit-details-marker { display: none; }
-        .system-tool-dock > summary:hover, .system-tool-dock[open] > summary { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-surface-3) / .98); transform: translateY(-1px); }
+        .system-tool-dock > summary:hover, .system-tool-dock[open] > summary, .system-tool-dock > button:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-surface-3) / .98); transform: translateY(-1px); }
         .system-tool-panel {
             position: absolute; left: auto; right: 0; bottom: calc(100% + .5rem); width: 14rem; padding: .7rem;
             border: 1px solid rgb(var(--c-line) / .25); border-radius: 6px; background: rgb(var(--c-surface-2) / .97);
@@ -2967,10 +2969,6 @@
                 <i class="fas fa-database text-emerald-400 text-[11px]"></i>
                 <span>輪迴者檔案</span>
             </button>
-            <button onclick="openModal('settingsModal')" class="px-2.5 py-1 rounded bg-panel hover:bg-zinc-800 border hairline-border text-xs font-mono text-zinc-200 flex items-center gap-1.5 transition-all hover:-translate-y-px hover:border-emerald-500/40 hover-glow-accent">
-                <i class="fas fa-sliders-h text-zinc-400 text-[11px]"></i>
-                <span>設定</span>
-            </button>
         </div>
     </header>
 
@@ -3151,11 +3149,6 @@
                 <i class="fas fa-gem action-tile-icon"></i>
                 <span class="action-tile-label">兌換與整備</span>
                 <span class="action-tile-sub">使用獎勵點數與支線</span>
-            </button>
-            <button onclick="openModal('settingsModal')" class="action-tile hub-object hub-object-settings">
-                <i class="fas fa-sliders-h action-tile-icon"></i>
-                <span class="action-tile-label">設定</span>
-                <span class="action-tile-sub">文筆、顯示與 API</span>
             </button>
         </div>
 
@@ -3782,26 +3775,19 @@
     </div>
 
     <!-- 遊戲內系統工具：收進左下角，避免非遊戲功能在最上方永久佔一整列。 -->
-    <details id="system-tool-dock" class="system-tool-dock">
-        <summary aria-label="開啟系統工具" title="系統工具"><i class="fas fa-gear" aria-hidden="true"></i><span class="sr-only">系統工具</span></summary>
-        <div class="system-tool-panel">
-            <div class="system-tool-heading">系統工具 <span>GAME UTILS</span></div>
-            <div data-auth-box class="system-tool-auth" style="display:none">
-                <button data-auth-login type="button" onclick="startDiscordLogin()" style="background:#5865F2;color:#fff"><i class="fab fa-discord"></i><span>以 Discord 登入</span></button>
-                <div data-auth-user style="display:none" class="system-tool-user">
-                    <img data-auth-avatar alt="" referrerpolicy="no-referrer">
-                    <span data-auth-name></span>
-                    <button type="button" onclick="discordLogout()" title="登出" aria-label="登出"><i class="fas fa-right-from-bracket"></i></button>
-                </div>
-            </div>
-            <div class="system-tool-actions">
-                <button type="button" onclick="openModal('sessionModal')" title="輪迴者檔案"><i class="fas fa-database"></i><span>檔案</span></button>
-                <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
-                <button type="button" data-pwa-install onclick="handlePwaInstallClick()" style="display:none" title="安裝 App"><i class="fas fa-mobile-screen-button"></i><span>安裝</span></button>
-                <button type="button" onclick="openModal('settingsModal')" title="設定"><i class="fas fa-sliders"></i><span>設定</span></button>
-            </div>
-        </div>
-    </details>
+    <!-- [2026-08-31] 這裡原本是一個 <details> 齒輪選單，裡面有「檔案／主題／安裝／Discord 登入／設定」。
+         設定面板整個拆掉之後（API 金鑰與文風都改由伺服器端決定），齒輪也一併拿掉，
+         只留主題切換。
+
+         [已知取捨] `body.is-game-screen #site-header { display: none; }`（見上面的樣式區）
+         會在遊戲進行中隱藏頂欄，而頂欄是「輪迴者檔案／Discord 登入／安裝 App」的另一個入口。
+         所以現在遊戲進行中**只能**切主題；要存檔、登入或安裝 App 必須先回主選單。
+         這是刻意的決定，不是漏掉——不要「順手」把 dock 加回來。 -->
+    <div id="theme-tool-dock" class="system-tool-dock" data-theme-only>
+        <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題">
+            <i data-theme-toggle-icon class="fas fa-moon" aria-hidden="true"></i><span class="sr-only">切換明暗主題</span>
+        </button>
+    </div>
 
     <!-- 劇情回顧：完整 chronicle 只在玩家主動開啟時按需載入，呈現成自己的小說。 -->
     <div id="chronicleModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
@@ -3933,115 +3919,6 @@
         </div>
     </div>
 
-    <div id="settingsModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-4">
-        <div class="modal-panel bg-zinc-900 border hairline-border w-full max-w-md rounded-lg p-5 pt-4 space-y-4 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-label="系統與文筆設定" tabindex="-1">
-            <div class="flex justify-between items-center pb-1 shrink-0">
-                <div class="ribbon-banner ribbon-sm">
-                    <i class="fas fa-sliders-h text-[11px]"></i>
-                    <span>系統與文筆設定</span>
-                </div>
-                <button onclick="closeModal('settingsModal')" class="text-zinc-400 hover:text-red-400 transition-colors text-lg leading-none"><i class="fas fa-times"></i></button>
-            </div>
-            <!-- modal-scroll：這一段（也只有這一段）會捲動，標題列與底下的「儲存設定」永遠在畫面上。
-                 -mr-2 pr-2 是把捲軸推到面板邊緣，不然它會擠在欄位跟內距之間。 -->
-            <div class="modal-scroll space-y-3 font-mono text-xs -mr-2 pr-2">
-                <div>
-                    <label class="text-zinc-300 block mb-1">介面色彩主題</label>
-                    <select id="setting-theme" onchange="applyTheme(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <option value="dark">夜色 · 生存檔案（Archive Night）</option>
-                        <option value="light">白頁 · 邀請檔案（Invitation Paper）</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-zinc-300 block mb-1">輪迴者欄位位置</label>
-                    <select id="setting-hud-position" onchange="applyHudPosition(this.value)" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <option value="right">右側（預設）</option>
-                        <option value="left">左側</option>
-                    </select>
-                    <p class="text-[10px] text-zinc-500 mt-1">只影響桌面版；手機仍從左側滑出角色欄。</p>
-                </div>
-                <div>
-                    <label class="text-zinc-300 block mb-1">說書人文筆風格</label>
-                    <!-- 這幾個 value 必須跟 content/narrativeStyle.js 的 STYLE_PROFILES 的 key 一字不差：
-                         後端查不到就直接回 400、整個回合不會有敘事也不會有選項。
-                         (先前這裡列的「熱血漫」「賽博朋克」後端根本沒有，選下去等於讓遊戲停擺) -->
-                    <select id="setting-style" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <option value="白描">白描（沉浸冷峻、動詞優先）</option>
-                        <option value="恐怖懸疑">恐怖懸疑（壓迫氛圍、未知恐懼）</option>
-                        <option value="冷硬寫實">冷硬寫實（軍事／戰術、克制精準）</option>
-                        <option value="電影感">電影感（鏡頭調度、節奏對比）</option>
-                        <option value="標準">標準（平衡基準線）</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="text-zinc-300 block mb-1">敘事者人格面具</label>
-                    <!-- value 必須跟 content/narrativeStyle.js 的 NARRATOR_PERSONAS 的 key 一字不差，
-                         理由同上面的文筆風格：後端查不到就是 400，整個回合停擺。
-                         面具管「誰在講這個故事」，文筆管「怎麼寫字」，兩個可以自由搭配。 -->
-                    <select id="setting-persona" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <option value="RUTHLESS_JUDGE">主神的冷酷裁判（冷酷簡練、強調代價）</option>
-                        <option value="GENTLE_GOD">溫柔的異界神明（悲憫旁觀、詠嘆調）</option>
-                        <option value="PANIC_SURVIVOR">崩潰的倖存者（神經質、陰影與血）</option>
-                    </select>
-                </div>
-                <div class="pt-2 hairline-t space-y-3">
-                    <!-- API 設定檔：每一組「供應商＋金鑰＋Base URL＋模型」存成一筆有名字的設定，
-                         切換設定檔會一次帶入該筆的所有欄位（金鑰跟著供應商走，不會殘留上一家的）。
-                         全部只存在瀏覽器 localStorage，不會上傳。 -->
-                    <div>
-                        <label class="text-zinc-300 block mb-1">API 設定檔</label>
-                        <div class="flex gap-2">
-                            <select id="setting-profile" onchange="onProfileSwitch()" class="flex-1 min-w-0 bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition"></select>
-                            <button onclick="newProfile()" title="新增一組設定檔" class="px-2.5 bg-zinc-800 hover:bg-zinc-700 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-plus text-[11px]"></i></button>
-                            <button onclick="deleteProfile()" title="刪除目前這組設定檔" class="px-2.5 bg-zinc-800 hover:bg-red-500/20 hover:border-red-500/50 border hairline-border rounded text-zinc-100 transition-all hover:-translate-y-px shrink-0"><i class="fas fa-trash text-[11px]"></i></button>
-                        </div>
-                        <p class="text-[10px] text-zinc-500 mt-1">切換設定檔會一併帶入該組的金鑰、Base URL 與模型。所有設定檔只存在你的瀏覽器。</p>
-                    </div>
-                    <div>
-                        <label class="text-zinc-300 block mb-1">設定檔名稱</label>
-                        <input id="setting-profile-name" type="text" placeholder="例：我的 API 設定" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                    </div>
-                    <div>
-                        <label class="text-zinc-300 block mb-1">LLM 供應商覆寫 (選填)</label>
-                        <!-- 這裡只列出允許玩家自行 BYOK 的 provider；免費 provider 由後端
-                             server-managed fallback 統一選擇，不公開在玩家清單。新增可用的 BYOK
-                             provider 時，需同步更新 app.js 的 PROVIDER_UI_META 與本區欄位對照表。 -->
-                        <select id="setting-provider" onchange="onSettingProviderChange()" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                            <option value="">（使用伺服器預設）</option>
-                            <option value="gemini">Google Gemini（官方）</option>
-                            <option value="deepseek">DeepSeek（官方）</option>
-                            <option value="custom">自訂（相容OpenAI：Azure OpenAI／Cohere／AI21／自架 vLLM・LiteLLM…）</option>
-                        </select>
-                    </div>
-                    <div id="setting-api-key-row">
-                        <label class="text-zinc-300 block mb-1">此供應商的 API Key</label>
-                        <input id="setting-api-key" type="password" placeholder="貼上你自己的金鑰..." class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <p class="text-[10px] text-zinc-500 mt-1">選了供應商才需要填，Cloudflare Workers AI 不需要金鑰。金鑰只存在你瀏覽器的localStorage，只在你送出這把金鑰時才會經由本次請求送到伺服器。</p>
-                    </div>
-                    <div id="setting-base-url-row">
-                        <label class="text-zinc-300 block mb-1">Base URL</label>
-                        <input id="setting-base-url" type="text" placeholder="https://你的服務/v1" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <p class="text-[10px] text-zinc-500 mt-1">只有「自訂」需要填。要包含 <span class="text-zinc-400">/v1</span>，不要包含 /chat/completions。Azure OpenAI 每個人的資源名稱都不同，沒有共用網址，必須自己填。</p>
-                    </div>
-                    <div id="setting-model-row">
-                        <label class="text-zinc-300 block mb-1">模型名稱（選填）</label>
-                        <input id="setting-model" type="text" placeholder="留空＝用該供應商的預設模型" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <p id="setting-model-hint" class="text-[10px] text-zinc-500 mt-1"></p>
-                    </div>
-                    <div id="setting-max-tokens-row">
-                        <label class="text-zinc-300 block mb-1">單次回覆長度上限（選填）</label>
-                        <input id="setting-max-tokens" type="number" min="256" step="256" placeholder="留空＝2048" class="w-full bg-zinc-950 border hairline-border p-2 rounded text-zinc-100 focus:outline-none focus:border-emerald-500 focus-ring-accent transition">
-                        <p class="text-[10px] text-zinc-500 mt-1">敘事寫到一半就斷掉時把這個調大。<span class="text-zinc-400">會思考的模型（例如 Gemini 3 Flash Preview）要調到 8192 以上</span>——思考用掉的 token 也算在這個額度裡，太小的話模型還沒開始寫選項就被切斷。</p>
-                    </div>
-                </div>
-            </div>
-            <div class="flex justify-end gap-2 pt-3 hairline-t shrink-0">
-                <button onclick="saveSettings()" class="px-5 py-2 bg-emerald-500/20 border border-emerald-500 text-emerald-200 hover:bg-emerald-500/30 rounded font-mono text-xs font-bold transition-all hover:-translate-y-px">
-                    儲存設定
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- 畫面內通知（見 public/app.js 的 showToast）。
          [2026-08-18] 在這之前，讀檔失敗與刪檔失敗是用原生的 alert() 報的——
@@ -4103,15 +3980,13 @@
             const themeMeta = document.getElementById('theme-color-meta');
             if (themeMeta) themeMeta.content = next === 'light' ? '#f1f0ec' : '#09090b';
             updateThemeToggleIcon(next);
-            const select = document.getElementById('setting-theme');
-            if (select) select.value = next;
         }
         function applyHudPosition(position) {
             const next = position === 'left' ? 'left' : 'right';
             document.documentElement.setAttribute('data-hud-position', next);
             localStorage.setItem('user_hud_position', next);
-            const select = document.getElementById('setting-hud-position');
-            if (select) select.value = next;
+            // [2026-08-31] 設定視窗拆掉之後，這個值沒有 UI 可以改了。函式保留：
+            // 已經設過左側的玩家會繼續沿用，而且戰鬥版面與 dock 的位置都依賴這個屬性。
         }
         /** 頂欄切換鈕：圖示顯示的是「目前」的主題(月亮=深色中、太陽=淺色中)。 */
         function toggleTheme() {
@@ -4213,40 +4088,6 @@
                 // 每次打開都重新抓一次：玩家可能剛在別的分頁登入，也可能剛刪掉一份存檔。
                 refreshSessionList();
             }
-            if (id === 'settingsModal') {
-                document.getElementById('setting-theme').value =
-                    document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
-                document.getElementById('setting-hud-position').value =
-                    document.documentElement.getAttribute('data-hud-position') === 'left' ? 'left' : 'right';
-                document.getElementById('setting-style').value = localStorage.getItem('user_narrative_style') || '白描';
-                document.getElementById('setting-persona').value = localStorage.getItem('user_narrator_persona') || 'RUTHLESS_JUDGE';
-                renderProfileSelect();
-                loadProfileIntoForm(getActiveProfile());
-            }
-        }
-        /**
-         * 依選到的供應商顯示／隱藏金鑰、Base URL、模型三個欄位。
-         * 用不到的欄位一律藏起來，避免玩家以為填了才算數（或以為沒填就不能用）。
-         * 這份對照表跟 app.js 的 PROVIDER_UI_META 是同一件事；免費 provider 由後端管理，
-         * 不在玩家設定畫面公開。
-         */
-        const PROVIDER_FIELDS = {
-            gemini:        { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 Gemini 模型。' },
-            deepseek:      { key: true,  baseUrl: false, model: false, modelHint: '留空＝用 providers.js 裡的預設 DeepSeek 模型。' },
-            custom:        { key: true,  baseUrl: true,  model: true,  modelHint: '必填：自訂接口沒有預設模型，請填你的服務接受的模型名稱。' },
-        };
-        function onSettingProviderChange() {
-            const provider = document.getElementById('setting-provider').value;
-            const fields = PROVIDER_FIELDS[provider];
-            const show = (id, on) => {
-                const row = document.getElementById(id);
-                if (row) row.style.display = on ? 'block' : 'none';
-            };
-            show('setting-api-key-row', Boolean(fields?.key));
-            show('setting-base-url-row', Boolean(fields?.baseUrl));
-            show('setting-model-row', Boolean(provider));
-            const hint = document.getElementById('setting-model-hint');
-            if (hint) hint.textContent = fields?.modelHint ?? '';
         }
         function closeModal(id) {
             const el = document.getElementById(id);
@@ -4399,176 +4240,30 @@
             if (val) { navigator.clipboard.writeText(val); showToast('Session ID 已複製到剪貼簿。', { kind: 'info' }); }
         }
         // ===================================================================
-        // API 設定檔（localStorage）
+        // [2026-08-31] 這裡原本是「API 設定檔」的一整套 UI 邏輯
+        // （PROFILES_KEY / blankProfile / loadProfiles / renderProfileSelect /
+        //   newProfile / deleteProfile / onSettingProviderChange / saveSettings…）。
         //
-        // [2026-08-16] 先前每個欄位各存一個 localStorage key（user_api_key /
-        // user_llm_base_url / …），造成兩個問題：
-        //   1) 金鑰沒有跟著供應商走——換供應商時舊金鑰還留著，很容易把 A 家的金鑰送去 B 家
-        //   2) 想在幾組 API 之間切換，每次都要重打一整組欄位
-        // 改成「一組設定 = 一筆有名字的設定檔」，切換時整組欄位一起換掉。
+        // 玩家不再自備 API 金鑰，設定視窗整個拆掉了，所以這些函式一個都用不到。
+        // 連同它們一起消失的還有「文筆風格」與「敘事者面具」的選單：兩者改由伺服器端
+        // 的 NARRATIVE_STYLE / NARRATOR_PERSONA 環境變數決定（見 LLM_PROVIDERS.md）。
         //
-        // 全部只存在瀏覽器，不會上傳。金鑰仍然只在送出回合時隨該次請求帶給後端。
+        // 主題切換沒有跟著消失——applyTheme() / toggleTheme() 還在，
+        // 入口換成左下角那顆按鈕（見上面的 #theme-tool-dock）。
+        // 角色欄左右位置（applyHudPosition）也還在，只是沒有 UI 可以改了：
+        // 已經設過的人會繼續沿用 localStorage 裡那個值，新玩家吃預設的右側。
+        //
+        // 順手清掉舊版留在瀏覽器裡的金鑰：這些 key 不會再被讀，但留著等於
+        // 讓玩家的金鑰無限期躺在 localStorage 裡。
         // ===================================================================
-        const PROFILES_KEY = 'user_llm_profiles';
-        const ACTIVE_PROFILE_KEY = 'user_llm_active_profile';
-
-        function blankProfile(name) {
-            return { id: 'p' + Date.now() + Math.random().toString(36).slice(2, 7),
-                     name: name || '新設定檔', provider: '', apiKey: '', baseUrl: '', model: '', maxTokens: '' };
-        }
-
-        function loadProfiles() {
-            try {
-                const raw = JSON.parse(localStorage.getItem(PROFILES_KEY) || 'null');
-                if (Array.isArray(raw) && raw.length) return raw;
-            } catch (err) {
-                console.warn('[PROFILES] 設定檔解析失敗，改用預設值', err);
-            }
-            // 從舊版的散裝 key 搬過來，讓既有使用者不會一升級就發現設定不見了
-            const legacyProvider = localStorage.getItem('user_llm_provider') || '';
-            const migrated = blankProfile(legacyProvider ? '（沿用舊設定）' : '預設');
-            migrated.provider = legacyProvider;
-            migrated.apiKey = localStorage.getItem('user_api_key') || '';
-            migrated.baseUrl = localStorage.getItem('user_llm_base_url') || '';
-            migrated.model = localStorage.getItem('user_llm_model') || '';
-            return [migrated];
-        }
-
-        function saveProfiles(profiles, activeId) {
-            localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
-            if (activeId) localStorage.setItem(ACTIVE_PROFILE_KEY, activeId);
-        }
-
-        function getActiveProfile() {
-            const profiles = loadProfiles();
-            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY);
-            return profiles.find((p) => p.id === activeId) || profiles[0];
-        }
-
-        function renderProfileSelect() {
-            const sel = document.getElementById('setting-profile');
-            if (!sel) return;
-            const profiles = loadProfiles();
-            const active = getActiveProfile();
-            sel.innerHTML = profiles.map((p) =>
-                `<option value="${p.id}">${escapeAttr(p.name)}${p.provider ? '（' + escapeAttr(p.provider) + '）' : ''}</option>`
-            ).join('');
-            sel.value = active.id;
-        }
-
-        function escapeAttr(str) {
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
-        function loadProfileIntoForm(profile) {
-            document.getElementById('setting-profile-name').value = profile.name || '';
-            document.getElementById('setting-provider').value = profile.provider || '';
-            document.getElementById('setting-api-key').value = profile.apiKey || '';
-            document.getElementById('setting-base-url').value = profile.baseUrl || '';
-            document.getElementById('setting-model').value = profile.model || '';
-            document.getElementById('setting-max-tokens').value = profile.maxTokens || '';
-            onSettingProviderChange();
-        }
-
-        /** 把畫面上目前的欄位收成一筆設定檔物件（不做驗證，驗證在 saveSettings）。 */
-        function readProfileFromForm(id) {
-            return {
-                id,
-                name: document.getElementById('setting-profile-name').value.trim() || '未命名設定檔',
-                provider: document.getElementById('setting-provider').value,
-                apiKey: document.getElementById('setting-api-key').value.trim(),
-                baseUrl: document.getElementById('setting-base-url').value.trim(),
-                model: document.getElementById('setting-model').value.trim(),
-                maxTokens: document.getElementById('setting-max-tokens').value.trim(),
-            };
-        }
-
-        /** 切換設定檔前先把目前畫面上的編輯存起來，否則玩家改到一半切走就白改了。 */
-        function onProfileSwitch() {
-            const sel = document.getElementById('setting-profile');
-            const profiles = loadProfiles();
-            const previousId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0]?.id;
-            const idx = profiles.findIndex((p) => p.id === previousId);
-            if (idx !== -1) profiles[idx] = readProfileFromForm(previousId);
-            saveProfiles(profiles, sel.value);
-            const next = profiles.find((p) => p.id === sel.value);
-            if (next) loadProfileIntoForm(next);
-            renderProfileSelect();
-        }
-
-        function newProfile() {
-            const profiles = loadProfiles();
-            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0]?.id;
-            const idx = profiles.findIndex((p) => p.id === activeId);
-            if (idx !== -1) profiles[idx] = readProfileFromForm(activeId);
-            const created = blankProfile('新設定檔 ' + (profiles.length + 1));
-            profiles.push(created);
-            saveProfiles(profiles, created.id);
-            renderProfileSelect();
-            loadProfileIntoForm(created);
-            document.getElementById('setting-profile-name').focus();
-        }
-
-        function deleteProfile() {
-            const profiles = loadProfiles();
-            if (profiles.length <= 1) {
-                showToast('至少要保留一組設定檔。你可以把它清空改成「（使用伺服器預設）」。', { kind: 'warn' });
-                return;
-            }
-            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
-            const target = profiles.find((p) => p.id === activeId);
-            if (!confirm(`確定要刪除設定檔「${target?.name ?? ''}」嗎？這會一併刪掉它記著的金鑰。`)) return;
-            const remaining = profiles.filter((p) => p.id !== activeId);
-            saveProfiles(remaining, remaining[0].id);
-            renderProfileSelect();
-            loadProfileIntoForm(remaining[0]);
-        }
-
-        function saveSettings() {
-            // 主題在 onchange 當下就已經套用並存起來了(讓玩家可以即時看到效果再決定)，
-            // 這裡再存一次是為了涵蓋「用鍵盤改了選項但沒觸發onchange」的情況。
-            applyTheme(document.getElementById('setting-theme').value);
-            applyHudPosition(document.getElementById('setting-hud-position').value);
-            localStorage.setItem('user_narrative_style', document.getElementById('setting-style').value);
-            localStorage.setItem('user_narrator_persona', document.getElementById('setting-persona').value);
-
-            const profiles = loadProfiles();
-            const activeId = localStorage.getItem(ACTIVE_PROFILE_KEY) || profiles[0].id;
-            const edited = readProfileFromForm(activeId);
-            const fields = PROVIDER_FIELDS[edited.provider];
-
-            // [2026-08-16] 選了供應商卻沒填必要欄位時，在這裡就擋下來，不要讓「半設定狀態」
-            // 被存起來。舊行為是照存不誤，然後每一回合都送出一個缺金鑰的請求：伺服器要嘛
-            // 改用自己的金鑰(玩家以為在用自己選的那家，其實不是)，要嘛整回合失敗。
-            if (fields?.key && !edited.apiKey) {
-                showToast('選了這個供應商就必須填 API Key。\n如果你想用伺服器自己的設定，請把供應商改回「（使用伺服器預設）」。');
-                return;
-            }
-            if (fields?.baseUrl && !edited.baseUrl) {
-                showToast('選了「自訂（相容OpenAI）」就必須填 Base URL，例如 https://你的服務/v1。');
-                return;
-            }
-            if (fields?.model && !edited.model) {
-                showToast('這個供應商沒有預設模型，必須自己填模型名稱。');
-                return;
-            }
-
-            // 這個供應商用不到的欄位就不要留，避免換供應商之後殘留舊值被誤送出。
-            if (!edited.provider || !fields?.key) edited.apiKey = '';
-            if (!edited.provider || !fields?.baseUrl) edited.baseUrl = '';
-            if (!edited.provider) { edited.model = ''; edited.maxTokens = ''; }
-
-            const idx = profiles.findIndex((p) => p.id === activeId);
-            if (idx === -1) profiles.push(edited); else profiles[idx] = edited;
-            saveProfiles(profiles, edited.id);
-
-            // 舊版的散裝 key 已經被設定檔取代，清掉免得日後有人誤以為它們還有作用
-            ['user_llm_provider', 'user_api_key', 'user_llm_base_url', 'user_llm_model']
+        try {
+            ['user_llm_profiles', 'user_llm_active_profile', 'user_llm_provider',
+             'user_api_key', 'user_llm_base_url', 'user_llm_model',
+             'user_narrative_style', 'user_narrator_persona']
                 .forEach((k) => localStorage.removeItem(k));
-
-            renderProfileSelect();
-            closeModal('settingsModal');
-            showToast('設定已儲存。', { kind: 'info' });
+        } catch (err) {
+            // 無痕模式或封鎖 storage 的瀏覽器：清不掉就算了，反正也沒有東西會去讀它。
+            console.warn('[SETTINGS] 舊設定清理失敗，可以忽略', err);
         }
 
         // 頁面一開始的<head>行內script已經把data-theme設好了(避免FOUC)，

@@ -16,21 +16,6 @@ const scenarioNoticeKeys = new Set();
 const SESSION_KEY = "ai-trpg-session-id";
 const RETIRED_SCENARIO_ID = "scenario.nostromo-01";
 
-/**
- * 前端這邊要知道的供應商差異——只有三件事：要不要金鑰、要不要自己填Base URL、有沒有預設模型。
- *
- * [設計] 這份表刻意跟後端 content/llm/providers.js 的 PROVIDERS 分開，只抄「玩家設定畫面
- * 需要的欄位」，不抄 baseUrl / defaultModel 那些會變動的值——前端猜不到也不需要知道，
- * 真正的解析一律在後端做（後端 turn.js 也有同一組檢查當最後防線）。
- * 只有允許玩家 BYOK 的 provider 才在這裡與 index.html 建立設定項目；免費 provider
- * 屬於後端 server-managed fallback，不得加回玩家清單。
- */
-const PROVIDER_UI_META = {
-  // 免費 provider 由後端 server-managed fallback 統一管理，不開放玩家自行選擇。
-  gemini: { label: "Google Gemini（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  deepseek: { label: "DeepSeek（官方）", needsKey: true, needsBaseUrl: false, needsModel: false },
-  custom: { label: "自訂（相容OpenAI）", needsKey: true, needsBaseUrl: true, needsModel: true },
-};
 
 // 六維屬性顯示
 const ATTRIBUTE_DISPLAY = [
@@ -1080,74 +1065,14 @@ function stepTrait(delta) {
   renderTraitStage();
 }
 
-/**
- * 送出回合前檢查玩家的LLM設定有沒有「選了供應商卻沒填金鑰」這種半設定狀態。
- *
- * 為什麼要在前端擋：這種請求送到後端之後，後端只能改用伺服器自己的金鑰（玩家以為在用
- * 自己選的那一家，其實不是），或是一路深入到 content/llm/client.js 才丟出「沒有讀到金鑰」
- * ——兩種都是玩家看不懂、也不知道要去哪裡改的結果。在送出前擋下並直接指名缺什麼最省事。
- * 後端 functions/api/turn.js 有同一道檢查當最後防線（前端可以被繞過）。
- *
- * @returns {{ok: true, payload: object} | {ok: false, message: string}}
- */
-function buildLlmOverrides() {
-  // 設定改成「一組設定 = 一筆有名字的設定檔」之後，這裡只讀目前啟用的那一筆。
-  // 金鑰跟著供應商一起存在同一筆裡，不會出現「換了供應商但金鑰還是上一家的」那種錯配。
-  const profile = readActiveProfile();
-  const provider = profile.provider || "";
-  if (!provider) return { ok: true, payload: {} }; // 用伺服器預設，什麼都不帶
-
-  // 免費 provider 僅供後端 server-managed fallback 使用。若舊版 localStorage
-  // 還留著已下架的選項，不得因為直接組 payload 而繞過新的前端邊界。
-  const meta = PROVIDER_UI_META[provider];
-  if (!meta) return { ok: true, payload: {} };
-  const apiKey = (profile.apiKey || "").trim();
-  const baseUrl = (profile.baseUrl || "").trim();
-  const model = (profile.model || "").trim();
-  const maxTokens = Number(profile.maxTokens);
-
-  if (meta.needsKey && !apiKey) {
-    return { ok: false, message: `你選了「${meta.label}」，但沒有填 API Key。請到「系統與文筆設定」補上，或把供應商改回「（使用伺服器預設）」。` };
-  }
-  if (meta.needsBaseUrl && !baseUrl) {
-    return { ok: false, message: `你選了「${meta.label}」，但沒有填 Base URL（例如 https://你的服務/v1）。請到「系統與文筆設定」補上。` };
-  }
-  if (meta.needsModel && !model) {
-    return { ok: false, message: `你選了「${meta.label}」，它沒有預設模型，必須自己填模型名稱。請到「系統與文筆設定」補上。` };
-  }
-
-  const payload = { provider };
-  if (apiKey) payload.apiKey = apiKey;
-  if (baseUrl) payload.baseUrl = baseUrl;
-  if (model) payload.model = model;
-  if (Number.isFinite(maxTokens) && maxTokens > 0) payload.maxTokens = Math.floor(maxTokens);
-  return { ok: true, payload };
-}
-
-/**
- * 讀目前啟用的 API 設定檔。設定檔的寫入端在 public/index.html 的行內script
- * （那裡是設定視窗的 UI 邏輯），這裡只負責讀。
- * 讀不到或格式壞掉時回一個空設定＝「用伺服器預設」，不讓壞掉的 localStorage 卡住遊戲。
- */
-function readActiveProfile() {
-  try {
-    const profiles = JSON.parse(localStorage.getItem("user_llm_profiles") || "null");
-    if (Array.isArray(profiles) && profiles.length) {
-      const activeId = localStorage.getItem("user_llm_active_profile");
-      return profiles.find((p) => p.id === activeId) || profiles[0];
-    }
-  } catch (err) {
-    console.warn("[PROFILES] 設定檔讀取失敗，本回合改用伺服器預設", err);
-  }
-  // 還沒開過設定視窗的舊使用者：沿用舊版的散裝 key，不要讓他們的設定突然失效
-  return {
-    provider: localStorage.getItem("user_llm_provider") || "",
-    apiKey: localStorage.getItem("user_api_key") || "",
-    baseUrl: localStorage.getItem("user_llm_base_url") || "",
-    model: localStorage.getItem("user_llm_model") || "",
-    maxTokens: "",
-  };
-}
+// [2026-08-31] buildLlmOverrides() / readActiveProfile() / PROVIDER_UI_META 都刪掉了。
+//
+// 玩家不再自備 API 金鑰：供應商、金鑰、Base URL、模型一律由伺服器端環境變數決定
+// （見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。前端連「有這回事」都不該知道——
+// 留一個沒有 UI 的 payload 組裝函式，只會讓下一個人以為這條路還通。
+//
+// 後端 functions/api/turn.js 也已經不再讀 body 裡的 provider/apiKey/baseUrl/model；
+// 兩邊一起關掉，才不會留下一條前端沒有入口、後端卻還接受的路徑。
 
 /** 上一次送出的回合參數，讓「重試」按鈕不用玩家重打一次自訂行動。 */
 let lastTurnRequest = null;
@@ -1398,12 +1323,6 @@ async function readTurnResponse(httpRes) {
 async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retryPending = false, turnRequestId } = {}) {
   if (turnInFlight) return;
 
-  const overrides = buildLlmOverrides();
-  if (!overrides.ok) {
-    appendFeedEvent("arcane", "主神調整了這一回合", escapeHtml(overrides.message));
-    return;
-  }
-
   turnInFlight = true;
   let keepTurnLocked = false;
   const stableRequestId = turnRequestId || `turn:${Date.now()}:${Math.random().toString(36).slice(2)}`;
@@ -1431,10 +1350,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
         sessionId: currentSessionId,
         chosenOption,
         playerAction,
-        style: localStorage.getItem("user_narrative_style") || "白描",
-        // 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）。
-        persona: localStorage.getItem("user_narrator_persona") || "RUTHLESS_JUDGE",
-        ...overrides.payload,
+        // 文筆風格與敘事者面具不再由前端指定：兩者都由伺服器端的環境變數決定
+        // （NARRATIVE_STYLE / NARRATOR_PERSONA，見 content/narrativeStyle.js 的預設值）。
+        // 它們是靜態層的內容，交給玩家逐回合切換等於每次切換都作廢一次快取前綴；
+        // 而且這個遊戲的敘事語氣是設計的一部分，不是偏好設定。
         turnRequestId: stableRequestId,
         retryPending,
         // server 會以 NDJSON 先送安全狀態事件，再送完整 canonical response；

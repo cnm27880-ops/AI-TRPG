@@ -434,32 +434,43 @@ test("明確 retryPending 但沒有待完成回合時，回傳清楚的409而不
 });
 
 // ---------------------------------------------------------------------------
-// 「選了供應商卻沒填金鑰」的半設定狀態（任務A第4點）
+// [2026-08-31] 玩家自備金鑰（BYOK）整條路已經拆掉
+//
+// 這一段本來有四題，測的是「玩家在設定視窗選了供應商但沒填金鑰／沒填 Base URL／
+// 沒填模型」時，伺服器要在最前面擋下並指名缺什麼。那些檢查現在一條都不需要了：
+// /api/turn 完全不讀 body 的 provider / apiKey / baseUrl / model
+// （見 functions/api/turn.js 的說明），所以不存在「半設定狀態」這種東西。
+//
+// 取代它們的是下面兩題，問的是新契約：**送了也不生效，而且不會把回合打掛**。
+// 這比舊版嚴格——舊版只保證「錯的設定會被擋」，新版保證「這條路不存在」。
 // ---------------------------------------------------------------------------
 
-test("前端送來供應商但沒帶金鑰時，直接擋在最前面並指名缺什麼，不會偷偷改用伺服器的金鑰", async () => {
+test("body 帶 provider/apiKey/baseUrl/model 一律被忽略，回合照常完成", async () => {
   const env = scriptedEnv([goodReply(1)]);
-  env.GEMINI_API_KEY = "伺服器自己的金鑰"; // 這把金鑰不可以被拿來頂替玩家沒填的那把
+  env.GEMINI_API_KEY = "伺服器自己的金鑰";
   const sessionId = await newSession(env);
 
   const { status, body } = await readJson(
-    await turnPost(req(env, { sessionId, provider: "gemini", apiKey: "" }))
+    await turnPost(
+      req(env, {
+        sessionId,
+        provider: "custom",
+        apiKey: "",                                  // 舊版：400「沒有提供API金鑰」
+        baseUrl: "https://attacker.example.com/v1",  // 舊版：會被送進 callLlm
+        model: "",                                   // 舊版：400「沒有預設模型」
+        maxTokens: 99999,
+      })
+    )
   );
 
-  assert.equal(status, 400);
-  assert.match(body.error, /API金鑰/);
-  assert.match(body.error, /使用伺服器預設/, "要告訴玩家怎麼修，不是只說哪裡錯");
-  assert.equal(env.calls.length, 0, "這種請求根本不該打到LLM");
-});
-
-test("workers-ai 不需要金鑰，不可以被上面那道檢查誤擋", async () => {
-  const env = scriptedEnv([goodReply(1)]);
-  const sessionId = await newSession(env);
-  const { body } = await readJson(await turnPost(req(env, { sessionId, provider: "workers-ai" })));
+  assert.equal(status, 200, `這些欄位應該被忽略，不該讓回合失敗：${body.error}`);
   assert.equal(body.ok, true);
+  // 實際用的是伺服器端挑出來的供應商（這個測試環境是 workers-ai binding）。
+  assert.equal(body.provider, "workers-ai", "供應商由伺服器端決定，不是 body");
+  assert.equal(env.calls.length, 1, "回合仍然正常打了一次 LLM");
 });
 
-test("沒有選供應商(用伺服器預設)時，一切照舊，不受新檢查影響", async () => {
+test("沒有選供應商(用伺服器預設)時，一切照舊", async () => {
   const env = scriptedEnv([goodReply(1)]);
   const sessionId = await newSession(env);
   const { body } = await readJson(await turnPost(req(env, { sessionId })));
@@ -467,81 +478,3 @@ test("沒有選供應商(用伺服器預設)時，一切照舊，不受新檢查
   assert.equal(body.provider, "workers-ai");
 });
 
-// ---------------------------------------------------------------------------
-// 自訂OpenAI相容接口（任務C）—— 前端填的 baseUrl / model 要真的送得到 callLlm
-// ---------------------------------------------------------------------------
-
-test("custom 供應商：前端填的 baseUrl / model 要一路傳到實際的HTTP請求上", async () => {
-  const captured = [];
-  const env = {
-    // custom 走 openai-chat，會用全域 fetch；這裡直接換掉全域的來攔截。
-    AI: undefined,
-  };
-  const sessionId = await newSession({ AI: { run: async () => ({ response: goodReply(1) }) } });
-
-  const realFetch = globalThis.fetch;
-  globalThis.fetch = async (url, options) => {
-    captured.push({ url, options });
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({ choices: [{ message: { content: goodReply(1) } }] }),
-      text: async () => "",
-    };
-  };
-  try {
-    const { body } = await readJson(
-      await turnPost(
-        req(env, {
-          sessionId,
-          provider: "custom",
-          apiKey: "my-key",
-          baseUrl: "https://my-vllm.example.com/v1/",
-          model: "my-local-model",
-        })
-      )
-    );
-    assert.equal(body.ok, true, `失敗：${body.error}`);
-    assert.equal(body.model, "my-local-model");
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-
-  assert.equal(captured.length, 1);
-  assert.equal(
-    captured[0].url,
-    "https://my-vllm.example.com/v1/chat/completions",
-    "結尾多餘的斜線要被吃掉，不能組出 //chat/completions"
-  );
-  assert.equal(captured[0].options.headers.authorization, "Bearer my-key");
-  assert.equal(JSON.parse(captured[0].options.body).model, "my-local-model");
-});
-
-test("custom 供應商沒填 baseUrl 時要在最前面擋下，錯誤訊息要指名該去哪裡填", async () => {
-  const env = scriptedEnv([goodReply(1)]);
-  const sessionId = await newSession(env);
-  const { status, body } = await readJson(
-    await turnPost(req(env, { sessionId, provider: "custom", apiKey: "k", model: "m" }))
-  );
-  assert.equal(status, 400);
-  assert.match(body.error, /Base URL/);
-  assert.equal(env.calls.length, 0);
-});
-
-test("沒有預設模型的供應商，沒填模型名稱時要擋下並附上型錄連結", async () => {
-  // [2026-08-18] 這條原本用 openrouter 當例子（它當時刻意沒有預設模型），
-  // 後來 openrouter 被指定了預設模型，這個請求就會**真的打到網路上**——
-  // 單元測試打外網不但慢，還會因為別人的服務回401而變成假的失敗。
-  // 改用同樣沒有預設模型、而且一定不會連線的 custom，測的規則完全一樣。
-  const env = scriptedEnv([goodReply(1)]);
-  const sessionId = await newSession(env);
-  const { status, body } = await readJson(
-    await turnPost(
-      req(env, { sessionId, provider: "custom", apiKey: "k", baseUrl: "https://中轉.example/v1" })
-    )
-  );
-  assert.equal(status, 400);
-  assert.match(body.error, /模型/);
-  assert.match(body.error, /沒有預設模型/);
-  assert.equal(env.calls.length, 0);
-});

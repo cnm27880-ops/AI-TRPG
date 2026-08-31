@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
-import { NARRATOR_PERSONAS } from "../content/narrativeStyle.js";
+import { NARRATOR_PERSONAS, DEFAULT_PERSONA_KEY } from "../content/narrativeStyle.js";
 import { SYSTEM_INSTRUCTION } from "../content/gemini/promptContract.js";
 
 const DRAFT = {
@@ -145,14 +145,73 @@ test("純敘事選項的 requiresCheck 以伺服器查驗為準：前端把有�
   assert.equal(body.checkParams, null, "不擲骰的回合不可以留下半截的檢定參數");
 });
 
-test("面具會進到系統提示，且規則契約仍然完整、優先序宣告仍在最後", async () => {
-  const env = scriptedEnv([replyWithFreeOption(1)]);
+// [2026-08-31] 這一組釘住的是一個實測回報：玩家（尤其是輸入很短的人）打
+// 「我很害怕」「原地翻跟斗」這類句子時，引擎會把它當成一次「困難」的感知檢定，
+// 實測 98% 失敗；而且所有 unmatched 都退回同一個屬性，套路遞減還會讓 DC 一路往上加。
+// 玩家越是打短句、打情緒、打搞怪，遊戲就越懲罰他。
+test("情緒與搞怪輸入不會被逼著擲骰，也不會累積套路懲罰", async () => {
+  const env = scriptedEnv([replyWithFreeOption(1), replyWithFreeOption(2), replyWithFreeOption(3), replyWithFreeOption(4)]);
   const sessionId = await newSession(env);
+  await turnPost(req(env, { sessionId }));
 
-  await turnPost(req(env, { sessionId, persona: "PANIC_SURVIVOR" }));
+  for (const action of ["我很害怕", "原地翻跟斗", "我想哭"]) {
+    const { status, body } = await readJson(await turnPost(req(env, { sessionId, playerAction: action })));
+    assert.equal(status, 200, `「${action}」應該正常完成：${body.error}`);
+    assert.equal(body.checkParams, null, `「${action}」沒有可失敗的目標，不該擲骰`);
+    assert.equal(body.checkResult, null);
+    assert.equal(body.outcome, null, "沒有判定就不該有判定分級");
+    assert.ok(body.narration, "不擲骰不等於沒有敘事");
+    // 套路遞減只在有 checkParams 時才會累積；連打三句情緒不該讓難度爬升。
+    assert.ok(
+      !body.warnings.some((w) => w.includes("套路")),
+      `「${action}」不該累積套路懲罰，實際警告：${body.warnings.join("；")}`
+    );
+    assert.ok(
+      !body.warnings.some((w) => w.includes("退回純感知檢定")),
+      `「${action}」不該再退回感知檢定`
+    );
+  }
+});
+
+test("有可失敗目標的自由輸入仍然照常擲骰", async () => {
+  const env = scriptedEnv([replyWithFreeOption(1), replyWithFreeOption(2)]);
+  const sessionId = await newSession(env);
+  await turnPost(req(env, { sessionId }));
+
+  const { body } = await readJson(
+    await turnPost(req(env, { sessionId, playerAction: "我撬開通風口的柵欄鑽進去" }))
+  );
+  assert.ok(body.checkParams, "撬開柵欄會失敗，這種必須擲骰");
+  assert.ok(body.checkResult, "有 checkParams 就要有實際擲骰結果");
+  assert.ok(body.outcome?.tier, "擲完要有判定分級");
+});
+
+test("無目標行動的演出協議在系統提示裡，而且不含任何動態值", async () => {
+  const env = scriptedEnv([replyWithFreeOption(1), replyWithFreeOption(2)]);
+  const sessionId = await newSession(env);
+  await turnPost(req(env, { sessionId }));
+  await turnPost(req(env, { sessionId, playerAction: "我很害怕" }));
   const { system } = lastMessages(env);
 
-  assert.ok(system.includes(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction), "選的面具要真的生效");
+  assert.match(system, /玩家做了一件「不會失敗」的事/, "演出協議要在靜態層");
+  assert.match(system, /禁止把它寫成失敗/, "沒有判定就沒有失敗，這句話要真的送到模型面前");
+});
+
+// [2026-08-31] 這兩題的前提換了：面具不再由呼叫端指定。
+//
+// 舊版讓前端在設定視窗裡選面具，body 帶 persona 過來。設定視窗整個拆掉之後，
+// 面具改由伺服器端的 NARRATOR_PERSONA 環境變數決定（沒設就用 DEFAULT_PERSONA_KEY）。
+// 面具是**靜態層**的內容：讓玩家逐回合切換，等於每切一次就作廢一次快取前綴，
+// 而且這個遊戲的敘事語氣是設計的一部分，不是偏好設定。
+test("面具由伺服器環境變數決定，且規則契約仍然完整、優先序宣告仍在最後", async () => {
+  const env = scriptedEnv([replyWithFreeOption(1)]);
+  env.NARRATOR_PERSONA = "PANIC_SURVIVOR";
+  const sessionId = await newSession(env);
+
+  await turnPost(req(env, { sessionId }));
+  const { system } = lastMessages(env);
+
+  assert.ok(system.includes(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction), "環境變數指定的面具要真的生效");
   assert.ok(system.includes(SYSTEM_INSTRUCTION), "規則契約必須完整保留");
   assert.ok(
     system.indexOf(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction) < system.indexOf(SYSTEM_INSTRUCTION)
@@ -160,17 +219,24 @@ test("面具會進到系統提示，且規則契約仍然完整、優先序宣�
   assert.match(system.trim().split("\n\n").at(-1), /以規則契約為準/);
 });
 
-test("未知的面具要在最前面就擋下來(400)，不要等到組系統提示才爆", async () => {
+test("body 送 persona 不會生效，也不會讓回合失敗", async () => {
+  // 舊版對未知面具回 400。現在 body 的 persona 根本不被讀取，所以送一個不存在的值
+  // 既不該改變敘事、也不該把回合打掛——它就只是被忽略。
+  // 「前端沒有入口」跟「後端不接受」是兩件事，這一題釘的是後者。
   const env = scriptedEnv([replyWithFreeOption(1)]);
   const sessionId = await newSession(env);
 
   const { status, body } = await readJson(
-    await turnPost(req(env, { sessionId, persona: "NOT_A_PERSONA" }))
+    await turnPost(req(env, { sessionId, persona: "NOT_A_PERSONA", style: "不存在的文筆" }))
   );
 
-  assert.equal(status, 400);
-  assert.match(body.error, /敘事者人格面具/);
-  assert.equal(env.calls.length, 0, "參數錯誤的回合不該浪費一次LLM呼叫");
+  assert.equal(status, 200, `送了無效的 persona/style 不該讓回合失敗：${body.error}`);
+  assert.equal(body.ok, true);
+  const { system } = lastMessages(env);
+  assert.ok(
+    system.includes(NARRATOR_PERSONAS[DEFAULT_PERSONA_KEY].instruction),
+    "應該沿用伺服器端的預設面具，不是呼叫端送來的那個"
+  );
 });
 
 test("[安全] 思維鏈(st_thought)不會被印進敘事，也不會出現在公開API回應的任何欄位", async () => {
