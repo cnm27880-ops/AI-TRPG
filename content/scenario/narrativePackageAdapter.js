@@ -255,8 +255,48 @@ function safeNpcFields(npc, npcId, state) {
 }
 
 /**
- * 產生只供 server-side prompt 使用的 NPC Voice Bible 區塊。
- * 不回傳 privateGoals，也不在 Ash 未確認前送出會直接證明身分的破綻。
+ * Ash 的語氣素材是唯一有「揭露閘門」的一份：他的生化人破綻要等公開旗標才能送出。
+ * 那個閘門吃 state，所以他的語氣庫不能跟其他人一樣搬進靜態層——見下面兩個函式的分工。
+ */
+const REVEAL_GATED_NPC_IDS = new Set(["npc_ash"]);
+
+/**
+ * 【靜態層】一個 NPC 的固定語氣素材：外在、語氣、可觀察習慣、反應參考。
+ *
+ * [2026-08-31] 這些字以前每回合跟著 <NPC_Voice_Bible> 送進動態層，佔 reference block
+ * 的 44%（場上兩個 NPC 就 1077 字元）。但它們一個字都不會變——它們是內容包裡
+ * 寫死的角色素材，不吃任何 state。只有「當前關係演出參考」那一行會隨信任變動。
+ *
+ * 所以拆開：素材進靜態層付一次，關係那一行留在動態層。
+ * 這是同一種病的第三次發作，前兩次是合作契約與 Agenda／Taboo／Knowledge 基線。
+ *
+ * @returns {string|null} 沒有素材、或這個 NPC 有揭露閘門時回傳 null
+ */
+export function narrativeNpcVoiceProfile(reference, npcId) {
+  if (REVEAL_GATED_NPC_IDS.has(npcId)) return null;
+  const pack = narrativePackageFor(reference);
+  const npc = pack ? packageNpcById(pack, npcId) : null;
+  if (!npc) return null;
+  const observableBehavior = Object.entries(npc).find(([key]) => key.startsWith("可觀察行為特徵"))?.[1] ?? [];
+  const lines = [];
+  const appearance = (npc["外在形象與初次目擊"] ?? []).slice(0, 2);
+  const speech = (npc["說話語氣與節奏"] ?? []).slice(0, 2);
+  if (appearance.length) lines.push(`  外在與動作：${appearance.join("；")}`);
+  if (speech.length) lines.push(`  語氣：${speech.join("；")}`);
+  if (observableBehavior.length) lines.push(`  可觀察習慣：${observableBehavior.slice(0, 2).join("；")}`);
+  const reactions = (npc["線索觸發反應"] ?? []).slice(0, 3);
+  if (reactions.length) lines.push(`  可用反應參考：${reactions.join("；")}`);
+  return lines.length ? lines.join("\n") : null;
+}
+
+/**
+ * 【動態層】每回合仍然會變的那一小段語氣資訊。
+ *
+ * 現在只剩兩種東西：
+ *   1. 在場 NPC 的「當前關係演出參考」——它隨信任跨過分級而換一句。
+ *   2. 有揭露閘門的 NPC（Ash）的完整語氣素材——他的破綻不能提前進靜態層。
+ *
+ * 固定素材在 npcCooperationContract.js 的 NPC 固定檔案裡（靜態層，整場付一次）。
  */
 export function buildNarrativeNpcPromptBlock(reference, state) {
   const pack = narrativePackageFor(reference);
@@ -266,26 +306,28 @@ export function buildNarrativeNpcPromptBlock(reference, state) {
     .filter(Boolean);
   if (!entries.length) return "";
 
-  const lines = [
-    "<NPC_Voice_Bible>",
-    "【已接觸 NPC 的可觀察演出規範（只供本回合敘事）】",
-    "以下內容只規範說話方式、可觀察反應與已公開層級；不能新增 NPC 行動、傷勢、物品、旗標或關係數值。",
-  ];
+  const body = [];
   for (const entry of entries) {
-    lines.push(`- ${entry.id}／${entry.title}`);
-    if (entry.appearance.length) lines.push(`  外在與動作：${entry.appearance.join("；")}`);
-    if (entry.speech.length) lines.push(`  語氣：${entry.speech.join("；")}`);
-    if (entry.relationship) lines.push(`  當前關係演出參考：${entry.relationship}`);
-    if (entry.observableBehavior.length) lines.push(`  可觀察習慣：${entry.observableBehavior.join("；")}`);
-    if (entry.reactionLibrary.length) lines.push(`  可用反應參考：${entry.reactionLibrary.join("；")}`);
+    const gated = REVEAL_GATED_NPC_IDS.has(entry.id);
+    const rows = [];
+    if (entry.relationship) rows.push(`  當前關係演出參考：${entry.relationship}`);
+    if (gated) {
+      // 只有揭露閘門後面的 NPC 才在這裡重送固定素材——因為他的素材本來就是分階段的。
+      if (entry.appearance.length) rows.push(`  外在與動作：${entry.appearance.join("；")}`);
+      if (entry.speech.length) rows.push(`  語氣：${entry.speech.join("；")}`);
+      if (entry.observableBehavior.length) rows.push(`  可觀察習慣：${entry.observableBehavior.join("；")}`);
+      if (entry.reactionLibrary.length) rows.push(`  可用反應參考：${entry.reactionLibrary.join("；")}`);
+    }
+    if (rows.length) body.push(`- ${entry.id}／${entry.title}`, ...rows);
   }
-  lines.push(
-    "NPC 只能知道自己親眼看見、親耳聽見或已由 Engine_Result／Reference_Event 明示的事情。",
-    "不要把語氣庫中的反應當成已發生的 engine effect；若本回合沒有對應 trigger，就只維持語氣與可觀察姿態。",
-    "Ash 的生化人身分在未出現公開解鎖旗標前，不得直接說破、不得用語氣庫暗示成確定事實。",
+  if (!body.length) return "";
+
+  return [
+    "<NPC_Voice_Bible>",
+    "【在場 NPC 這一回合的關係與已解鎖素材】固定的語氣素材見系統提示的 NPC 固定檔案。",
+    ...body,
     "</NPC_Voice_Bible>",
-  );
-  return lines.join("\n");
+  ].join("\n");
 }
 
 export function narrativePackageCoverage(reference) {

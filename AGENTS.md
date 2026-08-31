@@ -96,7 +96,7 @@ npm run test:extreme        # 極端回合／provider 錯誤矩陣
 | `content/scenario/` | 副本、節點、迫近度、reference 事件 |
 | `content/scenario/npcStateMachine.js` | NPC 的 S.A.E.P. 四維矩陣與 CRPG 狀態標籤。「他現在什麼心情」由 JS 算，不由提示詞寫 |
 | `content/scenario/npcCooperationEngine.js` | 四個 NPC 共用的合作分類／狀態機。各 `*CooperationPolicy.js` 只放人設 |
-| `content/scenario/npcCooperationContract.js` | **靜態層**的 NPC 合作契約（共用安全規則 + 各角色人設一句話） |
+| `content/scenario/npcCooperationContract.js` | **靜態層**的 NPC 固定檔案（共用安全規則 + 各角色人設、Agenda／Taboo／Knowledge 基線、語氣素材） |
 | `functions/api/` | Cloudflare Pages Functions 的 HTTP 端點 |
 | `content/storage/usageLedger.js` | 每日 token 用量帳本（KV，key 前綴 `usage:`） |
 | `functions/api/admin/` | 管理員專用端點。非管理員一律 404，不是 403 |

@@ -38,7 +38,7 @@
 
 | 層 | 送到哪 | 放什麼 | 多久變一次 |
 | --- | --- | --- | --- |
-| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、NPC 合作契約（`NPC_COOPERATION_CONTRACT`）、文筆層＋規則契約 | 整場遊戲不變 |
+| **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、NPC 固定檔案（`buildNpcCooperationContract()`：人設、Agenda／Taboo／Knowledge 基線、語氣素材）、文筆層＋規則契約 | 整場遊戲不變 |
 | **history** | 中段的 `user` / `assistant` messages | `session.history` 拆成的對話輪次 | **只在尾端追加** |
 | **dynamic** | **最後一個** `user` message | NPC 狀態矩陣的**數值**（`[NPC_ACTIVE_STATE]`，排在這一層最頂端）、DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、reference 事件資料、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
 
@@ -48,9 +48,10 @@
 - `functions/api/turn.js` 的 `buildPromptLayers()` —— 主要遊戲回合的組裝
 - `functions/api/narrate.js` —— demo/BYOK 端點，同一套分層
 - `content/llm/client.js` —— **唯一**可以組 provider `messages` 陣列的檔案
-- `content/scenario/npcCooperationContract.js` —— NPC 合作契約。它是「一段整場不變的文字被抄成
-  四份、住在動態層」的修復結果（2026-08-31）：四個 NPC 的安全規則九成逐字相同，
-  場上兩個 NPC 就每回合白付兩份。現在只有一份，而且住在 `system`
+- `content/scenario/npcCooperationContract.js` —— NPC 固定檔案。它是同一種病**三次發作**的
+  修復結果（2026-08-31）：安全規則被抄成四份住在動態層、Agenda／Taboo／Knowledge 基線
+  跟著每回合的數值一起送、語氣素材跟著 <NPC_Voice_Bible> 每回合重送。
+  三者都整場不變，現在都住在 `system`，動態層只留偏離基線的覆寫標記
 - `content/scenario/npcStateMachine.js` —— NPC 狀態矩陣。**同一個檔案同時產出靜態與動態兩段**
   （`NPC_STATE_LEGEND` 是靜態的軸定義，`buildNpcActiveStateBlock()` 是每回合的數值）。
   這是這份契約在實務上最容易被「順手合併」的一組：兩段講的是同一件事，讀起來像該放在一起，
@@ -110,6 +111,29 @@
 
 7. **不要把歷史做字串中段截斷。**
    截斷點會隨長度浮動。要縮短就**從最舊的整則丟起**（`clampHistoryMessages()` 的作法）。
+
+---
+
+## 一個反覆出現的形狀：「幾乎不變」的東西混在「每回合都變」的東西裡
+
+2026-08-31 這一天，同一種錯被抓到三次，三次都在不同的地方：
+
+| 發作 | 症狀 | 每回合浪費 |
+| --- | --- | --- |
+| 四份 `*CooperationPolicy` 的安全規則 | 同一段規則被抄成四份、住在動態層 | 場上 2 人 = 1695 字元 |
+| `[NPC_ACTIVE_STATE]` 的 Agenda／Taboo／Knowledge | 基線跟著每回合的數值一起送 | 那一行的 40% |
+| `<NPC_Voice_Bible>` 的語氣素材 | 內容包裡寫死的素材每回合重送 | reference block 的 44% |
+
+三次的共同特徵，也是下次該用來自我檢查的問題：
+
+> **這段文字是「跟著一個每回合都變的東西一起被算出來的」，
+> 還是「它自己每回合都不一樣」？**
+
+前者只是**住在**動態層，不是**屬於**動態層。NPC 的禁忌不會因為他生氣了就改變，
+語氣素材不會因為場景回合數 +1 就改變——它們只是剛好跟那些東西在同一個函式裡被拼出來。
+
+判斷方法很簡單：**把同一份資料用兩個不同的 state 各產一次，逐行比對**。
+逐字相同的行就是放錯層的行。這比讀程式碼可靠，因為「哪些欄位會變」的直覺一定會出錯。
 
 ---
 

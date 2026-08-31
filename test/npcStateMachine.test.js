@@ -27,6 +27,7 @@ import {
   patienceLabel,
 } from "../content/scenario/npcStateMachine.js";
 import { ANTI_ASSISTANT_PROTOCOL, buildStylePrompt } from "../content/narrativeStyle.js";
+import { buildNpcCooperationContract } from "../content/scenario/npcCooperationContract.js";
 
 const LUYUAN_SCENE = "evt_deck_a_recon";
 const LUYUAN = "npc_luyuan";
@@ -162,13 +163,15 @@ test("耐心見底時發出 SEIZE_CONTROL，而且不會連續兩回合都奪權
   );
 });
 
-test("踩到禁忌會在當回合標記 TRIPPED，下一回合就消失", () => {
+test("踩到禁忌會在當回合送出 TRIPPED 覆寫，下一回合就消失", () => {
   let state = onStage();
   state = step(state, 1, "把他推出去擋住異形");
-  assert.match(buildNpcActiveStateBlock(reference, state), /Taboo: "[^"]*\(TRIPPED\)"/);
+  // 禁忌的**內容**在靜態契約裡（整場付一次）；動態層只送「這一回合踩到了」。
+  assert.match(buildNpcActiveStateBlock(reference, state), /Taboo: "TRIPPED"/);
+  assert.doesNotMatch(buildNpcActiveStateBlock(reference, state), /浪費時間與資源/);
 
   state = step(state, 2, "我們一起往前走");
-  assert.doesNotMatch(buildNpcActiveStateBlock(reference, state), /TRIPPED/);
+  assert.doesNotMatch(buildNpcActiveStateBlock(reference, state), /Taboo/);
 });
 
 test("不在場的 NPC 不跑狀態機，也不出現在狀態行裡", () => {
@@ -197,14 +200,50 @@ test("狀態行只送引擎知道的事實：不編 HP 百分比，也不洩漏�
   assert.doesNotMatch(block, /privateGoals|privateAssessment|withheldFacts|cooperationState|seizedTurn|stallStreak/);
 });
 
-test("Knowledge 是一份白名單：只列 reference 宣告的已知事項與這一路撿到的線索", () => {
+test("Knowledge 白名單的基線在靜態層，動態層只送這一局額外學到的東西", () => {
   const declared = reference.npcs.find((npc) => npc.id === LUYUAN).knowledge;
+  const contract = buildNpcCooperationContract(reference);
+  // 基線整場付一次，住在靜態契約裡。
+  assert.match(contract, new RegExp(declared[0]));
+  assert.match(contract, /Knowledge 白名單基線/);
+
   let state = onStage();
   state = step(state, 1, "你是誰？", { newClues: ["clue_vent_pattern"] });
   const block = buildNpcActiveStateBlock(reference, state);
-  assert.match(block, new RegExp(declared[0]));
+  // 動態層只送增量；把基線再抄一遍就是這一行原本 40% 的體積。
+  assert.match(block, /\+Known: "clue_vent_pattern"/);
+  assert.doesNotMatch(block, new RegExp(declared[0]));
   assert.ok(state.npcRuntime[LUYUAN].learned.includes("clue_vent_pattern"));
   assert.match(NPC_STATE_LEGEND, /白名單/);
+});
+
+test("沒有偏離基線時，Agenda／Taboo／Knowledge 一個字都不進動態層", () => {
+  let state = onStage();
+  state = step(state, 1, "你是誰？");
+  const block = buildNpcActiveStateBlock(reference, state);
+  for (const field of ["Agenda", "Taboo", "+Known"]) {
+    assert.doesNotMatch(block, new RegExp(field.replace("+", "\\+")), `${field} 沒偏離基線就不該出現`);
+  }
+  // 真的會變的那幾個仍然每回合都在。
+  assert.match(block, /SAEP: \[/);
+  assert.match(block, /Status: "/);
+});
+
+test("進入自保姿態時只送 SELF_PRESERVE 覆寫，不重抄 Agenda 全文", () => {
+  let state = onStage();
+  const threatened = applyNpcCooperationForAction({
+    reference,
+    state,
+    actionText: "試著搶奪男人的手槍",
+    sceneId: LUYUAN_SCENE,
+    turnNumber: 1,
+  });
+  state = step(threatened.state, 1, "試著搶奪男人的手槍");
+  const block = buildNpcActiveStateBlock(reference, state);
+  assert.match(block, /Agenda: "SELF_PRESERVE"/);
+  assert.doesNotMatch(block, /讓至少一名新人活著離開/);
+  // 基線仍然讀得到——它在靜態契約裡。
+  assert.match(buildNpcCooperationContract(reference), /讓至少一名新人活著離開/);
 });
 
 test("legend 是靜態的、狀態行是動態的：兩者不可以混在同一段", () => {
@@ -294,4 +333,40 @@ test("npcRuntime 不會出現在送回瀏覽器的 reference 狀態裡", () => {
   assert.doesNotMatch(serialized, /SAEP|seizedTurn|tabooTripped|stallStreak/);
   const luyuanTaboo = npcProfile(reference, LUYUAN).taboo;
   assert.doesNotMatch(serialized, new RegExp(luyuanTaboo.slice(0, 6)));
+});
+
+// ---------------------------------------------------------------------------
+// 語氣素材的靜態／動態分界（2026-08-31 第三輪）
+// ---------------------------------------------------------------------------
+
+test("固定的語氣素材住在靜態契約，動態層只留關係那一行", async () => {
+  const { buildNarrativeNpcPromptBlock } = await import("../content/scenario/narrativePackageAdapter.js");
+  const contract = buildNpcCooperationContract(reference);
+  const onStage = { ...createReferenceState(reference), currentSceneId: "evt_meet_ripley" };
+  const block = buildNarrativeNpcPromptBlock(reference, onStage);
+
+  // 外在／語氣／可觀察習慣／反應參考：整場不變，付一次。
+  for (const label of ["外在與動作", "語氣：", "可用反應參考"]) {
+    assert.match(contract, new RegExp(label), `${label} 應該在靜態契約裡`);
+    assert.doesNotMatch(block, new RegExp(label), `${label} 不該每回合重送`);
+  }
+  // 關係那一行會隨信任跨過分級而換一句，所以留在動態層。
+  assert.match(block, /當前關係演出參考/);
+});
+
+test("Ash 的語氣素材不進靜態層——他的破綻有揭露閘門", async () => {
+  const { narrativeNpcVoiceProfile, buildNarrativeNpcPromptBlock } =
+    await import("../content/scenario/narrativePackageAdapter.js");
+  // 靜態層整場不變，沒辦法表達「等旗標亮了才給」，所以有閘門的 NPC 一律不搬。
+  assert.equal(narrativeNpcVoiceProfile(reference, "npc_ash"), null);
+  assert.notEqual(narrativeNpcVoiceProfile(reference, "npc_ripley"), null);
+
+  const contract = buildNpcCooperationContract(reference);
+  const ashSection = contract.slice(contract.indexOf("npc_ash"));
+  const nextNpc = ashSection.slice(1).search(/\n- /);
+  assert.doesNotMatch(nextNpc > 0 ? ashSection.slice(0, nextNpc) : ashSection, /可用反應參考/);
+
+  // 他在場時仍然拿得到素材，只是走動態層（因為那份素材本身是分階段的）。
+  const withAsh = { ...createReferenceState(reference), currentSceneId: "evt_meet_ash" };
+  assert.match(buildNarrativeNpcPromptBlock(reference, withAsh), /npc_ash/);
 });

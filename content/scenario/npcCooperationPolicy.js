@@ -11,7 +11,7 @@
 // 原始的 Gemini 劇本文字仍保存在 examples/alienNostromo_v2_luyuanCooperation.js，
 // 作為寫作參考，但不再進 runtime，也不再每回合送進 prompt。
 
-import { defineCooperationPolicy } from "./npcCooperationEngine.js";
+import { addressesOneOf, defineCooperationPolicy } from "./npcCooperationEngine.js";
 
 export const NPC_ID = "npc_luyuan";
 
@@ -52,10 +52,27 @@ export const LUYUAN_PERSONA = {
   initialTrust: 1,
 
   aliases: /陸遠|老手|持槍男人|那個男人|男人的(?:手槍|武器)/,
-  otherNpcTarget: /(?:問|詢問|向|對|跟|告訴|要求|攻擊|指向|靠近|撲向|聯絡|找|安撫|幫助|威脅|大吼)\s*(?:Ripley|雷普利|Parker|帕克|Lambert|蘭伯特|Ash|艾許)/,
+  otherNpcTarget: addressesOneOf(["Ripley", "雷普利", "Parker", "帕克", "Lambert", "蘭伯特", "Ash", "艾許"]),
   homeScenes: ["evt_deck_a_recon"],
   // 在他的場景裡，只有這些語意才算是在跟他互動；純環境描寫不該推動合作狀態。
-  sceneKeywords: /你是誰|為什麼|怎麼回事|發生什麼|哪裡|如何|去哪|往哪|逃生|跟上|探路|殿後|我來|我可以|我們走|一起|搶|奪|撲|推|抓|壓制|威脅|恐嚇|後退|退後|退開|放下手|停手|停止攻擊|道歉|害怕|失控|[?？]/,
+  //
+  // [2026-08-31] 這份清單補過兩次，兩次都值得記下來：
+  //
+  // 1. 加上 `[?？]`：他的場景裡只有他一個人，玩家打一個問號就是在問他。
+  //    舊清單只認得「你是誰／為什麼／怎麼回事／哪裡／如何」這幾種問法，
+  //    「這裡怎麼這麼冷？」會被當成自言自語而完全沒有反應。
+  //    這是刻意的放寬，不是順手的——而且它的影響被 transitions.survival_question
+  //    的 onlyTopics 擋住了：認不出話題的雜問他仍然要回答，但不算完成簡報。
+  //
+  // 2. 加上摩擦類的詞彙（不信／憑什麼／改道／離隊／單獨／追問）：
+  //    這是一個**沉默了很久的 bug**。persona 有四條 friction 規則
+  //    （express_distrust／reject_path／declare_solo／passive_questioning），
+  //    但它們的觸發詞一個都不在這份清單裡，所以玩家除非叫出「陸遠」兩個字，
+  //    否則說「我不信任你」「我要離隊」得到的是**完全沒有反應**。
+  //    現場只有他一個人，那句話不可能是在對別人說。
+  //    症狀是「NPC 對我的不信任毫無感覺」，不會有任何測試變紅——
+  //    事實上這條分支的覆蓋率一直是 0，那就是它留下的唯一痕跡。
+  sceneKeywords: /你是誰|為什麼|怎麼回事|發生什麼|哪裡|如何|去哪|往哪|逃生|跟上|探路|殿後|我來|我可以|我們走|一起|搶|奪|撲|推|抓|壓制|威脅|恐嚇|後退|退後|退開|放下手|停手|停止攻擊|道歉|害怕|失控|[?？]|不信|不相信|憑什麼|你在騙|改道|走另一條|不走這條|拒絕前進|不跟你走|不去|離隊|不跟隊|單獨|一個人|自己走|我們分開|一直問|繼續追問|先回答我|站在原地|我不動/,
 
   states: {
     initial: "briefing",

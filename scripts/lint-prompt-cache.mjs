@@ -63,7 +63,7 @@ const DYNAMIC_IDENTIFIERS = [
 const REQUIRED_IN_STATIC = [
   "optionsSpec",
   "NPC_STATE_LEGEND",
-  "NPC_COOPERATION_CONTRACT",
+  "npcCooperationContract",
   "styleAndRules",
 ];
 

@@ -2,6 +2,71 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [REFACTOR-2026.08.31b] — 把「幾乎不變」的東西全部趕出動態層，並修掉兩個沉默的分類 bug
+
+**影響範圍：** `content/scenario/npcCooperationContract.js`、`npcStateMachine.js`、
+`narrativePackageAdapter.js`、`npcCooperationEngine.js`、四個 `*CooperationPolicy.js`、
+`functions/api/turn.js`、`scripts/lint-prompt-cache.mjs`；新增 `test/npcCooperationEngine.test.js`；
+更新 `test/{npcStateMachine,npcCooperationPolicy,multiNpcPressure,jurassicParkV1}.test.js`
+
+**變更性質：** 提示詞分層優化 + 兩個分類修正。判定公式、骰池、傷害、獎勵、角色卡格式與
+存檔格式一行都沒有動。
+
+### 提示詞分層
+
+階段二之後我用同一把尺回頭量剩下的動態層，發現同一個形狀還在另外兩個地方：
+
+| 位置 | 每回合送出 | 其中逐字不變 |
+|---|---|---|
+| `[NPC_ACTIVE_STATE]` 的 Agenda／Taboo／Knowledge | 420 字元（2 名 NPC） | 169（40%） |
+| `<NPC_Voice_Bible>` 的語氣素材 | reference block 2422 字元 | 1077（44%） |
+
+基線一律搬進 `buildNpcCooperationContract(reference)`（靜態層），動態層只留偏離基線的
+覆寫標記：`Agenda: "SELF_PRESERVE"`、`Taboo: "TRIPPED"`、`+Known: "…"`。
+
+```
+動態層（場上 2 名 NPC 的一回合）  2842 → 1831 字元／回合（−36%）
+靜態層（整場付一次）             1226 → 4484 字元
+```
+
+約 3.2 回合回本；五十回合的副本省下四萬多字元的重複計費。
+
+**兩個刻意的界線**：Ash 的語氣素材**不**搬進靜態層（他的生化人破綻有揭露閘門，
+而靜態層沒辦法表達「等旗標亮了才給」）；固定檔案的順序跟著 `reference.npcs` 而不是
+人設登記處（侏羅紀那三名 NPC 不在登記處裡，只跑登記處會讓他們的素材整個消失，
+而且不會有任何測試變紅）。
+
+### 修正
+
+- **陸遠的四條 friction 規則從來沒有被觸發過。** `express_distrust` / `reject_path` /
+  `declare_solo` / `passive_questioning` 的觸發詞一個都不在場景關鍵字清單裡，
+  所以玩家除非叫出「陸遠」兩個字，否則說「我不信任你」「我要離隊」得到的是完全沒有反應。
+  唯一的痕跡是 `friction` 這條分支的覆蓋率一直是 0。
+- **「玩家在對誰說話」的動詞清單被抄成四份而且漂開了。** 陸遠那份有「威脅」，
+  Lambert 那份沒有——後果是「我再次威脅 Parker，叫他滾開」在 Ripley 的場景裡被算成
+  **對 Lambert 大吼**，她於是無緣無故進入 panic。收成一份聯集（`addressesOneOf()`）。
+- **陸遠的場景關鍵字補上 `[?？]`。**（這一條是 #51 引進的，當時的差分語料裡沒有
+  「在他的場景裡打一個問號」的句子，所以沒被抓到。）他的場景裡只有他一個人，
+  玩家打一個問號就是在問他；舊清單只認得幾種特定問法，「這裡怎麼這麼冷？」會完全沒有反應。
+  影響被 `transitions.survival_question` 的 `onlyTopics` 擋住：認不出話題的雜問他仍然要回答，
+  但不算完成簡報。
+
+差分測試（642 句語料 × 4 NPC × 2~4 場景 = 8346 組）對照階段二之前的 `main`：
+**13 組差異，全部是上述修正的方向**——10 組是明確點名其他 NPC 的句子不再算到旁人頭上，
+其中兩組先前是真的誤判。
+
+### 測試
+
+新增 `test/npcCooperationEngine.test.js`（12 項）：專門測**開不起來**。
+`defineCooperationPolicy()` 的七個護欄分支先前覆蓋率是 0——護欄沒有測試就等於沒有護欄，
+哪天有人把 `throw` 改成 `console.warn`，一樣不會有東西變紅。
+`npcCooperationEngine.js` 覆蓋率 96.21% → **100%** 行、89.61% → 95.81% 分支。
+
+另外把侏羅紀副本的「禁止透露清單」檢查跟著搬進靜態契約一起驗——
+不然就是把洩漏的出口從動態層換到靜態層，而測試還是綠的。
+
+全套 1245 項通過，`lint:prompt-cache`、`lint:workflows`、`test:extreme` 皆綠。
+
 ## [REFACTOR-2026.08.31] — 共用樣板抽離：四份合作策略瘦身成一個引擎 + 四份人設
 
 **影響範圍：** 新增 `content/scenario/npcCooperationEngine.js`、`npcCooperationContract.js`、
