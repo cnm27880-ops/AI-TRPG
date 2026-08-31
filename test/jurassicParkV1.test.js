@@ -25,6 +25,7 @@ import {
   referenceStateForResponse,
 } from "../content/scenario/referenceAdapter.js";
 import { resolveTravelAction, applyTravelAction } from "../content/scenario/explorationState.js";
+import { buildNpcCooperationContract } from "../content/scenario/npcCooperationContract.js";
 import { deriveQualityScore } from "../content/scenario/settlement.js";
 import {
   narrativePackageFor,
@@ -301,6 +302,18 @@ test("NPC 演出素材包已貼入三名 NPC 的 Gemini 對白，並且會出現
 
   // 沒有命中任何 contactFlags／presenceScenes 時，行為等同於素材包還沒接上——不噴錯，回傳空字串。
   assert.equal(buildNarrativeNpcPromptBlock(REFERENCE, state), "");
+
+  // [2026-08-31] 固定的語氣素材搬進靜態契約之後，同一份禁止透露清單必須跟著搬過去檢查——
+  // 不然就是把洩漏的出口從動態層換到靜態層，而測試還是綠的。
+  const contract = buildNpcCooperationContract(REFERENCE);
+  assert.match(contract, /npc_engineer_morales/, "副本自己的 NPC 也要有固定檔案（他們不在人設登記處裡）");
+  assert.match(contract, /npc_researcher_karen/);
+  assert.match(contract, /npc_pilot_vance/);
+  assert.doesNotMatch(contract, /privateGoals/);
+  assert.doesNotMatch(contract, /電擊棍/, "禁止透露清單：電擊棍不能出現在靜態契約");
+  assert.doesNotMatch(contract, /排洪閥/, "禁止透露清單：未標記排洪閥不能出現在靜態契約");
+  assert.doesNotMatch(contract, /BioSyn/i, "禁止透露清單：Karen 的收購秘密不能出現在靜態契約");
+  assert.doesNotMatch(contract, /私下授權/, "禁止透露清單：范斯的總部授權內容不能出現在靜態契約");
 });
 
 test("回歸：異形副本沒有宣告 endingRules，仍走內建判定", () => {

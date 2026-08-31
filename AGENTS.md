@@ -79,7 +79,12 @@ npm run test:coverage       # CI 用的覆蓋率門檻版本
 npm run lint:prompt-cache   # prompt cache 分層結構鎖
 npm run lint:workflows      # GitHub Actions YAML 靜態檢查
 npm run test:extreme        # 極端回合／provider 錯誤矩陣
+npm run eval:narrative      # 敘事行為 eval（要金鑰；沒有就跳過）
 ```
+
+`eval:narrative` 是唯一一支驗「**模型真的照做了嗎**」的檢查。其餘測試對提示詞的斷言
+只能證明「字串在 prompt 裡」，不能證明模型因此改變了行為。改動反客服協定、第四面牆條款
+或任何靜態層的約束之後，這一支才是能告訴你「有沒有效」的東西。
 
 送出改動前，`npm test`、`npm run lint:prompt-cache`、`npm run lint:workflows` 都要綠。
 
@@ -96,7 +101,7 @@ npm run test:extreme        # 極端回合／provider 錯誤矩陣
 | `content/scenario/` | 副本、節點、迫近度、reference 事件 |
 | `content/scenario/npcStateMachine.js` | NPC 的 S.A.E.P. 四維矩陣與 CRPG 狀態標籤。「他現在什麼心情」由 JS 算，不由提示詞寫 |
 | `content/scenario/npcCooperationEngine.js` | 四個 NPC 共用的合作分類／狀態機。各 `*CooperationPolicy.js` 只放人設 |
-| `content/scenario/npcCooperationContract.js` | **靜態層**的 NPC 合作契約（共用安全規則 + 各角色人設一句話） |
+| `content/scenario/npcCooperationContract.js` | **靜態層**的 NPC 固定檔案（共用安全規則 + 各角色人設、Agenda／Taboo／Knowledge 基線、語氣素材） |
 | `functions/api/` | Cloudflare Pages Functions 的 HTTP 端點 |
 | `content/storage/usageLedger.js` | 每日 token 用量帳本（KV，key 前綴 `usage:`） |
 | `functions/api/admin/` | 管理員專用端點。非管理員一律 404，不是 403 |

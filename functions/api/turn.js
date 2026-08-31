@@ -131,7 +131,7 @@ import {
   buildNpcActiveStateBlock,
   NPC_STATE_LEGEND,
 } from "../../content/scenario/npcStateMachine.js";
-import { NPC_COOPERATION_CONTRACT } from "../../content/scenario/npcCooperationContract.js";
+import { buildNpcCooperationContract } from "../../content/scenario/npcCooperationContract.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -1067,6 +1067,10 @@ async function executeTurn(context, streamHooks = null) {
     npcActiveState: scenarioReference && referenceState
       ? buildNpcActiveStateBlock(scenarioReference, referenceState)
       : null,
+    // NPC 固定檔案：共用安全規則 + 每個角色的人設／Agenda／Taboo／Knowledge 基線。
+    // 只吃 scenarioReference，而副本整場不變，所以這段字串整場逐字相同——
+    // 這是它能待在 system message 的前提（見 npcCooperationContract.js 的檔頭）。
+    npcCooperationContract: scenarioReference ? buildNpcCooperationContract(scenarioReference) : null,
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
@@ -1857,6 +1861,7 @@ function buildPromptLayers({
   nodeGuidance,
   dmMemo,
   npcActiveState = null,
+  npcCooperationContract = null,
   referenceBlock,
   freeActionContractPrompt = null,
   threatDirective,
@@ -1876,10 +1881,10 @@ function buildPromptLayers({
     // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
     // 把說明跟數字寫在一起是很自然的直覺，也是這裡最貴的一種錯法。
     referenceMode ? NPC_STATE_LEGEND : null,
-    // NPC 合作契約：四個 NPC 共用的那一份安全規則 + 各自的人設一句話。
-    // 以前這些字是四段動態區塊各抄一份（場上兩個 NPC 就每回合白付兩份），
+    // NPC 固定檔案：共用安全規則 + 各角色的人設、Agenda／Taboo／Knowledge 基線。
+    // 這些字以前是四段動態區塊各抄一份（場上兩個 NPC 就每回合白付兩份），
     // 但它整場遊戲逐字不變——所以它屬於這裡。見 npcCooperationContract.js 的檔頭。
-    referenceMode ? NPC_COOPERATION_CONTRACT : null,
+    referenceMode ? npcCooperationContract : null,
     // 已封存副本摘要：整場只在「打完一個副本」時變一次，是靜態層裡唯一會變的一段。
     completedChronicles,
     // styleAndRules 放**最後**，而且是刻意的，不是順手排的：

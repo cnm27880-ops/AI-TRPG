@@ -437,16 +437,19 @@ function statusTag(state, reference, npcId) {
   return STATUS_LABELS[status] ?? status;
 }
 
-function agendaFor(profile, coop) {
-  if (coop?.state && profile.selfPreservingStates.includes(coop.state)) {
-    return "自保優先，不再為玩家承擔風險";
-  }
-  return profile.agenda ?? "維持目前任務";
+/** 他這一刻放棄了 Agenda 基線、先顧自己嗎？基線本身在靜態契約裡。 */
+function isSelfPreserving(profile, coop) {
+  return Boolean(coop?.state && profile.selfPreservingStates.includes(coop.state));
 }
 
-function knowledgeFor(profile, entry) {
-  const known = [...profile.knowledge, ...(entry.learned ?? [])];
-  return known.slice(0, KNOWLEDGE_LIMIT).map(textOf).filter(Boolean);
+/**
+ * 他在這一局裡**額外**學到的東西。
+ *
+ * 只回傳增量：白名單基線（reference 宣告的 knowledge）已經在靜態契約裡整場付過一次，
+ * 每回合再抄一遍是這一行原本 40% 的體積。
+ */
+function learnedBeyondBaseline(entry) {
+  return (entry.learned ?? []).map(textOf).filter(Boolean).slice(-KNOWLEDGE_LIMIT);
 }
 
 /**
@@ -484,12 +487,14 @@ export function buildNpcActiveStateBlock(reference, state) {
     // 每回合真的會變的就是這兩個字串，所以併進這一行，不再自成一段。
     if (coop?.state) fields.push(`Stance: "${coop.state}"`);
     if (coop?.interactionType) fields.push(`Beat: "${coop.interactionType}"`);
-    const known = knowledgeFor(profile, entry);
-    if (known.length) fields.push(`Knowledge: "${known.join("／")}"`);
-    fields.push(`Agenda: "${agendaFor(profile, coop)}"`);
-    if (profile.taboo) {
-      const tripped = entry.tabooTrippedTurn !== null && entry.tabooTrippedTurn === entry.lastUpdatedTurn;
-      fields.push(`Taboo: "${profile.taboo}${tripped ? "(TRIPPED)" : ""}"`);
+    // [2026-08-31 第二輪] Agenda / Taboo / Knowledge 的**基線**搬進了靜態契約
+    // （buildNpcCooperationContract），這裡只送偏離基線的覆寫標記。
+    // 這三個欄位原本佔這一行的 40%，而它們幾乎不動——同一種病的第二次發作。
+    const learned = learnedBeyondBaseline(entry);
+    if (learned.length) fields.push(`+Known: "${learned.join("／")}"`);
+    if (isSelfPreserving(profile, coop)) fields.push(`Agenda: "SELF_PRESERVE"`);
+    if (profile.taboo && entry.tabooTrippedTurn !== null && entry.tabooTrippedTurn === entry.lastUpdatedTurn) {
+      fields.push(`Taboo: "TRIPPED"`);
     }
     // 奪權旗標只在真的觸發的那一回合出現。常駐的話模型會把它當背景噪音忽略掉，
     // 這正是「指令超載」的成因——旗標要稀有才有力量。
@@ -523,11 +528,15 @@ SAEP 四個軸，範圍 0-10，順序固定是 [SOC, ACT, EGO, PAT]：
 
 其餘欄位：
 - Status：引擎判定過的生理與異常狀態。只能照這個寫，不可以自行加重或減輕。
-- Knowledge：這個 NPC **目前已知**的事。這是一份白名單——不在這份清單上的事，
-  他就是不知道，不可以從他口中說出來、暗示或旁敲側擊地透露。這條是防劇透的硬性規定。
-- Agenda：他自己的當前目標。他會朝這個目標行動，即使玩家沒有要求，也即使玩家在做別的事。
-- Taboo：他的絕對禁忌。標記 (TRIPPED) 代表玩家這一回合剛好踩到了——
-  這一回合必須出現明確的敵意反應（拒絕、警告、拉開距離或收回支援），不可以輕輕帶過。
+
+以下三個欄位**只在偏離基線時才出現**。基線寫在系統提示的「本副本 NPC 的固定檔案」裡，
+沒有出現覆寫標記就照那份檔案演：
+- 「+Known」：他在這一局裡額外學到的東西，接在他的 Knowledge 白名單基線後面。
+  白名單以外的事他就是不知道，不可以從他口中說出來、暗示或旁敲側擊地透露——這是防劇透的硬性規定。
+- 「Agenda: SELF_PRESERVE」：他這一刻放棄了自己的 Agenda 基線，先顧自己。
+  這不代表他變成反派，是他不再為玩家承擔風險。
+- 「Taboo: TRIPPED」：玩家這一回合剛好踩到他的禁忌。這一回合必須出現明確的敵意反應
+  （拒絕、警告、拉開距離或收回支援），不可以輕輕帶過。
 - Stance：他目前的合作階段（由伺服器裁定）。階段只描述**他願意怎麼配合**，
   不描述世界發生了什麼；不可以把階段名稱、或「他現在進入自保狀態」這種說法寫進敘事。
 - Beat：伺服器認出的、玩家這一回合對他做的事。用它決定他這一句話回應的是什麼，

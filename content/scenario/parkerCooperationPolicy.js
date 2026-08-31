@@ -3,7 +3,7 @@
 // 流程與狀態機在 npcCooperationEngine.js（四個 NPC 共用）；這裡只描述這個角色。
 // [2026-08-31 重構] 移除 13 筆 ENTRIES 表，理由同其他三個 NPC：轉場是規則、台詞是演出。
 
-import { defineCooperationPolicy } from "./npcCooperationEngine.js";
+import { addressesOneOf, defineCooperationPolicy } from "./npcCooperationEngine.js";
 
 export const PARKER_ID = "npc_parker";
 const ENGINE_SCENES = ["evt_engine_coolant_prep", "evt_trigger_overload"];
@@ -30,7 +30,7 @@ export const PARKER_PERSONA = {
   saep: { SOC: 5, ACT: 7, EGO: 5, PAT: 4 },
 
   aliases: /Parker|帕克|工程師|總工程師/,
-  otherNpcTarget: /(?:問|詢問|向|對|跟|告訴|要求|攻擊|指向|靠近|撲向|聯絡|找)\s*(?:Ripley|雷普利|Lambert|蘭伯特|Ash|艾許|陸遠|Luyuan)/,
+  otherNpcTarget: addressesOneOf(["Ripley", "雷普利", "Lambert", "蘭伯特", "Ash", "艾許", "陸遠", "Luyuan"]),
   homeScenes: ENGINE_SCENES,
   // 在機艙裡也要話題相關才算是在跟他互動：少了這一條，玩家在工程區說的每一句話
   // 都會被算成在跟 Parker 講話，連「我看看四周」也是。

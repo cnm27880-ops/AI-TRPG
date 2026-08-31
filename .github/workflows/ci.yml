@@ -74,3 +74,12 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
         run: npm run test:real-provider
+
+      # 跟上面那支是兩件事：smoke test 驗傳輸與格式(429 header、finish_reason)，
+      # 這一支驗**演出內容**——模型有沒有真的照著反客服協定與第四面牆條款寫。
+      # 離線測試對提示詞的斷言只能證明「字串在 prompt 裡」，不能證明模型照做了。
+      - name: Run narrative behaviour eval
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+        run: npm run eval:narrative

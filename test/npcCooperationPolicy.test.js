@@ -153,6 +153,22 @@ test("三次威脅走完 strained → self_preserving → abandoned", () => {
   assert.equal(coop(third.state).trust, -2);
 });
 
+test("摩擦（不信任／拒絕路線／要離隊）會扣信任，但不算越線", () => {
+  // friction 跟 hostile 的差別是這一組唯一沒被釘住的分支：兩者都讓他進 strained，
+  // 但只有 hostile 會累積 incidents（也就是威脅階梯的位置）。
+  // 混為一談的話，玩家只是嘴上不信任他，第三次就會被當成動手三次而被拋下。
+  const distrust = apply(createReferenceState(reference), "我不信任你，你憑什麼帶路", 1);
+  assert.equal(distrust.classification.kind, "friction");
+  assert.equal(coop(distrust.state).state, "strained");
+  assert.equal(coop(distrust.state).trust, 0, "信任要掉");
+  assert.equal(coop(distrust.state).incidents, 0, "但這不是越線，威脅階梯不該前進");
+
+  // 對照組：同樣進 strained，但 hostile 會推進階梯。
+  const threat = apply(createReferenceState(reference), "試著搶奪男人的手槍", 1);
+  assert.equal(coop(threat.state).state, "strained");
+  assert.equal(coop(threat.state).incidents, 1);
+});
+
 test("退後或道歉會回到合作，但不把 trust 或紀錄恢復成初始值", () => {
   const first = apply(createReferenceState(reference), "試著搶奪男人的手槍", 1);
   const second = apply(first.state, "繼續朝他撲去", 2);

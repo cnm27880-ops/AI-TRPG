@@ -3,7 +3,7 @@
 // 流程與狀態機在 npcCooperationEngine.js（四個 NPC 共用）；這裡只描述這個角色。
 // [2026-08-31 重構] 移除 14 筆 ENTRIES 表，理由同其他三個 NPC：轉場是規則、台詞是演出。
 
-import { defineCooperationPolicy } from "./npcCooperationEngine.js";
+import { addressesOneOf, defineCooperationPolicy } from "./npcCooperationEngine.js";
 
 export const LAMBERT_ID = "npc_lambert";
 const LAMBERT_SCENE = "evt_meet_ripley";
@@ -30,7 +30,7 @@ export const LAMBERT_PERSONA = {
   saep: { SOC: 7, ACT: 2, EGO: 7, PAT: 3 },
 
   aliases: /Lambert|蘭伯特|領航員|導航員/,
-  otherNpcTarget: /(?:問|詢問|向|對|跟|告訴|要求|攻擊|指向|靠近|撲向|聯絡|找)\s*(?:Ripley|雷普利|Ash|艾許|陸遠|Luyuan|Parker|帕克)/,
+  otherNpcTarget: addressesOneOf(["Ripley", "雷普利", "Ash", "艾許", "陸遠", "Luyuan", "Parker", "帕克"]),
   homeScenes: [LAMBERT_SCENE],
 
   states: {

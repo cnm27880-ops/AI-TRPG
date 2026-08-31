@@ -10,6 +10,7 @@
     "test:extreme": "node scripts/extreme-turn-matrix.mjs",
     "test:real-gemini": "node test/runRealGeminiSmoke.mjs && node test/runRealGeminiV2Interaction.mjs",
     "test:real-provider": "node scripts/real-provider-smoke-test.mjs",
+    "eval:narrative": "node scripts/narrative-behaviour-eval.mjs",
     "lint:workflows": "node scripts/lint-workflows.mjs",
     "lint:prompt-cache": "node scripts/lint-prompt-cache.mjs",
     "deploy": "wrangler pages deploy",

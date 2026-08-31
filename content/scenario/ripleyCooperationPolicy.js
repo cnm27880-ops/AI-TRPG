@@ -4,7 +4,7 @@
 // [2026-08-31 重構] 移除了 18 筆 ENTRIES 表：合作階段的轉場留下來（那是規則），
 // 罐頭台詞拿掉（那是演出，交給模型；語氣素材另有 NPC Voice Bible）。
 
-import { defineCooperationPolicy } from "./npcCooperationEngine.js";
+import { addressesOneOf, defineCooperationPolicy } from "./npcCooperationEngine.js";
 
 export const RIPLEY_ID = "npc_ripley";
 const RIPLEY_SCENE = "evt_meet_ripley";
@@ -18,7 +18,7 @@ const IMPLICIT_COMMAND = new RegExp(`(?:^|${BOUNDARY})(?:請你|請妳|麻煩你
 // 「憑什麼你下令」「你不要安排」是質疑或拒絕，不是請她下令。少了這一條，
 // 玩家每次頂撞她都會被算成在拜託她指揮。
 const IMPLICIT_CHALLENGE = new RegExp(`(?:^|${BOUNDARY})(?:憑什麼你|你(?:不該|不應該|不應|不能|不要|別|別再|怎麼能|怎麼可以))[\\s\\S]{0,10}${COMMAND_VERB}`);
-const OTHER_NPC = /(?:問|詢問|向|對|跟|告訴|要求|請|讓|叫|攻擊|指向|靠近|撲向|聯絡|找)\s*(?:Ash|艾許|陸遠|Luyuan|Lambert|蘭伯特|Dallas|達拉斯|Parker|帕克)/;
+const OTHER_NPC = addressesOneOf(["Ash", "艾許", "陸遠", "Luyuan", "Lambert", "蘭伯特", "Dallas", "達拉斯", "Parker", "帕克"]);
 const CREW_SUPPORT = /安撫.*(?:蘭伯特|Lambert)|讓.*(?:蘭伯特|Lambert).*(?:冷靜|停止哭)|幫.*(?:蘭伯特|Lambert)|停止哭喊/;
 
 /**

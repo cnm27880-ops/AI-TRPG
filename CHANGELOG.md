@@ -2,6 +2,130 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [FEATURE-2026.08.31c] — 敘事行為 eval：第一支驗「模型真的照做了嗎」的檢查
+
+**影響範圍：** 新增 `scripts/narrative-behaviour-eval.mjs`、`test/narrativeBehaviourEval.test.js`；
+修改 `package.json`、`.github/workflows/ci.yml`、`AGENTS.md`
+
+**變更性質：** 新增檢查。沒有改動任何 runtime 程式碼。
+
+### 為什麼
+
+到目前為止，所有關於提示詞的斷言長這樣：
+
+```js
+assert.match(ANTI_ASSISTANT_PROTOCOL, /接下來該怎麼辦/);
+```
+
+那只證明**字串在 prompt 裡**，不證明模型因此改變了行為。我們花了三輪把 S.A.E.P.
+算得很精準、把分層壓得很省，但沒有任何證據說明 NPC 真的不再問「你接下來想怎麼做？」、
+`SEIZE_CONTROL` 那一回合真的出現了打斷、白名單以外的事真的沒有被說出來。
+
+最後一項特別值得擔心，而且是重構自己引進的風險：把 1226 字元的合作契約從動態層搬進
+`system` 之後，**模型還讀得到它嗎**？`system` 裡的東西被忽略是很常見的失敗模式，
+而它不會讓任何離線測試變紅。
+
+### 新增
+
+`npm run eval:narrative` —— 四個場景，用 **production 真正在用的組裝函式**
+（`composeSystemInstruction` / `buildNpcCooperationContract` / `buildNpcActiveStateBlock` /
+`buildReferencePromptBlock`）經同一個 `buildLayeredRequest()` 分層，打真實模型，
+然後對**輸出**下斷言。不走 `/api/turn` 端點是因為要驗「耐心見底時會不會奪權」就得先讓
+耐心見底，透過端點得打十幾個真實回合才到得了，又慢又不決定性。
+
+兩種探針：
+
+| | 方式 | 擋不擋 CI | 用途 |
+|---|---|---|---|
+| 硬性 | 機械正則 | 擋（exit 1） | 徵詢句、系統語言、白名單外的秘密——「絕對不可以出現」 |
+| 參考 | LLM judge | 不擋 | 奪權、禁忌反應——「必須出現」，沒辦法用正則做 |
+
+judge 不拿來擋 CI 是因為它自己也會看錯；它的用途是標出哪一回合要人工複查。
+
+沒有金鑰就優雅跳過（exit 0），掛在既有的 `workflow_dispatch` job 上，
+跟 `test:real-provider` 同一個約定。
+
+### 這支 eval 自己也有測試
+
+`test/narrativeBehaviourEval.test.js`（6 項，離線、不發任何請求）。理由很直接：
+**一支沒有人驗過的檢查等於沒有檢查**——探針的正則寫錯不會有任何跡象，
+等到有人真的拿金鑰跑的時候，得到的是一個沒有意義的綠燈或紅燈。
+
+驗三件事：探針抓得到已知違規也不誤傷正常敘事；場景 fixture 真的到得了它要測的那一格
+（狀態行裡真的有 `SEIZE_CONTROL` 與 `TRIPPED`）；eval 組出來的 prompt 是 production
+的那一份而且分層沒有壞。
+
+寫這組測試當場抓到兩個問題：一條 `/等你(決定|開口|回答)/` 沒有任何樣本涵蓋
+（等於永遠不會被驗證），以及 `/骰(子|池)?[^幹]/` 是一條寫壞的正則
+（本意是避開誤判，實際上會讓句尾的「骰」抓不到）。
+
+全套 1251 項通過。
+
+## [REFACTOR-2026.08.31b] — 把「幾乎不變」的東西全部趕出動態層，並修掉兩個沉默的分類 bug
+
+**影響範圍：** `content/scenario/npcCooperationContract.js`、`npcStateMachine.js`、
+`narrativePackageAdapter.js`、`npcCooperationEngine.js`、四個 `*CooperationPolicy.js`、
+`functions/api/turn.js`、`scripts/lint-prompt-cache.mjs`；新增 `test/npcCooperationEngine.test.js`；
+更新 `test/{npcStateMachine,npcCooperationPolicy,multiNpcPressure,jurassicParkV1}.test.js`
+
+**變更性質：** 提示詞分層優化 + 兩個分類修正。判定公式、骰池、傷害、獎勵、角色卡格式與
+存檔格式一行都沒有動。
+
+### 提示詞分層
+
+階段二之後我用同一把尺回頭量剩下的動態層，發現同一個形狀還在另外兩個地方：
+
+| 位置 | 每回合送出 | 其中逐字不變 |
+|---|---|---|
+| `[NPC_ACTIVE_STATE]` 的 Agenda／Taboo／Knowledge | 420 字元（2 名 NPC） | 169（40%） |
+| `<NPC_Voice_Bible>` 的語氣素材 | reference block 2422 字元 | 1077（44%） |
+
+基線一律搬進 `buildNpcCooperationContract(reference)`（靜態層），動態層只留偏離基線的
+覆寫標記：`Agenda: "SELF_PRESERVE"`、`Taboo: "TRIPPED"`、`+Known: "…"`。
+
+```
+動態層（場上 2 名 NPC 的一回合）  2842 → 1831 字元／回合（−36%）
+靜態層（整場付一次）             1226 → 4484 字元
+```
+
+約 3.2 回合回本；五十回合的副本省下四萬多字元的重複計費。
+
+**兩個刻意的界線**：Ash 的語氣素材**不**搬進靜態層（他的生化人破綻有揭露閘門，
+而靜態層沒辦法表達「等旗標亮了才給」）；固定檔案的順序跟著 `reference.npcs` 而不是
+人設登記處（侏羅紀那三名 NPC 不在登記處裡，只跑登記處會讓他們的素材整個消失，
+而且不會有任何測試變紅）。
+
+### 修正
+
+- **陸遠的四條 friction 規則從來沒有被觸發過。** `express_distrust` / `reject_path` /
+  `declare_solo` / `passive_questioning` 的觸發詞一個都不在場景關鍵字清單裡，
+  所以玩家除非叫出「陸遠」兩個字，否則說「我不信任你」「我要離隊」得到的是完全沒有反應。
+  唯一的痕跡是 `friction` 這條分支的覆蓋率一直是 0。
+- **「玩家在對誰說話」的動詞清單被抄成四份而且漂開了。** 陸遠那份有「威脅」，
+  Lambert 那份沒有——後果是「我再次威脅 Parker，叫他滾開」在 Ripley 的場景裡被算成
+  **對 Lambert 大吼**，她於是無緣無故進入 panic。收成一份聯集（`addressesOneOf()`）。
+- **陸遠的場景關鍵字補上 `[?？]`。**（這一條是 #51 引進的，當時的差分語料裡沒有
+  「在他的場景裡打一個問號」的句子，所以沒被抓到。）他的場景裡只有他一個人，
+  玩家打一個問號就是在問他；舊清單只認得幾種特定問法，「這裡怎麼這麼冷？」會完全沒有反應。
+  影響被 `transitions.survival_question` 的 `onlyTopics` 擋住：認不出話題的雜問他仍然要回答，
+  但不算完成簡報。
+
+差分測試（642 句語料 × 4 NPC × 2~4 場景 = 8346 組）對照階段二之前的 `main`：
+**13 組差異，全部是上述修正的方向**——10 組是明確點名其他 NPC 的句子不再算到旁人頭上，
+其中兩組先前是真的誤判。
+
+### 測試
+
+新增 `test/npcCooperationEngine.test.js`（12 項）：專門測**開不起來**。
+`defineCooperationPolicy()` 的七個護欄分支先前覆蓋率是 0——護欄沒有測試就等於沒有護欄，
+哪天有人把 `throw` 改成 `console.warn`，一樣不會有東西變紅。
+`npcCooperationEngine.js` 覆蓋率 96.21% → **100%** 行、89.61% → 95.81% 分支。
+
+另外把侏羅紀副本的「禁止透露清單」檢查跟著搬進靜態契約一起驗——
+不然就是把洩漏的出口從動態層換到靜態層，而測試還是綠的。
+
+全套 1245 項通過，`lint:prompt-cache`、`lint:workflows`、`test:extreme` 皆綠。
+
 ## [REFACTOR-2026.08.31] — 共用樣板抽離：四份合作策略瘦身成一個引擎 + 四份人設
 
 **影響範圍：** 新增 `content/scenario/npcCooperationEngine.js`、`npcCooperationContract.js`、

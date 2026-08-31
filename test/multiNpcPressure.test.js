@@ -13,7 +13,7 @@ import { applyRipleyCooperationForAction } from "../content/scenario/ripleyCoope
 import { applyParkerCooperationForAction } from "../content/scenario/parkerCooperationPolicy.js";
 import { applyLambertCooperationForAction } from "../content/scenario/lambertCooperationPolicy.js";
 import { NPC_PERSONAS } from "../content/scenario/npcPersonaRegistry.js";
-import { NPC_COOPERATION_CONTRACT } from "../content/scenario/npcCooperationContract.js";
+import { buildNpcCooperationContract } from "../content/scenario/npcCooperationContract.js";
 
 const ENGINE_SCENE = "evt_engine_coolant_prep";
 const RIPLEY_SCENE = "evt_meet_ripley";
@@ -139,11 +139,17 @@ test("turn.js 與 reference prompt 共同維持明確的四位 NPC 順序", () =
   // 靜態層的內容只要順序變動就整段 cache miss，所以順序仍然要被釘住。
   const personaOrder = NPC_PERSONAS.map((persona) => persona.npcId);
   assert.deepEqual(personaOrder.slice(0, 4), ["npc_luyuan", "npc_ripley", "npc_parker", "npc_lambert"]);
-  const contractOrder = personaOrder.map((npcId) => NPC_COOPERATION_CONTRACT.indexOf(npcId));
-  assert.ok(contractOrder.every((index) => index >= 0), "每個 NPC 都要出現在靜態契約裡");
+
+  // 靜態契約的順序來自 reference.npcs（每個副本各自的固定陣列），不是登記處的順序——
+  // 侏羅紀那三名 NPC 不在登記處裡，但一樣要有固定檔案。
+  const contract = buildNpcCooperationContract(reference);
+  const contractOrder = reference.npcs.map((npc) => contract.indexOf(npc.id));
+  assert.ok(contractOrder.every((index) => index >= 0), "reference 宣告的每個 NPC 都要有固定檔案");
   for (let i = 1; i < contractOrder.length; i += 1) {
-    assert.ok(contractOrder[i] > contractOrder[i - 1], "靜態契約的人設順序必須是固定的陣列順序");
+    assert.ok(contractOrder[i] > contractOrder[i - 1], "順序必須跟著 reference.npcs 的固定陣列，不可以是 Object.keys()");
   }
+  // 同一份 reference 產生的契約必須逐字相同——這是它能待在 system message 的前提。
+  assert.equal(contract, buildNpcCooperationContract(reference));
 
   const state = applyAll(createReferenceState(reference), "我安撫 Lambert，請 Ripley 說明下一步，也請 Parker 回報工程", RIPLEY_SCENE, 1).state;
   const prompt = buildReferencePromptBlock({
@@ -168,4 +174,21 @@ test("四位 NPC 同回合 public response 仍不暴露 cooperation metadata", (
   assert.equal("privateAssessment" in publicState, false);
   assert.equal("withheldFacts" in publicState, false);
   assert.equal("lastInteractionType" in publicState, false);
+});
+
+test("明確點名某個 NPC 的話，不會同時記到旁邊那個人頭上", () => {
+  // [2026-08-31] 這是一個沉默的誤判：四份人設各自維護一份「玩家在對誰說話」的動詞清單，
+  // 而它們已經漂開了（陸遠那份有「威脅」，Lambert 那份沒有）。後果是
+  // 「我再次威脅 Parker，叫他滾開」在 Ripley 的場景裡被算成**對 Lambert 大吼**，
+  // 於是她無緣無故進入 panic。動詞清單收成一份聯集之後才修掉。
+  const state = applyAll(createReferenceState(reference), "我再次威脅 Parker，叫他滾開", RIPLEY_SCENE, 1);
+  for (const npcId of ["npc_ripley", "npc_lambert", "npc_luyuan"]) {
+    assert.equal(cooperation(state.state, npcId).lastInteractionType, null, `${npcId} 不該被算進去`);
+  }
+
+  // 同一句話同時點名兩個人時，兩個人都要算——別名優先於「在對別人說話」的判斷。
+  const both = applyAll(createReferenceState(reference), "我威脅 Parker 立刻拉閥，同時對 Lambert 大吼叫她閉嘴", ENGINE_SCENE, 1);
+  assert.equal(cooperation(both.state, "npc_parker").lastInteractionType, "coercive_pressure");
+  assert.equal(cooperation(both.state, "npc_lambert").lastInteractionType, "pressure_or_dismissal");
+  assert.equal(cooperation(both.state, "npc_ripley").lastInteractionType, null);
 });

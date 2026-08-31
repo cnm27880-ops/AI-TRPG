@@ -65,6 +65,35 @@ export const INTERACTION_KINDS = Object.freeze([
 
 const KIND_SET = new Set(INTERACTION_KINDS);
 
+/**
+ * 「玩家在對某人說話」的動詞。
+ *
+ * [2026-08-31] 這份清單以前在四個人設檔各寫一遍，而且已經漂開了：陸遠那份多了
+ * 安撫／幫助／威脅／大吼，Ripley 那份多了請／讓／叫，其餘兩份都沒有。
+ * 後果是「我質疑 Ripley 的安排」在陸遠的場景裡不會被視為在對別人說話——
+ * 因為「質疑」只在 Ripley 自己那份清單的鄰居裡，陸遠這邊沒有。
+ * 一句明確點名 Ripley 的話於是被算成在跟陸遠互動。
+ *
+ * 收成一份聯集。取聯集的方向是安全的：每個 NPC 的「這句話是在跟別人講」都變得更寬，
+ * 也就是**更少**誤把別人的對話算到自己頭上。真的仍然要接下來的（例如請 Ripley
+ * 出面安撫 Lambert）走 persona.claimPatterns，那是明確宣告的例外，不是漏網。
+ */
+const ADDRESSING_VERBS = [
+  "問", "詢問", "向", "對", "跟", "告訴", "要求", "請", "讓", "叫",
+  "攻擊", "指向", "靠近", "撲向", "聯絡", "找",
+  "安撫", "幫助", "威脅", "大吼",
+  "質疑", "反對", "挑戰", "支持", "回報",
+];
+
+/**
+ * 組出「這句話明確點名了其他 NPC」的判斷式。
+ *
+ * @param {string[]} names 其他 NPC 的名字與別稱（順序固定，不要用 Set 迭代）
+ */
+export function addressesOneOf(names) {
+  return new RegExp(`(?:${ADDRESSING_VERBS.join("|")})\\s*(?:${names.join("|")})`);
+}
+
 export function textOf(value) {
   return String(value ?? "").trim().slice(0, MAX_ACTION_TEXT);
 }
