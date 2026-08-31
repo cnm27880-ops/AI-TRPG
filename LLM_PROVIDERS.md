@@ -208,6 +208,53 @@ NARRATIVE_STYLE=恐怖懸疑
 
 然後 `npx wrangler pages dev`。
 
+## Prompt Caching（上下文快取）
+
+DeepSeek V4 系列、硅基流動上的同型模型、以及多數 OpenAI 相容端點都有 **automatic prefix
+caching**：不需要任何 API 參數，端點自己會從第 0 個 token 開始比對這次請求跟先前請求的
+**前綴**，命中的部分算比較便宜的價錢，而且不用重算 KV，TTFT 明顯下降。
+
+關鍵在於它比的是**前綴**：一旦碰到第一個不同的 token，從那裡到最後全部重算。
+所以「送了多少 token」不是重點，「變動的東西有沒有全部排在不變的東西後面」才是。
+
+本專案的 `/api/turn` 把每次請求切成三層，順序即是變動頻率由低到高
+（定義在 `content/llm/cacheLayers.js`，組裝在 `functions/api/turn.js` 的 `buildPromptLayers()`）：
+
+| 層 | 放在哪 | 內容 | 變動頻率 |
+| --- | --- | --- | --- |
+| static | `system` message | 人格面具、場景固定背景、選項/回應格式規格、已封存副本摘要、文筆層＋規則契約 | 整場不變 |
+| history | 中段 `user`/`assistant` messages | `session.history` 拆成的對話輪次 | 只在尾端追加 |
+| dynamic | 最後一則 `user` message | DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
+
+配套的兩件事：
+
+- `content/storage/sessionStore.js` 的歷史窗改成**遲滯窗**：`HISTORY_MAX`(16) 之前只追加，
+  超過才一次裁回 `HISTORY_LIMIT`(8)。每回合 `slice(-8)` 會讓歷史前綴每回合都變，
+  等於把快取關掉；遲滯窗把「整段重排」的成本從每回合一次降到每 8 回合一次。
+  任何時刻保留的輪數都不少於舊行為，所以 AI 不會因此更健忘。
+- `test/promptCache.test.js` 釘住四個不變式（system 逐字不變、system 不含動態值、
+  歷史只追加、最後一則永遠是這回合的輸入）。**分層寫錯時遊戲不會壞**，
+  只會讓帳單變貴、TTFT 變慢，沒有測試就一定會退化回去。
+
+### 怎麼確認真的命中了
+
+回合成功時，server log 會出現一行（供應商有回報 usage 快取欄位時才有）：
+
+```
+[PROMPT_CACHE] {"provider":"deepseek","model":"deepseek-v4-flash","hit":8960,"miss":1216,"promptTokens":10176,"ratio":0.881}
+```
+
+同一份資料也會出現在 `/api/turn` 回應的 `promptCache` 欄位。撈不到快取欄位時整個欄位不存在
+（代表這家沒回報），**不是** `hit: 0`。
+
+另外，如果有人不小心把回合數、血量之類的東西加進靜態層，log 會出現：
+
+```
+[PROMPT_CACHE_STATIC_LEAK] {"where":"POST /api/turn","leaks":["round-budget"],...}
+```
+
+這一行不會擋下請求（誤判不該讓玩家玩不了），但看到它就代表快取命中率正在往下掉。
+
 ## 各供應商的查證資訊
 
 以下是 **2026-08-27** 查官方文件當下的值。這類資訊（尤其模型名稱）變動頻率很高，

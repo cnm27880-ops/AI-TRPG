@@ -10,6 +10,7 @@
 
 import { PROTOCOLS, resolveProvider, resolveServerProviderChain } from "./providers.js";
 import { assertSafeOutboundUrl } from "./urlSafety.js";
+import { extractCacheStats } from "./cacheLayers.js";
 
 /**
  * LLM呼叫失敗時丟出的錯誤型別。
@@ -94,6 +95,14 @@ export const MAX_LLM_OUTPUT_TOKENS = 4096;
 /** system instruction 與 user prompt 的應用層字數上限，按 Unicode code point 計算。 */
 export const MAX_LLM_SYSTEM_CHARS = 24000;
 export const MAX_LLM_PROMPT_CHARS = 48000;
+/**
+ * 歷史層（中段 user/assistant 訊息）的總字數上限。
+ *
+ * 跟 prompt 分開算，而且**從最舊的整則丟起**，不做字串中段省略：歷史一旦被中段截斷，
+ * 每一回合截斷的位置都會不一樣，等於親手把 prefix cache 破壞掉（見 cacheLayers.js）。
+ * 整則丟棄至少讓剩下的那幾則逐字不變。
+ */
+export const MAX_LLM_HISTORY_CHARS = 32000;
 
 /** 解析這次要用的輸出上限：呼叫端 > 環境變數 > 預設值，最後套 server 硬上限。 */
 function resolveMaxTokens(maxTokens, env) {
@@ -114,6 +123,28 @@ function clampLlmInput(value, limit, label) {
   const head = Math.ceil(available * 0.7);
   const tail = Math.max(0, available - head);
   return chars.slice(0, head).join("") + marker + (tail ? chars.slice(-tail).join("") : "");
+}
+
+/**
+ * 把歷史層裁到字數上限之內：**從最舊的整則丟起**，永遠不動保留下來的那幾則的內容。
+ *
+ * 這裡刻意不呼叫 clampLlmInput()——那個函式會把單一字串的中段挖掉並插一行提示，
+ * 對 prompt/system 沒問題（它們每回合本來就在變），但對歷史層是災難：
+ * 截斷點會隨著歷史長度浮動，等於每回合都重寫一次前綴。見 cacheLayers.js 檔頭。
+ */
+function clampHistoryMessages(messages, limit = MAX_LLM_HISTORY_CHARS) {
+  if (!Array.isArray(messages) || messages.length === 0) return [];
+  const normalized = messages
+    .filter((m) => m && typeof m.content === "string" && m.content.trim())
+    .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));
+
+  let total = normalized.reduce((sum, m) => sum + Array.from(m.content).length, 0);
+  let start = 0;
+  while (start < normalized.length && total > limit) {
+    total -= Array.from(normalized[start].content).length;
+    start += 1;
+  }
+  return normalized.slice(start);
 }
 
 function snippet(text) {
@@ -157,6 +188,7 @@ export async function callLlm({
   env = {},
   prompt,
   systemInstruction,
+  history = [],
   model,
   baseUrl,
   apiKey,
@@ -169,6 +201,8 @@ export async function callLlm({
   }
 
   const boundedPrompt = clampLlmInput(prompt, MAX_LLM_PROMPT_CHARS, "prompt");
+  // 歷史層：整則丟棄式裁切，維持「只在尾端追加」的前綴穩定性（見 clampHistoryMessages）。
+  const boundedHistory = clampHistoryMessages(history);
   const boundedSystemInstruction = typeof systemInstruction === "string"
     ? clampLlmInput(systemInstruction, MAX_LLM_SYSTEM_CHARS, "system instruction")
     : systemInstruction;
@@ -186,11 +220,11 @@ export async function callLlm({
 
   switch (cfg.protocol) {
     case PROTOCOLS.WORKERS_AI:
-      return callWorkersAi(cfg, { env, prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, timeoutMs: requestTimeoutMs(env) });
+      return callWorkersAi(cfg, { env, prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, history: boundedHistory, maxTokens: limit, responseSchema, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.GEMINI:
-      return callGeminiProtocol(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
+      return callGeminiProtocol(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, history: boundedHistory, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     case PROTOCOLS.OPENAI_CHAT:
-      return callOpenAiChat(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
+      return callOpenAiChat(cfg, { prompt: boundedPrompt, systemInstruction: boundedSystemInstruction, history: boundedHistory, maxTokens: limit, responseSchema, fetchFn, timeoutMs: requestTimeoutMs(env) });
     default:
       throw new LlmError(`供應商「${cfg.id}」的線路格式「${cfg.protocol}」還沒有實作`, {
         provider: cfg.id,
@@ -450,7 +484,7 @@ function logSchemaFallback(cfg, detail) {
   }));
 }
 
-async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
+async function callOpenAiChat(cfg, { prompt, systemInstruction, history = [], maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
   if (!cfg.baseUrl) {
     throw new LlmError(
       `供應商「${cfg.id}」沒有baseUrl。若是自訂第三方接口，請設定環境變數 LLM_BASE_URL ` +
@@ -466,8 +500,11 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
     );
   }
 
+  // 訊息順序就是快取前綴的順序，不可調換：靜態 system -> 只在尾端追加的歷史 -> 這回合的動態輸入。
+  // 見 content/llm/cacheLayers.js 的三層契約說明。
   const messages = [];
   if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
+  messages.push(...history);
   messages.push({ role: "user", content: prompt });
 
   const useSchema = responseSchema && cfg.jsonMode === "openai-schema";
@@ -542,6 +579,9 @@ async function callOpenAiChat(cfg, { prompt, systemInstruction, maxTokens, respo
     provider: cfg.id,
     model: cfg.model,
     finishReason: raw?.choices?.[0]?.finish_reason ?? null,
+    // 命中率是這條路徑唯一可觀測的成本指標；撈不到就是 null（代表這家沒回報），
+    // 不要退化成 0——那會讓監控把「沒回報」誤判成「快取完全失效」。
+    cacheStats: extractCacheStats(raw),
     raw,
   };
 }
@@ -581,7 +621,7 @@ function withPropertyOrdering(schema) {
   return next;
 }
 
-async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
+async function callGeminiProtocol(cfg, { prompt, systemInstruction, history = [], maxTokens, responseSchema, fetchFn = fetch, timeoutMs = 90_000 }) {
   if (!cfg.apiKey) {
     throw new LlmError(
       `${cfg.label} 需要API金鑰，但沒有讀到。請設定環境變數 ${cfg.apiKeyEnv}` +
@@ -595,7 +635,14 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
 
   const buildBody = (withSchema) => ({
     system_instruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-    contents: [{ parts: [{ text: prompt }] }],
+    // Gemini 的角色名是 user/model（不是 assistant），但層次順序跟 OpenAI 路徑完全一致。
+    contents: [
+      ...history.map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      })),
+      { role: "user", parts: [{ text: prompt }] },
+    ],
     // Gemini 用 generationConfig.maxOutputTokens，欄位名跟 OpenAI 的 max_tokens 不同；
     // 結構化輸出也在同一個物件裡，用 responseMimeType + responseSchema 兩個欄位。
     generationConfig: {
@@ -658,6 +705,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
     provider: cfg.id,
     model: cfg.model,
     finishReason: raw?.candidates?.[0]?.finishReason ?? null,
+    cacheStats: extractCacheStats(raw),
     raw,
   };
 }
@@ -666,7 +714,7 @@ async function callGeminiProtocol(cfg, { prompt, systemInstruction, maxTokens, r
 // Cloudflare Workers AI（不走HTTP，走binding）
 // ---------------------------------------------------------------------------
 
-async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, responseSchema, timeoutMs = 90_000 }) {
+async function callWorkersAi(cfg, { env, prompt, systemInstruction, history = [], maxTokens, responseSchema, timeoutMs = 90_000 }) {
   if (!env?.AI || typeof env.AI.run !== "function") {
     throw new LlmError(
       "找不到Cloudflare Workers AI binding(env.AI)。" +
@@ -678,6 +726,7 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, r
 
   const messages = [];
   if (systemInstruction) messages.push({ role: "system", content: systemInstruction });
+  messages.push(...history);
   messages.push({ role: "user", content: prompt });
 
   // binding 自己丟出來的錯(模型被下架、額度用盡)也要包成 LlmError，否則呼叫端拿到的
@@ -749,6 +798,7 @@ async function callWorkersAi(cfg, { env, prompt, systemInstruction, maxTokens, r
     model: cfg.model,
     // Workers AI 現在也會回 OpenAI 形狀的 envelope，finish_reason 就在裡面
     finishReason: raw?.choices?.[0]?.finish_reason ?? null,
+    cacheStats: extractCacheStats(raw),
     raw,
   };
 }

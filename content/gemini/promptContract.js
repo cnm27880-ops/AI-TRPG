@@ -22,6 +22,21 @@
 // 為了不讓它擴散，這裡刻意只 import getPersona 一個函式，不 import 任何文筆內容常數。
 import { getPersona } from "../narrativeStyle.js";
 
+// [2026-08-31] Prompt Cache 分層。
+//
+// 這個檔案原本只有 buildTurnPrompt()／buildFreeActionPrompt() 兩個「一次組成一整段文字」
+// 的函式，對不做快取的端點沒問題。切到 prefix caching 的端點（DeepSeek V4 系列等）之後，
+// 那個形狀有一個看不見的成本：那一整段文字裡，**靜態的人格面具與場景排在最前面，
+// 但一直在變的前情提要緊接在它後面**，而更後面又接著長達數千字、其實一個字都沒變的
+// 選項規格與 JSON 指令。前綴一斷，後面全部重算。
+//
+// 所以下面把同一批區塊拆成三個**可以分別放到不同 message 裡**的組裝函式：
+//   buildStaticContextBlocks()  -> 進 system，整場不變
+//   buildMemoryBlocks()         -> 走 history messages（呼叫端改用 cacheLayers.historyToMessages）
+//   buildDynamicTurnBlocks()    -> 進最後一個 user message，每回合都變
+// 舊的 buildTurnPrompt()／buildFreeActionPrompt() 保留成「把三層接回一段字串」的相容包裝，
+// /api/narrate 與既有測試不受影響。三層契約的完整說明見 content/llm/cacheLayers.js。
+
 export const SYSTEM_INSTRUCTION = `你是「無限恐怖」跑團引擎的說書人(Game Master)，但規則不由你決定。
 
 嚴格規則(不可違反)：
@@ -84,8 +99,14 @@ function personaBlock(personaKey) {
   );
 }
 
-/** 記憶區塊（前情提要 + 事件日誌 + 已封存副本短摘要）。 */
-function memoryBlocks({ recentNarration, recentEvents = [], completedChronicles = null }) {
+/**
+ * 記憶區塊（前情提要 + 事件日誌 + 已封存副本短摘要）。
+ *
+ * [快取注意] 這三段全都是**滑動窗口**，每回合的開頭都可能不一樣。走分層路徑時，
+ * 前情提要應該改由 cacheLayers.historyToMessages() 拆成獨立訊息（只在尾端追加），
+ * 事件日誌與副本摘要則歸到動態層。這個函式只服務不支援多訊息的相容路徑。
+ */
+export function buildMemoryBlocks({ recentNarration, recentEvents = [], completedChronicles = null }) {
   const blocks = [];
   if (recentNarration) {
     blocks.push(
@@ -109,6 +130,76 @@ function memoryBlocks({ recentNarration, recentEvents = [], completedChronicles 
   }
   if (completedChronicles) blocks.push(completedChronicles);
   return blocks;
+}
+
+/**
+ * 【靜態層】整場遊戲不會變的敘事上下文區塊，要放進 system message。
+ *
+ * 只有兩樣東西夠格待在這裡：這一場指定的敘事者面具，以及副本的固定場景背景。
+ * 兩者在一場遊戲裡都是常數——面具由玩家在設定裡選一次，場景背景由副本定義。
+ *
+ * **不要**把任何跟「這一回合」有關的東西加進來。回合數、血量、剩餘時間、判定結果、
+ * 迫近度、卡關計數全部屬於動態層；混一個進來，這一層後面的所有 token 就每回合重算，
+ * 而且從遊戲行為上完全看不出來（照跑，只是變貴變慢）。
+ * content/llm/cacheLayers.js 的 detectDynamicLeaks() 就是用來擋這件事的。
+ *
+ * @returns {string[]} 固定順序：面具在前、場景在後。順序是快取前綴的一部分，不可調換。
+ */
+export function buildStaticContextBlocks({ personaKey, sceneContext }) {
+  const blocks = [];
+  const persona = personaBlock(personaKey);
+  if (persona) blocks.push(persona);
+  if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
+  return blocks;
+}
+
+/**
+ * 【動態層】只在這一回合成立的區塊，要放進 messages 陣列的**最後一個 user message**。
+ *
+ * 玩家這次的輸入與引擎的判定結果一定要在最後：它們是整份 prompt 裡唯一保證每回合都不同的
+ * 東西，排在任何靜態內容前面，就等於把那些靜態內容的快取一起作廢。
+ *
+ * @param {object} params 欄位語意同 buildTurnPrompt()
+ * @returns {string[]}
+ */
+export function buildDynamicTurnBlocks({
+  playerAction,
+  outcome,
+  specialtyNarrationDirective = null,
+}) {
+  if (!playerAction) throw new Error("buildDynamicTurnBlocks需要playerAction(玩家這次的行動描述)");
+  if (!outcome) throw new Error("buildDynamicTurnBlocks需要outcome(core/narration.js的classifyOutcome()結果)");
+
+  const blocks = [tagged("Player_Action", `【玩家行動】${playerAction}`)];
+  // 引擎結果放在玩家行動之後：模型讀到的最後一段事實就是「這次判定是哪一級」。
+  blocks.push(tagged("Engine_Result", `【判定結果：${outcome.tier}】${outcome.directive}`));
+  if (specialtyNarrationDirective) {
+    blocks.push(tagged("Starting_Specialty_Expression", `【一次性成功演出指引】${specialtyNarrationDirective}`));
+  }
+  blocks.push(
+    "請依照 <Engine_Result> 的語氣指令，把這次行動寫成一段敘事。" +
+      "若有 <Starting_Specialty_Expression>，只用一到兩句具體動作、肌肉記憶或感官反應自然融入成功描寫；不要直說專長名稱。" +
+      "先在 st_thought 裡寫下這一回合的盤算，再寫 narration。"
+  );
+  return blocks;
+}
+
+/** 【動態層】純敘事行動（沒有判定結果）版本，見 buildFreeActionPrompt()。 */
+export function buildDynamicFreeActionBlocks({ playerAction }) {
+  if (!playerAction) throw new Error("buildDynamicFreeActionBlocks需要playerAction(玩家這次的行動描述)");
+  return [
+    tagged("Player_Action", `【玩家行動（純敘事，無風險）】${playerAction}`),
+    tagged(
+      "Engine_Result",
+      "【判定結果：無（這個行動不需要擲骰）】\n" +
+        "這一回合引擎沒有進行任何判定，所以**禁止**描寫成功或失敗、禁止描寫任何檢定的結果。\n" +
+        "但場景仍然必須往前走：玩家看到、聽到、問到、拿到的東西必須比這一回合開頭更多，\n" +
+        "並且要讓下一步的選擇比先前更明確（指名一個新的方向、物件、人或阻礙）。\n" +
+        "不可以把這一回合寫成純粹的氣氛描寫，也不可以只是把先前寫過的東西換句話再講一次。"
+    ),
+    "請依照 <Engine_Result> 的限制寫這一回合的敘事。" +
+      "先在 st_thought 裡寫下這一回合要讓玩家多知道／多拿到什麼，再寫 narration。",
+  ];
 }
 
 /**
@@ -143,24 +234,13 @@ export function buildTurnPrompt({
   if (!playerAction) throw new Error("buildTurnPrompt需要playerAction(玩家這次的行動描述)");
   if (!outcome) throw new Error("buildTurnPrompt需要outcome(core/narration.js的classifyOutcome()結果)");
 
-  const blocks = [];
-  const persona = personaBlock(personaKey);
-  if (persona) blocks.push(persona);
-  if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
-  blocks.push(...memoryBlocks({ recentNarration, recentEvents, completedChronicles }));
-  blocks.push(tagged("Player_Action", `【玩家行動】${playerAction}`));
-  // 引擎結果放在最後一個資料區塊：模型讀到的最後一段事實就是「這次判定是哪一級」。
-  blocks.push(
-    tagged("Engine_Result", `【判定結果：${outcome.tier}】${outcome.directive}`)
-  );
-  if (specialtyNarrationDirective) {
-    blocks.push(tagged("Starting_Specialty_Expression", `【一次性成功演出指引】${specialtyNarrationDirective}`));
-  }
-  blocks.push(
-    "請依照 <Engine_Result> 的語氣指令，把這次行動寫成一段敘事。" +
-      "若有 <Starting_Specialty_Expression>，只用一到兩句具體動作、肌肉記憶或感官反應自然融入成功描寫；不要直說專長名稱。" +
-      "先在 st_thought 裡寫下這一回合的盤算，再寫 narration。"
-  );
+  // 三層各自只有一份定義，這裡只負責把它們接回一段字串（相容路徑），
+  // 不要在這裡重寫任何區塊——重寫就會出現「分層路徑跟相容路徑內容不一樣」的分岔。
+  const blocks = [
+    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildMemoryBlocks({ recentNarration, recentEvents, completedChronicles }),
+    ...buildDynamicTurnBlocks({ playerAction, outcome, specialtyNarrationDirective }),
+  ];
 
   return blocks.join("\n");
 }
@@ -185,26 +265,11 @@ export function buildFreeActionPrompt({
 }) {
   if (!playerAction) throw new Error("buildFreeActionPrompt需要playerAction(玩家這次的行動描述)");
 
-  const blocks = [];
-  const persona = personaBlock(personaKey);
-  if (persona) blocks.push(persona);
-  if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
-  blocks.push(...memoryBlocks({ recentNarration, recentEvents, completedChronicles }));
-  blocks.push(tagged("Player_Action", `【玩家行動（純敘事，無風險）】${playerAction}`));
-  blocks.push(
-    tagged(
-      "Engine_Result",
-      "【判定結果：無（這個行動不需要擲骰）】\n" +
-        "這一回合引擎沒有進行任何判定，所以**禁止**描寫成功或失敗、禁止描寫任何檢定的結果。\n" +
-        "但場景仍然必須往前走：玩家看到、聽到、問到、拿到的東西必須比這一回合開頭更多，\n" +
-        "並且要讓下一步的選擇比先前更明確（指名一個新的方向、物件、人或阻礙）。\n" +
-        "不可以把這一回合寫成純粹的氣氛描寫，也不可以只是把先前寫過的東西換句話再講一次。"
-    )
-  );
-  blocks.push(
-    "請依照 <Engine_Result> 的限制寫這一回合的敘事。" +
-      "先在 st_thought 裡寫下這一回合要讓玩家多知道／多拿到什麼，再寫 narration。"
-  );
+  const blocks = [
+    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildMemoryBlocks({ recentNarration, recentEvents, completedChronicles }),
+    ...buildDynamicFreeActionBlocks({ playerAction }),
+  ];
 
   return blocks.join("\n");
 }

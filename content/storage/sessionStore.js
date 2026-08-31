@@ -22,8 +22,31 @@ import { createFormsState } from "../shop/forms.js";
 import { chronicleFromHistory } from "./chronicle.js";
 import { createGodspaceProfile, normalizeGodspaceProfile } from "../godspace/schema.js";
 
-/** 餵給AI的敘事短期記憶要保留幾輪。調大會更連貫但更花錢，調小會失憶。 */
+/**
+ * 餵給AI的敘事短期記憶**最少**要保留幾輪。調大會更連貫但更花錢，調小會失憶。
+ *
+ * [2026-08-31] 這個常數的語意從「固定保留 N 輪」改成「裁切之後的下限」，見 HISTORY_MAX。
+ */
 export const HISTORY_LIMIT = 8;
+
+/**
+ * 歷史的**上限**，也是這次 prompt cache 優化的核心。
+ *
+ * 原本的作法是每一輪都 `slice(-8)`：第9輪開始，窗口每回合往前滑一格，
+ * 於是「餵給模型的歷史」的**開頭**每一回合都不一樣。對 prefix caching 的端點來說，
+ * 這是最糟的形狀——歷史通常是整份 prompt 裡最長的一段，它一動，
+ * 它後面的東西（玩家行動、判定結果、選項規格、JSON 指令）就全部跟著重算，
+ * 快取命中率會被壓在「只剩 system message」的水準。
+ *
+ * 改成遲滯（hysteresis）窗：平常只在尾端追加，直到累積到 HISTORY_MAX 才一次裁回
+ * HISTORY_LIMIT。追加不會動到既有 token，所以 HISTORY_MAX - HISTORY_LIMIT 這幾回合裡
+ * 歷史前綴是**逐字不變**的，全部命中；每 8 回合才會發生一次「窗口重排」的整段 miss。
+ * 用一次比較貴的回合，換掉七次比較貴的回合。
+ *
+ * 記憶量只會變多不會變少：任何時刻保留的輪數都 >= 舊行為的 HISTORY_LIMIT，
+ * 所以這個改動不會讓AI比以前更健忘。
+ */
+export const HISTORY_MAX = 16;
 
 /**
  * 存檔格式版本。
@@ -135,18 +158,27 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
 }
 
 /**
- * 把一輪的敘事推進 history，並自動裁掉超出上限的舊紀錄。
+ * 把一輪的敘事推進 history，並在超過 HISTORY_MAX 時一次裁回 HISTORY_LIMIT。
  * 回傳新的 history 陣列（不修改傳入的那個）。
+ *
+ * 「超過才裁、而且一次裁到底」是刻意的，不是省事：見 HISTORY_MAX 的說明。
+ * 每一輪都裁一格會讓 prompt 前綴每一輪都變，等於把 prefix cache 關掉。
  */
 export function pushHistory(history, { action, narration }) {
   const next = [...(history ?? [])];
   next.push({ action: action ?? null, narration: narration ?? null });
+  if (next.length <= HISTORY_MAX) return next;
   return next.slice(-HISTORY_LIMIT);
 }
 
 /**
  * 把 history 轉成可以塞進 prompt 的文字段落。
  * 沒有紀錄時回傳 null，讓呼叫端知道「這是第一輪」而不是塞一段空白進去。
+ *
+ * [2026-08-31] 走 prompt cache 的路徑請改用 content/llm/cacheLayers.js 的
+ * historyToMessages()：把歷史拆成獨立的 user/assistant 訊息，新增一輪才會是
+ * 「在尾端追加」而不是「重寫一整段字串」。這個函式保留給不支援多訊息的舊呼叫端
+ * （/api/narrate 的相容路徑）與既有測試。
  */
 export function historyToPromptText(history) {
   if (!history?.length) return null;

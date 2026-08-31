@@ -7,6 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   HISTORY_LIMIT,
+  HISTORY_MAX,
   createSession,
   pushHistory,
   historyToPromptText,
@@ -60,14 +61,32 @@ test("createSession：新存檔有空的事件日誌與空的敘事記憶", () =
   assert.ok(s.createdAt);
 });
 
-test("pushHistory：只保留最近N輪，超過的舊紀錄會被裁掉", () => {
+test("pushHistory：累積到 HISTORY_MAX 才裁切，而且一次裁回 HISTORY_LIMIT", () => {
   let history = [];
-  for (let i = 0; i < HISTORY_LIMIT + 5; i++) {
+  for (let i = 0; i < HISTORY_MAX; i++) {
     history = pushHistory(history, { action: `行動${i}`, narration: `敘事${i}` });
   }
-  assert.equal(history.length, HISTORY_LIMIT);
-  assert.equal(history.at(-1).action, `行動${HISTORY_LIMIT + 4}`, "最後一筆應該是最新的");
+  assert.equal(history.length, HISTORY_MAX, "還沒超過上限之前只追加、不裁切");
+  assert.equal(history[0].action, "行動0", "最舊的一筆還在，前綴才不會每回合都變");
+
+  history = pushHistory(history, { action: "行動最新", narration: "敘事最新" });
+  assert.equal(history.length, HISTORY_LIMIT, "超過上限時一次裁回下限");
+  assert.equal(history.at(-1).action, "行動最新", "最後一筆應該是最新的");
   assert.ok(!history.some((h) => h.action === "行動0"), "最舊的應該被裁掉");
+});
+
+test("pushHistory：裁切之間的每一輪都只在尾端追加（prompt cache 前綴穩定性）", () => {
+  // 這一題是 content/llm/cacheLayers.js 那套分層的前提：歷史前綴每回合都變的話，
+  // 靜態層以外的東西一個 token 都快取不到。壞掉時遊戲照跑，只會反映在帳單與 TTFT 上，
+  // 所以一定要有一個測試釘住它。
+  let history = [];
+  for (let i = 0; i < HISTORY_LIMIT; i++) {
+    history = pushHistory(history, { action: `行動${i}`, narration: `敘事${i}` });
+  }
+  const before = history;
+  const after = pushHistory(history, { action: "新行動", narration: "新敘事" });
+  assert.deepEqual(after.slice(0, before.length), before, "既有的每一輪都必須逐字不變");
+  assert.equal(after.length, before.length + 1);
 });
 
 test("pushHistory：不修改傳入的陣列(避免共用同一份而互相污染)", () => {

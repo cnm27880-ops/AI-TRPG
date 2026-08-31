@@ -12,7 +12,7 @@ import {
   MAX_CHRONICLE_NARRATION_CHARS,
   MAX_CHRONICLE_PACKAGES,
 } from "../content/storage/chronicle.js";
-import { createSession, ensureSessionShape, pushHistory } from "../content/storage/sessionStore.js";
+import { createSession, ensureSessionShape, pushHistory, HISTORY_LIMIT, HISTORY_MAX } from "../content/storage/sessionStore.js";
 import { appendEvent, EVENT_TYPES } from "../core/eventLog.js";
 
 function sessionWithChronicle() {
@@ -72,7 +72,9 @@ test("appendChronicle：長局與超長欄位都受 server-side 資源界線保�
 test("chronicle 不受短期 history 上限影響，AI 劇情包會保留完整十二回", () => {
   const session = sessionWithChronicle();
   let history = [];
-  for (let i = 1; i <= 12; i += 1) {
+  // 推到超過 HISTORY_MAX 才會觸發裁切（見 sessionStore.js 的遲滯窗說明）——
+  // 這一題要驗的是「短期 history 被裁掉時 chronicle 不受影響」，所以要真的推到裁切點。
+  for (let i = 1; i <= HISTORY_MAX + 4; i += 1) {
     history = pushHistory(history, { action: `行動${i}`, narration: `敘事${i}` });
   }
   session.history = history;
@@ -83,7 +85,11 @@ test("chronicle 不受短期 history 上限影響，AI 劇情包會保留完整�
     entries: normalizeChronicleEntries(session.chronicle).filter((e) => e.scenarioId === "scenario.a"),
     packagedAt: "2026-08-23T01:00:00Z",
   });
-  assert.equal(session.history.length, 8);
+  assert.ok(
+    session.history.length >= HISTORY_LIMIT && session.history.length <= HISTORY_MAX,
+    "短期 history 一定會被裁在 HISTORY_LIMIT~HISTORY_MAX 之間"
+  );
+  assert.ok(!session.history.some((h) => h.action === "行動1"), "最早的幾輪已經被裁掉了");
   assert.equal(pack.entries.length, 8);
   assert.match(pack.text, /第 1 回/);
   assert.match(pack.text, /第 8 回/);
