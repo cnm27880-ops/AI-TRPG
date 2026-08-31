@@ -134,6 +134,19 @@ function clampLlmInput(value, limit, label) {
  */
 function clampHistoryMessages(messages, limit = MAX_LLM_HISTORY_CHARS) {
   if (!Array.isArray(messages) || messages.length === 0) return [];
+  // [結構鎖] history 層裡出現 role:"system" 幾乎一定代表有人想把一段靜態指令
+  // 「順手」塞進歷史中段。那會把它後面的每一則歷史都推離原位，而且靜態內容一旦
+  // 排在動態內容後面就永遠命不中——正是這整套分層要防的事。這種錯誤沒有人會發現
+  // （遊戲照跑），所以這裡選擇直接失敗，不是靜靜過濾掉。
+  const smuggled = messages.find((m) => m && m.role === "system");
+  if (smuggled) {
+    throw new LlmError(
+      "history 層不接受 role:\"system\" 的訊息。靜態指令要放進 systemInstruction，" +
+        "這一回合才成立的內容要放進 prompt（最後一個 user message）。" +
+        "見 docs/PROMPT_CACHE_CONTRACT.md。",
+      { provider: null, model: null, stage: "config" }
+    );
+  }
   const normalized = messages
     .filter((m) => m && typeof m.content === "string" && m.content.trim())
     .map((m) => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.content }));

@@ -4,6 +4,13 @@
 
 > **文件對照基準：** 本 README 以目前工作樹與最新 `main` 的 Alien V2 runtime 為準；提交 hash 會在本輪驗證完成後由 Git 歷史記錄。規則推導與長期架構請搭配 `ARCHITECTURE.md`、`TEST_PLAN.md` 與 `CHANGELOG.md` 閱讀。
 
+> **要用 AI 協作這個專案（Claude Code / Codex / Cursor / Copilot / Gemini…）？**
+> 先讀 **[`AGENTS.md`](AGENTS.md)**，以及它指向的
+> **[`docs/PROMPT_CACHE_CONTRACT.md`](docs/PROMPT_CACHE_CONTRACT.md)**——
+> 後者規範**所有**會進到 LLM 的文字要怎麼分層組裝，由 `npm run lint:prompt-cache` 與
+> `test/promptCache.test.js` 強制執行。破壞那套分層不會讓任何功能壞掉，
+> 只會讓每一回合都重新計費，所以它必須被程式擋、不能只靠人記得。
+
 ## 專案定位
 
 專案分成三層。`core/` 是不依賴 AI、內容包或 Cloudflare 的規則引擎；`content/` 是副本、建卡、商店、LLM、登入與存檔等可替換內容／服務層；`functions/api/` 與 `public/` 則把這些能力接成 Cloudflare Pages 上可使用的 API 與瀏覽器遊戲。

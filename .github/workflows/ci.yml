@@ -33,6 +33,12 @@ jobs:
       - name: Lint GitHub Actions workflow files
         run: npm run lint:workflows
 
+      # prompt cache 三層契約的結構鎖（見 docs/PROMPT_CACHE_CONTRACT.md）。
+      # 排在測試前面是刻意的：破壞分層的改動**不會**讓任何測試變紅，
+      # 所以這支檢查是唯一會擋下它的東西，要讓它先講話。
+      - name: Lint prompt cache layering contract
+        run: npm run lint:prompt-cache
+
       - name: Run complete regression suite with coverage gate
         run: npm run test:coverage
 

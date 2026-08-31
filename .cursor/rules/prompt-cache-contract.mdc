@@ -1,0 +1,31 @@
+---
+description: Prompt cache 三層契約 —— 動任何會進到 LLM 的文字之前必讀
+globs:
+  - "content/llm/**"
+  - "content/gemini/**"
+  - "content/narrativeStyle.js"
+  - "content/storage/sessionStore.js"
+  - "functions/api/**"
+alwaysApply: false
+---
+
+本專案的 AI 協作規則統一維護在 `AGENTS.md`，prompt 組裝規則在
+`docs/PROMPT_CACHE_CONTRACT.md`。這裡只放摘要，不複製內容。
+
+本專案跑在支援 prefix caching 的端點上（DeepSeek V4 系列、硅基流動同型模型）。
+這類端點比對的是**前綴**：碰到第一個不同的 token，從那裡到最後全部重算。
+
+每一次 LLM 請求都必須是三層，順序即變動頻率由低到高：
+
+1. **static** → `system` message：規則契約、文筆層、面具、場景固定背景、回應格式規格
+2. **history** → 中段 `user`/`assistant` messages：對話歷史，**只在尾端追加**
+3. **dynamic** → **最後一個** `user` message：血量／回合數／判定結果／玩家輸入／JSON 指令
+
+新增提示時問：這段文字下一回合會不會不一樣？
+會 → `dynamicBlocks`；不會 → `staticBlocks`；判斷不出來就當成會變。
+
+不可以：把靜態文字接在動態內容後面、把動態值放進 `system`、
+把對話歷史壓成一段字串、在 `content/llm/client.js` 以外的地方組 `messages` 陣列、
+用 `Object.keys()` 之類的非決定性順序拼接靜態內容。
+
+破壞分層不會讓任何測試變紅，只會讓帳單變貴。改完跑 `npm run lint:prompt-cache`。
