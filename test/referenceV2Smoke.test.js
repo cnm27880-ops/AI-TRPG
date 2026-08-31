@@ -53,6 +53,11 @@ function mockLlmResponse(callNumber) {
 
 async function startMockLlm() {
   const prompts = [];
+  // [2026-08-31] messages 拆成三層之後（見 content/llm/cacheLayers.js），「模型這次收到什麼」
+  // 不再等於單一則 user message：整場不變的回應格式規格已經搬進 system。
+  // requests 保留整份 messages，讓斷言可以問「這次請求裡有沒有這段約束」，
+  // 而不是把它綁死在某一則訊息上。
+  const requests = [];
   let callNumber = 0;
   const server = createServer(async (request, response) => {
     if (request.method !== "POST" || !request.url.endsWith("/chat/completions")) {
@@ -64,6 +69,7 @@ async function startMockLlm() {
     for await (const chunk of request) raw += chunk;
     const payload = JSON.parse(raw);
     prompts.push(payload.messages?.at(-1)?.content ?? "");
+    requests.push((payload.messages ?? []).map((m) => m.content ?? "").join("\n\n"));
     callNumber += 1;
     const body = {
       choices: [{
@@ -76,7 +82,7 @@ async function startMockLlm() {
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const { port } = server.address();
-  return { server, prompts, url: `http://127.0.0.1:${port}/v1` };
+  return { server, prompts, requests, url: `http://127.0.0.1:${port}/v1` };
 }
 
 test("V2 smoke: canonical direct-send runs from opening through Ash and preserves reference facts", async (t) => {
@@ -275,10 +281,14 @@ test("V2 reference free input accepts bounded threatAssessment and keeps referen
   assert.ok(free.body.scenario.reference.dmPrompt.referenceHints.length <= 3);
   assert.equal(JSON.stringify(free.body.scenario.reference.dmPrompt).includes("privateGoals"), false);
   const freeInputPrompt = mock.prompts.at(-1);
+  // 這一回合才成立的東西（reference 事件資料、引擎判定分級）必須在最後一則 user message 裡。
   assert.match(freeInputPrompt, /未命中任何 approach 的自由行動/);
   assert.match(freeInputPrompt, /引擎本回合的判定分級/);
-  assert.match(freeInputPrompt, /門已打開／鎖死/);
-  assert.match(freeInputPrompt, /只能寫成這次嘗試的可觀察成功部分/);
+  // 「不得把未授權的世界改變寫成完成事實」是整場不變的回應格式約束，現在住在 system 層，
+  // 所以要對整份請求斷言，不是對單一則 user message。
+  const freeInputRequest = mock.requests.at(-1);
+  assert.match(freeInputRequest, /門已打開／鎖死/);
+  assert.match(freeInputRequest, /只能寫成這次嘗試的可觀察成功部分/);
 });
 
 

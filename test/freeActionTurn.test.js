@@ -76,11 +76,16 @@ function replyWithFreeOption(n) {
 }
 
 /** 從假 binding 收到的 payload 裡取出這一次的 system / user 訊息。 */
+// [2026-08-31] messages 現在是三層結構（system / 歷史 user+assistant / 最後一則 user），
+// 見 content/llm/cacheLayers.js。「這一回合的 prompt」永遠是**最後一則** user message，
+// 不是第一則——第一則已經是最舊的那一輪歷史了。
 function lastMessages(env) {
   const { messages } = env.calls.at(-1).payload;
+  const userMessages = messages.filter((m) => m.role === "user");
   return {
     system: messages.find((m) => m.role === "system")?.content ?? "",
-    user: messages.find((m) => m.role === "user")?.content ?? "",
+    user: userMessages.at(-1)?.content ?? "",
+    history: messages.filter((m) => m.role !== "system").slice(0, -1),
   };
 }
 

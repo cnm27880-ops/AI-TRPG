@@ -27,8 +27,9 @@ import { performCheck } from "../../core/check.js";
 import { classifyOutcome } from "../../core/narration.js";
 import {
   SYSTEM_INSTRUCTION,
-  buildTurnPrompt,
-  buildFreeActionPrompt,
+  buildStaticContextBlocks,
+  buildDynamicTurnBlocks,
+  buildDynamicFreeActionBlocks,
   buildDmMemo,
 } from "../../content/gemini/promptContract.js";
 import { inferCheckParams } from "../../content/checkIntent.js";
@@ -44,6 +45,7 @@ import {
   resolveAutoRetryConfig,
 } from "../../content/llm/client.js";
 import { buildLlmDiagnostic } from "../../content/llm/diagnostics.js";
+import { buildLayeredRequest, historyToMessages } from "../../content/llm/cacheLayers.js";
 import { pickProvider, PROVIDER_IDS, PROVIDERS } from "../../content/llm/providers.js";
 import { resolveLlmRequestOverrides } from "../../content/llm/requestOverrides.js";
 import {
@@ -56,7 +58,6 @@ import { appendEvent, EVENT_TYPES, summarizeForJournal } from "../../core/eventL
 import {
   resolveSessionStore,
   pushHistory,
-  historyToPromptText,
   SessionConflictError,
 } from "../../content/storage/sessionStore.js";
 import { appendChronicle, registerChroniclePackage, buildCompactAiContext } from "../../content/storage/chronicle.js";
@@ -1020,10 +1021,11 @@ async function executeTurn(context, streamHooks = null) {
     );
   }
 
-  let systemInstruction = null;
+  // 文筆層 + 規則契約層。這是靜態層的第一段，也是整份 prompt 唯一「整場遊戲逐字不變」的部分。
+  let styleAndRules = null;
   if (!canonicalDirectSend) {
     try {
-      systemInstruction = composeSystemInstruction({
+      styleAndRules = composeSystemInstruction({
         rulesContract: SYSTEM_INSTRUCTION,
         personaKey: persona ?? env.NARRATOR_PERSONA ?? DEFAULT_PERSONA_KEY,
         styleId: style ?? env.NARRATIVE_STYLE ?? DEFAULT_STYLE_ID,
@@ -1046,7 +1048,10 @@ async function executeTurn(context, streamHooks = null) {
   }
 
   // --- 記憶：從存檔裡取出來，餵進 prompt ---
-  const recentNarration = historyToPromptText(session?.history);
+  // [2026-08-31 快取] 對話歷史改成獨立的 user/assistant 訊息，不再壓成一段「【前情提要】」
+  // 字串塞在 prompt 中段。理由見 content/llm/cacheLayers.js：壓成字串時窗口一滑動整段就變，
+  // 拆成訊息之後「新增一輪」只是在尾端追加，前面每一則的 token 完全沒動。
+  const historyMessages = historyToMessages(session?.history);
   const recentEvents = session
     ? summarizeForJournal(session.log).slice(-EVENT_MEMORY_LIMIT)
     : [];
@@ -1062,14 +1067,15 @@ async function executeTurn(context, streamHooks = null) {
   // (見 progress.js 的 getNodeStallRounds() 說明)。
   const stalledRounds = activeNode ? getNodeStallRounds(scenarioProgress, activeNode.id) : 0;
 
-  const prompt = buildPrompt({
+  const layers = buildPromptLayers({
+    styleAndRules,
     actionText,
     outcome,
     freeAction,
     personaKey: persona ?? env.NARRATOR_PERSONA ?? null,
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
-    recentNarration,
+    historyMessages,
     completedChronicles,
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
@@ -1101,6 +1107,18 @@ async function executeTurn(context, streamHooks = null) {
       ? buildRetreadDirective(retread, checkParams, scenarioPack?.threatTrack?.subject)
       : null,
   });
+  // 靜態層(system)一旦被摻進回合數／血量／判定結果這類每回合都變的東西，
+  // 快取命中率會直接崩掉，而且從遊戲行為上完全看不出來。這裡不擋請求（誤判不該讓玩家玩不了），
+  // 但一定要留一筆可搜尋的 log，否則這種退化只會反映在帳單上。
+  if (layers.leaks.length > 0) {
+    console.warn("[PROMPT_CACHE_STATIC_LEAK]", JSON.stringify({
+      where: "POST /api/turn",
+      leaks: layers.leaks.map((l) => l.id),
+      hint: "見 content/llm/cacheLayers.js：這些值必須下放到最後一個 user message",
+    }));
+  }
+  const systemInstruction = canonicalDirectSend ? null : layers.systemInstruction;
+  const prompt = layers.prompt;
 
   // 只送出不含規則內容的 lifecycle 事件；真正的 narration 仍要等完整 JSON、
   // canonical adapter 與安全重寫完成後才會進入 stream。
@@ -1111,6 +1129,7 @@ async function executeTurn(context, streamHooks = null) {
   let usedProvider = canonicalDirectSend ? null : provider;
   let finishReason = null;
   let llmDiagnostic = null;
+  let cacheStats = null;
   const callNarrativeLlm = bodyProvider ? callLlm : callLlmWithFallback;
   const autoRetryState = { used: false };
   const invokeNarrativeLlm = referenceFreeInputPending
@@ -1129,6 +1148,7 @@ async function executeTurn(context, streamHooks = null) {
       ...(bodyProvider ? { provider } : {}),
       env,
       systemInstruction,
+      history: layers.history,
       prompt,
       ...(bodyProvider ? llmOverrides : {}),
       maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
@@ -1141,6 +1161,20 @@ async function executeTurn(context, streamHooks = null) {
     model = res.model;
     usedProvider = res.provider ?? provider;
     finishReason = res.finishReason ?? null;
+    // 快取命中率是分層是否真的有效的**唯一**可觀測證據：分層寫錯不會讓遊戲壞掉，
+    // 只會讓帳單變貴、TTFT 變慢。沒有這一行，這個重構就沒有辦法被驗證，也沒有辦法防止退化。
+    // 供應商沒回報 usage 快取欄位時 cacheStats 是 null，不記——不要把「沒回報」記成 0。
+    if (res.cacheStats) {
+      cacheStats = res.cacheStats;
+      console.log("[PROMPT_CACHE]", JSON.stringify({
+        provider: usedProvider,
+        model,
+        hit: res.cacheStats.hit,
+        miss: res.cacheStats.miss,
+        promptTokens: res.cacheStats.total,
+        ratio: res.cacheStats.ratio,
+      }));
+    }
     if (Array.isArray(res.fallbackAttempts) && res.fallbackAttempts.length) {
       llmDiagnostic = buildLlmDiagnostic({
         attempts: res.fallbackAttempts,
@@ -1225,6 +1259,9 @@ async function executeTurn(context, streamHooks = null) {
         ...(bodyProvider ? { provider } : {}),
         env,
         systemInstruction,
+        // 重試沿用同一份 static/history 前綴，只換最後一則 user message：
+        // 這樣「格式重講一次」的成本只有動態層那幾百個 token。
+        history: layers.history,
         prompt: retryPrompt,
         ...(bodyProvider ? llmOverrides : {}),
         maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
@@ -1411,6 +1448,7 @@ async function executeTurn(context, streamHooks = null) {
           ...(bodyProvider ? { provider } : {}),
           env,
           systemInstruction,
+          history: layers.history,
           prompt: rewritePrompt,
           ...(bodyProvider ? llmOverrides : {}),
           maxTokens: bodyMaxTokens || narrativeMaxTokens || undefined,
@@ -1764,6 +1802,9 @@ async function executeTurn(context, streamHooks = null) {
     recentChronicleTotal: Array.isArray(session?.chronicle) ? session.chronicle.length : 0,
     warnings,
     ...(llmDiagnostic ? { llmDiagnostic } : {}),
+    // 只有 token 計數，沒有任何供應商原文或金鑰資訊；沒回報時整個欄位不存在，
+    // 維持既有 response 形狀，前端不需要為它加判斷。
+    ...(cacheStats ? { promptCache: cacheStats } : {}),
     reusedCheck: Boolean(pendingReplay),
     pendingTurn: null,
   };
@@ -1771,10 +1812,31 @@ async function executeTurn(context, streamHooks = null) {
 }
 
 /**
- * 組這一回合要送給AI的訊息。
- * 開場模式沒有判定結果，所以不能用 buildTurnPrompt()（它會要求 outcome 必填）。
+ * 組這一回合要送給AI的訊息，並且**依 prompt cache 的三層契約分開回傳**。
+ *
+ * [2026-08-31 重構] 這個函式原本回傳一整段字串，所有東西塞進同一個 user message。
+ * 那個形狀在不做快取的端點上沒有問題，但在 prefix caching 的端點（DeepSeek V4 系列、
+ * 硅基流動上的同型模型）上有三個具體的、會讓命中率掉到接近 0 的缺陷：
+ *
+ *   1) 人格面具與場景背景（整場不變）被放在 user message 開頭，而不是 system。
+ *      它們本身是靜態的，但夾在動態內容中間就沒有價值。
+ *   2) 「【前情提要】」是一段滑動窗口字串，**排在玩家行動與判定結果之前**。
+ *      窗口每回合往前滑一格，這段字串的開頭就變了，從那裡開始全部 cache miss。
+ *   3) 最嚴重的一項：optionsSpec（`buildOptionsSpec()`，三千多字、整場逐字不變）
+ *      與 jsonReminder 被接在 `${turnPrompt}` **後面**。也就是說每一回合都用
+ *      「玩家這次打了什麼字」把三千多字的靜態規格擋在快取之外，一次都沒命中過。
+ *
+ * 現在改成三層，順序即是變動頻率由低到高，任何一層都不可以把後面的內容往前挪：
+ *
+ *   static (system)  ：面具 -> 場景背景 -> 回應格式規格 -> 已封存副本摘要 -> 文筆層+規則契約
+ *   history (messages)：session.history 拆成的 user/assistant 訊息，只在尾端追加
+ *   dynamic (最後一則 user)：DM備忘錄 -> 事件日誌 -> reference 區塊 -> 迫近度/套路/節點指令
+ *                            -> 玩家行動 -> 判定結果 -> JSON 強制指令
+ *
+ * @returns {{systemInstruction: string, history: Array, prompt: string, leaks: Array}}
  */
-function buildPrompt({
+function buildPromptLayers({
+  styleAndRules,
   actionText,
   outcome,
   freeAction = false,
@@ -1784,7 +1846,7 @@ function buildPrompt({
   personaKey = null,
   sceneContext,
   recentEvents,
-  recentNarration,
+  historyMessages = [],
   completedChronicles,
   character,
   nodeGuidance,
@@ -1795,74 +1857,82 @@ function buildPrompt({
   retreadDirective,
   specialtyNarrationDirective = null,
 }) {
+  // ---- 靜態層：整場遊戲逐字不變，這是唯一真正吃得到快取的部分，所以要盡量長 ----
+  //
+  // optionsSpec 從動態層的尾巴搬到這裡，是這次改動裡單筆效益最大的一項：
+  // 它有三千多字，內容只跟角色的技能表有關（整場不變），以前卻永遠排在
+  // 「玩家這次的輸入」後面，等於每回合白付一次三千字的 prompt token。
   const optionsSpec = referenceMode ? buildReferenceResponseSpec() : buildOptionsSpec(character);
-  const threatBlock = threatDirective ? `\n\n${threatDirective}` : "";
-  const narrativeModeBlock = referenceMode
-    ? `\n\n【引擎指定敘事規模】${narrativeMode}。${NARRATIVE_MODE_GUIDANCE[narrativeMode] ?? "只寫當前回合需要的長度。"}不要因為總回合數而擴寫；不要為了湊字數重複前情，也不要替玩家決定下一步。`
-    : "";
-  const retreadBlock = retreadDirective ? `\n\n${retreadDirective}` : "";
-  const freeInputPriorityBlock = referenceFreeInput
-    ? `\n\n【最高優先級：未命中 approach 的自由輸入】\n這回合是自由行動，不是作者已定義的 reference 結果。即使敘事規模是 major，也只能寫施力、阻力、感官反應、未完成的嘗試、NPC對嘗試的反應與不確定威脅；沒有 engine effect 就不能寫成門開／鎖死、通道可通／封死、物品取得／遺失、位置或傷勢改變、異形直接接觸，亦不能創造精確距離、時間、數量或條款。若前情或歷史敘事曾自行宣稱這些事，視為不可靠的 AI 敘事，不得當作本回合事實。`
-    : "";
-  const freeActionContractTail = freeActionContractPrompt ? `\n\n${freeActionContractPrompt}` : "";
-  const tail = `${threatBlock}${retreadBlock}${narrativeModeBlock}${nodeGuidance ? `\n\n${nodeGuidance}` : ""}${freeInputPriorityBlock}${freeActionContractTail}`;
-  const dmMemoBlock = dmMemo ? `\n\n${dmMemo}` : ""; // [新增] 表格區塊
-  const referenceBlockText = referenceBlock ? `\n\n${referenceBlock}` : "";
+  const staticBlocks = [
+    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    optionsSpec,
+    // 已封存副本摘要：整場只在「打完一個副本」時變一次，是靜態層裡唯一會變的一段。
+    completedChronicles,
+    // styleAndRules 放**最後**，而且是刻意的，不是順手排的：
+    // 它的結尾就是 composeSystemInstruction() 那句「文筆與規則契約衝突時一律以規則契約為準」，
+    // 那句話必須是系統提示的最後一段（見 content/narrativeStyle.js：「順序本身就是防線的一部分」）。
+    // 靜態層內部的排序對快取沒有影響——這一層整段都是靜態的，怎麼排都一樣命中，
+    // 所以這裡讓安全性的順序需求優先。
+    styleAndRules,
+  ];
 
-  // 把JSON格式的強制指令釘在整個prompt的最後一行：模型看到的最後一句話就是這個，
-  // 前面內容再長也不會被忘記——比只放在system instruction裡更難被忽略。
-  const jsonReminder = `\n\n【系統強制指令】\n你的回覆必須是單一個合法的 JSON 物件，請直接以 { 開頭並以 } 結尾。絕對不要輸出 Markdown (\`\`\`json) 或其他閒聊文字！`;
-
-  // 純敘事行動（requiresCheck:false）：有玩家行動、沒有判定結果。
-  // 不能走底下的開場分支（那一段會完全忽略 actionText，把玩家的選擇吃掉），
-  // 也不能走 buildTurnPrompt（它要求 outcome 必填，硬給就是引擎在編一個不存在的判定）。
-  if (!outcome && freeAction && actionText) {
-    const freePrompt = buildFreeActionPrompt({
-      playerAction: actionText,
-      sceneContext,
-      recentEvents,
-      recentNarration,
-      completedChronicles,
-      ...(personaKey ? { personaKey } : {}),
-    });
-      return `${freePrompt}${dmMemoBlock}${referenceBlockText}\n\n${optionsSpec}${tail}${jsonReminder}`;
+  // ---- 動態層：這一回合才成立的東西，全部集中在最後一個 user message ----
+  //
+  // 層內順序同樣按「這一回合裡誰最晚定案」排：狀態表 -> 場面指令 -> 玩家輸入 -> 判定結果。
+  // 這一層每回合必然全部重算，所以要短；不要把任何靜態內容接在它後面。
+  const dynamicBlocks = [];
+  if (dmMemo) dynamicBlocks.push(dmMemo);
+  // 事件日誌與前情提要不同：它是「已判定事實」的滑動窗口摘要，不走 history 訊息，
+  // 但也因此每回合都可能改開頭，所以歸在動態層而不是靜態層。
+  if (recentEvents?.length) {
+    dynamicBlocks.push(
+      "【已經發生過的判定結果(事實，不可改寫)】\n" +
+        recentEvents.map((e) => `- ${e.summary}`).join("\n")
+    );
   }
+  if (referenceBlock) dynamicBlocks.push(referenceBlock);
+  if (threatDirective) dynamicBlocks.push(threatDirective);
+  if (retreadDirective) dynamicBlocks.push(retreadDirective);
+  if (referenceMode) {
+    dynamicBlocks.push(
+      `【引擎指定敘事規模】${narrativeMode}。${NARRATIVE_MODE_GUIDANCE[narrativeMode] ?? "只寫當前回合需要的長度。"}` +
+        "不要因為總回合數而擴寫；不要為了湊字數重複前情，也不要替玩家決定下一步。"
+    );
+  }
+  if (nodeGuidance) dynamicBlocks.push(nodeGuidance);
+  if (referenceFreeInput) {
+    dynamicBlocks.push(
+      "【最高優先級：未命中 approach 的自由輸入】\n這回合是自由行動，不是作者已定義的 reference 結果。即使敘事規模是 major，也只能寫施力、阻力、感官反應、未完成的嘗試、NPC對嘗試的反應與不確定威脅；沒有 engine effect 就不能寫成門開／鎖死、通道可通／封死、物品取得／遺失、位置或傷勢改變、異形直接接觸，亦不能創造精確距離、時間、數量或條款。若前情或歷史敘事曾自行宣稱這些事，視為不可靠的 AI 敘事，不得當作本回合事實。"
+    );
+  }
+  if (freeActionContractPrompt) dynamicBlocks.push(freeActionContractPrompt);
 
-  if (!outcome) {
-    const lines = [];
-    if (sceneContext) lines.push(`【場景背景】${sceneContext}`);
-    if (dmMemo) lines.push(dmMemo); // [新增] 開場也需要看到狀態表
-    if (recentNarration) {
-      lines.push("【前情提要】以下是這場遊戲到目前為止的經過，請保持一致性：");
-      lines.push(recentNarration);
-    }
-    if (recentEvents?.length) {
-      lines.push("【已經發生過的判定結果(事實，不可改寫)】");
-      for (const e of recentEvents) lines.push(`- ${e.summary}`);
-    }
-    if (completedChronicles) lines.push(completedChronicles);
-    lines.push(
-      recentNarration
+  // 玩家輸入與判定結果永遠是動態層的最後一組資料區塊。
+  if (!outcome && freeAction && actionText) {
+    dynamicBlocks.push(...buildDynamicFreeActionBlocks({ playerAction: actionText }));
+  } else if (!outcome) {
+    // 開場／回坐：沒有玩家行動也沒有判定結果。
+    dynamicBlocks.push(
+      historyMessages.length
         ? "【接續】玩家剛回到這場遊戲，請簡短重述目前的處境，不要重新開場。這一回合沒有擲骰，不要描寫任何行動的成敗。"
         : "【這是本場遊戲的開場】請描寫玩家角色目前所在的場景，建立氣氛與可以互動的線索。" +
             "這一回合沒有擲骰，不要描寫任何行動的成敗。"
     );
-    return `${lines.join("\n")}${referenceBlockText}\n\n${optionsSpec}${tail}${jsonReminder}`;
+  } else {
+    dynamicBlocks.push(
+      ...buildDynamicTurnBlocks({ playerAction: actionText, outcome, specialtyNarrationDirective })
+    );
   }
 
-  const turnPrompt = buildTurnPrompt({
-    playerAction: actionText,
-    outcome,
-    sceneContext,
-    recentEvents,
-    recentNarration,
-    completedChronicles,
-    ...(personaKey ? { personaKey } : {}),
-    specialtyNarrationDirective,
-  });
+  // 把JSON格式的強制指令釘在整個 prompt 的最後一行：模型看到的最後一句話就是這個。
+  // 它是靜態文字，但**故意**留在動態層尾端——這一句只有幾十個 token，
+  // 把它搬進 system 換來的快取收益，遠小於它待在最後一行對輸出格式的實測效果。
+  dynamicBlocks.push(
+    "【系統強制指令】\n你的回覆必須是單一個合法的 JSON 物件，請直接以 { 開頭並以 } 結尾。" +
+      "絕對不要輸出 Markdown (```json) 或其他閒聊文字！"
+  );
 
-  // [修改] 把狀態表格接在後面
-  return `${turnPrompt}${dmMemoBlock}${referenceBlockText}\n\n${optionsSpec}${tail}${jsonReminder}`;
+  return buildLayeredRequest({ staticBlocks, historyMessages, dynamicBlocks });
 }
 
 /**
