@@ -39,7 +39,7 @@
 | 層 | 送到哪 | 放什麼 | 多久變一次 |
 | --- | --- | --- | --- |
 | **static** | `system` message | 敘事者面具、場景固定背景、回應格式規格（`buildOptionsSpec()`）、已封存副本摘要、NPC 狀態矩陣的**讀法**（`NPC_STATE_LEGEND`）、NPC 固定檔案（`buildNpcCooperationContract()`：人設、Agenda／Taboo／Knowledge 基線、語氣素材）、文筆層＋規則契約 | 整場遊戲不變 |
-| **history** | 中段的 `user` / `assistant` messages | `session.history` 拆成的對話輪次 | **只在尾端追加** |
+| **history** | 中段的 `user` / `assistant` messages | `session.history` 拆成的對話輪次、換場景時插入的場景簡報（`<Scene_Brief>`） | **只在尾端追加** |
 | **dynamic** | **最後一個** `user` message | NPC 狀態矩陣的**數值**（`[NPC_ACTIVE_STATE]`，排在這一層最頂端）、DM 備忘錄（血量／XP／剩餘回合）、事件日誌、迫近度、卡關提醒、reference 事件資料、玩家這次的輸入、判定結果、JSON 強制指令 | 每回合全變 |
 
 實作位置：
@@ -48,6 +48,9 @@
 - `functions/api/turn.js` 的 `buildPromptLayers()` —— 主要遊戲回合的組裝
 - `functions/api/narrate.js` —— demo/BYOK 端點，同一套分層
 - `content/llm/client.js` —— **唯一**可以組 provider `messages` 陣列的檔案
+- `content/scenario/referenceAdapter.js` 的 `buildSceneBriefBlock()` —— 場景固定素材。
+  它是三層之外的第四種答案：既不是整場不變（不能進 `system`），也不是每回合都變
+  （不該每回合重送）。**場景範圍**的東西屬於歷史層，換場景時追加一次
 - `content/scenario/npcCooperationContract.js` —— NPC 固定檔案。它是同一種病**三次發作**的
   修復結果（2026-08-31）：安全規則被抄成四份住在動態層、Agenda／Taboo／Knowledge 基線
   跟著每回合的數值一起送、語氣素材跟著 <NPC_Voice_Bible> 每回合重送。
@@ -72,6 +75,11 @@
 
 是「上一輪發生的事」
     → history 層，走 cacheLayers.js 的 historyToMessages()，不要自己拼字串
+
+在**一個場景**裡不會變，但換場景就會變（事件真相、節拍、房間描述）
+    → 也是 history 層，走 buildSceneBriefBlock() + historyToMessages 的 sceneBriefFor
+      進 system 的話，每換一次場景就會讓整個靜態前綴加上全部歷史一起失效；
+      留在動態層則是每回合重付。插在歷史的時間軸上才兩者都避開。
 ```
 
 **判斷不出來就當成會變**，放動態層。放錯到動態層只是多付那一段的錢；
@@ -123,6 +131,7 @@
 | 四份 `*CooperationPolicy` 的安全規則 | 同一段規則被抄成四份、住在動態層 | 場上 2 人 = 1695 字元 |
 | `[NPC_ACTIVE_STATE]` 的 Agenda／Taboo／Knowledge | 基線跟著每回合的數值一起送 | 那一行的 40% |
 | `<NPC_Voice_Bible>` 的語氣素材 | 內容包裡寫死的素材每回合重送 | reference block 的 44% |
+| `buildReferencePromptBlock()` 的場景真相與環境素材 | 場景範圍的固定值住在動態層 | 663 字元／回合 |
 
 三次的共同特徵，也是下次該用來自我檢查的問題：
 

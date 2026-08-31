@@ -2,6 +2,61 @@
 
 本文件記錄 AI-無限恐怖 TRPG 的可觀察介面變更、測試重點與後續動畫設計方向，供開發者、測試人員與後續協作者使用。
 
+## [REFACTOR-2026.08.31d] — 場景固定素材搬進歷史層
+
+**影響範圍：** `content/llm/cacheLayers.js`、`content/storage/sessionStore.js`、
+`content/scenario/referenceAdapter.js`、`functions/api/turn.js`；
+新增 `test/sceneBrief.test.js`；更新 `AGENTS.md`、`ARCHITECTURE.md`、`docs/PROMPT_CACHE_CONTRACT.md`
+
+**變更性質：** 提示詞分層。判定公式、骰池、傷害、獎勵與角色卡格式沒有動。
+`session.history` 的每一則多一個 `sceneId` 欄位（舊存檔沒有也能跑，見下方）。
+
+### 為什麼
+
+`buildReferencePromptBlock()` 每回合 1590 字元，連續兩回合逐行比對 **97% 相同**。
+但它**兩邊都不屬於**：進 `system` 的話，換一次場景就讓整個靜態前綴加上全部歷史一起失效
+（一場遊戲換十幾次場景，比每回合付 1590 還貴）；留在動態層就是每回合重付。
+
+答案是**歷史層**——契約裡一直就有，但一直只被當成「對話輪次」用。它的性質是
+「只在尾端追加」，正好是「換場景時追加一次、之後永遠命中前綴」需要的東西。
+
+```
+每回合的 reference block   1590 → 927 字元（−663）
+場景簡報                  664 字元，換場景時付一次
+```
+
+### 三個非做不可的約束
+
+1. **簡報插在時間軸上**（換場景的那一則之前），不是插在最前面——插最前面等於把
+   prefix cache 關掉，那正是這件事要解決的問題。
+2. **`sceneBriefFor` 只吃 `sceneId`，不吃 `state`。** 吃了 state，舊場景的簡報就會隨著
+   玩家撿到線索而改變。環境素材因此只取不吃 state 的那一半（空間、氣氛、地標、可見危險），
+   回訪變化留在動態層；玩家走到場景預設房間以外時，動態層會補該房間的描述。
+3. **`gmTruth` 絕對不能進 `session.history`。** history 是會隨 session 送回瀏覽器的
+   （`public/app.js` 有 `?? res.session.history` 的 fallback）。存檔只存 `sceneId`
+   （公開資料），簡報只在組 prompt 時於 server 端推導。有測試釘住。
+
+### 舊存檔
+
+沒有 `sceneId` 的歷史不會壞，也不會憑空生出簡報；接上新回合之後，簡報從第一則帶
+`sceneId` 的那一格開始，而且不會改寫舊存檔那幾則（有測試釘住）。
+
+### 一個只有 e2e 才抓得到的坑
+
+第一次端到端驗證顯示簡報「沒有送到模型」——但那是測試動作選錯了：那一回合命中
+canonical approach，走了 `canonicalDirectSend` 直送路徑、根本沒有呼叫 LLM。
+換成不會命中的自由行動之後才驗到真的行為。離線測試不會告訴你這件事，
+因為它們不經過那條分支。
+
+### 測試
+
+新增 `test/sceneBrief.test.js`（9 項）：簡報是 state-free、gmTruth 進得了簡報但進不了存檔、
+同場景多回合只送一次且前綴只在尾端成長、換場景時新簡報排在既有歷史之後、
+A→B→A 會重新提醒、舊存檔相容、沒給 `sceneBriefFor` 時行為完全不變、
+每回合的 block 不再重述已進簡報的段落、走到預設房間以外仍補得到描述。
+
+全套 1260 項通過，`lint:prompt-cache`、`lint:workflows`、`test:extreme` 皆綠。
+
 ## [FEATURE-2026.08.31c] — 敘事行為 eval：第一支驗「模型真的照做了嗎」的檢查
 
 **影響範圍：** 新增 `scripts/narrative-behaviour-eval.mjs`、`test/narrativeBehaviourEval.test.js`；

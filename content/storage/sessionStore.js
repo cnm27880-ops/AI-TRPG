@@ -164,9 +164,13 @@ export function createSession({ id, character, sceneContext = "", ownerId = null
  * 「超過才裁、而且一次裁到底」是刻意的，不是省事：見 HISTORY_MAX 的說明。
  * 每一輪都裁一格會讓 prompt 前綴每一輪都變，等於把 prefix cache 關掉。
  */
-export function pushHistory(history, { action, narration }) {
+export function pushHistory(history, { action, narration, sceneId = null }) {
   const next = [...(history ?? [])];
-  next.push({ action: action ?? null, narration: narration ?? null });
+  // sceneId 是**公開資料**（referenceStateForResponse 已經以 eventId 對外公開），
+  // 存它是為了讓組 prompt 時知道場景在哪一則換掉的，好把場景簡報插在時間軸的正確位置。
+  // 簡報本身**不存**：它含 scene.gmTruth，而 history 會隨 session 送回瀏覽器
+  // （public/app.js 有 `?? res.session.history` 的 fallback）。簡報只在 server 端推導。
+  next.push({ action: action ?? null, narration: narration ?? null, sceneId: sceneId ?? null });
   if (next.length <= HISTORY_MAX) return next;
   return next.slice(-HISTORY_LIMIT);
 }

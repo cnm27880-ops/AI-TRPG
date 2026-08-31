@@ -102,6 +102,7 @@ import {
   applyReferenceCharacterEffects,
   buildReferenceOptions,
   buildReferencePromptBlock,
+  buildSceneBriefBlock,
   referenceStateForResponse,
   narrativeModeForScene,
   validateThreatAssessment,
@@ -572,7 +573,13 @@ async function executeTurn(context, streamHooks = null) {
 
     const activeNode = scenarioPack ? findActiveNode(scenarioPack, scenarioProgress) : null;
     const openingTimestamp = new Date().toISOString();
-    session.history = pushHistory(session.history, { action: null, narration: currentChapter.openingNarration });
+    session.history = pushHistory(session.history, {
+      action: null,
+      narration: currentChapter.openingNarration,
+      // 記下這一則屬於哪個場景，好讓組 prompt 時把場景簡報插在時間軸的正確位置。
+      // 只存 id（公開資料）；簡報含 gmTruth，只在 server 端推導，不進存檔。
+      sceneId: referenceState?.currentSceneId ?? null,
+    });
     session.chronicle = appendChronicle(session.chronicle, {
       turn: (session.turns ?? 0) + 1,
       action: null,
@@ -1040,7 +1047,15 @@ async function executeTurn(context, streamHooks = null) {
   // [2026-08-31 快取] 對話歷史改成獨立的 user/assistant 訊息，不再壓成一段「【前情提要】」
   // 字串塞在 prompt 中段。理由見 content/llm/cacheLayers.js：壓成字串時窗口一滑動整段就變，
   // 拆成訊息之後「新增一輪」只是在尾端追加，前面每一則的 token 完全沒動。
-  const historyMessages = historyToMessages(session?.history);
+  // 場景簡報走歷史層：換場景時追加一次，之後就永遠命中前綴。
+  // sceneBriefFor 只吃 sceneId，不吃 state——舊場景的簡報必須永遠是同一段文字，
+  // 否則玩家一撿到線索，前面每一段簡報就跟著變，整條歷史前綴一起失效。
+  // 見 content/scenario/referenceAdapter.js 的 buildSceneBriefBlock()。
+  const historyMessages = historyToMessages(session?.history, {
+    sceneBriefFor: scenarioReference
+      ? (sceneId) => buildSceneBriefBlock(scenarioReference, sceneId)
+      : null,
+  });
   const recentEvents = session
     ? summarizeForJournal(session.log).slice(-EVENT_MEMORY_LIMIT)
     : [];
@@ -1752,7 +1767,11 @@ async function executeTurn(context, streamHooks = null) {
       );
     }
     const chronicleTimestamp = new Date().toISOString();
-    session.history = pushHistory(session.history, { action: actionText, narration });
+    session.history = pushHistory(session.history, {
+      action: actionText,
+      narration,
+      sceneId: referenceState?.currentSceneId ?? null,
+    });
     session.chronicle = appendChronicle(session.chronicle, {
       turn: (session.turns ?? 0) + 1,
       action: actionText,

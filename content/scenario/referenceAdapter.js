@@ -1013,6 +1013,53 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
   };
 }
 
+/**
+ * 【歷史層】一個場景的固定簡報：整個場景都不會變的那一段。
+ *
+ * [2026-08-31] 這些行原本在 buildReferencePromptBlock() 裡，跟著每回合的狀態一起重送。
+ * 實測連續兩回合的 reference block 有 97% 逐字相同，而它 1906 字元——
+ * 也就是每回合花一千八百多個字元重送一段沒有變的東西。
+ *
+ * 但它**不能**進靜態層：它是「場景範圍」的固定值，不是「整場遊戲」的。
+ * 放進 system 的話，每換一次場景就會讓整個靜態前綴加上全部歷史一起失效，
+ * 一場遊戲換十幾次場景，比每回合付 1900 字元還貴。
+ *
+ * 正確的位置是歷史層：換場景時追加一次，之後就永遠命中前綴（見 cacheLayers.js 的
+ * historyToMessages）。這也是為什麼這個函式**只能吃 reference 與 sceneId**——
+ * 它一旦吃 state，舊場景的簡報就會隨著玩家撿到線索而改變，整條歷史前綴跟著失效。
+ *
+ * @param {object} reference canonical reference
+ * @param {string} sceneId 事件 id
+ * @returns {string} 找不到場景時回傳 ""
+ */
+export function buildSceneBriefBlock(reference, sceneId) {
+  const scene = findScene(reference, sceneId);
+  if (!scene) return "";
+  const lines = [
+    "<Scene_Brief>",
+    `【進入事件 ${scene.id}：這一段是本場景的固定背景，之後不再重述】`,
+    `事件目的：${scene.purpose ?? "推進目前場景"}`,
+    `事件真相：${(scene.gmTruth ?? []).join("；") || "依 reference 資料與已保存狀態裁定"}`,
+    `玩家目前可知：${(scene.entryKnowledge ?? []).join("；") || "依故事歷史"}`,
+    `本事件節拍：${(scene.beats ?? []).join(" → ") || "依玩家行動推進"}`,
+  ];
+  // 環境素材取**不吃 state 的那一半**：空間、氣氛、地標、可見危險整個場景都一樣。
+  // 回訪變化（revisitVariant）吃訪問次數，留在動態層。
+  const locationView = narrativeLocationView(reference, null, scene.location, { visited: true });
+  if (locationView) {
+    lines.push(
+      "",
+      `空間：${locationView.description}`,
+      ...(locationView.atmosphere ? [`氣氛：${locationView.atmosphere}`] : []),
+      ...(locationView.landmarks?.length ? [`地標：${locationView.landmarks.map((item) => item.text ?? item).join("；")}`] : []),
+      ...(locationView.hazardHints?.length ? [`可見危險：${locationView.hazardHints.join("；")}`] : []),
+      "這些文字只能補充畫面與感官；不能自行宣稱新增物品、傷勢、位置、旗標、威脅或事件結果。",
+    );
+  }
+  lines.push("</Scene_Brief>");
+  return lines.join("\n");
+}
+
 export function buildReferencePromptBlock({
   reference,
   state,
@@ -1029,14 +1076,13 @@ export function buildReferencePromptBlock({
   const lines = [
     "<Reference_Event>",
     "【副本事件資料（系統真相，不是玩家可以改寫的設定）】",
+    // 事件目的／真相／可知／節拍與環境素材已經搬進歷史層的 <Scene_Brief>
+    // （見 buildSceneBriefBlock 的說明）：它們整個場景都不會變，每回合重送是白付。
+    // 這裡只留每回合真的會動的東西。
     `事件ID：${scene.id}`,
     `所在房間：${state.currentLocation ?? scene.location ?? "未知"}`,
-    `事件目的：${scene.purpose ?? "推進目前場景"}`,
     `目前階段：${phase?.id ?? "一般事件"}`,
     `目前場景回合：${state?.sceneTurnCount ?? 0}（事件卡預設可持續多回合，除非離場條件成立）`,
-    `事件真相：${(scene.gmTruth ?? []).join("；") || "依 reference 資料與已保存狀態裁定"}`,
-    `玩家目前可知：${(scene.entryKnowledge ?? []).join("；") || "依故事歷史"}`,
-    `本事件節拍：${(scene.beats ?? []).join(" → ") || "依玩家行動推進"}`,
     ...(applied && currentScene?.id !== scene.id
       ? [
           `下一事件：${currentScene?.id ?? "依狀態決定"}`,
@@ -1087,16 +1133,26 @@ export function buildReferencePromptBlock({
     lines.push("可以寫：工具施力時的阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應，以及引擎已明示的判定分級。必須保留操作尚未完成的空間，讓玩家仍能決定下一步。");
     lines.push("禁止寫成既定事實：門已開或已鎖死、通道已打通或已封死、玩家已取得或遺失物品、NPC已執行未列在 reference 的特殊指令、異形已直接接觸／衝出、路徑已經確定可通，以及任何未由 reference 或 engine effect 授權的傷害、旗標、位置、數字或精確距離。");
   }
+  // 環境素材的固定部分（空間、氣氛、地標、可見危險）在歷史層的 <Scene_Brief> 裡。
+  // 這裡只留吃 state 的那一項：回訪變化會隨訪問次數與旗標改變，屬於動態層。
+  //
+  // 玩家離開場景的預設房間、走到同一場景的另一個房間時，這裡也會補一次該房間的
+  // 固定描述——簡報只涵蓋場景的預設房間，補這一段才不會讓畫面斷掉。
   const locationView = narrativeLocationView(reference, state, state?.currentLocation, { visited: true });
-  if (locationView) {
+  const offBriefLocation = Boolean(state?.currentLocation) && state.currentLocation !== scene.location;
+  if (locationView && (locationView.revisitVariant || offBriefLocation)) {
     lines.push(
       "",
       "<Exploration_Environment>",
-      "【玩家已探索區域的公開環境素材】",
-      `空間：${locationView.description}`,
-      ...(locationView.atmosphere ? [`氣氛：${locationView.atmosphere}`] : []),
-      ...(locationView.landmarks?.length ? [`地標：${locationView.landmarks.map((item) => item.text ?? item).join("；")}`] : []),
-      ...(locationView.hazardHints?.length ? [`可見危險：${locationView.hazardHints.join("；")}`] : []),
+      ...(offBriefLocation
+        ? [
+            "【玩家目前所在房間的公開環境素材】",
+            `空間：${locationView.description}`,
+            ...(locationView.atmosphere ? [`氣氛：${locationView.atmosphere}`] : []),
+            ...(locationView.landmarks?.length ? [`地標：${locationView.landmarks.map((item) => item.text ?? item).join("；")}`] : []),
+            ...(locationView.hazardHints?.length ? [`可見危險：${locationView.hazardHints.join("；")}`] : []),
+          ]
+        : []),
       ...(locationView.revisitVariant ? [`本次回訪變化（只可在確實回訪或狀態已成立時使用）：${locationView.revisitVariant}`] : []),
       "這些文字只能補充畫面與感官；不能自行宣稱新增物品、傷勢、位置、旗標、威脅或事件結果。",
       "</Exploration_Environment>",
