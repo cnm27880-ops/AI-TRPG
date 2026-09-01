@@ -1139,6 +1139,23 @@
 
         html[data-theme="light"] .shop-tab { background: rgba(37,35,31,.045); color: var(--ink-400); }
         html[data-theme="light"] .shop-item-card { background: rgba(255,255,255,.6); }
+        html[data-theme="light"] .shop-item-card-clickable:hover,
+        html[data-theme="light"] .shop-item-card-clickable:focus-visible {
+            border-color: rgba(159,18,57,.55) !important;
+            background: rgba(244,63,94,.07);
+            box-shadow: 0 12px 26px -18px rgba(159,18,57,.6);
+        }
+        html[data-theme="light"] .shop-item-card-clickable::after {
+            background: linear-gradient(115deg, rgba(190,24,93,.10), transparent 48%, rgba(180,83,9,.06));
+        }
+        html[data-theme="light"] .shop-item-detail-hint { color: #9f1239; }
+        html[data-theme="light"] .bloodline-detail-kicker { color: #9f1239; }
+        html[data-theme="light"] .bloodline-detail-close { border-color: rgba(63,63,70,.16); color: #9f1239; background: rgba(255,255,255,.72); }
+        html[data-theme="light"] .bloodline-detail-close:hover,
+        html[data-theme="light"] .bloodline-detail-close:focus-visible { color: #4c0519; background: rgba(244,63,94,.12); }
+        html[data-theme="light"] .bloodline-detail-pill { border-color: rgba(63,63,70,.14); color: #52525b; background: rgba(63,63,70,.045); }
+        html[data-theme="light"] .bloodline-detail-pill-price { color: #92400e; border-color: rgba(180,83,9,.3); background: rgba(245,158,11,.11); }
+        html[data-theme="light"] .bloodline-detail-source { color: #71717a; }
 
         /* ================= 黑白邀請頁 → 主神接管過場 =================
            初始頁面刻意脫離現有黑綠終端：它是一個看似普通的網站。
