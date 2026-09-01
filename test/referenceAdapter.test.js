@@ -1307,3 +1307,22 @@ test("陸遠活著離開時，end_heroic_rescue 這個結局真的到得了", ()
   });
   assert.equal(state.endingId, "end_heroic_rescue");
 });
+
+test("陸遠離隊後，休眠掃描不得把他算成「一起活著離開」", () => {
+  // 第 0.6 階段接起來的那條線：合作階段 abandoned → flag_luyuan_abandoned →
+  // conditionalEffects 的 ifFlagsAbsent。少了任何一環，玩家把他惹走之後
+  // 結局仍然會說「有人帶著第一手記憶一起離開」。
+  const state = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: {
+      flags: ["flag_luyuan_met", "flag_luyuan_abandoned", "flag_xenomorph_killed"],
+      npcStatuses: { npc_luyuan: "met" },
+    },
+  });
+  assert.equal(state.npcStatuses.npc_luyuan, "met", "走掉的人不該被標成 survived");
+  assert.equal(state.flags.includes("flag_luyuan_survived"), false);
+  assert.equal(state.endingId, "end_solo_survivor", "沒有人陪你離開，就是孤獨生還者");
+});

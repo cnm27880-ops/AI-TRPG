@@ -310,6 +310,41 @@ function patch(persona, current, classification, turnNumber) {
   return next;
 }
 
+/**
+ * `states.stateFlags` 只能宣告**終局**階段。
+ *
+ * 理由：這個投影是單向的——旗標一旦寫進 referenceState.flags 就不會被收回
+ * （worldFlagsRemove 是 reference 資料的工具，不是這裡的）。所以如果被宣告的階段
+ * 之後還離得開，旗標就會變成一個過期的謊言：陸遠已經回到 functional 了，
+ * 而 flag_luyuan_abandoned 還掛在世界狀態上，結局判定照它走。
+ *
+ * 判準刻意取嚴格的那一邊：**每一條轉場規則都必須宣告 onlyFrom 且不包含這個階段**。
+ * 一條沒有 onlyFrom 的規則（包含字串簡寫形式）從任何階段都能觸發，所以只要存在一條，
+ * 這個階段就不是終局。證不出來就開不起來——這種錯誤在部署當下炸掉，
+ * 遠好過讓它變成一個「NPC 明明回來了、結局卻說他走了」的線上 bug。
+ */
+function assertTerminalStateFlags(persona) {
+  const declared = persona.states.stateFlags;
+  if (!declared) return;
+  for (const [stateId, flagId] of Object.entries(declared)) {
+    if (!persona.states.order.includes(stateId)) {
+      throw new Error(`${persona.npcId} 的 states.stateFlags 宣告了不存在的階段「${stateId}」`);
+    }
+    if (typeof flagId !== "string" || !flagId.trim()) {
+      throw new Error(`${persona.npcId} 的 states.stateFlags["${stateId}"] 必須是非空字串`);
+    }
+    for (const [interactionType, rule] of Object.entries(persona.transitions ?? {})) {
+      const leaves = typeof rule === "string" || !Array.isArray(rule.onlyFrom) || rule.onlyFrom.includes(stateId);
+      if (leaves) {
+        throw new Error(
+          `${persona.npcId} 的階段「${stateId}」不是終局（轉場「${interactionType}」離得開它），` +
+            `不可以宣告 states.stateFlags——旗標寫出去就收不回來了`
+        );
+      }
+    }
+  }
+}
+
 function assertPersona(persona) {
   const required = ["npcId", "name", "sourcePackId", "aliases", "otherNpcTarget", "states", "objectives", "rules", "transitions", "saep"];
   for (const key of required) {
@@ -318,6 +353,7 @@ function assertPersona(persona) {
   if (!persona.states.order.includes(persona.states.initial)) {
     throw new Error(`${persona.npcId} 的 states.initial 不在 states.order 裡`);
   }
+  assertTerminalStateFlags(persona);
   for (const rule of persona.rules) {
     // kind 漏宣告的話，這條互動會在耐心值計算裡被當成中性——那是一種安靜的錯，
     // 只會表現成「這個 NPC 好像特別好脾氣」。寧可開不起來。
@@ -385,9 +421,23 @@ export function defineCooperationPolicy(persona) {
       const patched = patch(persona, readState(state), classification, turnNumber);
       // 這個互動在目前的合作階段不成立（見 nextState 的 onlyFrom）：什麼都不動。
       if (!patched) return { state, classification, changed: false };
+      // [2026-09-01] 把宣告過的終局合作階段投影成一個 world flag。
+      //
+      // 為什麼需要：合作階段住在 state.npcCooperation，而 reference 的
+      // conditionalEffects 只吃 flags（見 referenceAdapter 的 conditionalEffectsFor）。
+      // 兩邊接不起來的後果很具體：玩家把陸遠惹到 abandoned、他自行撤離之後，
+      // 休眠結算的存活掃描照樣把他標成 survived，結局仍然是「有人陪你離開」。
+      //
+      // 這一段刻意做成**由 persona 宣告、引擎執行**：投影哪個階段、投影成什麼旗標，
+      // 是各角色自己的事；四個 NPC 共用的只有「怎麼投影」。
+      const projectedFlag = persona.states.stateFlags?.[patched.state] ?? null;
+      const flags = state?.flags ?? [];
+      const nextFlags = projectedFlag && !flags.includes(projectedFlag) ? [...flags, projectedFlag] : null;
       return {
         state: {
           ...state,
+          // 只在真的要加旗標時才碰 flags，避免替沒有這個欄位的舊存檔憑空長出一個空陣列。
+          ...(nextFlags ? { flags: nextFlags } : {}),
           npcCooperation: { ...(state?.npcCooperation ?? {}), [npcId]: patched },
         },
         classification,

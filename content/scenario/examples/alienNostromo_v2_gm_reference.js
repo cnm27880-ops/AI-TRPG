@@ -6418,7 +6418,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6447,7 +6448,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6479,7 +6481,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6508,7 +6511,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6537,7 +6541,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6586,7 +6591,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6631,7 +6637,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
@@ -6679,7 +6686,8 @@ export default {
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
-                    "flag_luyuan_dead"
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
                   ],
                   "effects": {
                     "npcStatusChanges": {
