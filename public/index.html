@@ -2957,6 +2957,36 @@
         .story-phase-track { display:flex; align-items:center; gap:.35rem; overflow-x:auto; padding:.55rem .75rem; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); color:rgb(var(--c-ink-300)); font:10px 'JetBrains Mono',monospace; }
         .story-phase-node { white-space:nowrap; }.story-phase-node.is-done,.story-phase-node.is-current { color:rgb(var(--c-accent-text)); font-weight:700; }.story-phase-node.is-current { text-decoration:underline; text-underline-offset:3px; }
         @media (min-width:768px) { .tactical-decision-area { min-height:0; } }
+
+        /* Per-category detail-card themes. The same semantic variables work in both themes. */
+        .shop-detail-card { --detail-accent: 161 161 170; --detail-accent-strong: #d4d4d8; --detail-wash: rgba(161,161,170,.12); }
+        .shop-detail-theme-rose { --detail-accent: 244 63 94; --detail-accent-strong: #fb7185; --detail-wash: rgba(244,63,94,.12); }
+        .shop-detail-theme-cyan { --detail-accent: 6 182 212; --detail-accent-strong: #67e8f9; --detail-wash: rgba(6,182,212,.12); }
+        .shop-detail-theme-violet { --detail-accent: 139 92 246; --detail-accent-strong: #c4b5fd; --detail-wash: rgba(139,92,246,.12); }
+        .shop-detail-theme-amber { --detail-accent: 245 158 11; --detail-accent-strong: #fcd34d; --detail-wash: rgba(245,158,11,.12); }
+        .shop-detail-theme-sky { --detail-accent: 14 165 233; --detail-accent-strong: #7dd3fc; --detail-wash: rgba(14,165,233,.12); }
+        .shop-detail-theme-emerald { --detail-accent: 16 185 129; --detail-accent-strong: #6ee7b7; --detail-wash: rgba(16,185,129,.12); }
+        .shop-detail-theme-indigo { --detail-accent: 99 102 241; --detail-accent-strong: #a5b4fc; --detail-wash: rgba(99,102,241,.12); }
+        .shop-detail-card .bloodline-detail-hero { border-bottom-color: rgb(var(--detail-accent) / .28); background: radial-gradient(circle at 90% 10%, rgb(var(--detail-accent) / .22), transparent 34%), linear-gradient(120deg, rgb(var(--detail-accent) / .13), transparent 65%); }
+        .shop-detail-card .bloodline-detail-hero::after { content: 'ARCHIVE'; color: rgb(var(--detail-accent) / .08); }
+        .shop-detail-card .bloodline-detail-kicker, .shop-detail-card .shop-item-detail-hint { color: var(--detail-accent-strong); }
+        .shop-detail-card .bloodline-detail-title { color: var(--detail-accent-strong); }
+        .shop-detail-card .bloodline-trait { border-color: rgb(var(--detail-accent) / .28); background: rgb(var(--detail-accent) / .08); }
+        .shop-detail-card .bloodline-trait i, .shop-detail-card .bloodline-effect-icon { color: var(--detail-accent-strong); }
+        .shop-detail-card .bloodline-effect { border-left-color: rgb(var(--detail-accent) / .62); }
+        .shop-detail-card .bloodline-effect-icon { background: rgb(var(--detail-accent) / .16); }
+        .shop-detail-narrative { margin-top: 1rem; color: var(--ink-200); font: .7rem/1.6 'Noto Serif TC', serif; }
+        .shop-detail-narrative p { margin-top: .55rem; }
+        .service-detail-panel { margin-bottom: 1rem; padding: .75rem; border: 1px solid rgb(var(--detail-accent) / .34); border-radius: 9px; background: linear-gradient(135deg, rgb(var(--detail-accent) / .13), transparent 72%); }
+        .service-detail-heading { display:flex; align-items:center; gap:.45rem; color:var(--detail-accent-strong); font:700 .72rem/1.35 'JetBrains Mono',monospace; }
+        .service-detail-intro { margin-top:.45rem; color:var(--ink-200); font:.68rem/1.55 'Noto Serif TC',serif; }
+        .service-detail-steps { display:grid; gap:.35rem; margin-top:.65rem; }
+        .service-detail-step { display:flex; align-items:center; gap:.5rem; color:var(--ink-200); font:.62rem/1.4 'JetBrains Mono',monospace; }
+        .service-detail-step > span { display:grid; place-items:center; width:1.25rem; height:1.25rem; border-radius:50%; color:var(--detail-accent-strong); background:rgb(var(--detail-accent) / .18); border:1px solid rgb(var(--detail-accent) / .35); }
+        .service-detail-note { display:flex; gap:.4rem; margin-top:.65rem; padding-top:.55rem; border-top:1px solid rgb(var(--detail-accent) / .2); color:var(--ink-400); font:.58rem/1.45 'JetBrains Mono',monospace; }
+        html[data-theme="light"] .shop-detail-card .bloodline-detail-title { color: color-mix(in srgb, var(--detail-accent-strong) 72%, #18181b); }
+        html[data-theme="light"] .shop-detail-card .bloodline-detail-subtitle, html[data-theme="light"] .shop-detail-card .bloodline-effect-detail, html[data-theme="light"] .shop-detail-card .service-detail-intro { color: var(--ink-300); }
+        html[data-theme="light"] .shop-detail-card .bloodline-trait { color: color-mix(in srgb, var(--detail-accent-strong) 62%, #18181b); }
 </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">

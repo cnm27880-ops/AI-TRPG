@@ -4349,10 +4349,26 @@ function bloodlineEffectCopy(effect) {
   return { title: kind, detail: detail || "主神記錄的特殊能力。", icon: "fa-sparkles" };
 }
 
+const DETAIL_THEME_BY_CATEGORY = Object.freeze({ 血統: 'rose', 物品: 'cyan', 瞳術: 'violet', 稱號: 'amber', 功法: 'sky', 技藝: 'emerald', 其他: 'indigo' });
+const DETAIL_META_BY_CATEGORY = Object.freeze({ 血統: ['fa-dna', '血統檔案'], 物品: ['fa-box-open', '物品檔案'], 瞳術: ['fa-eye', '瞳術檔案'], 稱號: ['fa-award', '稱號檔案'], 功法: ['fa-book-open', '功法檔案'], 技藝: ['fa-hand-sparkles', '技藝檔案'], 其他: ['fa-wand-magic-sparkles', '服務檔案'] });
+
+function serviceDetailHtml(good, item) {
+  if (shopDisplayCategory(good) !== '其他') return '';
+  const isTimeChamber = good.goodId === 'service.精神時光屋' || String(good.name).includes('精神時光屋');
+  const title = isTimeChamber ? '精神時光屋：集中訓練' : '洗點：重置兌換';
+  const intro = isTimeChamber ? '進入獨立訓練空間，換取一段不受副本干擾的成長時間。獲得 11 XP 後會自動離開。' : '退回所有使用獎勵點數購買的兌換，讓你重新規劃角色路線；以 XP 購買的能力不會被重置。';
+  const steps = isTimeChamber ? ['確認目前位於主神空間', '支付 D+1000', '訓練至獲得 11 XP 後自動結束'] : ['確認要重置的獎勵點數兌換', '支付 C+3000', '屬性、裝備、血統與改造等兌換退回'];
+  const note = isTimeChamber ? '這是一次性服務；結束條件由伺服器記錄 XP 進度。' : '洗點沒有次數限制；XP 購買的能力與個人鑽研成果不受影響。';
+  return '<div class="service-detail-panel"><div class="service-detail-heading"><i class="fas fa-route"></i><span>' + title + '</span></div><p class="service-detail-intro">' + escapeHtml(intro) + '</p><div class="service-detail-steps">' + steps.map((step, i) => '<div class="service-detail-step"><span>' + (i + 1) + '</span><div>' + escapeHtml(step) + '</div></div>').join('') + '</div><div class="service-detail-note"><i class="fas fa-circle-info"></i>' + escapeHtml(note) + '</div></div>';
+}
+
 function bloodlineDetailHtml(item) {
   const good = item.good;
+  const displayCat = shopDisplayCategory(good);
+  const detailTheme = DETAIL_THEME_BY_CATEGORY[displayCat] ?? "zinc";
+  const detailMeta = DETAIL_META_BY_CATEGORY[displayCat] ?? ["fa-cube", "商品檔案"];
   const [titlePart, ...subtitleParts] = String(good.name ?? "未命名商品").split("：");
-  const title = titlePart || good.name || "未命名血統";
+  const title = titlePart || good.name || "未命名商品";
   const subtitle = subtitleParts.join("：") || good.narrative || "主神資料庫中的商品效果紀錄";
   const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : "zinc";
   const traits = (good.traits ?? []).length
@@ -4383,6 +4399,7 @@ function bloodlineDetailHtml(item) {
           .join("")}</div>
       </div>`
     : "";
+  const service = serviceDetailHtml(good, item);
   const blockers = (item.blockers ?? []).length
     ? `<div class="bloodline-detail-section bloodline-detail-blockers"><div class="bloodline-detail-section-label"><i class="fas fa-lock"></i> 尚不可兌換</div><div class="shop-item-blockers">${item.blockers
         .map((blocker) => `<div class="text-[10px] text-amber-200/80 leading-snug"><span class="font-semibold">${escapeHtml(blocker.code)}</span> · ${escapeHtml(blocker.message)}</div>`)
@@ -4392,10 +4409,10 @@ function bloodlineDetailHtml(item) {
     ? `<span class="shop-detail-buy px-3 py-2 rounded border border-zinc-700 text-zinc-500 text-[11px] font-mono font-bold text-center">尚未開放</span>`
     : `<button data-shop-buy="${escapeHtml(good.goodId)}" ${item.purchasable ? "" : "disabled"} class="shop-detail-buy px-3 py-2 rounded text-[11px] font-mono font-bold transition-all ${item.purchasable ? "bg-amber-500/20 border border-amber-400/55 text-amber-200 hover:bg-amber-500/30 hover:-translate-y-px" : "border hairline-border text-zinc-600 cursor-not-allowed"}">${item.purchasable ? "兌換這項商品" : "尚不可兌換"}</button>`;
 
-  return `<div>
+  return `<div class="shop-detail-card shop-detail-theme-${detailTheme}">
     <div class="bloodline-detail-hero">
       <button type="button" class="bloodline-detail-close" onclick="closeModal('bloodlineDetailModal')" aria-label="關閉商品詳情"><i class="fas fa-times"></i></button>
-      <div class="bloodline-detail-kicker"><i class="fas fa-cube"></i> Main God Archive / 商品詳情</div>
+      <div class="bloodline-detail-kicker"><i class="fas ${detailMeta[0]}"></i> Main God Archive / ${detailMeta[1]}</div>
       <div id="bloodline-detail-title" class="bloodline-detail-title">${escapeHtml(title)}</div>
       <div class="bloodline-detail-subtitle">${escapeHtml(subtitle)}</div>
       <div class="bloodline-detail-meta">
@@ -4405,7 +4422,7 @@ function bloodlineDetailHtml(item) {
         <span class="bloodline-detail-pill bloodline-detail-pill-price"><i class="fas fa-coins"></i>${escapeHtml(item.price)}</span>
       </div>
     </div>
-    <div class="bloodline-detail-body">${traits}${pool}${effects}${blockers}
+    <div class="bloodline-detail-body">${service}${traits}${pool}${effects}${good.narrative && !service ? `<div class="shop-detail-narrative"><div class="bloodline-detail-section-label"><i class="fas fa-scroll"></i> 商品說明</div><p>${escapeHtml(good.narrative)}</p></div>` : ""}${blockers}
       <div class="bloodline-detail-footer">
         <div class="bloodline-detail-source">資料來源：${escapeHtml(good.sourceRef || "主神商店型錄")}</div>
         ${purchaseButton}
