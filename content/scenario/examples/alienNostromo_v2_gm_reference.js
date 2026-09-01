@@ -2239,6 +2239,116 @@ export default {
               }
             }
           }
+        },
+        {
+          "id": "app_stalk_investigate_egg",
+          "label": "靠近貨櫃陰影裡那幾叢半開的皮革狀囊袋",
+          "intent": "確認巢穴外圍那些囊袋到底是什麼",
+          "requiresCheck": true,
+          "attribute": "感知",
+          "skill": "求生",
+          "difficulty": "困難",
+          "required": {
+            "locations": [
+              "loc_cargo"
+            ],
+            "flagsAbsent": [
+              "flag_cargo_egg_done"
+            ]
+          },
+          "outcomes": {
+            "大成功": {
+              "text": "你在三公尺外停下，用手電筒斜切過去。那不是貨物：五、六個成人高的皮革狀囊袋半開著，邊緣像被從內側撐開的花瓣，內壁還在滲出黏液。你把整片區域的形狀記進腦子裡，然後一步一步退回橫樑，沒有讓任何一顆囊袋感覺到溫度。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_nest_found"
+                ],
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "成功": {
+              "text": "手電筒的光圈掃過去，那些半開的囊袋在光下反出濕潤的暗紅。你確認了它們是活的，也確認了自己不該再往前——然後才發現腳邊的積水正在把你的體溫傳過去。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_nest_found"
+                ],
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "驚險成功": {
+              "text": "最近的那一顆在你靠近到兩步時開始張開，邊緣的皮革一層層翻出去。你及時把重心壓低往後滾，金屬地板被撞出一聲悶響——你看清楚了，代價是這個貨艙現在知道你在哪裡。",
+              "effects": {
+                "cluesAdd": [
+                  "clue_alien_trace"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_nest_found",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "些微失敗": {
+              "text": "光圈晃了一下，你只捕捉到一團濕潤的輪廓就本能地退開。你知道那裡有東西不對，但說不出它是什麼——那種說不出來本身就讓人更不想靠近。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "你俯身要看清楚囊袋內側的時候，裡面的東西先動了。一團蒼白的多節肢生物彈上來扣住你的面罩邊緣，指節般的肢體在你的臉頰上刮出血痕。你用槍托把它砸開，它落回積水裡抽搐——但那幾秒鐘，它的尾端確實纏過你的脖子。",
+              "effects": {
+                "injuriesAdd": [
+                  "impact_hand_minor"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_nest_found",
+                  "flag_parasite_exposure",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            },
+            "慘烈失敗": {
+              "text": "囊袋在你正上方張開。你甚至沒看清它是怎麼落下來的——視野先被一層濕冷的皮膜蓋住，然後是無法呼吸。你在積水裡翻滾了不知道多久，才把那東西從臉上撕下來扔進黑暗。你跪在那裡乾嘔，喉嚨深處有一種說不上來的、不屬於自己的觸感。",
+              "effects": {
+                "injuriesAdd": [
+                  "suffocation_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_cargo_egg_done",
+                  "flag_cargo_stalk_done",
+                  "flag_alien_nest_found",
+                  "flag_parasite_exposure",
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 3
+              }
+            }
+          }
         }
       ],
       "sceneExit": {
@@ -5092,6 +5202,9 @@ export default {
             "items": [],
             "locations": [
               "loc_lower_deck"
+            ],
+            "flagsAbsent": [
+              "flag_escape_toolkit_taken"
             ]
           },
           "outcomes": {
@@ -5102,7 +5215,10 @@ export default {
                   "item_blowtorch"
                 ],
                 "timeCost": 1,
-                "threatDelta": 0
+                "threatDelta": 0,
+                "worldFlagsAdd": [
+                  "flag_escape_toolkit_taken"
+                ]
               }
             }
           }
@@ -5336,6 +5452,87 @@ export default {
                   }
                 }
               ]
+            }
+          }
+        },
+        {
+          "id": "app_escape_hide",
+          "label": "縮進側邊的維修凹槽，等牠過去",
+          "intent": "不硬碰硬，等一個空隙再衝氣閘",
+          "requiresCheck": true,
+          "attribute": "敏捷",
+          "skill": "潛行",
+          "difficulty": "困難",
+          "required": {
+            "items": [],
+            "locations": [
+              "loc_lower_deck"
+            ]
+          },
+          "outcomes": {
+            "成功": {
+              "text": "你把自己折進管線與艙壁之間那道不到肩寬的凹槽，把呼吸壓到最慢。牠從你面前經過，尾巴掃過凹槽口的金屬，離你的膝蓋不到一個手掌。腳步聲往反方向遠去之後，你數到十，才滑出來直接摸向氣閘。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 0
+              }
+            },
+            "驚險成功": {
+              "text": "凹槽比你想的淺。你貼著艙壁時肩上的裝備扣環刮出一聲細響，牠停了下來——停了很久。等牠終於移開，你幾乎是從凹槽裡跌出來衝向氣閘的。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_noise_made"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 1
+              }
+            },
+            "些微失敗": {
+              "text": "你等得太久，倒數的震動先把凹槽上方的管線震裂。滾燙的蒸氣噴在你和牠之間，你趁那團白霧衝了出去——氣閘的外環在你身後合上時，密封條發出不該有的聲音。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_airlock_damaged"
+                ],
+                "playerLocation": "loc_narcissus_airlock",
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "失敗": {
+              "text": "牠沒有走。牠在凹槽外面停了下來，用某種你不願意去理解的方式，慢慢地把頭轉向你藏身的方向。你在牠低頭之前先滾了出來，退回下層甲板的另一側——你還在這艘船上，而且現在牠知道你會躲。",
+              "effects": {
+                "worldFlagsAdd": [
+                  "flag_noise_made"
+                ],
+                "timeCost": 1,
+                "threatDelta": 2
+              }
+            },
+            "慘烈失敗": {
+              "text": "凹槽的底部不是艙壁。你往後靠的時候整個人陷進一層濕黏的、像被從內側織出來的東西裡——那是被繭化的殘骸，而殘骸中間還有一顆沒有破的囊袋。它在你的背壓上去的瞬間張開。你是連滾帶爬撞開氣閘外環的，臉上還掛著那層撕不乾淨的黏膜；牠也跟著進來了。",
+              "effects": {
+                "injuriesAdd": [
+                  "suffocation_major"
+                ],
+                "worldFlagsAdd": [
+                  "flag_escaped_to_narcissus",
+                  "flag_alien_followed",
+                  "flag_parasite_exposure"
+                ],
+                "playerLocation": "loc_narcissus",
+                "timeCost": 1,
+                "threatDelta": 3,
+                "unlockEvents": [
+                  "evt_narcissus_shadow_wake"
+                ]
+              }
             }
           }
         },
