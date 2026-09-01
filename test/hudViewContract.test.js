@@ -89,16 +89,30 @@ test("主線百分比不再出現在玩家面板的 payload，但伺服器仍然
 });
 
 test("重大劇情只投影已揭露的節點，hidden 的整條不出現", () => {
+  // [2026-09-01 第二階段] fixture 換成真正的目錄形狀：獎勵掛在各個 resolution 上
+  // （937 有三段：partial 100 / revealed 300 / evidence_saved 500），不是節點層級一個數字。
   const reference = {
     majorStoryNodes: [
-      { id: "msn_luyuan_fate", title: "陸遠的命運", irreversible: true, reward: { points: 500 } },
-      { id: "msn_937", title: "937 指令的真相", reward: { points: 300 } },
-      { id: "msn_ash_fate", title: "Ash 的命運" },
+      {
+        id: "msn_luyuan_fate",
+        title: "陸遠的命運",
+        irreversible: true,
+        resolutions: [{ id: "survived", points: 500 }, { id: "dead", points: 0 }],
+      },
+      {
+        id: "msn_937",
+        title: "937 指令的真相",
+        resolutions: [{ id: "evidence_saved", points: 500 }, { id: "revealed", points: 300 }, { id: "partial", points: 100 }],
+      },
+      { id: "msn_ash_fate", title: "Ash 的命運", resolutions: [{ id: "destroyed", points: 300 }] },
     ],
   };
   const referenceState = {
     majorStoryState: {
-      msn_luyuan_fate: { visibility: "discovered", status: "resolved", resolution: "survived", rewardGranted: true },
+      msn_luyuan_fate: {
+        visibility: "discovered", status: "resolved", resolution: "survived",
+        rewardPoints: 500, rewardGranted: true,
+      },
       msn_937: { visibility: "discovered", status: "unresolved" },
       msn_ash_fate: { visibility: "hidden", status: "unresolved" },
     },
@@ -121,6 +135,10 @@ test("重大劇情只投影已揭露的節點，hidden 的整條不出現", () =
   // 還沒解決的節點不送 resolution 欄位，前端才不用分辨兩種「沒有」。
   assert.equal("resolution" in projected[1], false);
   assert.equal(projected[1].turningReward.status, "unclaimed");
+  // 未解決時顯示這條線的**上限**（937 三段裡最高的 500），讓玩家知道值不值得追；
+  // 已解決時顯示實際拿到的那一種（陸遠 survived = 500）。
+  assert.equal(projected[1].turningReward.points, 500);
+  assert.equal(projected[0].turningReward.points, 500);
 });
 
 test("第二階段之前沒有 majorStoryState，投影是空陣列而不是壞掉", () => {

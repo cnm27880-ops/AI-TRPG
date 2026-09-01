@@ -157,7 +157,12 @@ export function publicMajorStoryNodes(reference, referenceState) {
       ...(state.status === "resolved" && state.resolution ? { resolution: state.resolution } : {}),
       ...(node.irreversible ? { irreversible: true } : {}),
       turningReward: {
-        points: Number(node.reward?.points) || 0,
+        // 已解決 → 實際拿到的那一種 resolution 值多少（存檔裡的 rewardPoints）。
+        // 未解決 → 這條線最高值多少，讓玩家知道值不值得追。兩者都不是這裡臨場算的：
+        // 前者是引擎定案時寫下的事實，後者是副本作者宣告的上限。
+        points: state.status === "resolved"
+          ? Number(state.rewardPoints) || 0
+          : Math.max(0, ...(node.resolutions ?? []).map((item) => Number(item?.points) || 0), 0),
         status: state.rewardGranted ? "granted" : "unclaimed",
       },
     }));

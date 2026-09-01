@@ -135,6 +135,10 @@ import {
   NPC_STATE_LEGEND,
 } from "../../content/scenario/npcStateMachine.js";
 import { buildNpcCooperationContract } from "../../content/scenario/npcCooperationContract.js";
+import {
+  buildMajorStoryNodeBlock,
+  MAJOR_STORY_NODE_LEGEND,
+} from "../../content/scenario/majorStoryNodes.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -838,6 +842,8 @@ async function executeTurn(context, streamHooks = null) {
       state: referenceState,
       resolution: referenceResolution,
       outcomeTier: referenceTier,
+      // 只用來記錄重大劇情節點是「哪一回合定案的」，方便事後稽核。
+      turnNumber: (session?.turns ?? 0) + 1,
     });
     if (referenceApplied.applied) {
       referenceState = referenceApplied.state;
@@ -1088,6 +1094,11 @@ async function executeTurn(context, streamHooks = null) {
     // 只吃 scenarioReference，而副本整場不變，所以這段字串整場逐字相同——
     // 這是它能待在 system message 的前提（見 npcCooperationContract.js 的檔頭）。
     npcCooperationContract: scenarioReference ? buildNpcCooperationContract(scenarioReference) : null,
+    // 只有真的有變動時才會有 [MAJOR_NODES_CHANGED] 那一段；未定案的清單則每回合都送，
+    // 因為它是一條禁令而不是一則通知（見 majorStoryNodes.js 的說明）。
+    majorStoryBlock: scenarioReference && referenceState
+      ? buildMajorStoryNodeBlock(scenarioReference, referenceState, referenceApplied?.majorStoryChanges ?? [])
+      : null,
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
@@ -1944,6 +1955,7 @@ function buildPromptLayers({
   dmMemo,
   npcActiveState = null,
   npcCooperationContract = null,
+  majorStoryBlock = null,
   referenceBlock,
   freeActionContractPrompt = null,
   threatDirective,
@@ -1963,6 +1975,9 @@ function buildPromptLayers({
     // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
     // 把說明跟數字寫在一起是很自然的直覺，也是這裡最貴的一種錯法。
     referenceMode ? NPC_STATE_LEGEND : null,
+    // 重大劇情節點的讀法與「不可以越權寫結果」的規則。整場逐字不變，所以住在這裡；
+    // 每回合會變的只有動態層那一兩行 id。跟 NPC_STATE_LEGEND 是同一刀。
+    referenceMode ? MAJOR_STORY_NODE_LEGEND : null,
     // NPC 固定檔案：共用安全規則 + 各角色的人設、Agenda／Taboo／Knowledge 基線。
     // 這些字以前是四段動態區塊各抄一份（場上兩個 NPC 就每回合白付兩份），
     // 但它整場遊戲逐字不變——所以它屬於這裡。見 npcCooperationContract.js 的檔頭。
@@ -1997,6 +2012,9 @@ function buildPromptLayers({
     );
   }
   if (referenceBlock) dynamicBlocks.push(referenceBlock);
+  // 重大劇情節點：這一回合剛定案的變動 + 仍然不可以被寫成已發生的清單。
+  // 排在迫近度／套路指令之前，因為它是「哪些結果已經是事實」的前提，不是語氣調整。
+  if (majorStoryBlock) dynamicBlocks.push(majorStoryBlock);
   if (threatDirective) dynamicBlocks.push(threatDirective);
   if (retreadDirective) dynamicBlocks.push(retreadDirective);
   if (referenceMode) {

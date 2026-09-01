@@ -11,6 +11,7 @@
 
 import { difficultyToDc, validateOption } from "../turnOptions.js";
 import { matchReferenceCondition } from "./conditions.js";
+import { evaluateMajorStoryNodes, normalizeMajorStoryState } from "./majorStoryNodes.js";
 import { applyDamage } from "../../core/health.js";
 import {
   synchronizeExplorationState,
@@ -270,6 +271,9 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     sceneTurnCount: 0,
     actionHistory: [],
     endingId: null,
+    // 重大劇情節點的狀態（見 majorStoryNodes.js）。跟 flags 分開存：flags 是世界事實，
+    // 這裡是「引擎對那些事實下的結論」，而且結論一旦定案就鎖住、不再每回合重算。
+    majorStoryState: normalizeMajorStoryState(reference, null),
     // 副本可以覆寫狀態軸的起始值（例如侏羅紀副本一開場就是 shipStatus:"blackout"）。
     // 只允許覆寫引擎已知的軸，避免副本資料偷渡新的 runtime 欄位。
     ...Object.fromEntries(
@@ -318,6 +322,7 @@ export function normalizeReferenceState(reference, rawState) {
       ? rawState.sceneTurnCount
       : 0,
     actionHistory: Array.isArray(rawState.actionHistory) ? rawState.actionHistory.slice(-24) : [],
+    majorStoryState: normalizeMajorStoryState(reference, rawState.majorStoryState),
   };
   return synchronizeExplorationState(reference, normalized);
 }
@@ -931,8 +936,13 @@ function effectSummary(effects = {}) {
   };
 }
 
-/** 套用一個已經由引擎判定的 reference result，回傳 immutable state 與節點/場景推進訊號。 */
-export function applyReferenceResult({ reference, state, resolution, outcomeTier }) {
+/**
+ * 套用一個已經由引擎判定的 reference result，回傳 immutable state 與節點/場景推進訊號。
+ *
+ * @param {number} [turnNumber] 只用來記錄重大劇情節點的 resolvedAtTurn（稽核用）。
+ *   不傳就是 0——節點仍然會正確定案，只是查不到「哪一回合定的」。
+ */
+export function applyReferenceResult({ reference, state, resolution, outcomeTier, turnNumber = 0 }) {
   if (!resolution?.matched) return { applied: false, state, error: "沒有可套用的 reference action" };
   const selected = resultForOutcome(resolution.approach, outcomeTier);
   if (!selected) {
@@ -998,6 +1008,17 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     outcomeTier: selected.key,
   });
 
+  // [2026-09-01 第二階段] 重大劇情節點的重新評估。
+  //
+  // 位置是刻意的：這裡是**所有狀態變更的匯流點**——基礎 effects、conditionalEffects、
+  // 狀態軸、NPC 狀態與探索紀錄全部套用完之後。掛在 turn.js 只會蓋到一般回合那條路徑，
+  // travel 與戰鬥收尾就漏了。
+  //
+  // evaluateMajorStoryNodes() 的簽章裡沒有任何參數可以傳敘事文字，所以
+  // 「AI 寫了陸遠死了」在結構上就不可能讓節點解決（見該模組檔頭）。
+  const majorStory = evaluateMajorStoryNodes(reference, nextState, { turnNumber });
+  nextState = { ...nextState, majorStoryState: majorStory.majorStoryState };
+
   const nextNode = nextScene?.nodeId ?? null;
   // 這個場景離場時關掉哪個節點：優先採用作者在 sceneExit.completeNode 明寫的那個。
   //
@@ -1033,6 +1054,8 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     sceneTurnCount: nextState.sceneTurnCount,
     transition: selected.result.effects?.sceneTransition ?? (sceneAdvanced ? "advance" : "stay"),
     nextSceneId: nextState.currentSceneId,
+    // 這一回合真的變動的重大節點。沒有變動就是空陣列，呼叫端據此決定要不要送那一段提示。
+    majorStoryChanges: majorStory.changes,
     nodeComplete,
     finaleComplete,
     endingId,

@@ -7166,5 +7166,353 @@
       "異形補充.md"
     ],
     "policy": "原始 Gemini 文字只提供玩家演出；effects、tier、旗標、位置、戰鬥與結局判定仍由 engine/reference 裁定。"
-  }
+  },
+  "majorStoryNodes": [
+    {
+      "id": "msn_937",
+      "title": "937 指令的真相",
+      "irreversible": true,
+      "visibility": {
+        "any": [
+          {
+            "anyClues": [
+              "clue_order_937"
+            ]
+          },
+          {
+            "anyFlags": [
+              "flag_937_partial",
+              "flag_937_path_known"
+            ]
+          }
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "evidence_saved",
+          "points": 500,
+          "when": {
+            "allFlags": [
+              "flag_937_evidence_saved"
+            ]
+          }
+        },
+        {
+          "id": "revealed",
+          "points": 300,
+          "when": {
+            "allFlags": [
+              "flag_order_937_revealed"
+            ]
+          }
+        },
+        {
+          "id": "partial",
+          "points": 100,
+          "onlyOnClose": true,
+          "when": {
+            "any": [
+              {
+                "anyClues": [
+                  "clue_order_937"
+                ]
+              },
+              {
+                "anyFlags": [
+                  "flag_937_partial"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "any": [
+            {
+              "stateEquals": {
+                "shipStatus": "overload_started"
+              }
+            },
+            {
+              "anyFlags": [
+                "flag_escaped_to_narcissus"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_luyuan_fate",
+      "title": "陸遠的命運",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_luyuan_met"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "survived",
+          "points": 500,
+          "when": {
+            "npcStatusAny": {
+              "npc_luyuan": [
+                "survived"
+              ]
+            }
+          }
+        },
+        {
+          "id": "dead",
+          "points": 0,
+          "when": {
+            "npcStatusAny": {
+              "npc_luyuan": [
+                "dead"
+              ]
+            }
+          }
+        },
+        {
+          "id": "abandoned",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_luyuan_abandoned"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "msn_ash_fate",
+      "title": "Ash 的命運",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_ash_talked",
+          "flag_ash_suspicious",
+          "flag_ash_synthetic_known",
+          "flag_ash_hostile"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "destroyed",
+          "points": 300,
+          "when": {
+            "npcStatusAny": {
+              "npc_ash": [
+                "destroyed"
+              ]
+            }
+          }
+        },
+        {
+          "id": "delayed",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_ash_delayed"
+            ]
+          }
+        },
+        {
+          "id": "at_large",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_brett_fate",
+      "title": "Brett 的下落",
+      "irreversible": true,
+      "visibility": {
+        "anyClues": [
+          "clue_brett_fate"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "confirmed_dead",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_brett_confirmed"
+            ]
+          }
+        },
+        {
+          "id": "unconfirmed",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_xenomorph_fate",
+      "title": "異形的最終命運",
+      "irreversible": true,
+      "visibility": {
+        "any": [
+          {
+            "anyClues": [
+              "clue_alien_trace"
+            ]
+          },
+          {
+            "anyFlags": [
+              "flag_alien_alert"
+            ]
+          }
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "killed",
+          "points": 1000,
+          "when": {
+            "allFlags": [
+              "flag_xenomorph_killed"
+            ]
+          }
+        },
+        {
+          "id": "followed_aboard",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {
+            "allFlags": [
+              "flag_alien_followed"
+            ]
+          }
+        },
+        {
+          "id": "left_on_nostromo",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_sample_fate",
+      "title": "樣本的去向",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_sample_unstable",
+          "flag_sample_preserved",
+          "flag_sample_destroyed",
+          "flag_sample_spilled"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "preserved",
+          "points": 400,
+          "when": {
+            "allFlags": [
+              "flag_sample_preserved"
+            ]
+          }
+        },
+        {
+          "id": "destroyed",
+          "points": 0,
+          "when": {
+            "anyFlags": [
+              "flag_sample_destroyed",
+              "flag_sample_spilled"
+            ]
+          }
+        },
+        {
+          "id": "left_behind",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_infection",
+      "title": "感染的下場",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_infection_suspected",
+          "flag_infected",
+          "flag_infection_unresolved",
+          "flag_infection_cleared"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "cleared",
+          "points": 500,
+          "when": {
+            "allFlags": [
+              "flag_infection_cleared"
+            ]
+          }
+        },
+        {
+          "id": "infected",
+          "points": 0,
+          "when": {
+            "stateEquals": {
+              "infectionStatus": "infected"
+            }
+          }
+        },
+        {
+          "id": "unresolved_at_sleep",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    }
+  ]
 }
