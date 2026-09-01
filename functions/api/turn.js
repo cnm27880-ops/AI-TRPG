@@ -78,6 +78,7 @@ import {
 } from "../../content/turnOptions.js";
 import { getScenarioPack, getScenarioReference, isRetiredScenarioId } from "../../content/scenario/registry.js";
 import { creditNodeReward, settleScenario } from "../../content/scenario/settlement.js";
+import { grantOnce, pendingTurningPointRewards } from "../../content/scenario/rewardLedger.js";
 import { publicEndingPresentation } from "../../content/godspace/debrief.js";
 import {
   findActiveNode,
@@ -1653,7 +1654,13 @@ async function executeTurn(context, streamHooks = null) {
           // 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
           // 在錢包進存檔之前這裡沒有地方放它，只好塞進 character.xp；現在放回該去的地方。
           // XP 改由副本通關時結算，見 content/scenario/settlement.js 的檔頭。
-          const credited = creditNodeReward(session.wallet, result.reward, settlementNode.title);
+          const credited = creditNodeReward(progress, session.wallet, {
+            nodeId: settlementNode.id,
+            points: result.reward,
+            label: settlementNode.title,
+            turn: (session.turns ?? 0) + 1,
+          });
+          progress = credited.progress;
           session.wallet = credited.wallet;
           const ts = new Date().toISOString();
           appendEvent(
@@ -1690,6 +1697,33 @@ async function executeTurn(context, streamHooks = null) {
       progress = bumpNodeStall(progress, activeNode.id);
     }
 
+    // [2026-09-01 第三階段] 扭轉獎勵：重大劇情節點剛剛定案的那些，這裡入帳。
+    //
+    // 排在節點結算之後、通關結算之前，對應討論稿 §九 那條流程的
+    // 「重新評估重大劇情節點 → 發放新獲得的扭轉獎勵」。
+    // 待發清單只讀 majorStoryState（evaluateMajorStoryNodes 寫下的事實），
+    // 不重新判定任何節點；同一筆的冪等性由 rewardId 在帳本裡的存在與否保證。
+    if (scenarioReference && referenceState) {
+      for (const pending of pendingTurningPointRewards(scenarioReference, referenceState, progress)) {
+        const granted = grantOnce(progress, session.wallet, {
+          rewardId: pending.rewardId,
+          type: "turning_point",
+          points: pending.points,
+          turn: (session.turns ?? 0) + 1,
+          label: pending.label,
+        });
+        if (!granted.granted) continue;
+        progress = granted.progress;
+        session.wallet = granted.wallet;
+        appendEvent(
+          session.log,
+          EVENT_TYPES.POINTS_GRANT,
+          { total: pending.points, reason: `重大劇情扭轉「${pending.label}」` },
+          { timestamp: new Date().toISOString(), scenarioId: scenarioPack.id, turn: (session.turns ?? 0) + 1 }
+        );
+      }
+    }
+
     if (combatRequired) progress = { ...progress, pendingCombat: true };
 
     // 副本通關結算：算XP進錢包，並且商店的門在這一刻打開(見 content/shop/access.js)。
@@ -1697,7 +1731,10 @@ async function executeTurn(context, streamHooks = null) {
     // 通關之後玩家還會繼續在主神空間逛，這裡每一輪都會再走一次。
     const referenceSettlementReady = !scenarioReference || Boolean(referenceState?.endingId || referenceState?.flags?.includes("flag_hypersleep_entered"));
     if (getProgressSummary(scenarioPack, progress).scenarioComplete && referenceSettlementReady) {
-      const settlement = settleScenario(scenarioPack, progress, character, session.wallet, { referenceState });
+      const settlement = settleScenario(scenarioPack, progress, character, session.wallet, {
+        referenceState,
+        turn: (session.turns ?? 0) + 1,
+      });
       if (settlement.settled) {
         session.wallet = settlement.wallet;
         progress = settlement.progress;
