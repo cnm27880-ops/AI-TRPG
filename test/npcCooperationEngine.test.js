@@ -156,6 +156,12 @@ test("沒有 reference 或 reference 沒宣告 knowledge 時，靜態契約仍�
     const contract = buildNpcCooperationContract(reference);
     assert.match(contract, /NPC 合作契約/);
     assert.match(contract, /陸遠/, "人設本身不依賴 reference");
-    assert.doesNotMatch(contract, /Knowledge 白名單基線/, "沒宣告就不要印一個空的白名單");
+    // [2026-09-01] 斷言從裸片語收緊成「那一行的實際長相」。
+    // 原因：共用規則現在會用「Knowledge 白名單基線」這個詞去**解釋**它是什麼意思，
+    // 所以光比對片語會把說明文字也算成「印了一個空白名單」。
+    // 每個 NPC 的那一行長成 `  Knowledge 白名單基線：…`（縮排 + 全形冒號），
+    // 用冒號當判別字元，問的才是原本想問的問題：沒宣告時有沒有多印一行空的。
+    assert.doesNotMatch(contract, /Knowledge 白名單基線：/, "沒宣告就不要印一個空的白名單");
+    assert.doesNotMatch(contract, /已知事實（可直接陳述/, "沒宣告就不要印一個空的事實清單");
   }
 });

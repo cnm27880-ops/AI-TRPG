@@ -34,6 +34,10 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * @property {string[]} prerequisites 前置節點id
  * @property {number} baseRewardPoints 這個節點在「完全遵循原劇情」時的基礎積分獎勵
  * @property {number} baseDC 這個節點相關判定的基礎難度
+ * @property {object[]} [completionEvidence] 選填。這個節點「真的完成了」需要哪些引擎事實。
+ *   陣列成員之間是 AND，成員內部的 any* 欄位是 OR（求值器見 content/scenario/conditions.js）。
+ *   只讀 referenceState（flags / clues / npcStatuses / 狀態軸），**不讀任何 AI 敘事文字**。
+ *   不填代表沿用舊行為（由場景轉場推斷完成），沒有 reference 的副本一律不受影響。
  * @property {boolean} [isFinale] 選填。標記這是本章節的最終戰節點，必須搭配 bossEncounter。
  * @property {BossEncounter} [bossEncounter] 選填。isFinale=true 時必填，最終戰用的敵人樣板。
  */

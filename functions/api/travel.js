@@ -193,7 +193,11 @@ export async function onRequestPost(context) {
       .flatMap((chapter) => chapter.nodes ?? [])
       .find((node) => node.id === departingNodeId && !node.isFinale);
     if (departingNode && !nextProgress.nodes?.[departingNode.id]?.completed) {
-      const settled = completeNodeAndAdvance(pack, nextProgress, departingNode.id, 0);
+      // 移動同樣要過完成證據閘門。這條路徑目前只有宣告 travelCompletesNodes 的副本會走到
+      // （Alien V2 沒有宣告），但預設 fail-closed，漏傳就是擋下，不會變成一條繞過閘門的捷徑。
+      const settled = completeNodeAndAdvance(pack, nextProgress, departingNode.id, 0, {
+        evidenceState: travelResult.state,
+      });
       if (settled.ok) {
         nextProgress = settled.progress;
         const credited = creditNodeReward(session.wallet, settled.reward, departingNode.title);

@@ -1121,3 +1121,56 @@ test("engineering preparation is a playable predecessor and cannot bypass overlo
   assert.equal(overload.state.currentLocation, "loc_engine");
   assert.equal(overload.effects.timeCost, 0);
 });
+
+// ---------------------------------------------------------------------------
+// [2026-09-01] NPC 終局狀態的單向守衛（第零階段）
+//
+// applyBasicEffects 以前是無條件覆寫 npcStatuses，於是資料裡的一筆矛盾就能讓人復活：
+// evt_ash_ambush / app_ash_shoot 的「大成功」設 npc_ash=destroyed，
+// 「慘烈失敗」設 npc_ash=alive。deriveEndingId() 讀的正是 npcStatuses，
+// 所以那等於「結局可以被後續回合的一次失敗抹掉」。
+// ---------------------------------------------------------------------------
+
+test("NPC 終局狀態不可被後續 effects 降級——死亡是不可逆的", () => {
+  const character = emptyCharacter("單向守衛測試者");
+  const state = normalizeReferenceState(reference, {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    npcStatuses: { npc_ash: "destroyed" },
+  });
+
+  const option = buildReferenceOptions(reference, state).find((item) => item.reference.approachId === "app_ash_shoot");
+  assert.ok(option, "evt_ash_ambush 應該提供 app_ash_shoot");
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+
+  // 這個 tier 的 effects 明寫 npc_ash: "alive" —— 資料本身就矛盾，引擎必須擋下來。
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "慘烈失敗" });
+  assert.equal(applied.applied, true);
+  assert.equal(applied.state.npcStatuses.npc_ash, "destroyed", "destroyed 不可以被改回 alive");
+});
+
+test("NPC 還沒進終局時，狀態照常推進(守衛只擋降級，不擋正常轉移)", () => {
+  const character = emptyCharacter("單向守衛測試者");
+  const state = normalizeReferenceState(reference, {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    npcStatuses: { npc_ash: "suspicious" },
+  });
+  const option = buildReferenceOptions(reference, state).find((item) => item.reference.approachId === "app_ash_shoot");
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "大成功" });
+  assert.equal(applied.state.npcStatuses.npc_ash, "destroyed", "suspicious → destroyed 是正常的終局轉移");
+});
+
+test("節點完成採用作者明寫的 sceneExit.completeNode，不是引擎自己推的 scene.nodeId", () => {
+  // 這個欄位在 6 個場景裡都寫了，但在此之前從來沒有人讀過它。
+  // Alien V2 兩者剛好每一筆都相同，所以這條測的是「引擎讀的是宣告值」這件事本身：
+  // 下一個副本只要兩者不同，隱含規則就會安靜地推錯節點。
+  const declared = reference.scenes.filter((scene) => scene.sceneExit?.completeNode);
+  assert.ok(declared.length >= 6, "reference 應該有宣告 completeNode 的場景");
+  for (const scene of declared) {
+    assert.equal(scene.sceneExit.completeNode, scene.nodeId, `${scene.id} 的宣告值與 nodeId 目前應一致`);
+  }
+});

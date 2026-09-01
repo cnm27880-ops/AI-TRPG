@@ -1943,7 +1943,12 @@ function updateScenarioHud(scenario) {
       appendFeedEvent(
         "world",
         `劇情節點完成：${escapeHtml(n.title)}`,
-        `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點經驗`,
+        // [2026-09-01] 這一行以前把節點獎勵說成 XP。伺服器在 2026-08-17 就已經把它
+        // 改回**獎勵點數**進錢包了（content/scenario/settlement.js 的 creditNodeReward，
+        // 檔頭記著那次修正的理由），XP 改成只在副本通關時結算——但前端文案停在修正之前，
+        // 於是畫面上這行字對玩家說了一段時間的謊：他拿到的是能在主神商店花的分數，
+        // 不是 XP，兩者的用途與花費地點完全不同。
+        `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點獎勵點數`,
         { tone: "good" }
       );
     });

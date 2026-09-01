@@ -153,6 +153,16 @@ export const NOSTROMO_SCENARIO_V2 = {
           prerequisites: [],
           baseRewardPoints: 150,
           baseDC: 1,
+          // 「確認船艦現況、倖存者位置與最初的逃生方向」= 接觸到倖存者 + 手上有一條
+          // 關於船上還有東西在動的線索。在此之前這個節點的完成判準是「走出科學區的門」。
+          //
+          // 兩項都刻意給多個來源：flag_luyuan_met 有五個產生點（其中 app_deck_luyuan_contact
+          // 是 requiresCheck:false 的自動結果），線索三選一分別來自休眠室、A 甲板與貨艙。
+          // 證據閘門的目的是擋掉「路過就算完成」，不是逼玩家骰到特定結果。
+          completionEvidence: [
+            { anyFlags: ["flag_luyuan_met"] },
+            { anyClues: ["clue_alien_trace", "clue_motion_route", "clue_brett_fate"] },
+          ],
         },
         {
           id: "n2",
@@ -165,6 +175,30 @@ export const NOSTROMO_SCENARIO_V2 = {
           prerequisites: ["n1"],
           baseRewardPoints: 400,
           baseDC: 2,
+          // 「取得能證明公司目的的情報」= 真的讀到 937，不是走進母核心又走出來。
+          //
+          // 接受線索或任何一個 937 旗標：資料裡這件事有三個層級
+          // （flag_937_partial 片段 / flag_order_937_revealed 完整 / flag_937_evidence_saved 帶得走），
+          // 任何一級都算「知道公司放棄了船員」。flag_937_path_known 是從 evt_meet_ash
+          // 的終端偷看來的另一條路，同樣算數——證據鏈允許不同走法，只是不允許零證據。
+          //
+          // 這條閘門有保底：app_order_manual_read 是 requiresCheck:false，
+          // 只要在母核心讀那張自動列印的摘要就一定拿得到 clue_order_937。
+          completionEvidence: [
+            {
+              any: [
+                { anyClues: ["clue_order_937"] },
+                {
+                  anyFlags: [
+                    "flag_937_partial",
+                    "flag_order_937_revealed",
+                    "flag_937_evidence_saved",
+                    "flag_937_path_known",
+                  ],
+                },
+              ],
+            },
+          ],
         },
         {
           id: "n3",
@@ -177,6 +211,20 @@ export const NOSTROMO_SCENARIO_V2 = {
           prerequisites: ["n2"],
           baseRewardPoints: 700,
           baseDC: 3,
+          // 這個節點的目標有兩半：「啟動主機超載」與「抵達水仙號」。
+          //
+          // 有意義的那一半是 flag_overload_active——它有三條 approach 可以拿到
+          // （其中 app_overload_parker 是「容易」），而且連 app_overload_manual 的慘烈失敗
+          // 都會設它。單獨要求它才是真正的閘門。
+          //
+          // [取捨] 仍然接受 flag_escaped_to_narcissus，理由是避免把最終戰鎖死：
+          // n4 的前置是 n3，玩家如果在 evt_trigger_overload 全部失敗又離場，
+          // 之後就沒有回頭路（sceneExit.canReturn:false），n3 永遠完不成 → 整場無法結算。
+          // 這個旗標由 evt_vent_ambush_escape 幾乎所有結果寫入，代表「通風管逃生真的跑完了」，
+          // 不是「走進了某個房間」，所以它是節點目標的另一半，不是繞道。
+          completionEvidence: [
+            { any: [{ allFlags: ["flag_overload_active"] }, { allFlags: ["flag_escaped_to_narcissus"] }] },
+          ],
         },
         {
           id: "n4",

@@ -106,6 +106,8 @@ import {
   referenceStateForResponse,
   narrativeModeForScene,
   validateThreatAssessment,
+  deriveEndingId,
+  matchReferenceCondition,
 } from "../../content/scenario/referenceAdapter.js";
 import {
   buildUnmatchedFreeActionContract,
@@ -1587,6 +1589,21 @@ async function executeTurn(context, streamHooks = null) {
       if (timeCost > 0) progress = spendChapterTime(progress, timeCost, actionText ?? "推進劇情");
       if (timeCost > 0 && justExpired(before, progress)) {
         warnings.push("這個章節的時間預算已經耗盡，接下來的敘事應該會轉向劣化結局，請留意場景描述。");
+        // [2026-09-01] 把「時間到了」變成 referenceState 看得見的事實。
+        //
+        // 在此之前，deriveEndingId() 會讀 flag_expire_triggered 與 flag_player_dead_overload
+        // （referenceAdapter.js 的結局判定前四行），但**整個 content/ 與 functions/ 沒有任何地方
+        // 寫入這兩個旗標**——只有測試自己塞。結果是 end_expire_ruins 與
+        // end_death_overload_vaporized 這兩個結局在正式遊玩中永遠到不了：時間預算耗盡之後
+        // 引擎只會多送一句語氣指令，世界狀態一個字都沒變。
+        //
+        // 這也是重大劇情節點的「時間窗口關閉 → 節點進入 missed」能成立的前提：
+        // 沒有這個旗標，引擎根本不知道窗口關過。
+        if (referenceState) {
+          referenceState = applyTimeExpiryToReferenceState(scenarioReference, referenceState);
+          // 本地變數換成了新物件，存檔那一份要跟著換，否則這一輪的旗標寫不進去。
+          session.scenario.referenceState = referenceState;
+        }
       }
     }
 
@@ -1615,7 +1632,11 @@ async function executeTurn(context, streamHooks = null) {
             ? null
             : validateNodeComplete(parsed.data.nodeComplete));
       if (signal) {
-        const result = completeNodeAndAdvance(scenarioPack, progress, settlementNode.id, signal.tier);
+        // evidenceState 是節點完成證據的唯一資料來源（見 progress.js 的 completeNode）。
+        // 傳的是引擎已保存的 referenceState，不是這一回合的敘事——AI 寫了什麼在這裡看不到。
+        const result = completeNodeAndAdvance(scenarioPack, progress, settlementNode.id, signal.tier, {
+          evidenceState: referenceState,
+        });
         if (result.ok) {
           progress = result.progress;
           // 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
@@ -1837,6 +1858,48 @@ async function executeTurn(context, streamHooks = null) {
     pendingTurn: null,
   };
   return json(finalPayload);
+}
+
+/**
+ * 時間預算耗盡時，把「時間到了」寫成 referenceState 看得見的事實。
+ *
+ * 旗標名稱由副本自己宣告（reference.timeExpiry），沒宣告時沿用 Alien V2 的內建值——
+ * 這跟 endingRules / finaleVictory / travelCompletesNodes 是同一套慣例：
+ * 副本專屬的判斷住在副本資料裡，turn.js 只負責在對的時機讀它。
+ *
+ * 宣告格式：
+ *   timeExpiry: {
+ *     flag: "flag_expire_triggered",          // 一定會加上的「倒數歸零」事實
+ *     deathFlag: "flag_player_dead_overload", // 選填，符合 deathWhen 時才加
+ *     deathWhen: { allFlags: [...], locationsAbsent: [...] },  // 選填，matchReferenceCondition 的條件
+ *   }
+ *
+ * [2026-09-01] 這兩個旗標在此之前**沒有任何地方寫入**，但 deriveEndingId() 一直在讀它們
+ * （referenceAdapter.js 的結局判定前四行）。結果是 end_expire_ruins 與
+ * end_death_overload_vaporized 在正式遊玩中永遠到不了：時間用完之後引擎只多送一句
+ * 語氣指令，世界狀態一個字都沒變。這也是重大劇情節點的「時間窗口關閉 → 節點進入 missed」
+ * 能成立的前提：沒有這個旗標，引擎根本不知道窗口關過。
+ *
+ * [已知落差] 侏羅紀副本的結局規則讀的是 `flag_time_expired`，同樣沒有人寫入它。
+ * 它只要在自己的 reference 補一行 `timeExpiry: { flag: "flag_time_expired" }` 就會接上，
+ * 但那會改變它兩個結局的判定結果，所以留給副本作者決定，不在這一輪順手改。
+ */
+function applyTimeExpiryToReferenceState(reference, state) {
+  const policy = reference?.timeExpiry ?? {};
+  const expiryFlag = typeof policy.flag === "string" && policy.flag ? policy.flag : "flag_expire_triggered";
+  const flags = new Set(state.flags ?? []);
+  flags.add(expiryFlag);
+  let next = { ...state, flags: [...flags] };
+
+  // 死亡分支是選填的：有些副本的逾時只是劣化結局，沒有「當場被抹掉」這種結果。
+  if (policy.deathFlag && policy.deathWhen && matchReferenceCondition(policy.deathWhen, next)) {
+    next = { ...next, flags: [...new Set([...next.flags, policy.deathFlag])] };
+  }
+
+  // 結局 id 平常是在 applyReferenceResult() 裡算的，而那一步這一回合已經跑完了。
+  // 不在這裡補算的話，玩家要再送一個回合才看得到結局，而那個回合可能永遠不會來。
+  const endingId = deriveEndingId(reference, next);
+  return endingId ? { ...next, endingId } : next;
 }
 
 /**

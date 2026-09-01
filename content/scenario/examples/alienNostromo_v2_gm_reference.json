@@ -10,6 +10,18 @@
   "finaleNodeIds": [
     "n4"
   ],
+  "timeExpiry": {
+    "flag": "flag_expire_triggered",
+    "deathFlag": "flag_player_dead_overload",
+    "deathWhen": {
+      "allFlags": [
+        "flag_overload_active"
+      ],
+      "locationsAbsent": [
+        "loc_narcissus"
+      ]
+    }
+  },
   "runtimeNote": "scenario runtime 透過 registry 與 referenceAdapter 載入本 sidecar，並使用其中的事件、物品、NPC 狀態、effects、轉場與結局條件；本檔案仍不應直接註冊到現有 SCENARIO_REGISTRY。",
   "authoringRules": {
     "truthOwner": "engine_and_reference_data",
@@ -539,10 +551,28 @@
       "role": "資深輪迴者／臨時隊伍引導者",
       "initialStatus": "alive",
       "knowledge": [
-        "主神副本規則",
-        "異形的酸血與通風管習性",
-        "水仙號位置",
-        "玩家不是原船員"
+        {
+          "id": "reincarnator_rules",
+          "fact": "這是主神空間發布的副本：新人必須完成主線任務才能離開，失敗的人會被抹殺；腕錶上看得到任務、倒數與獎勵。",
+          "source": "experience",
+          "canSay": true,
+          "scope": "可以直接對新人說明；不得說出主神的規則細節、其他副本的內容或自己過去副本的具體結果。"
+        },
+        {
+          "id": "alien_habits",
+          "fact": "船上的掠食者會利用通風管移動，牠的血是強酸，近距離攻擊牠等於把酸濺到自己身上。",
+          "source": "experience",
+          "canSay": true,
+          "scope": "可以直接警告；不得指出異形當下的精確位置，那由引擎的迫近度決定。"
+        },
+        {
+          "id": "player_not_crew",
+          "fact": "玩家不是諾斯托羅莫號的原船員。",
+          "source": "observation",
+          "canSay": true,
+          "scope": "可以直接陳述；不得把它演成陸遠正在調查的未知謎團。他不知道主神為什麼把這個人丟到這裡，那一點可以照實說不知道。"
+        },
+        "水仙號位置"
       ],
       "privateGoals": [
         "讓至少一名新人活著離開",
