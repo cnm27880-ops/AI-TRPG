@@ -2987,6 +2987,30 @@
         html[data-theme="light"] .shop-detail-card .bloodline-detail-title { color: color-mix(in srgb, var(--detail-accent-strong) 72%, #18181b); }
         html[data-theme="light"] .shop-detail-card .bloodline-detail-subtitle, html[data-theme="light"] .shop-detail-card .bloodline-effect-detail, html[data-theme="light"] .shop-detail-card .service-detail-intro { color: var(--ink-300); }
         html[data-theme="light"] .shop-detail-card .bloodline-trait { color: color-mix(in srgb, var(--detail-accent-strong) 62%, #18181b); }
+
+        /* Mobile shop QA: preserve readable cards and full-height detail dialogs on narrow touch screens. */
+        .shop-item-card { min-width: 0; }
+        .shop-item-card > .flex-1 { min-width: 0; }
+        .shop-item-card > button { flex: 0 0 auto; }
+        .bloodline-detail-panel { max-height: calc(100dvh - 2rem); }
+        @media (max-width: 639px) {
+            .shop-shelf-grid { padding: .55rem; gap: .5rem; }
+            .shop-item-card { border-radius: 8px; padding: .6rem; gap: .5rem; }
+            .shop-item-detail-hint { font-size: .52rem; }
+            .bloodline-detail-panel { width: 100%; max-width: none; }
+            #bloodline-detail-content { max-height: calc(100dvh - 2rem); }
+        }
+        @media (max-width: 380px) {
+            .shop-item-card { padding: .5rem; }
+            .shop-item-card-cat-icon { width: 1.45rem; height: 1.45rem; font-size: .62rem; }
+            .shop-item-card > button { padding-inline: .5rem; }
+            .bloodline-detail-meta { gap: .3rem; }
+            .bloodline-detail-pill { font-size: .54rem; }
+        }
+        @media (hover: none) {
+            .shop-item-card-clickable:hover { transform: none; }
+            .shop-item-card-clickable:active { transform: scale(.985); }
+        }
 </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">
