@@ -25,7 +25,10 @@ import {
   normalizeNpcRuntimeState,
   npcProfile,
   patienceLabel,
+  selectMotive,
+  assertMotivePredicates,
 } from "../content/scenario/npcStateMachine.js";
+import { NPC_PERSONAS } from "../content/scenario/npcPersonaRegistry.js";
 import { ANTI_ASSISTANT_PROTOCOL, buildStylePrompt } from "../content/narrativeStyle.js";
 import { buildNpcCooperationContract } from "../content/scenario/npcCooperationContract.js";
 
@@ -411,4 +414,139 @@ test("Ash 的語氣素材不進靜態層——他的破綻有揭露閘門", asyn
   // 他在場時仍然拿得到素材，只是走動態層（因為那份素材本身是分階段的）。
   const withAsh = { ...createReferenceState(reference), currentSceneId: "evt_meet_ash" };
   assert.match(buildNarrativeNpcPromptBlock(reference, withAsh), /npc_ash/);
+});
+
+// ---------------------------------------------------------------------------
+// [2026-09-01 第五階段] 動機引擎
+//
+// 修的是一個 stance/agenda 都回答不了的問題：**他這一刻為什麼先做這件事而不是那件事。**
+// 實測症狀是他開口第一句丟一個謎題給玩家——那句話沒有違反白名單，也沒有違反任何
+// 合作階段，它只是資訊優先序錯了。
+// ---------------------------------------------------------------------------
+
+const LUYUAN_CTX = Object.freeze({
+  coopState: "briefing",
+  threatStage: "潛伏",
+  selfPreserving: false,
+  terminalStance: false,
+  tabooTripped: false,
+  pat: 5,
+  status: "met",
+});
+
+function luyuanProfile() {
+  return npcProfile(reference, LUYUAN);
+}
+
+test("動機選擇：沒有迫近威脅的新人 → 先把生存規則講完", () => {
+  const motive = selectMotive(luyuanProfile(), { ...LUYUAN_CTX });
+  assert.equal(motive, "ORIENT_NEWCOMERS", "這正是實測那句「你應該想想自己為什麼不在船員名單上」錯掉的地方");
+});
+
+test("動機選擇：威脅貼上來時，自保壓過解釋", () => {
+  for (const threatStage of ["貼近", "接觸"]) {
+    assert.equal(selectMotive(luyuanProfile(), { ...LUYUAN_CTX, threatStage }), "PRESERVE_SELF");
+  }
+  // 潛伏／追蹤仍算「沒有迫近威脅」——他還有時間把話講完。
+  for (const threatStage of ["潛伏", "追蹤"]) {
+    assert.equal(selectMotive(luyuanProfile(), { ...LUYUAN_CTX, threatStage }), "ORIENT_NEWCOMERS");
+  }
+});
+
+test("動機選擇：踩到禁忌時，邊界防衛壓過一切", () => {
+  const motive = selectMotive(luyuanProfile(), { ...LUYUAN_CTX, threatStage: "接觸", tabooTripped: true });
+  assert.equal(motive, "GUARD_BOUNDARY", "把同伴當誘餌時，他先處理的是這件事");
+});
+
+test("動機選擇：他徹底走人之後才是 DISENGAGE，第一次爭執還不是", () => {
+  const profile = luyuanProfile();
+  // strained：他在警告你，還沒走。用 self_preserving 當條件的話這裡就會誤判成拋棄。
+  assert.equal(
+    selectMotive(profile, { ...LUYUAN_CTX, coopState: "strained", selfPreserving: true, threatStage: "接觸" }),
+    "PRESERVE_SELF"
+  );
+  // abandoned 是宣告過的終局階段（見 states.stateFlags），這時候才是真的放棄。
+  assert.equal(
+    selectMotive(profile, {
+      ...LUYUAN_CTX,
+      coopState: "abandoned",
+      selfPreserving: true,
+      terminalStance: true,
+      threatStage: "接觸",
+    }),
+    "DISENGAGE",
+    "同權重時陣列順序即優先序，而「他放棄你了」比「他在自保」更精確"
+  );
+});
+
+test("動機選擇是決定性的：同樣的局面永遠算出同一條", () => {
+  const profile = luyuanProfile();
+  const context = { ...LUYUAN_CTX, coopState: "functional" };
+  const first = selectMotive(profile, context);
+  for (let i = 0; i < 5; i += 1) assert.equal(selectMotive(profile, context), first);
+  assert.equal(first, "KEEP_ONE_ALIVE", "沒有更緊急的事時，他的底線就是他的動力");
+});
+
+test("沒有宣告動機的 NPC 回 null，動態層那一行就不會有 Motive 欄位", () => {
+  // 「沒有特別強的動力」跟「有動力但引擎算不出來」不是同一件事，不要用預設值蓋掉。
+  assert.equal(selectMotive({ motivations: [] }, { ...LUYUAN_CTX }), null);
+  assert.equal(selectMotive({}, { ...LUYUAN_CTX }), null);
+});
+
+test("requires 只能用查表裡有的條件，拼錯一個字就在載入時炸掉", () => {
+  // 拼錯的症狀是「這條動機永遠不會被選中」——不會壞、不會有測試變紅，
+  // 只會讓那個角色少一種行為模式。
+  assert.throws(
+    () => assertMotivePredicates({ npcId: "npc_x", motivations: [{ id: "M", requires: ["no_such_condition"] }] }),
+    /不存在的條件/
+  );
+  assert.throws(
+    () => assertMotivePredicates({ npcId: "npc_x", motivations: [{ id: "M", priority: "超級高", requires: [] }] }),
+    /不存在的優先序/
+  );
+  // 已登記的人設全部要通過（這一條在模組載入時就跑過一次了，這裡是把它釘住）。
+  for (const persona of NPC_PERSONAS) assertMotivePredicates(persona);
+});
+
+test("動機的內容住在靜態層，動態層只送 ID", () => {
+  const contract = buildNpcCooperationContract(reference);
+  // 為什麼、要做什麼、有什麼好處——全部在靜態契約裡，整場付一次。
+  assert.match(contract, /ORIENT_NEWCOMERS — 動機：/);
+  assert.match(contract, /新人不知道主神副本的規則/);
+  assert.match(contract, /收益：有效的引導可能換到主神提供的引導獎勵/);
+
+  let state = onStage();
+  state = step(state, 1, "這裡是哪裡？發生什麼事？", { threatStage: "潛伏" });
+  const block = buildNpcActiveStateBlock(reference, state);
+  assert.match(block, /Motive: "ORIENT_NEWCOMERS"/);
+  // 動態層一個字的說明都不送——那是這一刀最省成本的地方。
+  assert.doesNotMatch(block, /動機：|行為：|收益：/);
+  assert.doesNotMatch(block, /新人不知道主神副本的規則/);
+  // 讀法住在靜態 legend。
+  assert.match(NPC_STATE_LEGEND, /Motive：伺服器裁定的/);
+  assert.match(NPC_STATE_LEGEND, /措辭、語氣、篇幅、動作仍然完全由你決定/);
+});
+
+test("完整一段互動：動機隨局勢轉，最後在他走人時變成 DISENGAGE", () => {
+  let state = onStage();
+  const motiveAt = (turnNumber, actionText, threatStage) => {
+    const decision = applyNpcCooperationForAction({
+      reference,
+      state,
+      actionText,
+      sceneId: LUYUAN_SCENE,
+      turnNumber,
+    });
+    if (decision.changed) state = decision.state;
+    state = step(state, turnNumber, actionText, { threatStage });
+    return state.npcRuntime[LUYUAN].motive;
+  };
+
+  assert.equal(motiveAt(1, "這裡是哪裡？發生什麼事？", "潛伏"), "ORIENT_NEWCOMERS");
+  assert.equal(motiveAt(2, "我先躲進側艙", "貼近"), "PRESERVE_SELF");
+  assert.equal(motiveAt(3, "讓陸遠去擋一下，我們跑", "貼近"), "GUARD_BOUNDARY");
+  assert.equal(motiveAt(4, "我伸手去搶他的槍", "接觸"), "PRESERVE_SELF");
+  assert.equal(motiveAt(5, "我再去搶他的槍", "接觸"), "PRESERVE_SELF");
+  assert.equal(motiveAt(6, "我還是要搶他的槍", "接觸"), "DISENGAGE", "第三次越線他就走了");
+  assert.equal(state.npcCooperation[LUYUAN].state, "abandoned");
 });

@@ -937,6 +937,9 @@ async function executeTurn(context, streamHooks = null) {
         matched: Boolean(referenceResolution.matched),
         sceneTurnCount: referenceState.sceneTurnCount ?? 0,
         stalledRounds,
+        // 迫近度住在 progress 而不是 referenceState，所以動機引擎拿不到它——
+        // 由這裡帶進去。「有沒有迫近威脅」是陸遠會不會停下來解釋的分水嶺。
+        threatStage: getThreatStage(scenarioProgress?.threat?.level ?? 0)?.id ?? null,
         // 在場的 NPC 跟玩家看到同一批線索；情報差只在「他不在場」時才成立。
         newClues: referenceApplied?.applied ? referenceApplied.effects?.cluesAdd ?? [] : [],
       },

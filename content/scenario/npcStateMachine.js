@@ -38,7 +38,7 @@
 // 它只決定一件事：**NPC 這回合用什麼姿態演出**。
 
 import { onStageNpcIds } from "./narrativePackageAdapter.js";
-import { personaFor } from "./npcPersonaRegistry.js";
+import { NPC_PERSONAS, personaFor } from "./npcPersonaRegistry.js";
 
 /** 四個軸的固定順序。送進 prompt 的陣列就是照這個順序，不可以改成 Object.keys()。 */
 export const SAEP_AXIS_IDS = Object.freeze(["SOC", "ACT", "EGO", "PAT"]);
@@ -87,6 +87,128 @@ const SCENE_PATIENCE_GRACE = 4;
  * 張力就洩掉一截。這是遲滯，不是仁慈——跟 sessionStore 的歷史窗口是同一種設計。
  */
 const SEIZE_CONTROL_REBOUND = 3;
+
+/**
+ * ---------------------------------------------------------------------------
+ * 動機引擎（第五階段）
+ * ---------------------------------------------------------------------------
+ * 起因（實測回報）：陸遠的資料描述了他**是誰、知道什麼、想達成什麼**，卻沒有描述
+ * 他在當前情境下**為什麼會優先做某一件事**。於是他第一句話可能是
+ * 「你應該想想自己為什麼不在船員名單上」——那句話沒有違反白名單（他確實知道），
+ * 也沒有違反任何合作階段，它只是**資訊優先序**錯了：一個知道新人隨時會死的老手，
+ * 在沒有迫近威脅的時候，最強的行為動力應該是把生存規則講完。
+ *
+ * 這裡不回到固定台詞。引擎只決定「這一刻哪一條動機占優勢」，
+ * 台詞、語氣、順序、篇幅仍然完全交給模型——跟 S.A.E.P. 是同一種分工。
+ *
+ * 三個刻意的設計限制：
+ *
+ *   1. **條件是查表，不是 DSL。** persona 的 requires 只能寫 MOTIVE_PREDICATES
+ *      裡有的 token。新增條件是加一筆表，不是擴充語法；每一條 predicate 都能單獨測。
+ *      persona 是資料（將來可能來自工坊上傳），讓資料編譯出可執行的條件是一條
+ *      不需要為了省事而開的口子——這跟 npcProfile() 不吃 reference 宣告的
+ *      tabooPatterns 是同一個理由。
+ *
+ *   2. **選擇是決定性的。** 權重相同時依 persona 的陣列順序取第一個。
+ *      不決定性的話靜態層與測試都會不穩，而且同一個局面會演出兩種樣子。
+ *
+ *   3. **只送 ID。** 動機的內容（motive / action / payoff）整場不變，住在靜態契約；
+ *      動態層每回合只多送 `Motive: "ORIENT_NEWCOMERS"` 這幾個字。
+ *      把說明跟 ID 寫在一起是最自然、也最貴的錯法（見 NPC_STATE_LEGEND 的檔頭）。
+ */
+
+/**
+ * 動機條件的求值表。
+ *
+ * 每一條都只讀**引擎已經算出來的事實**：合作階段、迫近度階段、耐心值、
+ * NPC 狀態、這一回合有沒有踩到禁忌。沒有一條是問 AI 拿的，也沒有一條讀敘事文字。
+ */
+const MOTIVE_PREDICATES = Object.freeze({
+  /** 玩家還沒被簡報過：合作階段仍在 briefing/provisional。 */
+  player_is_newcomer: (ctx) => ctx.coopState === "briefing" || ctx.coopState === "provisional",
+  /** 玩家已經聽完該聽的：重複說明的動機會下降。 */
+  briefing_delivered: (ctx) => ctx.coopState !== null && !["briefing", "provisional"].includes(ctx.coopState),
+  /** 沒有迫近威脅：威脅還不知道你在哪裡，或只是在搜索方向。 */
+  no_immediate_threat: (ctx) => ctx.threatStage === null || ["潛伏", "追蹤"].includes(ctx.threatStage),
+  /** 威脅已經貼上來了。 */
+  under_immediate_threat: (ctx) => ["貼近", "接觸"].includes(ctx.threatStage),
+  /** 他已經退到自保姿態（由合作狀態機裁定，見各 persona 的 states.selfPreserving）。 */
+  self_preserving: (ctx) => ctx.selfPreserving,
+  /**
+   * 他已經**徹底**放棄這個玩家了——合作階段落進了終局狀態。
+   *
+   * 跟 self_preserving 的差別很重要：self_preserving 從 strained 就成立（他在警告你），
+   * 而這一條只在他真的走人時才成立。用前者當「拋棄」的條件，會讓他在第一次爭執
+   * 就說出「接下來你自己看著辦」——那不是果斷，那是玻璃心。
+   *
+   * 終局的定義沿用 states.stateFlags：那份宣告在載入時就被證明過是離不開的
+   * （見 npcCooperationEngine 的 assertTerminalStateFlags）。
+   */
+  cooperation_terminal: (ctx) => ctx.terminalStance,
+  /** 玩家這一回合剛好踩到他的禁忌。 */
+  taboo_tripped: (ctx) => ctx.tabooTripped,
+  /** 耐心見底。 */
+  patience_breaking: (ctx) => ctx.pat <= SEIZE_CONTROL_AT,
+  /** 他自己受傷了。 */
+  npc_hurt: (ctx) => ["injured", "critical"].includes(ctx.status),
+});
+
+/**
+ * 優先序 → 權重。四級，跟 DIVERGENCE_TIERS / PATIENCE_LABELS 是同一種固定表。
+ *
+ * 刻意**不**做成「high_when_safe」這種帶條件的優先序：那會讓同一個判斷有兩個入口
+ * （requires 一個、優先序名稱一個），兩邊遲早會不一致。條件全部寫在 requires，
+ * 優先序只是一個數字。
+ */
+const MOTIVE_PRIORITIES = Object.freeze({ critical: 100, high: 70, normal: 40, low: 10 });
+
+/**
+ * 挑出這一刻最強的那一條動機。
+ *
+ * requires 全部成立才算候選；權重最高者勝出，同分取 persona 陣列的順序（決定性）。
+ * 一條都不成立時回 null，動態層那一行就不會出現 Motive 欄位——
+ * 「沒有特別強的動力」跟「有動力但引擎算不出來」不是同一件事，不要用預設值蓋掉。
+ *
+ * @returns {string|null} 動機 id
+ */
+export function selectMotive(profile, context) {
+  let best = null;
+  let bestWeight = -1;
+  for (const motive of profile.motivations ?? []) {
+    if (!motive?.id) continue;
+    const requires = motive.requires ?? [];
+    if (!requires.every((token) => MOTIVE_PREDICATES[token]?.(context) === true)) continue;
+    const weight = MOTIVE_PRIORITIES[motive.priority] ?? MOTIVE_PRIORITIES.normal;
+    // 嚴格大於：同分時先宣告的贏，所以 persona 的陣列順序就是平手時的優先序。
+    if (weight > bestWeight) {
+      best = motive.id;
+      bestWeight = weight;
+    }
+  }
+  return best;
+}
+
+/**
+ * persona 宣告的 requires 只能用查表裡有的 token。
+ *
+ * 拼錯一個字的症狀是「這條動機永遠不會被選中」——不會壞、不會有測試變紅，
+ * 只會讓那個角色少一種行為模式。所以在載入時就炸掉。
+ */
+export function assertMotivePredicates(persona) {
+  for (const motive of persona?.motivations ?? []) {
+    for (const token of motive?.requires ?? []) {
+      if (!MOTIVE_PREDICATES[token]) {
+        throw new Error(
+          `${persona.npcId} 的動機「${motive.id}」用了不存在的條件「${token}」；` +
+            `可用條件：${Object.keys(MOTIVE_PREDICATES).join("/")}`
+        );
+      }
+    }
+    if (motive?.priority && !MOTIVE_PRIORITIES[motive.priority]) {
+      throw new Error(`${persona.npcId} 的動機「${motive.id}」用了不存在的優先序「${motive.priority}」`);
+    }
+  }
+}
 
 /**
  * 副本沒登記、也沒在 reference 宣告時的通用人設：一個普通的、會累的人。
@@ -179,10 +301,16 @@ export function npcProfile(reference, npcId) {
     // 不需要為了省事而開的口子。副本要改「顯示的禁忌文字」用 taboo 就夠了。
     tabooPatterns: persona?.tabooPatterns ?? [],
     selfPreservingStates: persona?.states?.selfPreserving ?? DEFAULT_PROFILE.selfPreservingStates,
+    // 終局合作階段（第 0.6 階段宣告的那些）。動機引擎用它區分
+    // 「他在警告你」跟「他已經走了」——兩者的演出完全不同。
+    terminalStates: Object.keys(persona?.states?.stateFlags ?? {}),
     // Agenda 先看人設檔，再退回 reference 的 privateGoals[0]：兩者都是作者寫好的
     // canonical 目標，引擎不需要（也不應該）自己發明一個 NPC 想幹嘛。
     agenda: declared?.agenda ?? persona?.agenda ?? (Array.isArray(declared?.privateGoals) ? declared.privateGoals[0] : null),
     knowledge: Array.isArray(declared?.knowledge) ? declared.knowledge : [],
+    // 動機只從人設檔拿，不吃 reference 宣告——理由同上面的 tabooPatterns：
+    // persona 是程式碼，reference 是資料，讓資料決定「哪些條件成立」等於開一條後門。
+    motivations: Array.isArray(persona?.motivations) ? persona.motivations : [],
     name: declared?.name ?? persona?.name ?? npcId,
   };
 }
@@ -196,6 +324,7 @@ function freshEntry(profile) {
     // 已知情報只存「這一輪額外學到的」；基線知識每次從 reference 讀，不複製進存檔。
     learned: [],
     lastStatus: null,
+    motive: null,
     tabooTrippedTurn: null,
     seizedTurn: null,
     stallStreak: 0,
@@ -241,6 +370,9 @@ export function normalizeNpcRuntimeState(reference, raw) {
         ? stored.learned.map(textOf).filter(Boolean).slice(-KNOWLEDGE_LIMIT * 2)
         : [],
       lastStatus: typeof stored.lastStatus === "string" ? stored.lastStatus : null,
+      // 動機每回合重算，存下來只是為了讓「這回合沒跑狀態機」（NPC 不在場）時
+      // 那一行不會忽然消失。舊存檔沒有這個欄位就是 null。
+      motive: typeof stored.motive === "string" ? stored.motive : null,
       tabooTrippedTurn: storedTurn(stored.tabooTrippedTurn),
       seizedTurn: storedTurn(stored.seizedTurn),
       stallStreak: Number.isInteger(stored.stallStreak) ? Math.max(0, stored.stallStreak) : 0,
@@ -397,10 +529,24 @@ export function applyNpcRuntimeTurn({ reference, state, turnNumber = 0, signals 
     const seizing = pat <= SEIZE_CONTROL_AT;
     const axes = deriveAxes(profile, { pat, coop });
 
+    // 這一刻哪一條動機占優勢。只讀引擎已經算出來的事實——
+    // 合作階段、迫近度階段、耐心值、NPC 狀態、這回合有沒有踩到禁忌。
+    // signals.threatStage 由呼叫端從 progress.threat 帶進來（迫近度不住在 referenceState）。
+    const motive = selectMotive(profile, {
+      coopState: coop?.state ?? null,
+      threatStage: signals.threatStage ?? null,
+      selfPreserving: isSelfPreserving(profile, coop),
+      terminalStance: Boolean(coop?.state && profile.terminalStates.includes(coop.state)),
+      tabooTripped: tripped,
+      pat,
+      status,
+    });
+
     next[npcId] = {
       ...entry,
       ...axes,
       PAT: pat,
+      motive,
       learned: mergeLearned(entry.learned, signals.newClues),
       lastStatus: status,
       tabooTrippedTurn: tripped ? turnNumber : entry.tabooTrippedTurn,
@@ -487,6 +633,11 @@ export function buildNpcActiveStateBlock(reference, state) {
     // 每回合真的會變的就是這兩個字串，所以併進這一行，不再自成一段。
     if (coop?.state) fields.push(`Stance: "${coop.state}"`);
     if (coop?.interactionType) fields.push(`Beat: "${coop.interactionType}"`);
+    // [2026-09-01 第五階段] 這一刻最強的行為動力。**只送 ID**——
+    // 動機的內容（為什麼、要做什麼、有什麼好處）整場不變，住在靜態契約的固定檔案裡。
+    // 一條都不成立時整個欄位不出現：「沒有特別強的動力」跟「有動力但算不出來」
+    // 不是同一件事，不要用預設值把兩者蓋成一樣。
+    if (entry.motive) fields.push(`Motive: "${entry.motive}"`);
     // [2026-08-31 第二輪] Agenda / Taboo / Knowledge 的**基線**搬進了靜態契約
     // （buildNpcCooperationContract），這裡只送偏離基線的覆寫標記。
     // 這三個欄位原本佔這一行的 40%，而它們幾乎不動——同一種病的第二次發作。
@@ -541,8 +692,22 @@ SAEP 四個軸，範圍 0-10，順序固定是 [SOC, ACT, EGO, PAT]：
   不描述世界發生了什麼；不可以把階段名稱、或「他現在進入自保狀態」這種說法寫進敘事。
 - Beat：伺服器認出的、玩家這一回合對他做的事。用它決定他這一句話回應的是什麼，
   不要把分類名稱本身寫出來。
+- Motive：伺服器裁定的、他這一刻**最強的行為動力**。它的內容寫在系統提示的
+  「本副本 NPC 的固定檔案」裡那份動機清單，照那一條的「行為」演。
+  它決定的是他**先做什麼、先講什麼**——資訊的優先序，不是台詞。
+  措辭、語氣、篇幅、動作仍然完全由你決定；同一條動機可以有一百種演法。
+  沒有出現這個欄位，代表這一刻沒有哪一條動機特別強，照人設與 Stance 演就好。
 - Override: "SEIZE_CONTROL"：耐心已經見底。這一回合他**必須**主動奪走場面主導權：
   打斷玩家的話、直接下令、或不等玩家回應就自己行動。
 
 這些欄位名、數字與標籤本身**絕對不可以出現在敘事裡**，也不可以被翻譯成
 「他的耐心值只剩兩點」這種說法。玩家只會看到一個不耐煩的人，看不到儀表板。`;
+
+// 所有已登記人設的動機條件，在模組載入時就驗一遍。
+//
+// 為什麼在這裡而不是 npcCooperationEngine 的 assertPersona()：那個引擎刻意零 import，
+// 而條件查表住在這個檔案；engine → npcStateMachine → npcPersonaRegistry →
+// *CooperationPolicy → engine 會形成一個 import 循環。
+// 這裡做同樣的事，而且一樣是「部署當下就炸掉」——拼錯一個條件 token 的症狀是
+// 「這條動機永遠不會被選中」，不會壞、不會有測試變紅，只會讓那個角色少一種行為模式。
+for (const persona of NPC_PERSONAS) assertMotivePredicates(persona);
