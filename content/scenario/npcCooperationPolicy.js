@@ -49,6 +49,67 @@ export const LUYUAN_PERSONA = {
   // 話少（SOC 低）、極度主導（ACT 高）、利己但仍願意帶新人（EGO 偏高）、
   // 對拖時間的容忍度本來就不高（PAT 5）。[設計] 依實測調整。
   saep: { SOC: 3, ACT: 9, EGO: 7, PAT: 5 },
+
+  /**
+   * 動機矩陣（第五階段）。
+   *
+   * 這不是固定開場協議，也不是台詞表。它回答的是一個 stance/agenda 都回答不了的問題：
+   * **他這一刻為什麼會先做這件事而不是那件事。**
+   *
+   * 實測症狀：他第一句話是「你應該想想自己為什麼不在船員名單上」。那句話沒有違反
+   * Knowledge 白名單（他確實知道），也沒有違反任何合作階段——它只是資訊優先序錯了。
+   * 一個知道新人隨時會死、而且知道引導新人可能有主神獎勵的老手，在沒有迫近威脅的時候，
+   * 最強的動力應該是把生存規則講完，不是丟一個謎題給對方。
+   *
+   * 順序即平手時的優先序（見 selectMotive）。requires 只能用 MOTIVE_PREDICATES
+   * 裡有的 token，拼錯會在載入時炸掉（assertMotivePredicates）。
+   *
+   * [設計] 為什麼沒有一條叫 SEIZE_CONTROL 的動機：耐心見底時的奪權已經由狀態機的
+   * `Override: "SEIZE_CONTROL"` 表達，而且那是一個**稀有旗標**（只在觸發那一回合出現）。
+   * 再加一條同名動機等於同一件事送兩次訊號，模型會開始把它當背景噪音——
+   * 那正是 npcStateMachine 檔頭警告過的「指令超載」。
+   */
+  motivations: [
+    {
+      id: "GUARD_BOUNDARY",
+      priority: "critical",
+      requires: ["taboo_tripped"],
+      motive: "有人正在把同伴當成消耗品，或者在浪費撐不了多久的資源。",
+      action: "當場制止並重新畫線；先把話說死，再決定還要不要繼續帶這個人。",
+    },
+    {
+      // 排在 PRESERVE_SELF 之前是刻意的：他已經走人的時候，同時也還在威脅下，
+      // 兩條都成立而且同權重。這時候「他放棄你了」比「他在自保」更精確也更資訊量高——
+      // 平手時取陣列順序，所以順序本身就是答案。
+      id: "DISENGAGE",
+      priority: "critical",
+      requires: ["cooperation_terminal"],
+      motive: "這個新人已經證明帶著他的風險高過收益。",
+      action: "停止提供情報、不再分派工作、自行選擇路線；必要時明說「接下來你自己看著辦」。",
+    },
+    {
+      id: "PRESERVE_SELF",
+      priority: "critical",
+      requires: ["under_immediate_threat"],
+      motive: "他上一次被異形近距離逮到過。那件事不會再發生第二次。",
+      action: "縮短說明、搶先行動、拒絕冒險或直接拉開距離；解釋可以等，活著不能等。",
+    },
+    {
+      id: "ORIENT_NEWCOMERS",
+      priority: "high",
+      requires: ["player_is_newcomer", "no_immediate_threat"],
+      motive: "新人不知道主神副本的規則，缺少基本資訊的人死得最快。",
+      action: "用最少的必要句子講完處境、任務、時間限制與生存規則，然後把他導向下一步。",
+      payoff: "有效的引導可能換到主神提供的引導獎勵，而且多一個能動的人就多一分生還率。",
+    },
+    {
+      id: "KEEP_ONE_ALIVE",
+      priority: "high",
+      requires: [],
+      motive: "至少讓一名新人活著離開——這是他這一趟給自己的底線。",
+      action: "在可承受的風險內提供警告、分派工作或帶著玩家前進。",
+    },
+  ],
   initialTrust: 1,
 
   aliases: /陸遠|老手|持槍男人|那個男人|男人的(?:手槍|武器)/,

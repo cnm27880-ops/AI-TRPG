@@ -155,6 +155,20 @@ function personaDossier(reference, { npcId, name, persona, declared }) {
   const agenda = persona?.agenda ?? (Array.isArray(declared?.privateGoals) ? declared.privateGoals[0] : null);
   if (agenda) lines.push(`  Agenda 基線：${agenda}`);
   if (persona?.taboo) lines.push(`  Taboo：${persona.taboo}`);
+  // [2026-09-01 第五階段] 動機清單。整場逐字不變，所以住在這裡付一次錢；
+  // 動態層每回合只送 `Motive: "<ID>"` 那幾個字（見 npcStateMachine 的 selectMotive）。
+  //
+  // 把「為什麼」跟「這一刻是哪一條」寫在一起是最自然、也最貴的錯法：
+  // 說明有幾百字，跟著 ID 進動態層就等於每回合重付一次它的錢。
+  const motivations = Array.isArray(persona?.motivations) ? persona.motivations : [];
+  if (motivations.length) {
+    lines.push("  動機（伺服器每回合挑出最強的一條，動態層送 Motive: <ID>；照那一條的行為演，措辭自己決定）：");
+    for (const motive of motivations) {
+      const payoff = motive.payoff ? `　收益：${motive.payoff}` : "";
+      lines.push(`    ${motive.id} — 動機：${motive.motive}　行為：${motive.action}${payoff}`);
+    }
+  }
+
   const { facts, topics } = normalizeKnowledge(declared);
   // 事實排在主題前面，順序即優先序：他要先講他確定的事，再談他只知道大概的事。
   if (facts.length) lines.push(`  已知事實（可直接陳述，不得演成未知）：${facts.join("／")}`);
