@@ -804,7 +804,7 @@ test("[併發] /api/forms：兩個真正並行的型態啟動請求，池子只�
   const successes = results.filter((r) => r.ok && r.form);
   const conflicts = results.filter((r) => r.code === "SESSION_CONFLICT");
 
-  assert.equal(successes.length, 1, `兩個並行啟動只能有一個真的花掉池子，實際：${JSON.stringify(results)}`);
+  console.log("Results: ", JSON.stringify(results)); assert.equal(successes.length, 1, `兩個並行啟動只能有一個真的花掉池子，實際：${JSON.stringify(results)}`);
   assert.equal(conflicts.length, 1, "另一個必須拿到明確的 SESSION_CONFLICT");
 
   const finalSession = await store.get(sessionId);
