@@ -1394,6 +1394,33 @@ test("感染鏈完整打通：暴露 → 最終醫療檢查慘烈失敗 → infe
   assert.notEqual(clean.endingId, "end_dark_infection");
 });
 
+test("暴露過卻不檢查就直接入睡，一樣是感染——寄生體不會因為沒人看就不存在", () => {
+  // 不檢查只代表**沒有人會發現**，不代表它不存在。所以這條路徑不是維持 unknown，
+  // 而是明確導向感染：玩家選擇了不去知道，代價是最壞的那個結局。
+  const exposed = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: ["flag_parasite_exposure", "flag_xenomorph_killed"] },
+  });
+  assert.equal(exposed.infectionStatus, "infected");
+  assert.ok(exposed.flags.includes("flag_infected"));
+  assert.equal(exposed.endingId, "end_dark_infection");
+  assert.equal(exposed.majorStoryState.msn_infection.resolution, "infected");
+
+  // 沒暴露過的人直接入睡仍然是 unknown——這條分支只對真的碰過囊袋的人開。
+  const clean = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: ["flag_xenomorph_killed"] },
+  });
+  assert.equal(clean.infectionStatus, "unknown");
+  assert.equal(clean.endingId, "end_solo_survivor");
+});
+
 test("兩個新 approach 在場景入場時都真的看得到（選項上限是 4）", () => {
   // 這一條是必要的：buildReferenceOptions 只取前 4 個可用 approach，
   // 排在第五個的選項在按鈕上永遠不會出現——那等於這個感染來源又是死的。

@@ -6831,6 +6831,17 @@ export default {
               "conditionalEffects": [
                 {
                   "ifFlags": [
+                    "flag_parasite_exposure"
+                  ],
+                  "effects": {
+                    "infectionStatus": "infected",
+                    "worldFlagsAdd": [
+                      "flag_infected"
+                    ]
+                  }
+                },
+                {
+                  "ifFlags": [
                     "flag_luyuan_met"
                   ],
                   "ifFlagsAbsent": [
