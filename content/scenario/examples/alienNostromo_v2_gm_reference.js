@@ -4235,7 +4235,25 @@ export default {
                 "playerLocation": "loc_lower_deck",
                 "timeCost": 1,
                 "threatDelta": 3
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -5191,7 +5209,25 @@ export default {
                 "unlockEvents": [
                   "evt_narcissus_shadow_wake"
                 ]
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -5281,7 +5317,25 @@ export default {
                 "unlockEvents": [
                   "evt_narcissus_shadow_wake"
                 ]
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -6357,7 +6411,25 @@ export default {
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "成功": {
               "text": "掃描結果顯示沒有外來生物組織，酸液傷也只停留在體表。你記下結果，將醫療包放回儲格，準備進入休眠。",
@@ -6368,7 +6440,25 @@ export default {
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "驚險成功": {
               "text": "掃描儀檢出一小片壞死組織，但沒有寄生反應。你切除並包紮傷口後進入休眠，帶著明確的傷勢而不是未知感染。",
@@ -6382,7 +6472,25 @@ export default {
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "些微失敗": {
               "text": "掃描儀在胸腔下方失去電力，只能確認體表沒有幼體痕跡。你帶著疑慮進入休眠，感染狀態保持未知，不應直接判定為感染。",
@@ -6393,7 +6501,25 @@ export default {
                   "flag_infection_unresolved"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "失敗": {
               "text": "你無法解讀複合光譜，系統把一處陰影標成不確定項。你沒有證據說自己已經感染，也沒有足夠理由宣稱安全；休眠前的風險被保留下來。",
@@ -6404,7 +6530,25 @@ export default {
                   "flag_infection_suspected"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "慘烈失敗": {
               "text": "酸液殘留讓探頭短路，儀器吐出一份錯誤的健康報告。只有在此前確實接觸過抱臉體或幼體時，未被檢出的寄生體才會跟著你離開；否則，這次失敗只留下未排除的感染疑慮。",
@@ -6436,6 +6580,22 @@ export default {
                       "flag_infection_suspected"
                     ]
                   }
+                },
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
                 }
               ]
             }
@@ -6464,7 +6624,25 @@ export default {
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 0
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -6494,7 +6672,25 @@ export default {
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "失敗": {
               "text": "儲格的溫控設定錯誤，組織在玻璃管內失去活性。你保留了失敗的證據，卻沒有把可用樣本帶出副本。",

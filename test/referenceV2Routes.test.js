@@ -104,6 +104,58 @@ test("V2 完整成功路線：從休眠室走到水仙號休眠結算場景", ()
 
   state = applyApproach(state, "app_return_direct_sleep", "自動").state;
   assert.ok(state.flags.includes("flag_hypersleep_entered"));
+
+  // [2026-09-01] 這條斷言以前是 end_solo_survivor，改掉的理由要寫清楚：
+  //
+  // 這條路線從頭到尾都帶著陸遠（app_deck_luyuan_contact 之後他一路同行、從未受害），
+  // 所以「有人會帶著對 937、Ash 與異形的第一手記憶一起離開」是這一場的**事實**。
+  // 兩個結局宣告的條件本來就把話講死了：
+  //   end_solo_survivor  要求「no NPC with status survived」——沒有人能替你作證
+  //   end_heroic_rescue  要求 npc_luyuan.status == survived
+  //
+  // 舊的 end_solo_survivor 不是設計，是一個缺陷的產物：在此之前整份 reference
+  // 沒有任何一條路徑能把陸遠寫成 survived（只有最終戰的 app_purge_teamwork 一個
+  // 特定 approach 可以），所以玩家就算一路把他平安帶到休眠艙，結局仍然說「你是
+  // 孤獨生還者」。補上休眠掃描之後，這條路線終於拿到它本來就該拿到的結局。
+  //
+  // 新斷言連因帶果一起釘：先確認狀態，再確認結局。只驗結局的話，
+  // 下次有人把掃描拆掉，錯誤訊息只會說「結局不對」，看不出是誰的狀態沒寫進去。
+  assert.equal(state.npcStatuses.npc_luyuan, "survived", "一路同行且未受害的陸遠應該一起離開");
+  assert.ok(state.flags.includes("flag_luyuan_survived"));
+  assert.equal(deriveEndingId(reference, state), "end_heroic_rescue");
+});
+
+test("V2 路線：陸遠死在途中時，結局回到 end_solo_survivor", () => {
+  // 上面那條改了斷言，所以這條必須存在：證明 end_solo_survivor 沒有變成到不了的結局，
+  // 只是它現在真的需要「沒有人陪你離開」——那才是它的文案在講的事。
+  let state = createReferenceState(reference, {
+    initialInventory: ["item_desert_eagle", "item_access_card"],
+  });
+  state = applyApproach(state, "app_cryo_leave", "成功").state;
+  state = applyApproach(state, "app_deck_luyuan_contact", "自動").state;
+  assert.equal(state.npcStatuses.npc_luyuan, "met");
+
+  // 直接跳到通風管逃生那一幕，用慘烈失敗讓他死在路上。
+  state = {
+    ...state,
+    currentSceneId: "evt_vent_ambush_escape",
+    currentLocation: "loc_lower_deck",
+    shipStatus: "overload_started",
+  };
+  state = applyApproach(state, "app_escape_sprint_dodge", "慘烈失敗").state;
+  assert.equal(state.npcStatuses.npc_luyuan, "dead");
+
+  state = {
+    ...state,
+    currentSceneId: "evt_hypersleep_return",
+    currentLocation: "loc_narcissus",
+    flags: [...state.flags, "flag_xenomorph_killed"],
+  };
+  state = applyApproach(state, "app_return_direct_sleep", "自動").state;
+
+  // 休眠掃描不得把他撈回來——死亡是單向的。
+  assert.equal(state.npcStatuses.npc_luyuan, "dead");
+  assert.equal(state.flags.includes("flag_luyuan_survived"), false);
   assert.equal(deriveEndingId(reference, state), "end_solo_survivor");
 });
 
