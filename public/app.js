@@ -1641,7 +1641,7 @@ function renderNpcRelationships(npcs) {
     panel.setAttribute("aria-hidden", list.length === 0 ? "true" : "false");
     panel.classList.toggle("hidden", list.length === 0 || !hadActiveNpcTab);
   }
-  if (!list.length && hadActiveNpcTab) window.switchSidebarTab?.("attr");
+  if (!list.length && hadActiveNpcTab) window.switchSidebarTab?.("status");
   if (count) {
     count.hidden = list.length === 0;
     count.textContent = list.length ? String(list.length) : "";
@@ -1900,6 +1900,42 @@ function openExplorationTerminal() {
   openModal("explorationTerminal");
 }
 
+let currentScenarioHudState = null;
+
+function renderStoryPhase(phase) {
+  const host = document.getElementById('story-phase-track');
+  if (!host) return;
+  const phases = Array.isArray(phase?.phases) ? phase.phases : [];
+  host.innerHTML = phases.map((item, index) => {
+    const status = item.status === 'done' ? 'is-done' : item.status === 'current' ? 'is-current' : '';
+    const symbol = item.status === 'done' ? '●' : item.status === 'current' ? '◉' : '○';
+    return (index ? '<span aria-hidden="true">──</span>' : '') + '<span class="story-phase-node ' + status + '">' + symbol + ' ' + escapeHtml(item.title || '未命名') + '</span>';
+  }).join('');
+  host.hidden = !phases.length;
+}
+
+function renderScenarioContracts(scenario) {
+  const alertHost = document.getElementById('active-alerts');
+  const alerts = Array.isArray(scenario?.warnings) ? scenario.warnings.filter(Boolean).slice(0, 4) : [];
+  if (alertHost) alertHost.innerHTML = alerts.map((warning) => '<div class="border-l-2 border-amber-500/70 bg-amber-500/10 px-2 py-1 text-[10px] font-mono text-amber-200">! ' + escapeHtml(warning) + '</div>').join('');
+  renderStoryPhase(scenario?.storyPhase);
+  const nodes = Array.isArray(scenario?.majorStoryNodes) ? scenario.majorStoryNodes.filter(n => n?.visibility !== 'hidden') : [];
+  const nodeHost = document.getElementById('story-nodes-list');
+  if (nodeHost) nodeHost.innerHTML = nodes.length ? nodes.map(n => '<details class="hud-data-card"><summary class="cursor-pointer text-zinc-100">' + escapeHtml(n.title || n.id || '重大事件') + '</summary><div class="pt-2 text-zinc-400">' + escapeHtml(n.status === 'resolved' ? '已完成' : n.status || '已發現') + (n.rewardGranted ? ' · 獎勵已發放' : '') + '</div></details>').join('') : '<div class="text-[11px] text-zinc-500">尚未發現重大事件。</div>';
+  const reward = scenario?.rewardSummary;
+  const rewardHost = document.getElementById('reward-summary');
+  if (rewardHost && reward) rewardHost.innerHTML = [['主線', reward.mainline], ['轉折', reward.turningPoints], ['結局', reward.ending]].filter(([,v]) => v).map(([label, value]) => '<div class="flex justify-between gap-3 border-b border-white/5 py-1.5 last:border-0"><span>' + label + '</span><strong class="text-amber-200">' + escapeHtml(Object.entries(value).filter(([k]) => k !== 'status').map(([k,v]) => k + ' ' + v).join(' · ') || value.status || '—') + '</strong></div>').join('');
+  const rebirthHost = document.getElementById('rebirth-summary');
+  if (rebirthHost && scenario?.rebirth) rebirthHost.textContent = typeof scenario.rebirth === 'string' ? scenario.rebirth : JSON.stringify(scenario.rebirth);
+}
+
+function renderTacticalChips(options) {
+  const host = document.getElementById('tactical-chips');
+  if (!host) return;
+  const safe = Array.isArray(options) ? options.slice(0, 8) : [];
+  host.innerHTML = safe.map((opt, i) => '<button type="button" class="tactical-chip" onclick="selectOption(' + i + ')">' + escapeHtml(opt.label || '行動 ' + (i + 1)) + (opt.hint ? '<small>' + escapeHtml(opt.hint) + '</small>' : '') + '</button>').join('');
+}
+
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
 const TIME_STATUS_STYLE = {
   充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -1920,6 +1956,8 @@ function appendScenarioNoticeOnce(key, append) {
 }
 
 function updateScenarioHud(scenario) {
+  currentScenarioHudState = scenario || null;
+  renderScenarioContracts(scenario);
   if (scenarioNoticeSessionId !== currentSessionId) resetScenarioNoticeDedup(currentSessionId);
   const hud = document.getElementById("scenario-hud");
   const referenceMode = Boolean(scenario?.reference?.enabled);
@@ -2515,6 +2553,7 @@ function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt
   currentReferenceMode = Boolean(referenceMode);
   if (currentReferenceMode) {
     currentOptions = [];
+    renderTacticalChips([]);
     if (grid) {
       grid.hidden = true;
       grid.innerHTML = "";
@@ -2527,6 +2566,7 @@ function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt
   }
 
   currentOptions = safeOptions;
+  renderTacticalChips(safeOptions);
   if (decisionKicker) decisionKicker.textContent = "下一步";
   if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
   if (grid) grid.hidden = false;

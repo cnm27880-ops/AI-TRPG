@@ -2929,7 +2929,18 @@
             .hub-guide-next-button, .hub-guide-step-button { transition: none; }
         }
 
-    </style>
+
+        /* Tactical Survival HUD: keep the first pass structural and quiet. */
+        .tactical-decision-area { min-height: 25%; }
+        .tactical-chips { display:flex; gap:.5rem; overflow-x:auto; padding-bottom:.65rem; margin-bottom:.65rem; scrollbar-width:thin; }
+        .tactical-chip { flex:0 0 auto; max-width:16rem; border:1px solid rgb(var(--c-accent-base) / .42); background:rgb(var(--c-accent-base) / .08); color:rgb(var(--c-ink-100)); border-radius:.25rem; padding:.45rem .7rem; font:600 10px/1.3 'JetBrains Mono',monospace; text-align:left; transition:background .16s ease, border-color .16s ease, transform .16s ease; }
+        .tactical-chip:hover,.tactical-chip:focus-visible { background:rgb(var(--c-accent-base) / .18); border-color:rgb(var(--c-accent-base) / .8); outline:none; transform:translateY(-1px); }
+        .tactical-chip small { display:block; color:rgb(var(--c-ink-400)); font-weight:400; margin-top:.2rem; }
+        .hud-data-card { border:1px solid var(--line); background:rgb(var(--c-surface-2) / .35); border-radius:.25rem; padding:.7rem; color:rgb(var(--c-ink-200)); font:11px/1.55 'JetBrains Mono',monospace; }
+        .story-phase-track { display:flex; align-items:center; gap:.35rem; overflow-x:auto; padding:.55rem .75rem; border-top:1px solid var(--line-soft); border-bottom:1px solid var(--line-soft); color:rgb(var(--c-ink-300)); font:10px 'JetBrains Mono',monospace; }
+        .story-phase-node { white-space:nowrap; }.story-phase-node.is-done,.story-phase-node.is-current { color:rgb(var(--c-accent-text)); font-weight:700; }.story-phase-node.is-current { text-decoration:underline; text-underline-offset:3px; }
+        @media (min-width:768px) { .tactical-decision-area { min-height:0; } }
+</style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">
 
@@ -3342,6 +3353,7 @@
                     <div class="char-compact-stat" title="先攻"><i class="fas fa-bolt" aria-hidden="true"></i><span class="sr-only">先攻</span><strong id="char-compact-initiative">—</strong></div>
                 </div>
                 <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
+                <div id="active-alerts" class="space-y-1 pt-2" aria-live="polite"></div>
 
                 <!-- 四段傷勢軌 -->
                 <div class="space-y-1 pt-3">
@@ -3394,44 +3406,34 @@
                 </div>
             </div>
 
+            <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
+
             <!-- 分頁 Tab：檔案夾造型。
                  sidebar-tab-btn 這個 class 已經拿掉——它既沒有 CSS 定義，也沒有任何 JS 讀它
                  （切換分頁是靠 id="tab-btn-*" 抓的，見下面的 switchSidebarTab）。
                  換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「五個分頁，現在在第一個」。 -->
-            <div class="flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b" role="tablist" aria-label="角色資訊分頁">
-                <button onclick="switchSidebarTab('attr')" id="tab-btn-attr" role="tab" aria-selected="true" aria-controls="sidebar-tab-attr" class="folder-tab active">屬性</button>
-                <button onclick="switchSidebarTab('skills')" id="tab-btn-skills" role="tab" aria-selected="false" aria-controls="sidebar-tab-skills" class="folder-tab">技能</button>
-                <button onclick="switchSidebarTab('traits')" id="tab-btn-traits" role="tab" aria-selected="false" aria-controls="sidebar-tab-traits" class="folder-tab">專長</button>
+            <div class="survival-tabs flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b overflow-x-auto" role="tablist" aria-label="生存控制台分頁">
+                <button onclick="switchSidebarTab('status')" id="tab-btn-status" role="tab" aria-selected="true" aria-controls="sidebar-tab-status" class="folder-tab active">狀態</button>
+                <button onclick="switchSidebarTab('rebirth')" id="tab-btn-rebirth" role="tab" aria-selected="false" aria-controls="sidebar-tab-rebirth" class="folder-tab">輪迴</button>
                 <button onclick="switchSidebarTab('npcs')" id="tab-btn-npcs" role="tab" aria-selected="false" aria-controls="sidebar-tab-npcs" class="folder-tab">人物<span id="npc-tab-count" class="npc-tab-count" hidden></span></button>
+                <button onclick="switchSidebarTab('inventory')" id="tab-btn-inventory" role="tab" aria-selected="false" aria-controls="sidebar-tab-inventory" class="folder-tab">物資</button>
+                <button onclick="switchSidebarTab('events')" id="tab-btn-events" role="tab" aria-selected="false" aria-controls="sidebar-tab-events" class="folder-tab">事件</button>
                 <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
             </div>
 
             <div class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div id="sidebar-tab-attr" role="tabpanel" aria-labelledby="tab-btn-attr" class="space-y-2">
+                <div id="sidebar-tab-status" role="tabpanel" aria-labelledby="tab-btn-status" class="space-y-3">
                     <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
-                </div>
-                <div id="sidebar-tab-skills" role="tabpanel" aria-labelledby="tab-btn-skills" class="hidden space-y-2">
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
-                </div>
-                <div id="sidebar-tab-traits" role="tabpanel" aria-labelledby="tab-btn-traits" class="hidden space-y-2">
-                    <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5">
-                        <span>起始專長 / 資源</span>
-                        <span>滾輪 / 點擊切換 ↻</span>
-                    </div>
+                    <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5"><span>起始專長 / 資源</span><span>狀態摘要</span></div>
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
-                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
+                    <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-3 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
                 </div>
-                <div id="sidebar-tab-npcs" role="tabpanel" aria-labelledby="tab-btn-npcs" class="hidden space-y-2">
-                    <div class="flex items-center justify-between gap-2 px-0.5">
-                        <span class="npc-panel-kicker">副本人物／關係</span>
-                        <span id="npc-panel-note" class="npc-panel-note">等待副本資料</span>
-                    </div>
-                    <div id="npc-roster" class="npc-roster"></div>
-                    <div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div>
-                </div>
-                <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2">
-                    <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
-                </div>
+                <div id="sidebar-tab-rebirth" role="tabpanel" aria-labelledby="tab-btn-rebirth" class="hidden space-y-2"><div id="rebirth-summary" class="hud-data-card">尚未取得輪迴資料。</div></div>
+                <div id="sidebar-tab-npcs" role="tabpanel" aria-labelledby="tab-btn-npcs" class="hidden space-y-2"><div class="flex items-center justify-between gap-2 px-0.5"><span class="npc-panel-kicker">副本人物／關係</span><span id="npc-panel-note" class="npc-panel-note">等待副本資料</span></div><div id="npc-roster" class="npc-roster"></div><div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div></div>
+                <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="hidden space-y-2"><div id="reward-summary" class="hud-data-card">尚未取得獎勵資料。</div></div>
+                <div id="sidebar-tab-events" role="tabpanel" aria-labelledby="tab-btn-events" class="hidden space-y-2"><div id="story-nodes-list" class="space-y-2"><div class="text-[11px] text-zinc-500">尚未發現重大事件。</div></div></div>
+                <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2"><div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div></div>
             </div>
         </aside>
 
@@ -3665,7 +3667,8 @@
                 </div>
             </div>
 
-            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur">
+            <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur tactical-decision-area">
+                <div id="tactical-chips" class="tactical-chips" aria-label="戰術行動晶片"></div>
                 <!-- [修正] 字數計數原本擠在輸入框正下方，於是輸入框那一欄比按鈕那一欄多長出
                      一行，items-end 對齊之下輸入框反而比「執行」鍵矮一截、底部對不齊。
                      把計數搬到按鈕正上方的空白處，讓輸入框自己單獨決定那一欄的高度，
@@ -4208,7 +4211,8 @@
             });
         });
         function switchSidebarTab(tabKey) {
-            ['attr', 'skills', 'traits', 'npcs', 'journal'].forEach(k => {
+            // 舊版鍵值記錄：['attr', 'skills', 'traits', 'npcs', 'journal']；目前統一為六層生存控制台。
+            ['status', 'rebirth', 'npcs', 'inventory', 'events', 'journal'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
                 const b = document.getElementById(`tab-btn-${k}`);
                 if (k === tabKey) {
