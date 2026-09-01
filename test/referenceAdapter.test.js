@@ -1326,3 +1326,124 @@ test("陸遠離隊後，休眠掃描不得把他算成「一起活著離開」",
   assert.equal(state.flags.includes("flag_luyuan_survived"), false);
   assert.equal(state.endingId, "end_solo_survivor", "沒有人陪你離開，就是孤獨生還者");
 });
+
+// ---------------------------------------------------------------------------
+// [2026-09-01 第 2.5 階段] 感染來源：flag_parasite_exposure 的產生端
+//
+// 在此之前這個旗標**從來沒有任何地方產生**，所以：
+//   app_return_check_clean 慘烈失敗的 infected 分支永遠走不到
+//   → infectionStatus 到不了 "infected"
+//   → end_dark_infection 是一個死結局
+// 跟第零階段修掉的 flag_expire_triggered / flag_player_dead_overload 同一類。
+// ---------------------------------------------------------------------------
+
+test("感染來源：貨艙囊袋與通風管凹槽的失敗結果會寫入 flag_parasite_exposure", () => {
+  const exposures = [
+    { sceneId: "evt_cargo_stalk", location: "loc_cargo", approachId: "app_stalk_investigate_egg", tier: "失敗" },
+    { sceneId: "evt_cargo_stalk", location: "loc_cargo", approachId: "app_stalk_investigate_egg", tier: "慘烈失敗" },
+    { sceneId: "evt_vent_ambush_escape", location: "loc_lower_deck", approachId: "app_escape_hide", tier: "慘烈失敗" },
+  ];
+  for (const spec of exposures) {
+    const state = playLuyuanScene({ ...spec, seed: {} });
+    assert.ok(
+      state.flags.includes("flag_parasite_exposure"),
+      `${spec.approachId}/${spec.tier} 應該造成寄生體暴露`
+    );
+  }
+
+  // 成功的結果不該讓玩家被感染——暴露是失敗的代價，不是靠近的代價。
+  for (const spec of [
+    { sceneId: "evt_cargo_stalk", location: "loc_cargo", approachId: "app_stalk_investigate_egg", tier: "成功" },
+    { sceneId: "evt_vent_ambush_escape", location: "loc_lower_deck", approachId: "app_escape_hide", tier: "成功" },
+  ]) {
+    const state = playLuyuanScene({ ...spec, seed: {} });
+    assert.equal(state.flags.includes("flag_parasite_exposure"), false, `${spec.approachId}/${spec.tier} 不該造成暴露`);
+  }
+});
+
+test("感染鏈完整打通：暴露 → 最終醫療檢查慘烈失敗 → infected → end_dark_infection", () => {
+  const exposed = playLuyuanScene({
+    sceneId: "evt_cargo_stalk",
+    location: "loc_cargo",
+    approachId: "app_stalk_investigate_egg",
+    tier: "慘烈失敗",
+    seed: {},
+  });
+  assert.ok(exposed.flags.includes("flag_parasite_exposure"));
+
+  const settled = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_check_clean",
+    tier: "慘烈失敗",
+    seed: { flags: [...exposed.flags, "flag_xenomorph_killed"] },
+  });
+  assert.equal(settled.infectionStatus, "infected");
+  assert.equal(settled.endingId, "end_dark_infection", "這個結局在此之前永遠到不了");
+  assert.equal(settled.majorStoryState.msn_infection.resolution, "infected");
+
+  // 沒暴露過的人走同一條路只會是「疑似」，不是感染——暴露是必要條件。
+  const clean = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_check_clean",
+    tier: "慘烈失敗",
+    seed: { flags: ["flag_xenomorph_killed"] },
+  });
+  assert.equal(clean.infectionStatus, "suspected");
+  assert.notEqual(clean.endingId, "end_dark_infection");
+});
+
+test("暴露過卻不檢查就直接入睡，一樣是感染——寄生體不會因為沒人看就不存在", () => {
+  // 不檢查只代表**沒有人會發現**，不代表它不存在。所以這條路徑不是維持 unknown，
+  // 而是明確導向感染：玩家選擇了不去知道，代價是最壞的那個結局。
+  const exposed = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: ["flag_parasite_exposure", "flag_xenomorph_killed"] },
+  });
+  assert.equal(exposed.infectionStatus, "infected");
+  assert.ok(exposed.flags.includes("flag_infected"));
+  assert.equal(exposed.endingId, "end_dark_infection");
+  assert.equal(exposed.majorStoryState.msn_infection.resolution, "infected");
+
+  // 沒暴露過的人直接入睡仍然是 unknown——這條分支只對真的碰過囊袋的人開。
+  const clean = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: ["flag_xenomorph_killed"] },
+  });
+  assert.equal(clean.infectionStatus, "unknown");
+  assert.equal(clean.endingId, "end_solo_survivor");
+});
+
+test("兩個新 approach 在場景入場時都真的看得到（選項上限是 4）", () => {
+  // 這一條是必要的：buildReferenceOptions 只取前 4 個可用 approach，
+  // 排在第五個的選項在按鈕上永遠不會出現——那等於這個感染來源又是死的。
+  const character = emptyCharacter("選項可見性測試者");
+  const visible = (sceneId, location, seed = {}) => {
+    const state = normalizeReferenceState(reference, {
+      ...createReferenceState(reference),
+      currentSceneId: sceneId,
+      currentLocation: location,
+      ...seed,
+    });
+    return buildReferenceOptions(reference, state).map((option) => option.reference.approachId);
+  };
+
+  assert.ok(visible("evt_cargo_stalk", "loc_cargo").includes("app_stalk_investigate_egg"));
+  assert.ok(visible("evt_vent_ambush_escape", "loc_lower_deck").includes("app_escape_hide"));
+  // 拿了焊槍之後 firewall 才會出現，而 recover_toolkit 讓位——躲避仍然在。
+  const withTorch = visible("evt_vent_ambush_escape", "loc_lower_deck", {
+    flags: ["flag_escape_toolkit_taken"],
+    inventory: ["item_desert_eagle", "item_blowtorch"],
+  });
+  assert.ok(withTorch.includes("app_escape_hide"), "拿了焊槍不該把躲避擠掉");
+  assert.ok(withTorch.includes("app_escape_firewall"));
+  assert.equal(withTorch.includes("app_escape_recover_toolkit"), false, "維修箱取用一次就該消失");
+  assert.ok(character);
+});

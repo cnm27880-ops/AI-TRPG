@@ -70,8 +70,19 @@ export function settleFinaleVictory({ session, finaleNodeId, sessionId, where })
 
     if (result.ok) {
       // 最終戰的獎勵跟一般節點一樣是獎勵點數，不是XP(見 content/scenario/settlement.js)
-      session.wallet = creditNodeReward(session.wallet, result.reward, result.node.title).wallet;
-      let progress = result.progress;
+      //
+      // [2026-09-01] 帳本要寫進 result.progress（節點**已完成**的那一份），不是
+      // session.scenario.progress（完成之前的那一份）。寫錯邊的話這筆帳會被下面
+      // `let progress = result.progress` 整個蓋掉，而錢照樣進了錢包——
+      // 於是同一筆最終戰獎勵在下一次結算時又會被判定成「還沒發過」。
+      const credited = creditNodeReward(result.progress, session.wallet, {
+        nodeId: result.node.id,
+        points: result.reward,
+        label: result.node.title,
+        turn: (session.turns ?? 0) + 1,
+      });
+      session.wallet = credited.wallet;
+      let progress = credited.progress;
       const ts = new Date().toISOString();
       appendEvent(
         session.log,
@@ -100,7 +111,10 @@ export function settleFinaleVictory({ session, finaleNodeId, sessionId, where })
         completedReferenceState?.endingId || completedReferenceState?.flags?.includes("flag_hypersleep_entered")
       );
       const settlement = referenceSettlementReady
-        ? settleScenario(pack, progress, session.character, session.wallet, { referenceState: completedReferenceState })
+        ? settleScenario(pack, progress, session.character, session.wallet, {
+            referenceState: completedReferenceState,
+            turn: (session.turns ?? 0) + 1,
+          })
         : { settled: false, wallet: session.wallet, progress, reason: "reference 終局仍需完成休眠前結算" };
       if (settlement.settled) {
         session.wallet = settlement.wallet;

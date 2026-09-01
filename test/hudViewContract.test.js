@@ -149,20 +149,34 @@ test("第二階段之前沒有 majorStoryState，投影是空陣列而不是壞�
 
 test("獎勵摘要三層分開，而且結算前後的狀態說得清楚", () => {
   const before = hud(initScenarioProgress(alienPack)).rewardSummary;
-  assert.deepEqual(before.mainline, { tokens: { D: 1 }, points: 1500, status: "locked" });
+  // tokens/points 是「做完會拿到什麼」（副本宣告值）；earned* 是「我已經拿到多少」（帳本）。
+  // 兩者刻意分開——那不是同一個問題。
+  assert.deepEqual(before.mainline, {
+    tokens: { D: 1 },
+    points: 1500,
+    earnedTokens: {},
+    earnedPoints: 0,
+    status: "locked",
+  });
   assert.deepEqual(before.turningPoints, { points: 0 });
   assert.deepEqual(before.ending, { xp: null, status: "pending" });
 
-  // 第三階段的獎勵帳本寫進來之後，扭轉分數要加總——而且只加 turning_point 那一類。
+  // 第三階段的獎勵帳本寫進來之後，三層各自加總，而且互不混淆。
   const withLedger = {
     ...initScenarioProgress(alienPack),
     rewardLedger: {
       "turning:msn_luyuan_fate:survived": { type: "turning_point", points: 500 },
       "turning:msn_937:revealed": { type: "turning_point", points: 300 },
-      "mainline:quest_escape_nostromo": { type: "mainline", points: 1500 },
+      "node:n1": { type: "mainline", points: 150 },
+      "mainline:quest_escape_nostromo": { type: "mainline", tokens: { D: 1 }, points: 1500 },
+      "ending:scenario.nostromo-01-v2": { type: "ending", xp: 42 },
     },
   };
-  assert.equal(hud(withLedger).rewardSummary.turningPoints.points, 800, "主線那筆不可以被算進扭轉分數");
+  const summary = hud(withLedger).rewardSummary;
+  assert.equal(summary.turningPoints.points, 800, "主線那幾筆不可以被算進扭轉分數");
+  assert.equal(summary.mainline.earnedPoints, 1650, "節點獎勵與主線完成獎勵都算主線層");
+  assert.deepEqual(summary.mainline.earnedTokens, { D: 1 }, "支線終於真的發得出來了");
+  assert.equal(summary.mainline.points, 1500, "宣告值不受帳本影響");
 
   // 通關結算之後：XP 才有數字，主線獎勵才算發出去。
   const settled = { ...initScenarioProgress(alienPack), settledAt: "2026-09-01T00:00:00Z", runSummary: { xp: 42 } };
@@ -189,7 +203,13 @@ test("沒有 mainQuest／沒有 reference 的舊副本仍然畫得出 HUD，只�
   assert.equal(view.storyPhase.total, expected);
   assert.ok(expected < (chapter.nodes ?? []).length, "這個副本應該有劣化結局節點，才測得到排除邏輯");
   // 獎勵摘要仍然成形，只是主線那一層是空的。
-  assert.deepEqual(view.rewardSummary.mainline, { tokens: {}, points: 0, status: "locked" });
+  assert.deepEqual(view.rewardSummary.mainline, {
+    tokens: {},
+    points: 0,
+    earnedTokens: {},
+    earnedPoints: 0,
+    status: "locked",
+  });
 });
 
 test("有 briefing 但沒有 mainQuest 的副本，退回 briefing 而不是整層消失", () => {

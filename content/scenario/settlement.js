@@ -21,19 +21,36 @@
 // 這是本專案第4條最高原則在結算上的落實，對照表見 deriveSessionTiers()。
 
 import { fixedSessionXp } from "../../core/campaignXp.js";
-import { earn } from "../shop/wallet.js";
+import { grantOnce, rewardIds } from "./rewardLedger.js";
 import { MAX_TIER } from "./divergence.js";
 import { remainingRounds } from "./timeBudget.js";
 
 /**
  * 完成一個節點的獎勵入帳：**獎勵點數**，不是 XP。
+ *
+ * [2026-09-01 第三階段] 改走獎勵帳本。在此之前這裡直接呼叫 earn()，而「這筆發過了沒」
+ * 靠的是呼叫端各自檢查 progress.nodes[id].completed——三個呼叫端、三份判斷。
+ * 現在冪等性來自 rewardId 在帳本裡的存在與否，發第二次會安靜地 no-op 而不是重複入帳。
+ *
+ * @param {object} progress 副本進度（帳本住在 progress.rewardLedger）
  * @param {object} wallet content/shop/wallet.js 的錢包
- * @param {number} points completeNode() 回傳的 reward
- * @param {string} label 入帳理由(會寫進錢包的收入明細)
+ * @param {object} grant
+ * @param {string} grant.nodeId 完成的節點 id，用來組決定性的 rewardId
+ * @param {number} grant.points completeNode() 回傳的 reward
+ * @param {string} [grant.label] 入帳理由（人看的）
+ * @param {number} [grant.turn]
+ * @returns {{progress: object, wallet: object, credited: number}}
  */
-export function creditNodeReward(wallet, points, label) {
-  if (!(points > 0)) return { wallet, credited: 0 };
-  return { wallet: earn(wallet, { points }), credited: points };
+export function creditNodeReward(progress, wallet, { nodeId, points, label = null, turn = 0 } = {}) {
+  const result = grantOnce(progress, wallet, {
+    rewardId: rewardIds.node(nodeId),
+    // 節點獎勵屬於主線那一層：推進主線就是會拿到分數。
+    type: "mainline",
+    points,
+    turn,
+    label,
+  });
+  return { progress: result.progress, wallet: result.wallet, credited: result.granted ? Math.max(0, Math.trunc(Number(points) || 0)) : 0 };
 }
 
 /**
@@ -226,7 +243,7 @@ export function buildRunSummary(pack, progress, character, settlement, reference
  * **一份存檔只結算一次**，靠 progress.settledAt 這個時間戳擋住重複結算。
  * @returns {{ settled: boolean, wallet: object, progress: object, xp?: number, speedBonusPoints?: number, runSummary?: object, breakdown?: object, tiers?: object }}
  */
-export function settleScenario(pack, progress, character, wallet, { referenceState = null } = {}) {
+export function settleScenario(pack, progress, character, wallet, { referenceState = null, turn = 0 } = {}) {
   if (!progress) return { settled: false, wallet, progress };
   if (progress.settledAt) return { settled: false, wallet, progress, reason: "這個副本已經結算過了" };
 
@@ -235,7 +252,52 @@ export function settleScenario(pack, progress, character, wallet, { referenceSta
   const speed = deriveSpeedBonus(pack, progress);
   const runSummary = buildRunSummary(pack, progress, character, { xp: total }, referenceState);
   const settledAt = new Date().toISOString();
-  const nextProgress = { ...progress, settledAt, runSummary: { ...runSummary } };
+
+  // [2026-09-01 第三階段] 通關結算的三筆獎勵各自走帳本，而且**分屬不同層**：
+  //
+  //   主線任務完成獎勵  支線 + 分數  mainline       ← 這一筆在此之前從來沒有發過
+  //   速度獎勵          分數         mainline
+  //   結局獎勵          XP           ending
+  //
+  // 支線（tokens）是這一輪才真的接上的：wallet.js 的 earn() 一直支援它，
+  // 但在此之前**零個呼叫端傳它**，所以規則書的兩種貨幣裡有一種從來沒進過玩家的口袋。
+  //
+  // 三筆都走 grantOnce，所以就算 settledAt 那道鎖哪天被繞過，也不會重複入帳。
+  let nextProgress = { ...progress, settledAt, runSummary: { ...runSummary } };
+  let nextWallet = wallet;
+  const questReward = pack?.mainQuest?.reward ?? null;
+  const grants = [
+    questReward && {
+      rewardId: rewardIds.mainQuest(pack?.mainQuest?.id ?? pack?.id ?? "main"),
+      type: "mainline",
+      tokens: questReward.tokens,
+      points: questReward.points,
+      label: pack?.mainQuest?.title ?? "主線任務",
+    },
+    {
+      rewardId: rewardIds.speed(pack?.id ?? "scenario"),
+      type: "mainline",
+      points: speed.speedBonusPoints,
+      label: "效率獎勵",
+    },
+    {
+      rewardId: rewardIds.ending(pack?.id ?? "scenario"),
+      type: "ending",
+      xp: total,
+      label: "副本通關結算",
+    },
+  ].filter(Boolean);
+
+  const grantedMainQuest = { tokens: {}, points: 0 };
+  for (const grant of grants) {
+    const result = grantOnce(nextProgress, nextWallet, { ...grant, turn });
+    nextProgress = result.progress;
+    nextWallet = result.wallet;
+    if (result.granted && grant.rewardId.startsWith("mainline:")) {
+      grantedMainQuest.tokens = { ...(result.entry.tokens ?? {}) };
+      grantedMainQuest.points = result.entry.points ?? 0;
+    }
+  }
 
   return {
     settled: true,
@@ -244,8 +306,11 @@ export function settleScenario(pack, progress, character, wallet, { referenceSta
     tiers,
     speedBonusPoints: speed.speedBonusPoints,
     speedBonus: speed,
+    // 主線任務獎勵單獨帶出來，讓 API 層寫得出一筆有意義的事件日誌
+    // （「完成主線任務，獲得 D 支線 ×1 與 1500 分」）。
+    mainQuestReward: grantedMainQuest,
     runSummary,
-    wallet: earn(wallet, { xp: total, points: speed.speedBonusPoints }),
+    wallet: nextWallet,
     progress: nextProgress,
   };
 }

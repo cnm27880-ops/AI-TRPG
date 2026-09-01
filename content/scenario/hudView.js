@@ -34,6 +34,7 @@
 import { findActiveNode, getProgressSummary } from "./progress.js";
 import { threatSummary } from "./threat.js";
 import { remainingRounds } from "./timeBudget.js";
+import { summarizeRewardLedger } from "./rewardLedger.js";
 
 /** 主線任務的三種狀態。刻意只有三個：進行中／已完成／已失敗。 */
 export const MAIN_QUEST_STATUSES = Object.freeze(["active", "completed", "failed"]);
@@ -189,19 +190,24 @@ export function publicMajorStoryNodes(reference, referenceState) {
 export function buildRewardSummary(pack, progress, summary) {
   const declared = pack?.mainQuest?.reward ?? null;
   const settled = Boolean(progress?.settledAt);
-  const ledger = progress?.rewardLedger ?? {};
-  const turningPoints = Object.values(ledger)
-    .filter((entry) => entry?.type === "turning_point")
-    .reduce((sum, entry) => sum + (Number(entry.points) || 0), 0);
+  // [2026-09-01 第三階段] 三層全部改讀獎勵帳本。在此之前 turningPoints 是就地
+  // 掃 progress.rewardLedger、而 mainline 純粹是宣告值——帳本裡已經發出去的
+  // 節點獎勵與速度獎勵在玩家面板上完全看不到。
+  const earned = summarizeRewardLedger(progress);
 
   return {
     mainline: {
+      // 副本宣告的**主線完成獎勵**：這是「做完會拿到什麼」。
       tokens: { ...(declared?.tokens ?? {}) },
       points: Number(declared?.points) || 0,
-      // 主線獎勵在通關結算那一刻才入帳，所以 settledAt 就是它的開關。
+      // 帳本裡已經真的入帳的主線分數與支線：節點獎勵、主線完成獎勵、速度獎勵都算在內。
+      // 兩者刻意分開——「這條線值多少」跟「我已經拿到多少」不是同一個問題。
+      earnedTokens: { ...earned.mainline.tokens },
+      earnedPoints: earned.mainline.points,
+      // 主線完成獎勵在通關結算那一刻才入帳，所以 settledAt 就是它的開關。
       status: settled ? "granted" : summary?.scenarioComplete ? "pending" : "locked",
     },
-    turningPoints: { points: turningPoints },
+    turningPoints: { points: earned.turning_point.points },
     ending: {
       xp: settled ? Number(progress?.runSummary?.xp) || 0 : null,
       status: settled ? "granted" : "pending",

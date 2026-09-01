@@ -200,7 +200,13 @@ export async function onRequestPost(context) {
       });
       if (settled.ok) {
         nextProgress = settled.progress;
-        const credited = creditNodeReward(session.wallet, settled.reward, departingNode.title);
+        const credited = creditNodeReward(nextProgress, session.wallet, {
+          nodeId: departingNode.id,
+          points: settled.reward,
+          label: departingNode.title,
+          turn,
+        });
+        nextProgress = credited.progress;
         session.wallet = credited.wallet;
         travelNodeCompleted = {
           nodeId: departingNode.id,
