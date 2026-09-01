@@ -10,6 +10,8 @@
 // progress 仍然只負責章節、節點、時間、迫近度與套路，避免破壞舊存檔。
 
 import { difficultyToDc, validateOption } from "../turnOptions.js";
+import { matchReferenceCondition } from "./conditions.js";
+import { evaluateMajorStoryNodes, normalizeMajorStoryState } from "./majorStoryNodes.js";
 import { applyDamage } from "../../core/health.js";
 import {
   synchronizeExplorationState,
@@ -203,29 +205,27 @@ function initialNpcStatuses(reference) {
 const STATE_AXIS_KEYS = Object.freeze(["infectionStatus", "sampleStatus", "shipStatus", "airlockPhase"]);
 
 /**
- * reference 可宣告的狀態條件（結局規則、最終戰完成條件共用）。
- * 只讀 server 已保存的 state，不接受模型或前端輸入。
+ * NPC 的**終局**狀態：落進來就不能再被 effects 改回去。
+ *
+ * 為什麼 survived 也算終局：它是「這個人成功離開副本」的結論，由最終戰的 effects 寫入，
+ * 而 deriveEndingId() 拿它判 end_heroic_rescue。允許它被降級，等於允許結局被後續回合改寫。
+ * 復活如果哪天真的要做，那必須是一個**正式的事件**（像 core/deathAndRevival.js 那樣），
+ * 不是某個 approach 的失敗結果順手把狀態寫回 alive。
  */
-export function matchReferenceCondition(condition, state) {
-  if (!condition || typeof condition !== "object") return false;
-  if (Array.isArray(condition.any)) {
-    if (!condition.any.some((nested) => matchReferenceCondition(nested, state))) return false;
-  }
-  const flags = flagSet(state);
-  if ((condition.allFlags ?? []).some((flag) => !flags.has(flag))) return false;
-  if (condition.anyFlags?.length && !condition.anyFlags.some((flag) => flags.has(flag))) return false;
-  if ((condition.flagsAbsent ?? []).some((flag) => flags.has(flag))) return false;
-  for (const [key, expected] of Object.entries(condition.stateEquals ?? {})) {
-    if (String(state?.[key]) !== String(expected)) return false;
-  }
-  for (const [npcId, allowed] of Object.entries(condition.npcStatusAny ?? {})) {
-    const values = Array.isArray(allowed) ? allowed : [allowed];
-    if (!values.includes(state?.npcStatuses?.[npcId])) return false;
-  }
-  if (condition.locations?.length && !condition.locations.includes(state?.currentLocation)) return false;
-  if (condition.locationsAbsent?.length && condition.locationsAbsent.includes(state?.currentLocation)) return false;
-  return true;
+const TERMINAL_NPC_STATUSES = Object.freeze(new Set(["dead", "destroyed", "survived"]));
+
+export function isTerminalNpcStatus(status) {
+  return TERMINAL_NPC_STATUSES.has(status);
 }
+
+/**
+ * reference 可宣告的狀態條件（結局規則、最終戰完成條件、節點完成證據共用）。
+ *
+ * [2026-09-01] 本體搬到 content/scenario/conditions.js —— 節點完成證據需要同一套求值器，
+ * 而 progress.js 不應該為了一個純謂詞去 import 這個 1400 行的模組。
+ * 這裡保留同名 re-export，既有的 import 路徑與測試都不受影響。
+ */
+export { matchReferenceCondition };
 
 export function createReferenceState(reference, { initialInventory = [] } = {}) {
   const scene = firstScene(reference);
@@ -271,6 +271,9 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     sceneTurnCount: 0,
     actionHistory: [],
     endingId: null,
+    // 重大劇情節點的狀態（見 majorStoryNodes.js）。跟 flags 分開存：flags 是世界事實，
+    // 這裡是「引擎對那些事實下的結論」，而且結論一旦定案就鎖住、不再每回合重算。
+    majorStoryState: normalizeMajorStoryState(reference, null),
     // 副本可以覆寫狀態軸的起始值（例如侏羅紀副本一開場就是 shipStatus:"blackout"）。
     // 只允許覆寫引擎已知的軸，避免副本資料偷渡新的 runtime 欄位。
     ...Object.fromEntries(
@@ -319,6 +322,7 @@ export function normalizeReferenceState(reference, rawState) {
       ? rawState.sceneTurnCount
       : 0,
     actionHistory: Array.isArray(rawState.actionHistory) ? rawState.actionHistory.slice(-24) : [],
+    majorStoryState: normalizeMajorStoryState(reference, rawState.majorStoryState),
   };
   return synchronizeExplorationState(reference, normalized);
 }
@@ -773,7 +777,27 @@ function applyBasicEffects(state, effects = {}) {
     ...(effects.worldFlagsAdd ?? []),
   ]);
   next.injuries = unique([...next.injuries, ...(effects.injuriesAdd ?? [])]);
-  for (const [npcId, status] of Object.entries(effects.npcStatusChanges ?? {})) next.npcStatuses[npcId] = status;
+  for (const [npcId, status] of Object.entries(effects.npcStatusChanges ?? {})) {
+    if (isTerminalNpcStatus(next.npcStatuses[npcId]) && next.npcStatuses[npcId] !== status) {
+      // [2026-09-01] 這一行以前是無條件覆寫，於是資料裡的一筆矛盾就能讓人復活：
+      // evt_ash_ambush / app_ash_shoot 的「大成功」設 npc_ash=destroyed，
+      // 「慘烈失敗」設 npc_ash=alive——只要能再射一次，Ash 就活過來了。
+      //
+      // 死亡是不可逆的（討論稿 §十.4）。允許 dead→alive 的話，重大劇情節點與結局條件
+      // （deriveEndingId 讀 npcStatuses）全部建在一個可以被後續 effect 抹掉的事實上。
+      // 靜默丟棄同樣不行——那會讓副本作者永遠看不到自己的資料互相矛盾，所以留一筆
+      // 可搜尋的 log，格式跟 [SCENARIO_SETTLEMENT_BLOCKED] 一致。
+      console.warn("[NPC_STATUS_DOWNGRADE_BLOCKED]", JSON.stringify({
+        where: "applyBasicEffects",
+        npcId,
+        current: next.npcStatuses[npcId],
+        attempted: status,
+        hint: "終局狀態(dead/destroyed/survived)不可被後續 effect 覆寫；請修正 reference 資料",
+      }));
+      continue;
+    }
+    next.npcStatuses[npcId] = status;
+  }
   for (const [npcId, delta] of Object.entries(effects.npcTrustDelta ?? {})) {
     next.npcTrust[npcId] = Number(next.npcTrust[npcId] ?? 0) + Number(delta ?? 0);
   }
@@ -912,8 +936,13 @@ function effectSummary(effects = {}) {
   };
 }
 
-/** 套用一個已經由引擎判定的 reference result，回傳 immutable state 與節點/場景推進訊號。 */
-export function applyReferenceResult({ reference, state, resolution, outcomeTier }) {
+/**
+ * 套用一個已經由引擎判定的 reference result，回傳 immutable state 與節點/場景推進訊號。
+ *
+ * @param {number} [turnNumber] 只用來記錄重大劇情節點的 resolvedAtTurn（稽核用）。
+ *   不傳就是 0——節點仍然會正確定案，只是查不到「哪一回合定的」。
+ */
+export function applyReferenceResult({ reference, state, resolution, outcomeTier, turnNumber = 0 }) {
   if (!resolution?.matched) return { applied: false, state, error: "沒有可套用的 reference action" };
   const selected = resultForOutcome(resolution.approach, outcomeTier);
   if (!selected) {
@@ -979,12 +1008,30 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     outcomeTier: selected.key,
   });
 
+  // [2026-09-01 第二階段] 重大劇情節點的重新評估。
+  //
+  // 位置是刻意的：這裡是**所有狀態變更的匯流點**——基礎 effects、conditionalEffects、
+  // 狀態軸、NPC 狀態與探索紀錄全部套用完之後。掛在 turn.js 只會蓋到一般回合那條路徑，
+  // travel 與戰鬥收尾就漏了。
+  //
+  // evaluateMajorStoryNodes() 的簽章裡沒有任何參數可以傳敘事文字，所以
+  // 「AI 寫了陸遠死了」在結構上就不可能讓節點解決（見該模組檔頭）。
+  const majorStory = evaluateMajorStoryNodes(reference, nextState, { turnNumber });
+  nextState = { ...nextState, majorStoryState: majorStory.majorStoryState };
+
   const nextNode = nextScene?.nodeId ?? null;
+  // 這個場景離場時關掉哪個節點：優先採用作者在 sceneExit.completeNode 明寫的那個。
+  //
+  // [2026-09-01] 這個欄位在 6 個場景裡都寫了，但在此之前**從來沒有人讀過它**——
+  // 引擎一直用 scene.nodeId 去推。兩者在 Alien V2 剛好每一筆都相同，所以接回來不改變
+  // 任何現有行為；接它的理由是「作者明寫的東西不該是死資料」，而且下一個副本很可能
+  // 需要「這個場景結束時關掉的是另一個節點」，那時候隱含規則會安靜地推錯。
+  const settledNodeId = resolution.scene.sceneExit?.completeNode ?? resolution.scene.nodeId;
   const nodeComplete =
     !isFinaleScene(reference, resolution.scene) &&
     sceneAdvanced &&
-    nextNode !== resolution.scene.nodeId
-      ? { nodeId: resolution.scene.nodeId, divergenceTier: OUTCOME_TO_DIVERGENCE[outcomeTier] ?? 0 }
+    nextNode !== settledNodeId
+      ? { nodeId: settledNodeId, divergenceTier: OUTCOME_TO_DIVERGENCE[outcomeTier] ?? 0 }
       : null;
 
   const endingId = selected.result.effects?.terminalOutcome ?? null;
@@ -1007,6 +1054,8 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     sceneTurnCount: nextState.sceneTurnCount,
     transition: selected.result.effects?.sceneTransition ?? (sceneAdvanced ? "advance" : "stay"),
     nextSceneId: nextState.currentSceneId,
+    // 這一回合真的變動的重大節點。沒有變動就是空陣列，呼叫端據此決定要不要送那一段提示。
+    majorStoryChanges: majorStory.changes,
     nodeComplete,
     finaleComplete,
     endingId,

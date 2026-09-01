@@ -10,6 +10,18 @@
   "finaleNodeIds": [
     "n4"
   ],
+  "timeExpiry": {
+    "flag": "flag_expire_triggered",
+    "deathFlag": "flag_player_dead_overload",
+    "deathWhen": {
+      "allFlags": [
+        "flag_overload_active"
+      ],
+      "locationsAbsent": [
+        "loc_narcissus"
+      ]
+    }
+  },
   "runtimeNote": "scenario runtime 透過 registry 與 referenceAdapter 載入本 sidecar，並使用其中的事件、物品、NPC 狀態、effects、轉場與結局條件；本檔案仍不應直接註冊到現有 SCENARIO_REGISTRY。",
   "authoringRules": {
     "truthOwner": "engine_and_reference_data",
@@ -539,10 +551,28 @@
       "role": "資深輪迴者／臨時隊伍引導者",
       "initialStatus": "alive",
       "knowledge": [
-        "主神副本規則",
-        "異形的酸血與通風管習性",
-        "水仙號位置",
-        "玩家不是原船員"
+        {
+          "id": "reincarnator_rules",
+          "fact": "這是主神空間發布的副本：新人必須完成主線任務才能離開，失敗的人會被抹殺；腕錶上看得到任務、倒數與獎勵。",
+          "source": "experience",
+          "canSay": true,
+          "scope": "可以直接對新人說明；不得說出主神的規則細節、其他副本的內容或自己過去副本的具體結果。"
+        },
+        {
+          "id": "alien_habits",
+          "fact": "船上的掠食者會利用通風管移動，牠的血是強酸，近距離攻擊牠等於把酸濺到自己身上。",
+          "source": "experience",
+          "canSay": true,
+          "scope": "可以直接警告；不得指出異形當下的精確位置，那由引擎的迫近度決定。"
+        },
+        {
+          "id": "player_not_crew",
+          "fact": "玩家不是諾斯托羅莫號的原船員。",
+          "source": "observation",
+          "canSay": true,
+          "scope": "可以直接陳述；不得把它演成陸遠正在調查的未知謎團。他不知道主神為什麼把這個人丟到這裡，那一點可以照實說不知道。"
+        },
+        "水仙號位置"
       ],
       "privateGoals": [
         "讓至少一名新人活著離開",
@@ -4203,7 +4233,25 @@
                 "playerLocation": "loc_lower_deck",
                 "timeCost": 1,
                 "threatDelta": 3
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -5159,7 +5207,25 @@
                 "unlockEvents": [
                   "evt_narcissus_shadow_wake"
                 ]
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -5249,7 +5315,25 @@
                 "unlockEvents": [
                   "evt_narcissus_shadow_wake"
                 ]
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "dead"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_dead"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -6325,7 +6409,26 @@
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "成功": {
               "text": "掃描結果顯示沒有外來生物組織，酸液傷也只停留在體表。你記下結果，將醫療包放回儲格，準備進入休眠。",
@@ -6336,7 +6439,26 @@
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "驚險成功": {
               "text": "掃描儀檢出一小片壞死組織，但沒有寄生反應。你切除並包紮傷口後進入休眠，帶著明確的傷勢而不是未知感染。",
@@ -6350,7 +6472,26 @@
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "些微失敗": {
               "text": "掃描儀在胸腔下方失去電力，只能確認體表沒有幼體痕跡。你帶著疑慮進入休眠，感染狀態保持未知，不應直接判定為感染。",
@@ -6361,7 +6502,26 @@
                   "flag_infection_unresolved"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "失敗": {
               "text": "你無法解讀複合光譜，系統把一處陰影標成不確定項。你沒有證據說自己已經感染，也沒有足夠理由宣稱安全；休眠前的風險被保留下來。",
@@ -6372,7 +6532,26 @@
                   "flag_infection_suspected"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "慘烈失敗": {
               "text": "酸液殘留讓探頭短路，儀器吐出一份錯誤的健康報告。只有在此前確實接觸過抱臉體或幼體時，未被檢出的寄生體才會跟著你離開；否則，這次失敗只留下未排除的感染疑慮。",
@@ -6404,6 +6583,23 @@
                       "flag_infection_suspected"
                     ]
                   }
+                },
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
                 }
               ]
             }
@@ -6432,7 +6628,26 @@
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 0
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             }
           }
         },
@@ -6462,7 +6677,26 @@
                   "flag_hypersleep_entered"
                 ],
                 "timeCost": 1
-              }
+              },
+              "conditionalEffects": [
+                {
+                  "ifFlags": [
+                    "flag_luyuan_met"
+                  ],
+                  "ifFlagsAbsent": [
+                    "flag_luyuan_dead",
+                    "flag_luyuan_abandoned"
+                  ],
+                  "effects": {
+                    "npcStatusChanges": {
+                      "npc_luyuan": "survived"
+                    },
+                    "worldFlagsAdd": [
+                      "flag_luyuan_survived"
+                    ]
+                  }
+                }
+              ]
             },
             "失敗": {
               "text": "儲格的溫控設定錯誤，組織在玻璃管內失去活性。你保留了失敗的證據，卻沒有把可用樣本帶出副本。",
@@ -6932,5 +7166,353 @@
       "異形補充.md"
     ],
     "policy": "原始 Gemini 文字只提供玩家演出；effects、tier、旗標、位置、戰鬥與結局判定仍由 engine/reference 裁定。"
-  }
+  },
+  "majorStoryNodes": [
+    {
+      "id": "msn_937",
+      "title": "937 指令的真相",
+      "irreversible": true,
+      "visibility": {
+        "any": [
+          {
+            "anyClues": [
+              "clue_order_937"
+            ]
+          },
+          {
+            "anyFlags": [
+              "flag_937_partial",
+              "flag_937_path_known"
+            ]
+          }
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "evidence_saved",
+          "points": 500,
+          "when": {
+            "allFlags": [
+              "flag_937_evidence_saved"
+            ]
+          }
+        },
+        {
+          "id": "revealed",
+          "points": 300,
+          "when": {
+            "allFlags": [
+              "flag_order_937_revealed"
+            ]
+          }
+        },
+        {
+          "id": "partial",
+          "points": 100,
+          "onlyOnClose": true,
+          "when": {
+            "any": [
+              {
+                "anyClues": [
+                  "clue_order_937"
+                ]
+              },
+              {
+                "anyFlags": [
+                  "flag_937_partial"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "any": [
+            {
+              "stateEquals": {
+                "shipStatus": "overload_started"
+              }
+            },
+            {
+              "anyFlags": [
+                "flag_escaped_to_narcissus"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_luyuan_fate",
+      "title": "陸遠的命運",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_luyuan_met"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "survived",
+          "points": 500,
+          "when": {
+            "npcStatusAny": {
+              "npc_luyuan": [
+                "survived"
+              ]
+            }
+          }
+        },
+        {
+          "id": "dead",
+          "points": 0,
+          "when": {
+            "npcStatusAny": {
+              "npc_luyuan": [
+                "dead"
+              ]
+            }
+          }
+        },
+        {
+          "id": "abandoned",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_luyuan_abandoned"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "msn_ash_fate",
+      "title": "Ash 的命運",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_ash_talked",
+          "flag_ash_suspicious",
+          "flag_ash_synthetic_known",
+          "flag_ash_hostile"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "destroyed",
+          "points": 300,
+          "when": {
+            "npcStatusAny": {
+              "npc_ash": [
+                "destroyed"
+              ]
+            }
+          }
+        },
+        {
+          "id": "delayed",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_ash_delayed"
+            ]
+          }
+        },
+        {
+          "id": "at_large",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_brett_fate",
+      "title": "Brett 的下落",
+      "irreversible": true,
+      "visibility": {
+        "anyClues": [
+          "clue_brett_fate"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "confirmed_dead",
+          "points": 0,
+          "when": {
+            "allFlags": [
+              "flag_brett_confirmed"
+            ]
+          }
+        },
+        {
+          "id": "unconfirmed",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_xenomorph_fate",
+      "title": "異形的最終命運",
+      "irreversible": true,
+      "visibility": {
+        "any": [
+          {
+            "anyClues": [
+              "clue_alien_trace"
+            ]
+          },
+          {
+            "anyFlags": [
+              "flag_alien_alert"
+            ]
+          }
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "killed",
+          "points": 1000,
+          "when": {
+            "allFlags": [
+              "flag_xenomorph_killed"
+            ]
+          }
+        },
+        {
+          "id": "followed_aboard",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {
+            "allFlags": [
+              "flag_alien_followed"
+            ]
+          }
+        },
+        {
+          "id": "left_on_nostromo",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_sample_fate",
+      "title": "樣本的去向",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_sample_unstable",
+          "flag_sample_preserved",
+          "flag_sample_destroyed",
+          "flag_sample_spilled"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "preserved",
+          "points": 400,
+          "when": {
+            "allFlags": [
+              "flag_sample_preserved"
+            ]
+          }
+        },
+        {
+          "id": "destroyed",
+          "points": 0,
+          "when": {
+            "anyFlags": [
+              "flag_sample_destroyed",
+              "flag_sample_spilled"
+            ]
+          }
+        },
+        {
+          "id": "left_behind",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    },
+    {
+      "id": "msn_infection",
+      "title": "感染的下場",
+      "irreversible": true,
+      "visibility": {
+        "anyFlags": [
+          "flag_infection_suspected",
+          "flag_infected",
+          "flag_infection_unresolved",
+          "flag_infection_cleared"
+        ]
+      },
+      "resolutions": [
+        {
+          "id": "cleared",
+          "points": 500,
+          "when": {
+            "allFlags": [
+              "flag_infection_cleared"
+            ]
+          }
+        },
+        {
+          "id": "infected",
+          "points": 0,
+          "when": {
+            "stateEquals": {
+              "infectionStatus": "infected"
+            }
+          }
+        },
+        {
+          "id": "unresolved_at_sleep",
+          "points": 0,
+          "onlyOnClose": true,
+          "when": {}
+        }
+      ],
+      "window": {
+        "closesWhen": {
+          "anyFlags": [
+            "flag_hypersleep_entered"
+          ]
+        }
+      }
+    }
+  ]
 }

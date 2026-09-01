@@ -79,6 +79,17 @@ export const LUYUAN_PERSONA = {
     order: ["briefing", "provisional", "functional", "strained", "self_preserving", "abandoned"],
     // 進到這幾階就算「他已經先顧自己」，S.A.E.P. 會據此抬高 EGO、降低 SOC。
     selfPreserving: ["strained", "self_preserving", "abandoned"],
+    // [2026-09-01] abandoned = 他自行撤離，不再為玩家承擔風險。
+    //
+    // 合作階段住在 state.npcCooperation，而 reference 的 conditionalEffects 只吃 flags，
+    // 兩邊接不起來的後果很具體：玩家把他惹到離隊之後，休眠結算的存活掃描照樣把他
+    // 標成 survived，結局仍然說「有人陪你離開」——那個人明明早就走了。
+    // 這一行把階段投影成世界事實，讓結局判定讀得到。
+    //
+    // 只有終局階段可以宣告（旗標寫出去就收不回來）。abandoned 符合：
+    // 下面 transitions 裡每一條降溫規則的 onlyFrom 都只到 self_preserving 為止，
+    // 沒有任何一條回得來。這個不變式由 assertTerminalStateFlags() 在載入時強制檢查。
+    stateFlags: { abandoned: "flag_luyuan_abandoned" },
   },
 
   objectives: {

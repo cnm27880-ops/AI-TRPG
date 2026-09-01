@@ -266,15 +266,12 @@ export async function onRequestGet(context) {
       ? (() => {
           const pack = getScenarioPack(session.scenario.packId);
           const reference = getScenarioReference(pack);
-          const hud = scenarioHudView(pack, session.scenario.progress);
+          const referenceState = reference
+            ? normalizeReferenceState(reference, session.scenario.referenceState)
+            : null;
+          const hud = scenarioHudView(pack, session.scenario.progress, { reference, referenceState });
           return reference
-            ? {
-                ...hud,
-                reference: referenceStateForResponse(
-                  reference,
-                  normalizeReferenceState(reference, session.scenario.referenceState)
-                ),
-              }
+            ? { ...hud, reference: referenceStateForResponse(reference, referenceState) }
             : hud;
         })()
       : null,

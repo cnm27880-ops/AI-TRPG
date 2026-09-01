@@ -201,20 +201,62 @@ test("狀態行只送引擎知道的事實：不編 HP 百分比，也不洩漏�
 });
 
 test("Knowledge 白名單的基線在靜態層，動態層只送這一局額外學到的東西", () => {
+  // [2026-09-01] 這條斷言改過形狀，理由要寫下來：knowledge 從「一串主題字串」升級成
+  // 可以帶 { fact, canSay, scope } 的分層資料（見 npcCooperationContract.js 的
+  // normalizeKnowledge），所以 `declared[0]` 不再是字串，舊的 `new RegExp(declared[0])`
+  // 會變成 /[object Object]/。
+  //
+  // 新斷言問的是**更精確的問題**：不只是「基線的字有沒有出現在靜態層」，
+  // 而是「一筆 canSay 的事實有沒有被標成可直接陳述的事實、而不是待探討的主題」——
+  // 後者正是實測時陸遠把已知事實演成謎團的成因。
   const declared = reference.npcs.find((npc) => npc.id === LUYUAN).knowledge;
+  const firstFact = declared.find((entry) => entry && typeof entry === "object" && entry.canSay);
+  const firstTopic = declared.find((entry) => typeof entry === "string");
+  assert.ok(firstFact && firstTopic, "陸遠應同時有事實型與主題型的 knowledge，才測得到兩條路徑");
+
   const contract = buildNpcCooperationContract(reference);
   // 基線整場付一次，住在靜態契約裡。
-  assert.match(contract, new RegExp(declared[0]));
+  assert.match(contract, new RegExp(firstFact.fact));
+  assert.match(contract, /已知事實（可直接陳述，不得演成未知）/);
+  assert.match(contract, new RegExp(firstTopic));
   assert.match(contract, /Knowledge 白名單基線/);
+  // scope 是作者對「這件事可以怎麼被使用」的限制，不可以在組裝時被丟掉。
+  assert.match(contract, new RegExp(firstFact.scope.slice(0, 10)));
 
   let state = onStage();
   state = step(state, 1, "你是誰？", { newClues: ["clue_vent_pattern"] });
   const block = buildNpcActiveStateBlock(reference, state);
   // 動態層只送增量；把基線再抄一遍就是這一行原本 40% 的體積。
   assert.match(block, /\+Known: "clue_vent_pattern"/);
-  assert.doesNotMatch(block, new RegExp(declared[0]));
+  assert.doesNotMatch(block, new RegExp(firstFact.fact));
+  assert.doesNotMatch(block, new RegExp(firstTopic));
   assert.ok(state.npcRuntime[LUYUAN].learned.includes("clue_vent_pattern"));
   assert.match(NPC_STATE_LEGEND, /白名單/);
+});
+
+test("已知事實不得被演成未知：靜態契約要明說這條規則，且 canSay:false 一個字都不進提示", () => {
+  const contract = buildNpcCooperationContract(reference);
+  // 這條規則是實測 bug 的直接修法（陸遠開口第一句把已知事實推給玩家解謎），
+  // 它必須以「規則」的形式出現在靜態層，不是靠每回合的動態提示提醒。
+  assert.match(contract, /不是一份待調查的謎團清單/);
+  assert.match(contract, /不可以先用反問把已知事實偽裝成未知/);
+
+  // canSay:false =「他知道但不能說」。列進提示等於誘導模型說出來，所以兩類都不收。
+  const gated = {
+    npcs: [
+      {
+        id: "npc_luyuan",
+        name: "陸遠",
+        knowledge: [
+          { id: "open", fact: "可以說的事實。", canSay: true },
+          { id: "sealed", fact: "絕對不可以說的秘密。", canSay: false },
+        ],
+      },
+    ],
+  };
+  const gatedContract = buildNpcCooperationContract(gated);
+  assert.match(gatedContract, /可以說的事實。/);
+  assert.doesNotMatch(gatedContract, /絕對不可以說的秘密。/);
 });
 
 test("沒有偏離基線時，Agenda／Taboo／Knowledge 一個字都不進動態層", () => {

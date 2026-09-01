@@ -13,6 +13,12 @@ import {
   getProgressSummary,
 } from "../content/scenario/progress.js";
 import { validateScenarioPack } from "../content/scenario/schema.js";
+import { NOSTROMO_SCENARIO_V2 as alienPackData } from "../content/scenario/examples/alienNostromo_v2.js";
+
+/** 真副本包。證據閘門的價值取決於資料有沒有真的宣告 completionEvidence，所以要對著它測。 */
+function alienPack() {
+  return alienPackData;
+}
 
 function demoPack({ withExpire = true, withSecondChapter = false } = {}) {
   const ch1Nodes = [
@@ -209,4 +215,100 @@ test("getProgressSummary：回報時間狀態，供前端HUD直接顯示", () =>
   const summary = getProgressSummary(pack, progress);
   assert.equal(summary.timeStatus, "吃緊");
   assert.equal(summary.timeBudget.spentRounds, 4);
+});
+
+// ---------------------------------------------------------------------------
+// [2026-09-01] 節點完成證據閘門（第零階段）
+//
+// 修的是一個一直沒有人看見的洞：在此之前，「節點完成」的唯一判準是
+// referenceAdapter 的「場景推進了、而且下一個場景屬於別的節點」——全部是位置與
+// 轉場事實，一項證據都沒查。Alien V2 裡的實際後果是「從科學區走進母核心」就結算了
+// n1（150 點入帳），「走出母核心去機艙」就結算了 n2（400 點入帳，一行 937 都沒讀）。
+//
+// 這三條測試釘住的是閘門的三種狀態：沒宣告時完全不變、宣告了但證據不足要擋、
+// 宣告了卻沒人傳 state 進來時**也要擋**（fail-closed）。
+// ---------------------------------------------------------------------------
+
+function evidencePack() {
+  return {
+    id: "pack.evidence",
+    type: "副本",
+    entries: [
+      {
+        id: "ch1",
+        name: "第一章",
+        nodes: [
+          {
+            id: "n1",
+            title: "揭露型節點",
+            canonSummary: "...",
+            prerequisites: [],
+            baseRewardPoints: 100,
+            baseDC: 1,
+            completionEvidence: [
+              { anyFlags: ["flag_contact"] },
+              { anyClues: ["clue_a", "clue_b"] },
+            ],
+          },
+          { id: "n2", title: "沒宣告證據的節點", canonSummary: "...", prerequisites: ["n1"], baseRewardPoints: 200, baseDC: 2 },
+        ],
+      },
+    ],
+  };
+}
+
+test("completionEvidence：證據不成立時擋下結算——抵達地點不等於完成劇情", () => {
+  const pack = evidencePack();
+  const progress = initScenarioProgress(pack);
+
+  // 旗標有了、線索還沒有：陣列成員之間是 AND，缺一條就不算完成。
+  const partial = completeNode(pack, progress, "n1", 0, {
+    evidenceState: { flags: ["flag_contact"], clues: [] },
+  });
+  assert.equal(partial.ok, false);
+  assert.match(partial.error, /完成證據還不成立/);
+
+  // 兩條都成立才放行。線索欄位是 anyClues，兩個來源任一即可。
+  const full = completeNode(pack, progress, "n1", 0, {
+    evidenceState: { flags: ["flag_contact"], clues: ["clue_b"] },
+  });
+  assert.equal(full.ok, true);
+  assert.equal(full.reward, 100);
+});
+
+test("completionEvidence：宣告了證據卻沒有人傳 state 進來時是擋下，不是放行", () => {
+  // fail-closed。這條閘門有三個呼叫端（turn.js / travel.js / finaleSettlement.js），
+  // 預設放行的話「忘記傳參數」會變成一條安靜的繞道，而那正是它要修的那種 bug。
+  const pack = evidencePack();
+  const progress = initScenarioProgress(pack);
+  const result = completeNode(pack, progress, "n1", 0);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /沒有提供副本狀態/);
+});
+
+test("completionEvidence：沒宣告的節點行為完全不變(舊副本與沒有 reference 的副本不受影響)", () => {
+  const pack = evidencePack();
+  let progress = initScenarioProgress(pack);
+  progress = completeNode(pack, progress, "n1", 0, {
+    evidenceState: { flags: ["flag_contact"], clues: ["clue_a"] },
+  }).progress;
+
+  // n2 沒有 completionEvidence：連 evidenceState 都不用傳，照舊放行。
+  const result = completeNode(pack, progress, "n2", 0);
+  assert.equal(result.ok, true);
+  assert.equal(result.reward, 200);
+});
+
+test("completionEvidence：Alien V2 的 n1/n2 不再能靠「走過一道門」結算", () => {
+  // 這一條直接對著真副本測，因為閘門的價值完全取決於資料有沒有真的宣告它。
+  const pack = alienPack();
+  const progress = initScenarioProgress(pack);
+
+  // 玩家人在母核心、什麼都沒查到：以前這就足以在離場時結算 n1。
+  const empty = { flags: [], clues: [], currentLocation: "loc_mother_core" };
+  assert.equal(completeNode(pack, progress, "n1", 3, { evidenceState: empty }).ok, false);
+
+  // 見過陸遠 + 手上有一條痕跡線索 = n1 的目標真的達成了。
+  const oriented = { flags: ["flag_luyuan_met"], clues: ["clue_alien_trace"] };
+  assert.equal(completeNode(pack, progress, "n1", 0, { evidenceState: oriented }).ok, true);
 });

@@ -15,6 +15,7 @@ import { createTimeBudget, spendTime, isExpired, timeStatus } from "./timeBudget
 import { computeNodeReward, computeNodeDC, summarizeChapter, summarizeCampaign } from "./divergence.js";
 import { createThreatTrack, applyOutcomeToThreat, dischargeThreat, normalizeTrack } from "./threat.js";
 import { createUsageStreak, normalizeStreak, retreadPenalty, trackUsage } from "./repetition.js";
+import { nodeDeclaresEvidence, nodeEvidenceSatisfied } from "./conditions.js";
 
 /**
  * 建立一份全新副本進度。
@@ -114,9 +115,12 @@ export function advanceChapter(pack, progress) {
  * @param {string} nodeId
  * @param {number} divergenceTier 0~4，呼叫端(turn.js)必須先用 nodePrompt.js 的
  *   validateNodeComplete() 查驗過AI給的信號，這裡不再重新查驗合法範圍以外的容錯。
+ * @param {object} [options]
+ * @param {object|null} [options.evidenceState] 這份存檔的 referenceState。節點宣告了
+ *   completionEvidence 時**必須**提供，否則一律擋下 —— 見下方的 fail-closed 說明。
  * @returns {{ ok: true, progress: object, node: object, reward: number, dc: number } | { ok: false, error: string }}
  */
-export function completeNode(pack, progress, nodeId, divergenceTier) {
+export function completeNode(pack, progress, nodeId, divergenceTier, { evidenceState = null } = {}) {
   const nodesById = flattenNodes(pack);
   const node = nodesById[nodeId];
   if (!node) return { ok: false, error: `副本包裡沒有節點「${nodeId}」` };
@@ -126,6 +130,31 @@ export function completeNode(pack, progress, nodeId, divergenceTier) {
   if (state.completed) return { ok: false, error: `節點「${nodeId}」已經完成過，不能重複結算` };
   if (!isUnlocked(node, progress)) {
     return { ok: false, error: `節點「${nodeId}」的前置節點還沒有全部完成，不能推進` };
+  }
+  // [2026-09-01] 完成證據閘門。
+  //
+  // 在此之前，「節點完成」的唯一判準是 referenceAdapter 的
+  // 「場景推進了、而且下一個場景屬於別的節點」——**全部是位置與轉場事實，一項證據都沒查**。
+  // 具體後果：evt_meet_ash(n1) 的 exitConditions 有 {playerLeavesLocation:true}，
+  // nextByLocation 把 loc_mother_core 對到 evt_mother_chamber_infiltrate(n2)，於是
+  // 「從科學區走進母核心」就結算了 n1 並入帳 150 點；同樣地「走出母核心去機艙」
+  // 會結算 n2 並入帳 400 點，一行 937 都不用讀。
+  //
+  // 更難看的是 OUTCOME_TO_DIVERGENCE 把「失敗」對到扭轉度 3(×1.8)、「慘烈失敗」對到 4(×2.5)：
+  // 用失敗的方式走出母核心(720 分)比成功讀完 937 再走(400 分)拿得多。
+  //
+  // 所以節點可以宣告 completionEvidence，只讀引擎已保存的 referenceState。
+  //
+  // **fail-closed**：宣告了證據卻沒有人把 state 傳進來時擋下，不是放行。
+  // 這裡是三個呼叫端(turn.js / travel.js / finaleSettlement.js)共用的閘門，
+  // 預設放行的話「忘記傳參數」會變成一個安靜的繞道，而那正是這條閘門要修的那種 bug。
+  if (nodeDeclaresEvidence(node)) {
+    if (!evidenceState) {
+      return { ok: false, error: `節點「${nodeId}」宣告了完成證據，但這次結算沒有提供副本狀態，無法查驗` };
+    }
+    if (!nodeEvidenceSatisfied(node, evidenceState)) {
+      return { ok: false, error: `節點「${nodeId}」的完成證據還不成立(抵達地點不等於完成劇情)` };
+    }
   }
 
   const reward = computeNodeReward(node.baseRewardPoints, divergenceTier);
@@ -143,8 +172,8 @@ export function completeNode(pack, progress, nodeId, divergenceTier) {
  * completeNode() + 章節完成時自動進下一章節，包成一次呼叫給API層用
  * (turn.js的敘事節點結算、combat/act.js的最終戰勝利結算，兩邊都需要同一套流程)。
  */
-export function completeNodeAndAdvance(pack, progress, nodeId, divergenceTier) {
-  const result = completeNode(pack, progress, nodeId, divergenceTier);
+export function completeNodeAndAdvance(pack, progress, nodeId, divergenceTier, options = {}) {
+  const result = completeNode(pack, progress, nodeId, divergenceTier, options);
   if (!result.ok) return result;
 
   let nextProgress = result.progress;

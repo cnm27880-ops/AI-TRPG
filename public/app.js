@@ -1943,7 +1943,12 @@ function updateScenarioHud(scenario) {
       appendFeedEvent(
         "world",
         `劇情節點完成：${escapeHtml(n.title)}`,
-        `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點經驗`,
+        // [2026-09-01] 這一行以前把節點獎勵說成 XP。伺服器在 2026-08-17 就已經把它
+        // 改回**獎勵點數**進錢包了（content/scenario/settlement.js 的 creditNodeReward，
+        // 檔頭記著那次修正的理由），XP 改成只在副本通關時結算——但前端文案停在修正之前，
+        // 於是畫面上這行字對玩家說了一段時間的謊：他拿到的是能在主神商店花的分數，
+        // 不是 XP，兩者的用途與花費地點完全不同。
+        `扭轉度 <span class="fe-num">${n.divergenceTier}</span> 級 · 獲得 <span class="fe-num">${n.reward}</span> 點獎勵點數`,
         { tone: "good" }
       );
     });
@@ -1977,15 +1982,16 @@ function updateScenarioHud(scenario) {
     titleEl.title = node.title;
   }
 
-  const pct = scenario.progress?.overallCompletionPct ?? 0;
-  const currentChapter = scenario.progress?.chapters?.[scenario.progress?.currentChapterIndex ?? 0];
-  const progressDetail = currentChapter
-    ? `主線進度：節點 ${currentChapter.completedNodes}/${currentChapter.totalNodes}（${pct}%）`
-    : `主線進度：${pct}%`;
-  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
-  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
-  const progressMetric = document.querySelector(".mission-progress-metric");
-  if (progressMetric) progressMetric.title = progressDetail;
+  // [2026-09-01 第一階段] 主線百分比與那條進度條已經拿掉了。
+  //
+  // 它不是精度問題而是語意問題：普通場景事件與重大劇情轉折的重量完全不同，
+  // 但分母把它們算成一樣；救下陸遠、揭露 937、走過一個普通房間被視為同等進度。
+  // 玩家還會誤以為當前節點要逐步累積到 100%，實際上通常過一回合節點就結束了。
+  //
+  // 伺服器仍然算得出 overallCompletionPct（getProgressSummary），只是不再送進
+  // 玩家面板的 payload——後台統計與除錯拿得到，玩家看到的換成劇情階段軌。
+  // 階段軌的資料已經在 scenario.storyPhase 裡了；**畫**它是第四階段的事，
+  // 這一階段只負責讓前端不要再讀一個已經不存在的欄位。
 
   renderThreatMeter(scenario.threat);
 

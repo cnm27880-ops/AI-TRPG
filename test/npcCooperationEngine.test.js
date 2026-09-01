@@ -156,6 +156,101 @@ test("沒有 reference 或 reference 沒宣告 knowledge 時，靜態契約仍�
     const contract = buildNpcCooperationContract(reference);
     assert.match(contract, /NPC 合作契約/);
     assert.match(contract, /陸遠/, "人設本身不依賴 reference");
-    assert.doesNotMatch(contract, /Knowledge 白名單基線/, "沒宣告就不要印一個空的白名單");
+    // [2026-09-01] 斷言從裸片語收緊成「那一行的實際長相」。
+    // 原因：共用規則現在會用「Knowledge 白名單基線」這個詞去**解釋**它是什麼意思，
+    // 所以光比對片語會把說明文字也算成「印了一個空白名單」。
+    // 每個 NPC 的那一行長成 `  Knowledge 白名單基線：…`（縮排 + 全形冒號），
+    // 用冒號當判別字元，問的才是原本想問的問題：沒宣告時有沒有多印一行空的。
+    assert.doesNotMatch(contract, /Knowledge 白名單基線：/, "沒宣告就不要印一個空的白名單");
+    assert.doesNotMatch(contract, /已知事實（可直接陳述/, "沒宣告就不要印一個空的事實清單");
   }
+});
+
+
+import * as luyuanPersonaModule from "../content/scenario/npcCooperationPolicy.js";
+
+// ---------------------------------------------------------------------------
+// [2026-09-01 第 0.6 階段] 終局合作階段 → world flag 的投影
+//
+// 修的是一條接不起來的線：合作階段住在 state.npcCooperation，而 reference 的
+// conditionalEffects 只吃 flags。後果很具體——玩家把陸遠惹到 abandoned、
+// 他自行撤離之後，休眠結算的存活掃描照樣把他標成 survived，
+// 結局仍然說「有人陪你離開」，而那個人明明早就走了。
+// ---------------------------------------------------------------------------
+
+test("終局階段會投影成 world flag，讓 reference 的 conditionalEffects 讀得到", async () => {
+  const { applyNpcCooperationForAction } = await import("../content/scenario/npcCooperationPolicy.js");
+  const reference = { sourcePackId: "scenario.nostromo-01-v2" };
+  let state = { flags: ["flag_luyuan_met"], npcCooperation: {} };
+
+  // 搶槍的三階威脅階梯：strained → self_preserving → abandoned。
+  const stages = [];
+  for (let turn = 1; turn <= 3; turn += 1) {
+    const decision = applyNpcCooperationForAction({
+      reference,
+      state,
+      actionText: "我伸手去搶他的槍",
+      sceneId: "evt_deck_a_recon",
+      turnNumber: turn,
+    });
+    assert.equal(decision.changed, true, `第 ${turn} 次越線應該推進階段`);
+    state = decision.state;
+    stages.push(state.npcCooperation.npc_luyuan.state);
+  }
+  assert.deepEqual(stages, ["strained", "self_preserving", "abandoned"]);
+
+  // 只有走到終局那一階才寫旗標——中間兩階不寫，否則玩家一吵架就永久失去結局。
+  assert.ok(state.flags.includes("flag_luyuan_abandoned"), "abandoned 要投影成世界事實");
+  assert.equal(
+    state.flags.filter((flag) => flag === "flag_luyuan_abandoned").length,
+    1,
+    "重複觸發不該把同一個旗標加第二次"
+  );
+});
+
+test("還沒走到終局階段時，一個旗標都不寫", async () => {
+  const { applyNpcCooperationForAction } = await import("../content/scenario/npcCooperationPolicy.js");
+  const reference = { sourcePackId: "scenario.nostromo-01-v2" };
+  const decision = applyNpcCooperationForAction({
+    reference,
+    state: { flags: ["flag_luyuan_met"], npcCooperation: {} },
+    actionText: "我不信任你",
+    sceneId: "evt_deck_a_recon",
+    turnNumber: 1,
+  });
+  assert.equal(decision.state.npcCooperation.npc_luyuan.state, "strained");
+  assert.deepEqual(decision.state.flags, ["flag_luyuan_met"], "strained 還回得來，不可以留下永久旗標");
+});
+
+test("沒有 flags 欄位的舊存檔不會被憑空長出一個空陣列", async () => {
+  const { applyNpcCooperationForAction } = await import("../content/scenario/npcCooperationPolicy.js");
+  const reference = { sourcePackId: "scenario.nostromo-01-v2" };
+  const decision = applyNpcCooperationForAction({
+    reference,
+    state: { npcCooperation: {} },
+    actionText: "我不信任你",
+    sceneId: "evt_deck_a_recon",
+    turnNumber: 1,
+  });
+  assert.equal("flags" in decision.state, false, "沒東西要加就不要碰這個欄位");
+});
+
+test("stateFlags 只能宣告終局階段，證不出來就當場開不起來", () => {
+  const { LUYUAN_PERSONA } = luyuanPersonaModule;
+  // strained 有降溫轉場回得來，旗標會變成過期的謊言。
+  assert.throws(
+    () => defineCooperationPolicy({
+      ...LUYUAN_PERSONA,
+      states: { ...LUYUAN_PERSONA.states, stateFlags: { strained: "flag_bad" } },
+    }),
+    /不是終局/
+  );
+  // 拼錯階段名同樣要當場炸掉，不是安靜地永遠不觸發。
+  assert.throws(
+    () => defineCooperationPolicy({
+      ...LUYUAN_PERSONA,
+      states: { ...LUYUAN_PERSONA.states, stateFlags: { nope: "flag_x" } },
+    }),
+    /不存在的階段/
+  );
 });

@@ -1121,3 +1121,208 @@ test("engineering preparation is a playable predecessor and cannot bypass overlo
   assert.equal(overload.state.currentLocation, "loc_engine");
   assert.equal(overload.effects.timeCost, 0);
 });
+
+// ---------------------------------------------------------------------------
+// [2026-09-01] NPC 終局狀態的單向守衛（第零階段）
+//
+// applyBasicEffects 以前是無條件覆寫 npcStatuses，於是資料裡的一筆矛盾就能讓人復活：
+// evt_ash_ambush / app_ash_shoot 的「大成功」設 npc_ash=destroyed，
+// 「慘烈失敗」設 npc_ash=alive。deriveEndingId() 讀的正是 npcStatuses，
+// 所以那等於「結局可以被後續回合的一次失敗抹掉」。
+// ---------------------------------------------------------------------------
+
+test("NPC 終局狀態不可被後續 effects 降級——死亡是不可逆的", () => {
+  const character = emptyCharacter("單向守衛測試者");
+  const state = normalizeReferenceState(reference, {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    npcStatuses: { npc_ash: "destroyed" },
+  });
+
+  const option = buildReferenceOptions(reference, state).find((item) => item.reference.approachId === "app_ash_shoot");
+  assert.ok(option, "evt_ash_ambush 應該提供 app_ash_shoot");
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+
+  // 這個 tier 的 effects 明寫 npc_ash: "alive" —— 資料本身就矛盾，引擎必須擋下來。
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "慘烈失敗" });
+  assert.equal(applied.applied, true);
+  assert.equal(applied.state.npcStatuses.npc_ash, "destroyed", "destroyed 不可以被改回 alive");
+});
+
+test("NPC 還沒進終局時，狀態照常推進(守衛只擋降級，不擋正常轉移)", () => {
+  const character = emptyCharacter("單向守衛測試者");
+  const state = normalizeReferenceState(reference, {
+    ...createReferenceState(reference),
+    currentSceneId: "evt_ash_ambush",
+    currentLocation: "loc_science",
+    npcStatuses: { npc_ash: "suspicious" },
+  });
+  const option = buildReferenceOptions(reference, state).find((item) => item.reference.approachId === "app_ash_shoot");
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: "大成功" });
+  assert.equal(applied.state.npcStatuses.npc_ash, "destroyed", "suspicious → destroyed 是正常的終局轉移");
+});
+
+test("節點完成採用作者明寫的 sceneExit.completeNode，不是引擎自己推的 scene.nodeId", () => {
+  // 這個欄位在 6 個場景裡都寫了，但在此之前從來沒有人讀過它。
+  // Alien V2 兩者剛好每一筆都相同，所以這條測的是「引擎讀的是宣告值」這件事本身：
+  // 下一個副本只要兩者不同，隱含規則就會安靜地推錯節點。
+  const declared = reference.scenes.filter((scene) => scene.sceneExit?.completeNode);
+  assert.ok(declared.length >= 6, "reference 應該有宣告 completeNode 的場景");
+  for (const scene of declared) {
+    assert.equal(scene.sceneExit.completeNode, scene.nodeId, `${scene.id} 的宣告值與 nodeId 目前應一致`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// [2026-09-01 第 0.5 階段] 陸遠命運的 engine effects
+//
+// 在此之前整份 reference 沒有任何一個 effect 會寫 npc_luyuan: "dead"——
+// 他只可能是 met / injured / survived，而 survived 又只從最終戰的
+// app_purge_teamwork 一條路徑產生。後續的重大劇情節點 msn_luyuan_fate 要讀的
+// 就是這個狀態；資料不補，那個節點的 dead 會是一個永遠到不了的狀態。
+//
+// 條件用 conditionalEffects 表達，理由有兩個：
+//   1. ifFlags:["flag_luyuan_met"] —— 沒見過他就沒有他的命運可言，
+//      不該因為玩家的一次慘敗而讓一個沒出現過的人「死掉」。
+//   2. ifFlagsAbsent:["flag_luyuan_dead"] —— 死亡單向，旗標同時當守門員。
+//      這一條讓休眠掃描不會對已死的他觸發，也就不會撞上 applyBasicEffects
+//      的單向守衛而每次都印一筆 warn。
+// ---------------------------------------------------------------------------
+
+/** 在指定場景用指定 approach 打出指定 tier，回傳套用後的 state。 */
+function playLuyuanScene({ sceneId, location, approachId, tier, seed = {} }) {
+  const character = emptyCharacter("陸遠命運測試者");
+  const state = normalizeReferenceState(reference, {
+    ...createReferenceState(reference),
+    currentSceneId: sceneId,
+    currentLocation: location,
+    ...seed,
+  });
+  const option = buildReferenceOptions(reference, state).find((item) => item.reference.approachId === approachId);
+  assert.ok(option, `${sceneId} 應該提供 ${approachId}`);
+  const resolution = resolveReferenceAction({ reference, state, chosenOption: option, character });
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier: tier });
+  assert.equal(applied.applied, true, applied.error);
+  return applied.state;
+}
+
+const LUYUAN_MET = { flags: ["flag_luyuan_met"], npcStatuses: { npc_luyuan: "met" } };
+
+test("陸遠的死亡：三個慘烈失敗結果都寫得出 npc_luyuan=dead", () => {
+  const deaths = [
+    { sceneId: "evt_ash_ambush", location: "loc_science", approachId: "app_ash_shoot" },
+    { sceneId: "evt_vent_ambush_escape", location: "loc_lower_deck", approachId: "app_escape_shoot_suppress" },
+    { sceneId: "evt_vent_ambush_escape", location: "loc_lower_deck", approachId: "app_escape_sprint_dodge" },
+  ];
+  for (const spec of deaths) {
+    const state = playLuyuanScene({ ...spec, tier: "慘烈失敗", seed: LUYUAN_MET });
+    assert.equal(state.npcStatuses.npc_luyuan, "dead", `${spec.approachId} 的慘烈失敗應該讓陸遠死亡`);
+    assert.ok(state.flags.includes("flag_luyuan_dead"), "旗標要跟狀態一起寫，後續條件才有東西可查");
+  }
+});
+
+test("陸遠的死亡：沒同行過就不會死，非慘烈的結果也不會死", () => {
+  const neverMet = playLuyuanScene({
+    sceneId: "evt_ash_ambush",
+    location: "loc_science",
+    approachId: "app_ash_shoot",
+    tier: "慘烈失敗",
+    seed: { flags: [], npcStatuses: { npc_luyuan: "alive" } },
+  });
+  assert.equal(neverMet.npcStatuses.npc_luyuan, "alive", "沒見過的人不該因為玩家慘敗而死");
+  assert.equal(neverMet.flags.includes("flag_luyuan_dead"), false);
+
+  const survivedRun = playLuyuanScene({
+    sceneId: "evt_vent_ambush_escape",
+    location: "loc_lower_deck",
+    approachId: "app_escape_shoot_suppress",
+    tier: "成功",
+    seed: LUYUAN_MET,
+  });
+  assert.equal(survivedRun.npcStatuses.npc_luyuan, "met", "逃生成功不該順手殺人");
+});
+
+test("陸遠的存活：進入休眠的每一條路徑都會把同行且活著的他標成 survived", () => {
+  // 掃描掛在「真的會設 flag_hypersleep_entered」的那些 outcome 上。
+  // 條件不能寫成 ifFlags:["flag_hypersleep_entered"]——conditionalEffectsFor() 是拿
+  // **套用前**的 state 求值的，同一個 outcome 自己剛加上的旗標在那裡還看不到。
+  const entries = [
+    { approachId: "app_return_check_clean", tier: "大成功" },
+    { approachId: "app_return_check_clean", tier: "慘烈失敗" },
+    { approachId: "app_return_direct_sleep", tier: "自動" },
+  ];
+  for (const entry of entries) {
+    const state = playLuyuanScene({
+      sceneId: "evt_hypersleep_return",
+      location: "loc_narcissus",
+      ...entry,
+      seed: LUYUAN_MET,
+    });
+    assert.ok(state.flags.includes("flag_hypersleep_entered"), `${entry.approachId}/${entry.tier} 應該是入眠路徑`);
+    assert.equal(state.npcStatuses.npc_luyuan, "survived", `${entry.approachId}/${entry.tier} 應該把陸遠標成 survived`);
+    assert.ok(state.flags.includes("flag_luyuan_survived"));
+  }
+
+  // 保存樣本需要手上真的有組織樣本，所以另外備一份庫存。
+  const withSample = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_preserve_sample",
+    tier: "成功",
+    seed: { ...LUYUAN_MET, inventory: ["item_xenomorph_tissue"], sampleStatus: "tissue" },
+  });
+  assert.equal(withSample.npcStatuses.npc_luyuan, "survived");
+});
+
+test("陸遠的存活：已經死了就不會被休眠掃描復活，沒同行過也不會憑空 survived", () => {
+  const dead = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: ["flag_luyuan_met", "flag_luyuan_dead"], npcStatuses: { npc_luyuan: "dead" } },
+  });
+  assert.equal(dead.npcStatuses.npc_luyuan, "dead", "dead → survived 是復活，資料層就不該讓它發生");
+
+  const neverMet = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { flags: [], npcStatuses: { npc_luyuan: "alive" } },
+  });
+  assert.equal(neverMet.npcStatuses.npc_luyuan, "alive", "從沒接觸過的人不該被算成「一起活著離開」");
+});
+
+test("陸遠活著離開時，end_heroic_rescue 這個結局真的到得了", () => {
+  // 這是補完這批資料的實際用途：結局條件讀的就是 npcStatuses。
+  const state = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: { ...LUYUAN_MET, flags: ["flag_luyuan_met", "flag_xenomorph_killed"] },
+  });
+  assert.equal(state.endingId, "end_heroic_rescue");
+});
+
+test("陸遠離隊後，休眠掃描不得把他算成「一起活著離開」", () => {
+  // 第 0.6 階段接起來的那條線：合作階段 abandoned → flag_luyuan_abandoned →
+  // conditionalEffects 的 ifFlagsAbsent。少了任何一環，玩家把他惹走之後
+  // 結局仍然會說「有人帶著第一手記憶一起離開」。
+  const state = playLuyuanScene({
+    sceneId: "evt_hypersleep_return",
+    location: "loc_narcissus",
+    approachId: "app_return_direct_sleep",
+    tier: "自動",
+    seed: {
+      flags: ["flag_luyuan_met", "flag_luyuan_abandoned", "flag_xenomorph_killed"],
+      npcStatuses: { npc_luyuan: "met" },
+    },
+  });
+  assert.equal(state.npcStatuses.npc_luyuan, "met", "走掉的人不該被標成 survived");
+  assert.equal(state.flags.includes("flag_luyuan_survived"), false);
+  assert.equal(state.endingId, "end_solo_survivor", "沒有人陪你離開，就是孤獨生還者");
+});

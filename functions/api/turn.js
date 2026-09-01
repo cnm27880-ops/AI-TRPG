@@ -106,6 +106,8 @@ import {
   referenceStateForResponse,
   narrativeModeForScene,
   validateThreatAssessment,
+  deriveEndingId,
+  matchReferenceCondition,
 } from "../../content/scenario/referenceAdapter.js";
 import {
   buildUnmatchedFreeActionContract,
@@ -133,6 +135,10 @@ import {
   NPC_STATE_LEGEND,
 } from "../../content/scenario/npcStateMachine.js";
 import { buildNpcCooperationContract } from "../../content/scenario/npcCooperationContract.js";
+import {
+  buildMajorStoryNodeBlock,
+  MAJOR_STORY_NODE_LEGEND,
+} from "../../content/scenario/majorStoryNodes.js";
 
 /** 事件日誌摘要要餵幾筆給AI。太多會塞爆context也燒錢，太少會忘記自己做過什麼。 */
 const EVENT_MEMORY_LIMIT = 8;
@@ -623,7 +629,7 @@ async function executeTurn(context, streamHooks = null) {
       downState,
       // HUD 那一份形狀跟 /api/session 共用同一個組裝函式，兩邊各寫一份遲早會長歪。
       scenario: {
-        ...scenarioHudView(scenarioPack, scenarioProgress),
+        ...scenarioHudView(scenarioPack, scenarioProgress, { reference: scenarioReference, referenceState }),
         ...(scenarioReference && referenceState
           ? { reference: referenceStateForResponse(scenarioReference, referenceState) }
           : {}),
@@ -836,6 +842,8 @@ async function executeTurn(context, streamHooks = null) {
       state: referenceState,
       resolution: referenceResolution,
       outcomeTier: referenceTier,
+      // 只用來記錄重大劇情節點是「哪一回合定案的」，方便事後稽核。
+      turnNumber: (session?.turns ?? 0) + 1,
     });
     if (referenceApplied.applied) {
       referenceState = referenceApplied.state;
@@ -1086,6 +1094,11 @@ async function executeTurn(context, streamHooks = null) {
     // 只吃 scenarioReference，而副本整場不變，所以這段字串整場逐字相同——
     // 這是它能待在 system message 的前提（見 npcCooperationContract.js 的檔頭）。
     npcCooperationContract: scenarioReference ? buildNpcCooperationContract(scenarioReference) : null,
+    // 只有真的有變動時才會有 [MAJOR_NODES_CHANGED] 那一段；未定案的清單則每回合都送，
+    // 因為它是一條禁令而不是一則通知（見 majorStoryNodes.js 的說明）。
+    majorStoryBlock: scenarioReference && referenceState
+      ? buildMajorStoryNodeBlock(scenarioReference, referenceState, referenceApplied?.majorStoryChanges ?? [])
+      : null,
     referenceMode: Boolean(scenarioReference && referenceState),
     referenceFreeInput: referenceFreeInputPending,
     narrativeMode,
@@ -1587,6 +1600,21 @@ async function executeTurn(context, streamHooks = null) {
       if (timeCost > 0) progress = spendChapterTime(progress, timeCost, actionText ?? "推進劇情");
       if (timeCost > 0 && justExpired(before, progress)) {
         warnings.push("這個章節的時間預算已經耗盡，接下來的敘事應該會轉向劣化結局，請留意場景描述。");
+        // [2026-09-01] 把「時間到了」變成 referenceState 看得見的事實。
+        //
+        // 在此之前，deriveEndingId() 會讀 flag_expire_triggered 與 flag_player_dead_overload
+        // （referenceAdapter.js 的結局判定前四行），但**整個 content/ 與 functions/ 沒有任何地方
+        // 寫入這兩個旗標**——只有測試自己塞。結果是 end_expire_ruins 與
+        // end_death_overload_vaporized 這兩個結局在正式遊玩中永遠到不了：時間預算耗盡之後
+        // 引擎只會多送一句語氣指令，世界狀態一個字都沒變。
+        //
+        // 這也是重大劇情節點的「時間窗口關閉 → 節點進入 missed」能成立的前提：
+        // 沒有這個旗標，引擎根本不知道窗口關過。
+        if (referenceState) {
+          referenceState = applyTimeExpiryToReferenceState(scenarioReference, referenceState);
+          // 本地變數換成了新物件，存檔那一份要跟著換，否則這一輪的旗標寫不進去。
+          session.scenario.referenceState = referenceState;
+        }
       }
     }
 
@@ -1615,7 +1643,11 @@ async function executeTurn(context, streamHooks = null) {
             ? null
             : validateNodeComplete(parsed.data.nodeComplete));
       if (signal) {
-        const result = completeNodeAndAdvance(scenarioPack, progress, settlementNode.id, signal.tier);
+        // evidenceState 是節點完成證據的唯一資料來源（見 progress.js 的 completeNode）。
+        // 傳的是引擎已保存的 referenceState，不是這一回合的敘事——AI 寫了什麼在這裡看不到。
+        const result = completeNodeAndAdvance(scenarioPack, progress, settlementNode.id, signal.tier, {
+          evidenceState: referenceState,
+        });
         if (result.ok) {
           progress = result.progress;
           // 節點獎勵是**獎勵點數**(schema 寫的是「基礎積分獎勵」)，不是XP。
@@ -1721,7 +1753,7 @@ async function executeTurn(context, streamHooks = null) {
       // 基本形狀（當前目標／簡介／主線進度／迫近度）跟 /api/session 共用同一個組裝函式。
       // 注意這裡餵的是「結算完這回合之後」的 progress，不是回合開頭那個舊值——
       // 這回合剛好完成一個節點時，玩家要立刻在這次回應裡看到下一個節點，不用再多打一輪。
-      ...scenarioHudView(scenarioPack, progress),
+      ...scenarioHudView(scenarioPack, progress, { reference: scenarioReference, referenceState }),
       ...(scenarioReference && referenceState
         ? { reference: referenceStateForResponse(scenarioReference, referenceState) }
         : {}),
@@ -1840,6 +1872,48 @@ async function executeTurn(context, streamHooks = null) {
 }
 
 /**
+ * 時間預算耗盡時，把「時間到了」寫成 referenceState 看得見的事實。
+ *
+ * 旗標名稱由副本自己宣告（reference.timeExpiry），沒宣告時沿用 Alien V2 的內建值——
+ * 這跟 endingRules / finaleVictory / travelCompletesNodes 是同一套慣例：
+ * 副本專屬的判斷住在副本資料裡，turn.js 只負責在對的時機讀它。
+ *
+ * 宣告格式：
+ *   timeExpiry: {
+ *     flag: "flag_expire_triggered",          // 一定會加上的「倒數歸零」事實
+ *     deathFlag: "flag_player_dead_overload", // 選填，符合 deathWhen 時才加
+ *     deathWhen: { allFlags: [...], locationsAbsent: [...] },  // 選填，matchReferenceCondition 的條件
+ *   }
+ *
+ * [2026-09-01] 這兩個旗標在此之前**沒有任何地方寫入**，但 deriveEndingId() 一直在讀它們
+ * （referenceAdapter.js 的結局判定前四行）。結果是 end_expire_ruins 與
+ * end_death_overload_vaporized 在正式遊玩中永遠到不了：時間用完之後引擎只多送一句
+ * 語氣指令，世界狀態一個字都沒變。這也是重大劇情節點的「時間窗口關閉 → 節點進入 missed」
+ * 能成立的前提：沒有這個旗標，引擎根本不知道窗口關過。
+ *
+ * [已知落差] 侏羅紀副本的結局規則讀的是 `flag_time_expired`，同樣沒有人寫入它。
+ * 它只要在自己的 reference 補一行 `timeExpiry: { flag: "flag_time_expired" }` 就會接上，
+ * 但那會改變它兩個結局的判定結果，所以留給副本作者決定，不在這一輪順手改。
+ */
+function applyTimeExpiryToReferenceState(reference, state) {
+  const policy = reference?.timeExpiry ?? {};
+  const expiryFlag = typeof policy.flag === "string" && policy.flag ? policy.flag : "flag_expire_triggered";
+  const flags = new Set(state.flags ?? []);
+  flags.add(expiryFlag);
+  let next = { ...state, flags: [...flags] };
+
+  // 死亡分支是選填的：有些副本的逾時只是劣化結局，沒有「當場被抹掉」這種結果。
+  if (policy.deathFlag && policy.deathWhen && matchReferenceCondition(policy.deathWhen, next)) {
+    next = { ...next, flags: [...new Set([...next.flags, policy.deathFlag])] };
+  }
+
+  // 結局 id 平常是在 applyReferenceResult() 裡算的，而那一步這一回合已經跑完了。
+  // 不在這裡補算的話，玩家要再送一個回合才看得到結局，而那個回合可能永遠不會來。
+  const endingId = deriveEndingId(reference, next);
+  return endingId ? { ...next, endingId } : next;
+}
+
+/**
  * 組這一回合要送給AI的訊息，並且**依 prompt cache 的三層契約分開回傳**。
  *
  * [2026-08-31 重構] 這個函式原本回傳一整段字串，所有東西塞進同一個 user message。
@@ -1881,6 +1955,7 @@ function buildPromptLayers({
   dmMemo,
   npcActiveState = null,
   npcCooperationContract = null,
+  majorStoryBlock = null,
   referenceBlock,
   freeActionContractPrompt = null,
   threatDirective,
@@ -1900,6 +1975,9 @@ function buildPromptLayers({
     // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
     // 把說明跟數字寫在一起是很自然的直覺，也是這裡最貴的一種錯法。
     referenceMode ? NPC_STATE_LEGEND : null,
+    // 重大劇情節點的讀法與「不可以越權寫結果」的規則。整場逐字不變，所以住在這裡；
+    // 每回合會變的只有動態層那一兩行 id。跟 NPC_STATE_LEGEND 是同一刀。
+    referenceMode ? MAJOR_STORY_NODE_LEGEND : null,
     // NPC 固定檔案：共用安全規則 + 各角色的人設、Agenda／Taboo／Knowledge 基線。
     // 這些字以前是四段動態區塊各抄一份（場上兩個 NPC 就每回合白付兩份），
     // 但它整場遊戲逐字不變——所以它屬於這裡。見 npcCooperationContract.js 的檔頭。
@@ -1934,6 +2012,9 @@ function buildPromptLayers({
     );
   }
   if (referenceBlock) dynamicBlocks.push(referenceBlock);
+  // 重大劇情節點：這一回合剛定案的變動 + 仍然不可以被寫成已發生的清單。
+  // 排在迫近度／套路指令之前，因為它是「哪些結果已經是事實」的前提，不是語氣調整。
+  if (majorStoryBlock) dynamicBlocks.push(majorStoryBlock);
   if (threatDirective) dynamicBlocks.push(threatDirective);
   if (retreadDirective) dynamicBlocks.push(retreadDirective);
   if (referenceMode) {
