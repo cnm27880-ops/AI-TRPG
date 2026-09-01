@@ -316,3 +316,50 @@ test("彙總：sumUsage 把多天加起來，供應商分桶也要合併", () =>
   assert.equal(total.byProvider.a.model, "m1");
   assert.equal(total.byProvider.b.turns, 2);
 });
+
+// ---------------------------------------------------------------------------
+// [2026-09-01] 沒帶 ?days= 時要回 DEFAULT_DAYS，不是 1 天
+//
+// parseDays() 以前寫成 `Number(url.searchParams.get("days"))`：參數不存在時
+// get() 回 null，而 Number(null) 是 0，0 通過 Number.isFinite()，
+// 於是 DEFAULT_DAYS 那條路從來沒有被走到過，全部被 Math.max(1, …) 夾成 1。
+// 面板自己發的就是不帶參數的請求，所以它一直只看得到「今天」。
+// 端點照樣回 200，沒有任何錯誤訊息——只有這條斷言問得出來。
+// ---------------------------------------------------------------------------
+test("面板：沒帶 ?days= 時回預設的 14 天，不是被夾成 1 天", async () => {
+  const kv = fakeKv();
+  const env = baseEnv({ SAVES: kv });
+  const store = resolveSessionStore(env);
+
+  // 寫進「昨天」：只要視窗真的是 14 天，這筆就一定讀得回來。
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  await recordTurnUsage(store, {
+    provider: "deepseek",
+    tokens: { promptTokens: 1000, outputTokens: 100, cachedTokens: 400 },
+    now: yesterday,
+  });
+
+  const { status, body } = await read(await adminUsageGet({ request: await reqAs(ADMIN_ID), env }));
+  assert.equal(status, 200);
+  assert.equal(body.days, 14, "不帶參數就是預設視窗");
+  assert.equal(body.daily.length, 14);
+  assert.equal(body.total.promptTokens, 1000, "昨天那一筆要被算進來");
+
+  // 明確帶入的值仍然照舊生效，上下限也還在。
+  const explicit = await read(await adminUsageGet({
+    request: await reqAs(ADMIN_ID, { url: "https://test.local/api/admin/usage?days=3" }),
+    env,
+  }));
+  assert.equal(explicit.body.days, 3);
+  const clamped = await read(await adminUsageGet({
+    request: await reqAs(ADMIN_ID, { url: "https://test.local/api/admin/usage?days=999" }),
+    env,
+  }));
+  assert.equal(clamped.body.days, 60, "上限仍是 MAX_DAYS");
+  const garbage = await read(await adminUsageGet({
+    request: await reqAs(ADMIN_ID, { url: "https://test.local/api/admin/usage?days=abc" }),
+    env,
+  }));
+  assert.equal(garbage.body.days, 14, "無法解析的值退回預設，不是 1");
+});

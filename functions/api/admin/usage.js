@@ -16,9 +16,17 @@ const DEFAULT_DAYS = 14;
 const MAX_DAYS = 60;
 
 function parseDays(url) {
-  const raw = Number(url.searchParams.get("days"));
-  if (!Number.isFinite(raw)) return DEFAULT_DAYS;
-  return Math.max(1, Math.min(MAX_DAYS, Math.floor(raw)));
+  // [2026-09-01] 這裡以前是 `Number(url.searchParams.get("days"))`。
+  // 參數不存在時 searchParams.get() 回 null，而 **Number(null) 是 0**，
+  // 0 通過 Number.isFinite()，所以 DEFAULT_DAYS 那一行從來沒有被走到過——
+  // 沒帶 ?days= 的請求（也就是面板自己發的預設請求）一律被夾成 1 天，
+  // 面板只看得到「今天」。這種壞法沒有錯誤訊息也不會讓端點變紅：
+  // 它照樣回 200，只是把十四天的營運數字悄悄縮成一天。
+  const raw = url.searchParams.get("days");
+  if (raw === null || raw.trim() === "") return DEFAULT_DAYS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_DAYS;
+  return Math.max(1, Math.min(MAX_DAYS, Math.floor(parsed)));
 }
 
 /** 平均值：分母是 0 時回 null，不要回 0——「沒有資料」跟「平均是 0」不一樣。 */
