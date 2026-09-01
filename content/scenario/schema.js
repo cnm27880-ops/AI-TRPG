@@ -31,6 +31,8 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * @property {string} id
  * @property {string} title
  * @property {string} canonSummary 原作/原設定裡這個節點發生的事，給AI判斷扭轉度分級時參考的基準
+ * @property {string} [phaseLabel] 選填。玩家在 HUD 階段軌上看到的階段名（「覺醒」「逃生」）。
+ *   跟 playerGoal 是同一種欄位：寫給玩家看的，不是給作者索引用的。不填就退回 title。
  * @property {string[]} prerequisites 前置節點id
  * @property {number} baseRewardPoints 這個節點在「完全遵循原劇情」時的基礎積分獎勵
  * @property {number} baseDC 這個節點相關判定的基礎難度
@@ -88,6 +90,18 @@ export const SCENARIO_DIFFICULTIES = ["簡單", "中等", "困難"];
  * 不填的話會退回 content/chargen/awakening.js 的 DEFAULT_ARRIVAL（通用的主神空間白光房間）。
  */
 
+/**
+ * @typedef MainQuest 選填的副本層級欄位 `pack.mainQuest` —— 玩家 HUD 第一層。
+ *
+ * 不填時 HUD 會退回 briefing（title/objective），只是沒有獎勵資訊。
+ *
+ * @property {string} [id]
+ * @property {string} title 任務名，不是副本名（「逃離諾斯托羅莫號」而不是「諾斯托羅莫號」）
+ * @property {string} [description] 完成條件摘要，一句話
+ * @property {{tokens?: object, points?: number}} [reward] 主線獎勵：支線 + 分數。
+ *   **XP 不在這裡**——它只在最終結局結算時發放（見 content/scenario/settlement.js）。
+ */
+
 /** 驗證一個副本包(type="副本")的 entries 是否符合章節/節點結構的基本要求 */
 export function validateScenarioPack(pack) {
   const errors = [];
@@ -114,6 +128,31 @@ export function validateScenarioPack(pack) {
     errors.push("arrivalNarration 必須是字串");
   } else if (typeof pack.arrivalNarration === "string" && !pack.arrivalNarration.trim()) {
     errors.push("arrivalNarration 不可以是空字串（不需要就整個不要寫，會退回通用的過場）");
+  }
+
+  // mainQuest 寫錯型別的症狀是「HUD 第一層安靜地退回 briefing」——不會壞，
+  // 只是永遠顯示船名而不是任務名，而且沒有人會回報。所以在部署當下就擋下來。
+  if (pack.mainQuest != null) {
+    if (typeof pack.mainQuest !== "object") errors.push("mainQuest 必須是物件");
+    else {
+      if (typeof pack.mainQuest.title !== "string" || !pack.mainQuest.title.trim()) {
+        errors.push("mainQuest.title 必須是非空字串");
+      }
+      const reward = pack.mainQuest.reward;
+      if (reward != null) {
+        if (typeof reward !== "object") errors.push("mainQuest.reward 必須是物件");
+        else {
+          if (reward.points != null && (!Number.isInteger(reward.points) || reward.points < 0)) {
+            errors.push("mainQuest.reward.points 必須是非負整數");
+          }
+          for (const [tier, count] of Object.entries(reward.tokens ?? {})) {
+            if (!Number.isInteger(count) || count < 0) {
+              errors.push(`mainQuest.reward.tokens.${tier} 必須是非負整數`);
+            }
+          }
+        }
+      }
+    }
   }
 
   const nodeIds = new Set();

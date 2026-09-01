@@ -625,7 +625,7 @@ async function executeTurn(context, streamHooks = null) {
       downState,
       // HUD 那一份形狀跟 /api/session 共用同一個組裝函式，兩邊各寫一份遲早會長歪。
       scenario: {
-        ...scenarioHudView(scenarioPack, scenarioProgress),
+        ...scenarioHudView(scenarioPack, scenarioProgress, { reference: scenarioReference, referenceState }),
         ...(scenarioReference && referenceState
           ? { reference: referenceStateForResponse(scenarioReference, referenceState) }
           : {}),
@@ -1742,7 +1742,7 @@ async function executeTurn(context, streamHooks = null) {
       // 基本形狀（當前目標／簡介／主線進度／迫近度）跟 /api/session 共用同一個組裝函式。
       // 注意這裡餵的是「結算完這回合之後」的 progress，不是回合開頭那個舊值——
       // 這回合剛好完成一個節點時，玩家要立刻在這次回應裡看到下一個節點，不用再多打一輪。
-      ...scenarioHudView(scenarioPack, progress),
+      ...scenarioHudView(scenarioPack, progress, { reference: scenarioReference, referenceState }),
       ...(scenarioReference && referenceState
         ? { reference: referenceStateForResponse(scenarioReference, referenceState) }
         : {}),

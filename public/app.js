@@ -1982,15 +1982,16 @@ function updateScenarioHud(scenario) {
     titleEl.title = node.title;
   }
 
-  const pct = scenario.progress?.overallCompletionPct ?? 0;
-  const currentChapter = scenario.progress?.chapters?.[scenario.progress?.currentChapterIndex ?? 0];
-  const progressDetail = currentChapter
-    ? `主線進度：節點 ${currentChapter.completedNodes}/${currentChapter.totalNodes}（${pct}%）`
-    : `主線進度：${pct}%`;
-  document.getElementById("scenario-progress-bar").style.width = `${pct}%`;
-  document.getElementById("scenario-progress-text").textContent = `${pct}%`;
-  const progressMetric = document.querySelector(".mission-progress-metric");
-  if (progressMetric) progressMetric.title = progressDetail;
+  // [2026-09-01 第一階段] 主線百分比與那條進度條已經拿掉了。
+  //
+  // 它不是精度問題而是語意問題：普通場景事件與重大劇情轉折的重量完全不同，
+  // 但分母把它們算成一樣；救下陸遠、揭露 937、走過一個普通房間被視為同等進度。
+  // 玩家還會誤以為當前節點要逐步累積到 100%，實際上通常過一回合節點就結束了。
+  //
+  // 伺服器仍然算得出 overallCompletionPct（getProgressSummary），只是不再送進
+  // 玩家面板的 payload——後台統計與除錯拿得到，玩家看到的換成劇情階段軌。
+  // 階段軌的資料已經在 scenario.storyPhase 裡了；**畫**它是第四階段的事，
+  // 這一階段只負責讓前端不要再讀一個已經不存在的欄位。
 
   renderThreatMeter(scenario.threat);
 

@@ -153,7 +153,7 @@ export async function onRequestPost(context) {
       error: resolution.error,
       ...(resolution.missingFlags?.length ? { missingFlags: resolution.missingFlags } : {}),
       scenario: {
-        ...scenarioHudView(pack, progress),
+        ...scenarioHudView(pack, progress, { reference, referenceState }),
         reference: referenceStateForResponse(reference, referenceState),
       },
     }, 409);
@@ -236,6 +236,7 @@ export async function onRequestPost(context) {
     narration: systemNarration,
     timestamp,
     chapterIndex: nextProgress.chapterIndex,
+    // 只取 activeNode.id 寫進編年史，不需要重大節點那一層，所以不傳 reference。
     nodeId: scenarioHudView(pack, nextProgress)?.activeNode?.id ?? null,
     scenarioId: pack.id,
   });
@@ -299,7 +300,7 @@ export async function onRequestPost(context) {
     );
   }
 
-  const hud = scenarioHudView(pack, nextProgress);
+  const hud = scenarioHudView(pack, nextProgress, { reference, referenceState: nextReferenceState });
   const scenario = {
     ...hud,
     reference: referenceStateForResponse(reference, nextReferenceState),

@@ -75,6 +75,22 @@ export const NOSTROMO_SCENARIO_V2 = {
 
   threatEncounter: XENOMORPH,
 
+  // [2026-09-01 第一階段] 玩家面板第一層的主線任務。
+  //
+  // 為什麼不能直接用 briefing：briefing.title 是**船名**（「USCSS 諾斯托羅莫號」），
+  // 不是任務名；briefing.objective 是一段三句話的說明，塞不進 HUD 頂欄那一行。
+  // 玩家在頂欄要看到的是「我這一趟要做什麼」，那是另一份資料。
+  //
+  // reward 是這個副本宣告的**主線獎勵**：支線 + 分數（規則書的兩種貨幣，
+  // 見 content/shop/wallet.js）。XP 不在這裡——它只在最終結局結算時發放。
+  // [已知落差] 支線目前沒有任何地方真的發放，實際入帳是第三階段獎勵帳本的工作。
+  mainQuest: {
+    id: "quest_escape_nostromo",
+    title: "逃離諾斯托羅莫號",
+    description: "在主神倒數結束前抵達接駁艇「水仙號」並完成脫離。",
+    reward: { tokens: { D: 1 }, points: 1500 },
+  },
+
   entries: [
     {
       id: "ch1",
@@ -144,6 +160,7 @@ export const NOSTROMO_SCENARIO_V2 = {
       nodes: [
         {
           id: "n1",
+          phaseLabel: "覺醒",
           title: "空船",
           playerGoal: "離開休眠室，確認船艦現況、倖存者位置與最初的逃生方向。",
           canonSummary:
@@ -166,6 +183,7 @@ export const NOSTROMO_SCENARIO_V2 = {
         },
         {
           id: "n2",
+          phaseLabel: "真相與對立",
           title: "母親的特別指令",
           playerGoal: "取得能證明公司目的的情報，確認是否存在可等待的救援。",
           canonSummary:
@@ -202,6 +220,7 @@ export const NOSTROMO_SCENARIO_V2 = {
         },
         {
           id: "n3",
+          phaseLabel: "逃生",
           title: "最後的逃生窗口",
           playerGoal: "啟動主機超載，並在五十回合效率預算耗盡前抵達水仙號；玩家可以用更多回合調查與準備，以換取更高品質的結局。",
           canonSummary:
@@ -228,6 +247,7 @@ export const NOSTROMO_SCENARIO_V2 = {
         },
         {
           id: "n4",
+          phaseLabel: "最終處置",
           title: "最終戰：水仙號上的乘客",
           playerGoal: "在水仙號狹窄的艙室內，處理跟著玩家登艇的成體異形。",
           canonSummary:
