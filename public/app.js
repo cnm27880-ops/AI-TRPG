@@ -4059,7 +4059,7 @@ let shopBusy = false;
 // 「這一件是血統還是瞳術」，一路滑下去只看到一長串同樣灰色的長方形。
 // 這裡改用 good.resourceType（型錄轉換時就有的細分欄位）另外分一次類，
 // 純粹是畫面上的分頁，不影響 catalog.js 的購買判定。
-const SHOP_DISPLAY_CATEGORIES = ["物品", "血統", "瞳術", "稱號", "功法", "技藝"];
+const SHOP_DISPLAY_CATEGORIES = ["物品", "血統", "瞳術", "稱號", "功法", "技藝", "其他"];
 const SHOP_CATEGORY_META = {
   物品: { icon: "fa-box-archive", accent: "zinc" },
   血統: { icon: "fa-dna", accent: "rose" },
@@ -4067,6 +4067,7 @@ const SHOP_CATEGORY_META = {
   稱號: { icon: "fa-award", accent: "amber" },
   功法: { icon: "fa-book-open", accent: "sky" },
   技藝: { icon: "fa-hand-sparkles", accent: "emerald" },
+  其他: { icon: "fa-wand-magic-sparkles", accent: "violet" },
 };
 const SHOP_RANK_META = {
   D: { accent: "zinc", label: "D" },
@@ -4098,7 +4099,7 @@ function shopDisplayCategory(good) {
       return "物品";
   }
   if (good.category === "專長") return "技藝";
-  if (good.category === "服務") return "物品";
+  if (good.category === "服務") return "其他";
   return good.category || "物品";
 }
 
@@ -4189,7 +4190,8 @@ function renderShop() {
     })
     .join("");
 
-  const items = shopState.shelf.filter((s) => shopCategory === "全部" || shopDisplayCategory(s.good) === shopCategory);
+  const retiredDPlaceholders = new Set(["technique.太玄鑲華劍譜.D", "spell.暗示術.D", "spell.阿尼馬格斯.D"]);
+  const items = shopState.shelf.filter((s) => !retiredDPlaceholders.has(s.good?.goodId) && (shopCategory === "全部" || shopDisplayCategory(s.good) === shopCategory));
   document.getElementById("shop-shelf").innerHTML = items.length
     ? items.map(shopItemHtml).join("")
     : `<div class="shop-shelf-empty">「${escapeHtml(shopCategory)}」目前還沒有商品上架，之後會慢慢補進來。</div>`;
@@ -4349,9 +4351,9 @@ function bloodlineEffectCopy(effect) {
 
 function bloodlineDetailHtml(item) {
   const good = item.good;
-  const [titlePart, ...subtitleParts] = String(good.name ?? "未命名血統").split("：");
+  const [titlePart, ...subtitleParts] = String(good.name ?? "未命名商品").split("：");
   const title = titlePart || good.name || "未命名血統";
-  const subtitle = subtitleParts.join("：") || "主神資料庫中的血統能力紀錄";
+  const subtitle = subtitleParts.join("：") || good.narrative || "主神資料庫中的商品效果紀錄";
   const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : "zinc";
   const traits = (good.traits ?? []).length
     ? `<div class="bloodline-detail-section">
@@ -4388,12 +4390,12 @@ function bloodlineDetailHtml(item) {
     : "";
   const purchaseButton = item.status === "掛名"
     ? `<span class="shop-detail-buy px-3 py-2 rounded border border-zinc-700 text-zinc-500 text-[11px] font-mono font-bold text-center">尚未開放</span>`
-    : `<button data-shop-buy="${escapeHtml(good.goodId)}" ${item.purchasable ? "" : "disabled"} class="shop-detail-buy px-3 py-2 rounded text-[11px] font-mono font-bold transition-all ${item.purchasable ? "bg-amber-500/20 border border-amber-400/55 text-amber-200 hover:bg-amber-500/30 hover:-translate-y-px" : "border hairline-border text-zinc-600 cursor-not-allowed"}">${item.purchasable ? "兌換這項血統" : "尚不可兌換"}</button>`;
+    : `<button data-shop-buy="${escapeHtml(good.goodId)}" ${item.purchasable ? "" : "disabled"} class="shop-detail-buy px-3 py-2 rounded text-[11px] font-mono font-bold transition-all ${item.purchasable ? "bg-amber-500/20 border border-amber-400/55 text-amber-200 hover:bg-amber-500/30 hover:-translate-y-px" : "border hairline-border text-zinc-600 cursor-not-allowed"}">${item.purchasable ? "兌換這項商品" : "尚不可兌換"}</button>`;
 
   return `<div>
     <div class="bloodline-detail-hero">
-      <button type="button" class="bloodline-detail-close" onclick="closeModal('bloodlineDetailModal')" aria-label="關閉血統詳情"><i class="fas fa-times"></i></button>
-      <div class="bloodline-detail-kicker"><i class="fas fa-dna"></i> Genetic Archive / 血統檔案</div>
+      <button type="button" class="bloodline-detail-close" onclick="closeModal('bloodlineDetailModal')" aria-label="關閉商品詳情"><i class="fas fa-times"></i></button>
+      <div class="bloodline-detail-kicker"><i class="fas fa-cube"></i> Main God Archive / 商品詳情</div>
       <div id="bloodline-detail-title" class="bloodline-detail-title">${escapeHtml(title)}</div>
       <div class="bloodline-detail-subtitle">${escapeHtml(subtitle)}</div>
       <div class="bloodline-detail-meta">
@@ -4414,7 +4416,7 @@ function bloodlineDetailHtml(item) {
 
 function openBloodlineDetail(goodId) {
   const item = shopState?.shelf?.find((entry) => entry.good?.goodId === goodId);
-  if (!item || shopDisplayCategory(item.good) !== "血統") return;
+  if (!item) return;
   const content = document.getElementById("bloodline-detail-content");
   if (!content) return;
   content.innerHTML = bloodlineDetailHtml(item);
@@ -4426,6 +4428,7 @@ function shopItemHtml(item) {
   const pending = item.status === "掛名";
   const displayCat = shopDisplayCategory(good);
   const isBloodline = displayCat === "血統";
+  const isDetailable = Boolean(good.goodId);
   const catMeta = SHOP_CATEGORY_META[displayCat] ?? { icon: "fa-shapes", accent: "zinc" };
   const rankAccent = good.rank ? (SHOP_RANK_META[good.rank]?.accent ?? "zinc") : null;
 
@@ -4466,15 +4469,15 @@ function shopItemHtml(item) {
   const rankBadge = good.rank
     ? `<span class="shop-rank-badge shop-rank-${rankAccent}">${escapeHtml(good.rank)}</span>`
     : "";
-  const detailAttrs = isBloodline
-    ? `data-shop-detail="${escapeHtml(good.goodId)}" role="button" tabindex="0" aria-label="查看${escapeHtml(good.name)}的能力詳情"`
+  const detailAttrs = isDetailable
+    ? `data-shop-detail="${escapeHtml(good.goodId)}" role="button" tabindex="0" aria-label="查看${escapeHtml(good.name)}的商品詳情"`
     : "";
-  const detailHint = isBloodline
-    ? `<div class="shop-item-detail-hint"><i class="fas fa-expand-alt"></i> 點擊查看完整能力</div>`
+  const detailHint = isDetailable
+    ? `<div class="shop-item-detail-hint"><i class="fas fa-expand-alt"></i> 點擊查看商品詳情</div>`
     : "";
 
   return `
-    <div class="shop-item-card border ${border} ${isBloodline ? "shop-item-card-clickable" : ""}" ${detailAttrs}>
+    <div class="shop-item-card border ${border} ${isDetailable ? "shop-item-card-clickable" : ""}" ${detailAttrs}>
       <div class="shop-item-cat-icon shop-item-cat-${catMeta.accent}" title="${escapeHtml(displayCat)}"><i class="fas ${catMeta.icon}"></i></div>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2 flex-wrap">
