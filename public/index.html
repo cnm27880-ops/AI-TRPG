@@ -3397,25 +3397,27 @@
              屬性、技能、特質與日誌。這個專案有 PWA manifest 也有「安裝App」按鈕，
              手機本來就是預期的玩法之一，不能把角色卡整個藏起來。 -->
         <aside id="char-hud" aria-label="角色狀態" class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
-            <div class="name-plate">
-                    <div id="char-hud-titlebar" class="flex items-center justify-between">
-                    <div id="char-profile-summary">
-                        <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">輪迴者檔案</div>
-                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
+        <div class="name-plate pb-2.5">
+                <!-- 角色抬頭：單行收斂，解決「輪迴者」重複三次問題 -->
+                <div id="char-hud-titlebar" class="flex items-center justify-between pb-2 border-b border-white/10">
+                    <div id="char-profile-summary" class="flex items-baseline gap-2 min-w-0">
+                        <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shrink-0">輪迴者</span>
+                        <h2 id="char-name" class="text-base font-bold text-white tracking-wide truncate">—</h2>
                     </div>
-                    <div class="flex items-center gap-1.5">
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
-                        <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
+                    <div class="flex items-center gap-1 shrink-0">
+                        <!-- 收窄/關閉抽屜按鈕完全保留 -->
                         <button type="button" onclick="toggleCharHudCompact()" id="char-hud-collapse" aria-label="收窄角色欄" aria-pressed="false" title="收窄角色欄"
                                 class="char-hud-collapse-btn px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
-                            <i class="fas fa-angles-right"></i>
+                            <i class="fas fa-angles-right text-xs"></i>
                         </button>
                         <button type="button" onclick="closeCharHud()" aria-label="關閉角色狀態"
                                 class="md:hidden px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
-                            <i class="fas fa-times"></i>
+                            <i class="fas fa-times text-xs"></i>
                         </button>
                     </div>
                 </div>
+
+                <!-- 關鍵狀態（收窄模式時顯示，原生 ID 完整保留） -->
                 <div class="char-hud-compact-mark" aria-hidden="true">HUD</div>
                 <div id="char-hud-compact-stats" class="char-hud-compact-stats" aria-label="關鍵狀態">
                     <div class="char-compact-stat" title="生命"><i class="fas fa-heart-pulse" aria-hidden="true"></i><span class="sr-only">生命</span><strong id="char-compact-hp">—</strong></div>
@@ -3423,18 +3425,24 @@
                     <div class="char-compact-stat" title="防禦"><i class="fas fa-shield-halved" aria-hidden="true"></i><span class="sr-only">防禦</span><strong id="char-compact-defense">—</strong></div>
                     <div class="char-compact-stat" title="先攻"><i class="fas fa-bolt" aria-hidden="true"></i><span class="sr-only">先攻</span><strong id="char-compact-initiative">—</strong></div>
                 </div>
-                <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
-                <div id="active-alerts" class="space-y-1 pt-2" aria-live="polite"></div>
 
-                <!-- 四段傷勢軌 -->
-                <div class="space-y-1 pt-3">
+                <!-- 身分/階級說明與動態警報 -->
+                <div id="char-class" class="text-[11px] font-mono text-zinc-400 mt-1 flex items-center justify-between">—</div>
+                <div id="active-alerts" class="space-y-1 pt-1" aria-live="polite"></div>
+
+                <!-- 生命傷勢軌：保留 space-y-1 讓收窄模式能正常隱藏，內部採用無縫平滑條 -->
+                <div class="space-y-1 pt-2">
                     <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-300">生命傷勢軌</span>
-                        <span id="hp-text" class="text-zinc-100 font-bold">—</span>
+                        <span class="text-zinc-400">生命值 (HP)</span>
+                        <span id="hp-text" class="text-emerald-400 font-bold">—</span>
                     </div>
-                    <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
-                    <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
-                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
+                    <!-- 外框容器：圓角裁切 + 底深色 -->
+                    <div class="h-2 bg-zinc-950/80 rounded-full overflow-hidden border border-white/10 p-0.5">
+                        <!-- 核心容器：gap-0 與行內消除子分段圓角，保持功能相容且視覺連續平滑 -->
+                        <div id="hp-bar-container" class="grid gap-0 h-full w-full rounded-full overflow-hidden" style="--hp-radius:0px;"></div>
+                    </div>
+                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 pt-0.5">—</div>
+                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border border-white/5 mt-1"></div>
                 </div>
             </div>
 
