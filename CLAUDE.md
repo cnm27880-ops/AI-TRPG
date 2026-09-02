@@ -7,6 +7,7 @@
 3. **UI 樣式鐵則**：畫面切換一律操作 `style.display`，禁止使用 Tailwind 的 `.hidden`。
 
 ## 二、Prompt 快取三層契約 (最貴的錯誤，嚴禁違背)
+完整規則見 docs/PROMPT_CACHE_CONTRACT.md。
 LLM 請求永遠是嚴格三層架構（變動頻率由低到高）：
 **static (`system`) → history (僅尾端追加) → dynamic (最後一個 `user` message)**
 - **判斷法則**：新增提示時問自己「這段文字下一回合會不會不一樣？」會 → 動態層；不會 → 靜態層。
