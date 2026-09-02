@@ -20,6 +20,46 @@ const STALL_WARN_AT = 2;
 const STALL_URGENT_AT = 4;
 
 /**
+ * [2026-09-02 新增] 主動說書人指令 —— 修的是測玩回饋「AI太被動、像冷血公務員」。
+ *
+ * 為什麼這段掛在 buildNodeGuidance() 的回傳值裡、而不是搬進 narrativeStyle.js 的
+ * 靜態文筆層：這段話本身逐字不變、按理說更適合靜態層(整場命中快取)，但它談的是
+ * 「這個節點該怎麼收尾」，跟 goalBlock/stallWarning 是同一組決策脈絡——都是「這一回合
+ * 該往哪裡推」而不是「怎麼描寫細節」。拆成兩個檔案只會讓下一個維護者難以同時看到
+ * 「節點目標」跟「節點目標之後該怎麼收尾」是同一件事的兩半。
+ * 代價是它現在跟著 nodeGuidance 一起住進動態層，每回合都重新計費一次
+ * (見 docs/PROMPT_CACHE_CONTRACT.md「判斷不出來就當成會變」那一段——這裡不是判斷不出來，
+ * 是刻意接受這筆小額重複計費換取维護時的可讀性；固定文字，體積遠小於 history/reference block)。
+ * 如果之後帳單分析發現這段真的貴到有感，再搬進 staticBlocks，不影響任何測試斷言。
+ */
+const ACTIVE_DM_DIRECTIVE = `
+
+【主動說書人：這回合結尾禁止用一句平淡的陳述句收尾】
+你是這場遊戲的主持人(DM)，不是被動記錄玩家行動結果的旁白。每一回合的敘事結尾，
+必須讓玩家讀完就知道「接下來要繃緊神經還是可以喘口氣、以及手上有哪些路可以走」，
+三個元素缺一不可：
+1. 感官反饋：周遭環境這一刻正在發生的即時變化(聲音、光線、溫度、氣味、震動)，
+   不是重複描述已經寫過的固定場景。
+2. 迫近威脅：把目前的威脅/進度轉成一個具體、能倒數的壓迫感(還剩幾步、還能撐多久、
+   下一個異常什麼時候會發生)，不要只寫抽象的「氣氛越來越緊張」。
+3. 行動鉤子：主動拋出一個衝突、異常現象、或必須馬上決定的情境，把球丟回給玩家，
+   不要停在「你觀察著四周」這種沒有推力的收尾。
+
+【行動錨點：結尾用列表給出可以怎麼做，不要讓玩家對著空白發呆】
+在敘事正文之後，另起一段用 Markdown 引言或列表，根據這個場景實際可行的手段，
+自然地給出 2~3 個具體、彼此屬性/技能傾向不同的行動建議(例如：破解/駭入、警戒/架槍防守、
+搜索/蒐集物資——依場景實際情境替換，不要照抄範例字面)，並且一定要附上第 4 個選項：
+「自由行動：輸入任意你想嘗試的行動」。這份列表是**建議**，不是限制玩家只能選這幾項，
+目的是不讓玩家決策癱瘓，而不是收窄他們能打的字。
+
+【NPC 破冰：讓在場NPC依照他當下的 Motive 主動出手，不要等玩家先開口】
+如果 [NPC_ACTIVE_STATE] 標示某個在場NPC目前的 Motive 是 ORIENT_NEWCOMERS，或他行動力
+明顯還很充足，這一回合就讓他主動向玩家搭話、講清楚生存原則、或催促玩家儘快做決定，
+不要演成他在原地等玩家先問問題。如果他目前是 PRESERVE_SELF 或 GUARD_BOUNDARY，
+就要讓他明確表現出抗拒、拒絕配合、或提出強烈反對意見，把人際張力寫出來，
+不要把這兩種狀態演成他只是沉默或消極——沉默不是抗拒，抗拒要說出口或做出來。`;
+
+/**
  * 組出「目前活躍節點」的指引文字，附加在回合prompt後面。
  * @param {object|null} node content/scenario/schema.js 的 Node 形狀，null代表主線已跑完
  * @param {number} [stalledRounds] 這個節點已經卡了幾回合都沒結算(見 progress.js 的
@@ -29,7 +69,7 @@ const STALL_URGENT_AT = 4;
 export function buildNodeGuidance(node, stalledRounds = 0) {
   if (!node) {
     return `【劇情節點】這個副本的主線節點已經全部完成，接下來請自由收尾這場輪迴任務，
-不需要再回傳 nodeComplete 欄位。`;
+不需要再回傳 nodeComplete 欄位。${ACTIVE_DM_DIRECTIVE}`;
   }
 
   const stallWarning =
@@ -61,7 +101,7 @@ ${node.canonSummary}
 
 請把敘事帶向與敵人正面對決、一觸即發的處境，但**不要**描寫戰鬥的過程或結果，
 也**不要**在輸出JSON裡加入 nodeComplete 欄位——這個節點只能由玩家實際在戰鬥系統裡
-打贏敵人才會結算，不是由你的敘事文字決定勝負。${goalBlock}${stallWarning}`;
+打贏敵人才會結算，不是由你的敘事文字決定勝負。${goalBlock}${stallWarning}${ACTIVE_DM_DIRECTIVE}`;
   }
 
   return `【劇情節點：${node.title}】
@@ -75,7 +115,7 @@ ${DIVERGENCE_TIERS.map((t) => `  ${t.tier} = ${t.label}`).join("\n")}
 格式：{"divergenceTier": 分級數字}
 
 如果這個節點的關鍵事件這回合還沒發生(還在鋪陳、玩家還在猶豫、還沒到關鍵時刻)，
-"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。${goalBlock}${stallWarning}`;
+"nodeComplete" 請填 null，不要提早結算。每回合最多只能完成一個節點。${goalBlock}${stallWarning}${ACTIVE_DM_DIRECTIVE}`;
 }
 
 /**
