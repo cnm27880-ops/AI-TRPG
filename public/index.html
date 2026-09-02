@@ -1035,13 +1035,18 @@
         }
         .shop-item-card-clickable::after {
             content: ''; position: absolute; inset: 0; pointer-events: none;
-            background: linear-gradient(115deg, rgba(244,63,94,.13), transparent 48%, rgba(251,191,36,.04));
+            background: linear-gradient(115deg, rgba(255,255,255,.07), transparent 48%, rgba(255,255,255,.02));
             opacity: 0; transition: opacity .2s ease;
         }
+        /* [2026-09-02 修正] 卡片懸停原本用玫瑰紅邊框＋紅色光暈，跟卡片內建的稀有度色碼
+           （血統詳情、稀有標籤都用同一組紅/橙色系）撞色，看起來像「這張卡出錯了」。
+           改成不帶色相的微光：淺白邊框＋低調陰影，滑過去有反饋但不會搶掉稀有度顏色的注意力。
+           手機沒有真正的 hover，所以 :active（點按當下）也套用同一組效果，見下方
+           `@media (hover: none)` 的觸控覆寫。 */
         .shop-item-card-clickable:hover,
         .shop-item-card-clickable:focus-visible {
-            transform: translateY(-2px); border-color: rgba(244,63,94,.62) !important;
-            background: rgba(244,63,94,.065); box-shadow: 0 12px 26px -18px rgba(244,63,94,.9);
+            transform: translateY(-2px); border-color: rgba(255,255,255,.28) !important;
+            background: rgba(255,255,255,.05); box-shadow: 0 12px 26px -18px rgba(0,0,0,.65), 0 0 20px -8px rgba(255,255,255,.16);
             outline: none;
         }
         .shop-item-card-clickable:hover::after,
@@ -1141,12 +1146,12 @@
         html[data-theme="light"] .shop-item-card { background: rgba(255,255,255,.6); }
         html[data-theme="light"] .shop-item-card-clickable:hover,
         html[data-theme="light"] .shop-item-card-clickable:focus-visible {
-            border-color: rgba(159,18,57,.55) !important;
-            background: rgba(244,63,94,.07);
-            box-shadow: 0 12px 26px -18px rgba(159,18,57,.6);
+            border-color: rgba(63,63,70,.4) !important;
+            background: rgba(24,24,27,.04);
+            box-shadow: 0 12px 26px -18px rgba(24,24,27,.35), 0 0 18px -8px rgba(24,24,27,.14);
         }
         html[data-theme="light"] .shop-item-card-clickable::after {
-            background: linear-gradient(115deg, rgba(190,24,93,.10), transparent 48%, rgba(180,83,9,.06));
+            background: linear-gradient(115deg, rgba(24,24,27,.05), transparent 48%, rgba(24,24,27,.02));
         }
         html[data-theme="light"] .shop-item-detail-hint { color: #9f1239; }
         html[data-theme="light"] .bloodline-detail-kicker { color: #9f1239; }
@@ -2441,14 +2446,16 @@
 
         /* 角色檔案先分出「身份／生命／衍生數值」三層，避免姓名、XP 和狀態散成一串。 */
         #char-hud .name-plate { padding: .86rem .9rem .76rem; background: linear-gradient(145deg, rgb(var(--c-accent-base) / .1), rgb(var(--c-surface-2) / .78) 66%, rgb(var(--c-surface-1) / .9)); }
-        #char-hud #char-hud-titlebar { align-items: flex-start; padding-bottom: .62rem; border-bottom: 1px solid rgb(var(--c-line) / .18); }
+        #char-hud #char-hud-titlebar { align-items: flex-start; padding-bottom: .3rem; }
         #char-profile-summary { min-width: 0; flex: 1 1 auto; }
         #char-profile-summary h2 { margin-top: .25rem !important; font-size: 1.12rem; letter-spacing: .06em; }
-        #char-hud .name-plate > .space-y-1 { margin-top: .68rem; padding-top: .66rem; border-top: 1px solid rgb(var(--c-line) / .15); }
+        #char-hud .name-plate > .space-y-1 { margin-top: .3rem; padding-top: 0; }
         #char-hud #hp-text { font-size: .74rem; letter-spacing: .04em; }
-        #char-hud #derived-stats-bar { margin-top: .58rem; padding: .52rem .15rem .05rem; border: 0; border-top: 1px solid rgb(var(--c-line) / .15); border-radius: 0; background: transparent; }
-        #char-hud #derived-stats-bar span { display: flex; flex-direction: column; align-items: center; gap: .18rem; color: var(--ink-500); font-size: .57rem; }
-        #char-hud #derived-stats-bar strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; }
+        /* 防禦/先攻/意志現在跟玩家名同一行（緊湊排版），不再是血量槽下面單獨一條
+           有分隔線的橫幅——見 index.html 的 name-plate 結構與下面 .derived-stats-inline。 */
+        #char-hud .derived-stats-inline { display: flex; align-items: center; gap: .5rem; min-width: 0; overflow: hidden; }
+        #char-hud .derived-stats-inline span { display: flex; align-items: baseline; gap: .18rem; color: var(--ink-500); font-size: .58rem; white-space: nowrap; }
+        #char-hud .derived-stats-inline strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; font-weight: 700; }
 
         /* 一般劇情模式的操作列是主回合入口，不能被上一場戰鬥的 inline 狀態帶走。 */
         body.is-game-screen:not(.is-combat-v2-view) #story-action-panel { display: block !important; position: relative; z-index: 10; flex: 0 0 auto; }
@@ -2461,9 +2468,6 @@
         #inline-decision-panel #option-grid { min-height: 0; }
 
         html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
-        html[data-theme="light"] #char-hud #char-hud-titlebar { border-color: rgba(60,55,47,.16); }
-        html[data-theme="light"] #char-hud .name-plate > .space-y-1,
-        html[data-theme="light"] #char-hud #derived-stats-bar { border-color: rgba(60,55,47,.16); }
 
         /* ================= 第八輪：檔案層級與 HUD 基準線 =================
            任務卡、屬性格與剩餘回合刻度共用同一個內容 gutter，避免每一塊各自漂移。 */
@@ -2473,7 +2477,6 @@
         #char-hud #attr-grid .stat-tile-line { min-width: 0; }
 
         #char-hud #char-name { line-height: 1.08; }
-        #char-hud #derived-stats-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .35rem; }
         #char-hud > [role="tablist"] { gap: 0; padding-inline: .55rem; padding-top: .3rem; background: rgb(var(--c-surface-2) / .42); }
         #char-hud > [role="tablist"] .folder-tab { flex: 1 1 0; padding: .5rem .25rem .44rem; letter-spacing: .05em; }
         #char-hud > [role="tablist"] .folder-tab.active { background: transparent; box-shadow: inset 0 -2px 0 rgb(var(--c-accent-base) / .8); }
@@ -2990,7 +2993,20 @@
         }
         @media (hover: none) {
             .shop-item-card-clickable:hover { transform: none; }
-            .shop-item-card-clickable:active { transform: scale(.985); }
+            /* 觸控裝置沒有真正的 hover，改用「點下去那一瞬間」(:active) 給同一組微光反饋，
+               放開後恢復——手機上「點擊」本來就是這裡唯一會發生的互動。 */
+            .shop-item-card-clickable:active {
+                transform: scale(.985);
+                border-color: rgba(255,255,255,.28) !important;
+                background: rgba(255,255,255,.05);
+                box-shadow: 0 0 20px -8px rgba(255,255,255,.16);
+            }
+            .shop-item-card-clickable:active::after { opacity: 1; }
+            html[data-theme="light"] .shop-item-card-clickable:active {
+                border-color: rgba(63,63,70,.4) !important;
+                background: rgba(24,24,27,.04);
+                box-shadow: 0 0 18px -8px rgba(24,24,27,.14);
+            }
         }
         /* ================= Tactical Sidebar / Narrative-First skin =================
            只鎖定遊戲側欄與 Dock；資料元件、主題 token 與外部事件入口保持不變。 */
@@ -3005,7 +3021,6 @@
             position: relative;
             padding: .55rem .8rem .5rem;
             background: linear-gradient(135deg, rgb(var(--c-surface-3) / .44), rgb(var(--c-surface-1) / .18));
-            border-bottom: 1px solid rgb(var(--c-line) / .14);
         }
         #char-hud-titlebar { min-height: 1.4rem; }
         #char-profile-summary { min-width: 0; }
@@ -3047,7 +3062,22 @@
         }
         #char-hud #hp-bar-container .hp-seg:first-child { border-radius: 999px 0 0 999px; }
         #char-hud #hp-bar-container .hp-seg:last-child { border-radius: 0 999px 999px 0; }
-        #char-hud #derived-stats-bar { margin-top: .38rem; padding: .34rem .45rem; border-color: rgb(var(--c-line) / .12); background: rgb(var(--c-line) / .035); font-size: .52rem; }
+        #char-hud .derived-stats-inline { font-size: .52rem; }
+        /* 商店／主題／回顧從右下角浮動 Dock 搬進側欄常駐顯示：改成左圖右字橫排，
+           不再是浮動 Dock 那種上圖下字的方形鍵——這裡是側欄裡的一排列，橫向排版更緊湊。 */
+        .sidebar-tool-actions { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
+        .sidebar-tool-actions button {
+            display: flex; align-items: center; gap: .55rem; padding: .5rem .65rem;
+            border: 1px solid rgb(var(--c-line) / .16); border-radius: 6px;
+            color: var(--ink-400); background: rgb(var(--c-line) / .045);
+            font-size: .68rem; font-family: 'JetBrains Mono', monospace;
+            transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+        }
+        .sidebar-tool-actions button i { width: 1rem; text-align: center; color: var(--accent); font-size: .78rem; }
+        .sidebar-tool-actions button:hover, .sidebar-tool-actions button:focus-visible {
+            color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5);
+            background: rgb(var(--c-accent-base) / .1); transform: translateY(-1px); outline: none;
+        }
         #char-hud .tactical-tabs {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3530,10 +3560,13 @@
         <aside id="char-hud" aria-label="角色狀態" class="tactical-sidebar w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
             <div class="name-plate">
                     <div id="char-hud-titlebar" class="flex items-center justify-between">
-                    <div id="char-profile-summary">
-                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
+                    <div id="char-profile-summary" class="flex items-center gap-2.5 min-w-0">
+                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight drop-shadow-[0_1px_4px_rgba(0,0,0,.6)] shrink-0">—</h2>
+                        <!-- 防禦/先攻/意志原本擠在血量槽下面自成一排，現在跟玩家名放同一行——
+                             這三個數字是「看名字時順便看」的資訊，不值得再單獨佔一整條。 -->
+                        <div id="derived-stats-bar" class="derived-stats-inline" aria-label="防禦／先攻／意志"></div>
                     </div>
-                    <div class="flex items-center gap-1.5">
+                    <div class="flex items-center gap-1.5 shrink-0">
                         <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
                         <button type="button" onclick="toggleCharHudCompact()" id="char-hud-collapse" aria-label="收窄角色欄" aria-pressed="false" title="收窄角色欄"
                                 class="char-hud-collapse-btn px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
@@ -3558,13 +3591,12 @@
                 <div id="active-alerts" class="space-y-1 pt-2" aria-live="polite"></div>
 
                 <!-- 血量槽：完好/衝擊/嚴重/惡性四段直接靠色塊比重表示，不再額外寫一行文字複述。 -->
-                <div class="space-y-1 pt-3">
+                <div class="space-y-1 pt-2">
                     <div class="flex justify-between text-xs font-mono">
                         <span class="text-zinc-300">血量槽</span>
                         <span id="hp-text" class="text-zinc-100 font-bold">—</span>
                     </div>
                     <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
-                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
                 </div>
             </div>
 
@@ -3617,6 +3649,16 @@
                          不再用會佔一整塊高度的卡片輪播。 -->
                     <div id="trait-carousel" class="trait-badge-row" aria-label="起始專長與資源"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-3 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
+
+                    <!-- [2026-09-02] 原本是右下角常駐懸浮、要展開才看得到的 Tactical Dock；
+                         商店／主題／回顧這三個操作不是低頻到需要藏起來再點開一層，搬進
+                         側欄直接常駐顯示。id 沿用舊的，onclick 與 toggleTheme() 的圖示選取器
+                         (querySelectorAll('[data-theme-toggle-icon]')) 都不用改。 -->
+                    <div id="sidebar-tool-actions" class="sidebar-tool-actions">
+                        <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店"><i class="fas fa-store"></i><span>商店</span></button>
+                        <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
+                        <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧"><i class="fas fa-book-open"></i><span>回顧</span></button>
+                    </div>
                 </div>
 
                 <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="sidebar-panel-content space-y-3 hidden">
@@ -3650,41 +3692,31 @@
 
         <!-- 中央主敘事區 -->
         <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-            <div class="scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0">
+            <!-- [2026-09-02] 這一條原本常駐顯示「位置：xxx」，跟情報頁（explorationTerminal）
+                 的「你現在在哪裡」完全重複——同一件事講兩次，故事欄頂端卻少了給敘事的空間。
+                 現在只在手機上保留（給開啟角色卡的入口用），桌機直接不顯示這一條；
+                 `#current-scene-text` 仍然存在、仍然被 renderExplorationTerminal() 寫入，
+                 只是這裡不再把它秀出來。 -->
+            <div class="scene-bar-tint pl-6 pr-4 py-2.5 flex items-center justify-between text-xs font-mono shrink-0 md:hidden">
                 <div class="flex items-center gap-2 text-zinc-300 min-w-0">
-                    <!-- 手機版開啟角色卡的入口。桌機不需要（側欄一直在），所以 md:hidden。 -->
                     <button type="button" id="char-hud-toggle" onclick="openCharHud()"
                             aria-label="開啟角色狀態" aria-controls="char-hud" aria-expanded="false"
-                            class="md:hidden shrink-0 px-2 py-1 -ml-2 rounded border hairline-border bg-panel text-emerald-300 hover:border-emerald-500/40 transition-all">
+                            class="shrink-0 px-2 py-1 -ml-2 rounded border hairline-border bg-panel text-emerald-300 hover:border-emerald-500/40 transition-all">
                         <i class="fas fa-id-badge text-[11px]"></i>
                     </button>
                     <i class="fas fa-map-marker-alt text-emerald-400 shrink-0"></i>
                     <span id="current-scene-text" class="text-zinc-100 font-semibold truncate">主神空間 · 任務進行中</span>
                 </div>
-                <!-- 操作控制已收束到右下角 Tactical Dock；故事列只保留場景上下文，讓敘事在垂直方向頂天展開。 -->
             </div>
 
             <!-- 劇情階段軌：原本放在側欄任務面板裡，跟目前目標擠在一起還要再分心看一次。
                  移到故事區最上方，讓它單純只回答「我在這齣戲的哪一段」。 -->
             <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
 
-            <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
-                 測玩回饋是「在AI的回覆中，我完全摸不清故事背景」——固定開頭只講一次，
-                 之後每回合的敘事都只寫當下這個房間，玩家玩到第十回合早就忘記自己在哪艘船上。
-                 世界觀骨幹由副本作者寫死、常駐在畫面上，比要求AI每回合重講可靠也省篇幅。 -->
-            <details id="scenario-briefing" style="display:none" class="border-b border-emerald-500/15 bg-zinc-950/60 px-4 py-1.5 text-[11px] font-mono shrink-0">
-                <summary class="cursor-pointer text-emerald-300/90 hover:text-emerald-200 flex items-center gap-2 select-none">
-                    <i class="fas fa-circle-info text-[10px]"></i>
-                    <span id="briefing-title" class="font-bold">副本簡介</span>
-                    <span id="briefing-objective" class="text-zinc-400 font-normal truncate"></span>
-                </summary>
-                <div class="pt-1.5 pl-5 space-y-1 text-zinc-400 leading-relaxed">
-                    <div id="briefing-premise"></div>
-                    <div id="briefing-caution" class="text-orange-300/90"></div>
-                </div>
-            </details>
-
-            <!-- 跨副本探索情報面板：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。 -->
+            <!-- 跨副本探索情報面板：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。
+                 [2026-09-02] 副本簡介（原本是這裡上方常駐可收合的一條）搬進這個面板的
+                 「任務簡介」區塊，見 public/app.js 的 renderBriefing()——id 沒有變，
+                 只是換了容器，不用重寫渲染邏輯。故事欄頂端不再重複顯示同一段文字。 -->
             <div id="explorationTerminal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
                 <div class="modal-panel exploration-terminal-panel bg-zinc-900 border hairline-border w-full max-w-2xl rounded-lg p-4 sm:p-5 shadow-2xl hud-box" role="dialog" aria-modal="true" aria-labelledby="exploration-terminal-title" tabindex="-1">
                     <div class="flex items-start justify-between gap-3 pb-3 hairline-b">
@@ -3703,6 +3735,22 @@
                                 <div><div class="text-[10px] text-zinc-500">你現在在哪裡</div><strong id="exploration-current-location" class="text-cyan-200">—</strong></div>
                                 <div><div class="text-[10px] text-zinc-500">目前場景</div><strong id="exploration-current-event" class="text-zinc-200">—</strong></div>
                                 <div><div class="text-[10px] text-zinc-500">你現在要處理什麼</div><strong id="exploration-current-objective" class="text-emerald-200">—</strong></div>
+                            </div>
+                        </section>
+
+                        <!-- 副本簡介（見 public/app.js 的 renderBriefing）：原本常駐在故事欄頂端，
+                             跟這個面板上面「你現在要處理什麼」談的是同一件事的兩個顆粒度
+                             （這裡是整個副本的任務，上面是這一刻的任務），所以搬進同一個
+                             情報頁裡放在正下方，而不是佔用故事區的常駐版面。 -->
+                        <section id="scenario-briefing" style="display:none" class="space-y-1.5">
+                            <div class="exploration-terminal-section-title">任務簡介 / MISSION BRIEFING</div>
+                            <div class="rounded border border-emerald-500/20 bg-emerald-500/5 p-3 space-y-1.5">
+                                <div class="flex items-baseline gap-2 flex-wrap">
+                                    <span id="briefing-title" class="font-bold text-emerald-300/90">副本簡介</span>
+                                    <span id="briefing-objective" class="text-zinc-400 font-normal"></span>
+                                </div>
+                                <div id="briefing-premise" class="text-zinc-400 leading-relaxed"></div>
+                                <div id="briefing-caution" class="text-orange-300/90 leading-relaxed"></div>
                             </div>
                         </section>
                         <section class="space-y-2">
@@ -3975,11 +4023,6 @@
         <div class="system-tool-panel tactical-dock-panel" role="dialog" aria-label="戰術工具抽屜">
             <div class="system-tool-heading"><span>TACTICAL DOCK</span><span>LOW PROFILE / READY</span></div>
             <div class="dock-turn-row"><span><i class="fas fa-repeat" aria-hidden="true"></i> CURRENT TURN</span><strong>#<span id="turn-counter">1</span></strong></div>
-            <div class="system-tool-actions tactical-actions">
-                <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店"><i class="fas fa-store"></i><span>商店</span></button>
-                <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
-                <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧"><i class="fas fa-book-open"></i><span>回顧</span></button>
-            </div>
         </div>
     </details>
 
