@@ -3011,69 +3011,142 @@
             .shop-item-card-clickable:hover { transform: none; }
             .shop-item-card-clickable:active { transform: scale(.985); }
         }
-        /* ===================================================================
-           純 CSS 改造（安全版）：不干擾 JS 的 display 控制
-           ================================================================== */
-        #scenario-hud {
+        /* ================= Tactical Sidebar / Narrative-First skin =================
+           只鎖定遊戲側欄與 Dock；資料元件、主題 token 與外部事件入口保持不變。 */
+        body.is-game-screen .tactical-sidebar {
+            width: min(21rem, 29vw) !important;
+            min-width: 18rem;
+            background: rgb(var(--c-surface-1) / .88);
+            border-color: rgb(var(--c-line) / .14);
+            box-shadow: inset 1px 0 0 rgb(var(--c-line) / .06), -18px 0 36px rgb(var(--c-shadow) / .08);
+        }
+        #char-hud .name-plate {
             position: relative;
-            flex-direction: column;
-            gap: 0.5rem;
-            padding: 0.75rem;
-            margin: 0.5rem;
-            background: linear-gradient(135deg, rgba(22, 22, 26, 0.95), rgba(13, 13, 16, 0.98));
-            border: 1px solid rgba(251, 191, 36, 0.3);
-            border-radius: 6px;
+            padding: .75rem .9rem .72rem;
+            background: linear-gradient(135deg, rgb(var(--c-surface-3) / .44), rgb(var(--c-surface-1) / .18));
+            border-bottom: 1px solid rgb(var(--c-line) / .14);
+        }
+        #char-hud-titlebar { min-height: 1.7rem; }
+        #char-profile-summary { min-width: 0; }
+        #char-profile-summary > div:first-child { color: var(--accent); font-size: .48rem; letter-spacing: .18em; }
+        #char-name { margin-top: .15rem; font-size: 1.02rem; letter-spacing: .02em; }
+        #char-class { margin-top: .18rem; color: var(--ink-500); font-size: .58rem; }
+        #char-hud .char-hud-compact-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .32rem; margin-top: .65rem; padding: .42rem .1rem 0; border-top: 1px solid rgb(var(--c-line) / .11); }
+        #char-hud .char-compact-stat { min-height: 1.65rem; flex-direction: row; gap: .28rem; justify-content: flex-start; color: var(--ink-500); }
+        #char-hud .char-compact-stat i { font-size: .55rem; color: var(--accent); }
+        #char-hud .char-compact-stat strong { font-size: .56rem; }
+        #char-hud .name-plate > .space-y-1 { padding-top: .48rem; }
+        #char-hud .name-plate > .space-y-1 > div:first-child { font-size: .58rem; }
+        #char-hud #hp-bar-container {
+            position: relative;
+            display: flex !important;
+            gap: 0 !important;
+            width: 100%;
+            height: .44rem !important;
+            padding: 0 !important;
+            margin-top: .35rem;
             overflow: hidden;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            border: 1px solid rgb(var(--c-line) / .24);
+            border-radius: 999px;
+            background: rgb(var(--c-line) / .10);
+        }
+        #char-hud #hp-bar-container .hp-seg {
+            position: relative;
+            inset: auto;
+            display: block;
+            flex: 1 1 10%;
+            width: auto !important;
+            height: 100%;
+            margin: 0 !important;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            transition: background-color .3s ease, opacity .3s ease;
+        }
+        #char-hud #hp-bar-container .hp-seg:first-child { border-radius: 999px 0 0 999px; }
+        #char-hud #hp-bar-container .hp-seg:last-child { border-radius: 0 999px 999px 0; }
+        #char-hud #hp-detail { padding-top: .28rem; font-size: .56rem; color: var(--ink-500); }
+        #char-hud #derived-stats-bar { margin-top: .38rem; padding: .34rem .45rem; border-color: rgb(var(--c-line) / .12); background: rgb(var(--c-line) / .035); font-size: .52rem; }
+        #char-hud .tactical-tabs {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: .35rem;
+            padding: .62rem .7rem .5rem;
+            border-bottom: 1px solid rgb(var(--c-line) / .12);
+            background: rgb(var(--c-surface-0) / .22);
+        }
+        #char-hud .tactical-tabs .folder-tab {
+            position: relative;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            grid-template-rows: auto auto;
+            column-gap: .42rem;
+            align-items: baseline;
+            min-height: 3rem;
+            padding: .58rem .62rem .5rem;
+            border: 1px solid rgb(var(--c-line) / .13);
+            border-radius: .48rem;
+            background: rgb(var(--c-line) / .035);
+            color: var(--ink-500);
+            text-align: left;
+            transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+        }
+        #char-hud .tactical-tabs .folder-tab:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .4); transform: translateY(-1px); }
+        #char-hud .tactical-tabs .folder-tab.active { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .58); background: linear-gradient(135deg, rgb(var(--c-accent-base) / .15), rgb(var(--c-line) / .04)); box-shadow: inset 0 0 0 1px rgb(var(--c-accent-base) / .07), 0 4px 14px rgb(var(--c-shadow) / .12); }
+        #char-hud .tactical-tabs .folder-tab.active::after { content: ''; position: absolute; left: .62rem; right: .62rem; bottom: -.54rem; height: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 9px rgb(var(--c-accent-base) / .65); }
+        #char-hud .tactical-tabs .tab-index { grid-row: 1 / span 2; align-self: center; color: var(--accent); font: 700 .53rem/1 'JetBrains Mono', monospace; letter-spacing: .05em; }
+        #char-hud .tactical-tabs .folder-tab > span:nth-child(2) { font-size: .68rem; font-weight: 700; letter-spacing: .05em; }
+        #char-hud .tactical-tabs .folder-tab small { grid-column: 2; color: var(--ink-500); font: 500 .42rem/1.2 'JetBrains Mono', monospace; letter-spacing: .08em; }
+        #char-hud .sidebar-scroll { min-height: 0; padding: .8rem .78rem 5.4rem; scrollbar-gutter: stable; }
+        #char-hud .sidebar-panel-content { animation: sidebar-panel-in .22s ease both; }
+        #char-hud .sidebar-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; padding: .18rem .12rem .35rem; border-bottom: 1px solid rgb(var(--c-line) / .11); color: var(--ink-200); font: 700 .58rem/1.2 'Noto Serif TC', serif; letter-spacing: .08em; }
+        #char-hud .sidebar-section-heading small { color: var(--ink-500); font: 500 .43rem/1 'JetBrains Mono', monospace; letter-spacing: .08em; white-space: nowrap; }
+        #char-hud .sidebar-info-group { padding-top: .14rem; }
+        #char-hud .sidebar-info-group + .sidebar-info-group { padding-top: .42rem; }
+        #char-hud .sidebar-info-group > .sidebar-section-heading { margin-bottom: .4rem; }
+        #char-hud .sidebar-info-group .npc-panel-note { color: var(--ink-500); font: 500 .48rem/1 'JetBrains Mono', monospace; }
+        #char-hud .hud-data-card { border-radius: .45rem; padding: .58rem .62rem; background: rgb(var(--c-surface-2) / .42); border-color: rgb(var(--c-line) / .14); font-size: .58rem; }
+        #char-hud .stat-meter { width: 100%; height: .3rem; margin-top: .34rem; border-radius: 999px; background: rgb(var(--c-line) / .10); border-color: rgb(var(--c-line) / .16); }
+        #char-hud .stat-meter-fill { width: min(100%, calc(var(--fill-pct, 0%) + 28%)) !important; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-alt)); box-shadow: 0 0 7px rgb(var(--c-accent-base) / .35); }
+        #char-hud .stat-tile { border-radius: .45rem; border-color: rgb(var(--c-line) / .14); background: linear-gradient(135deg, rgb(var(--c-surface-2) / .55), rgb(var(--c-surface-1) / .28)); }
+        @keyframes sidebar-panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Tactical Dock：使用 token 顏色，讓深色與淺色舞台共享同一套層次。 */
+        body.is-game-screen .tactical-dock { right: max(.78rem, env(safe-area-inset-right, 0px)); left: auto; bottom: max(.82rem, env(safe-area-inset-bottom, 0px)); }
+        body.is-game-screen .tactical-dock > summary { min-width: 8.5rem; min-height: 2.35rem; padding: .42rem .58rem; border-radius: 999px; border-color: rgb(var(--c-line) / .24); background: rgb(var(--c-surface-2) / .92); box-shadow: 0 10px 28px rgb(var(--c-shadow) / .24), inset 0 1px 0 var(--edge-light); }
+        body.is-game-screen .tactical-dock > summary:hover, body.is-game-screen .tactical-dock[open] > summary { border-color: rgb(var(--c-accent-base) / .58); background: rgb(var(--c-surface-3) / .98); }
+        .dock-live-dot { width: .42rem; height: .42rem; flex: 0 0 auto; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 3px rgb(var(--c-accent-base) / .12), 0 0 9px rgb(var(--c-accent-base) / .72); animation: dock-breathe 2.4s ease-in-out infinite; }
+        .dock-glyph { display: grid; place-items: center; width: 1.25rem; height: 1.25rem; color: var(--accent); border: 1px solid rgb(var(--c-accent-base) / .3); border-radius: 50%; font-size: .62rem; }
+        .dock-code { color: var(--ink-200); font: 700 .58rem/1 'JetBrains Mono', monospace; letter-spacing: .16em; }
+        .dock-save-status { max-width: 3.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-500); font: 500 .48rem/1 'JetBrains Mono', monospace; }
+        .dock-chevron { margin-left: auto; color: var(--ink-500); font-size: .52rem; transition: transform .18s ease; }
+        .tactical-dock[open] .dock-chevron { transform: rotate(180deg); }
+        .tactical-dock-panel { width: min(18rem, calc(100vw - 1.6rem)); right: 0; padding: .78rem; border-radius: .68rem; border-color: rgb(var(--c-line) / .24); background: rgb(var(--c-surface-2) / .97); box-shadow: 0 18px 44px rgb(var(--c-shadow) / .3), inset 0 1px 0 var(--edge-light); }
+        .tactical-dock-panel .system-tool-heading { padding-bottom: .62rem; border-color: rgb(var(--c-line) / .13); font-size: .6rem; }
+        .tactical-dock-panel .system-tool-heading span:last-child { color: var(--accent); font-size: .43rem; }
+        .dock-turn-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .62rem; padding: .45rem .55rem; border: 1px solid rgb(var(--c-line) / .12); border-radius: .42rem; background: rgb(var(--c-line) / .035); color: var(--ink-500); font: 500 .48rem/1 'JetBrains Mono', monospace; letter-spacing: .06em; }
+        .dock-turn-row i { margin-right: .28rem; color: var(--accent); }
+        .dock-turn-row strong { color: var(--ink-100); font-size: .72rem; letter-spacing: 0; }
+        .tactical-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .38rem; padding-top: .58rem; }
+        .tactical-actions button { min-height: 3.1rem; padding: .42rem .16rem; border-radius: .46rem; border-color: rgb(var(--c-line) / .14); background: rgb(var(--c-line) / .035); color: var(--ink-400); font-size: .49rem; }
+        .tactical-actions button i { font-size: .72rem; color: var(--accent); }
+        .tactical-actions button:hover, .tactical-actions button:focus-visible { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); background: rgb(var(--c-accent-base) / .1); }
+        @keyframes dock-breathe { 0%, 100% { opacity: .72; transform: scale(.92); } 50% { opacity: 1; transform: scale(1); } }
+        @media (max-width: 767px) {
+            body.is-game-screen .tactical-sidebar { position: fixed; inset: 0 auto 0 0; z-index: 45; width: min(21rem, calc(100vw - 2rem)) !important; min-width: 0; transform: translateX(-105%); transition: transform .24s ease, box-shadow .24s ease; }
+            html[data-hud-position="right"] body.is-game-screen .tactical-sidebar { inset: 0 0 0 auto; transform: translateX(105%); }
+            body.is-game-screen .tactical-sidebar.hud-open { transform: translateX(0); box-shadow: 12px 0 38px rgb(var(--c-shadow) / .28); }
+            html[data-hud-position="right"] body.is-game-screen .tactical-sidebar.hud-open { box-shadow: -12px 0 38px rgb(var(--c-shadow) / .28); }
+            body.is-game-screen .tactical-dock { right: max(.62rem, env(safe-area-inset-right, 0px)); bottom: max(.72rem, env(safe-area-inset-bottom, 0px)); }
+            body.is-game-screen .tactical-dock > summary { min-width: 7.4rem; }
+            .tactical-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            #char-hud .sidebar-scroll { padding-bottom: 6.2rem; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #char-hud .sidebar-panel-content, .dock-live-dot { animation: none !important; }
         }
 
-        /* 兩側金屬卡榫裝飾 */
-        #scenario-hud::before, #scenario-hud::after {
-            content: '';
-            position: absolute;
-            top: 0.4rem; bottom: 0.4rem;
-            width: 3px;
-            background: rgba(251, 191, 36, 0.45);
-            pointer-events: none;
-        }
-        #scenario-hud::before { left: 0; border-radius: 0 2px 2px 0; }
-        #scenario-hud::after { right: 0; border-radius: 2px 0 0 2px; }
-
-        /* 錶冠圖示微調 */
-        #scenario-hud .watch-crown {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            font-size: 10px;
-            font-family: 'JetBrains Mono', monospace;
-            color: #fbbf24;
-        }
-        
-        /* 目標文字排版最佳化 */
-        #scenario-hud .mission-objective {
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            border: none;
-        }
-        #scenario-hud .mission-objective-title {
-            font-size: 0.8rem;
-            color: #f4f4f5;
-            font-family: 'Noto Serif TC', serif;
-            font-weight: 600;
-        }
-
-        /* 底部數據與進度條區塊對齊 */
-        #scenario-hud .mission-metrics {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            padding-top: 0.4rem;
-            margin-top: 0.2rem;
-        }
-</style>
+        </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">
 
@@ -3458,28 +3531,26 @@
              display:none，而且沒有任何替代入口。等於在手機上玩的人看不到自己的血量、
              屬性、技能、特質與日誌。這個專案有 PWA manifest 也有「安裝App」按鈕，
              手機本來就是預期的玩法之一，不能把角色卡整個藏起來。 -->
-        <aside id="char-hud" aria-label="角色狀態" class="w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
-        <div class="name-plate pb-2.5">
-                <!-- 角色抬頭：單行收斂，解決「輪迴者」重複三次問題 -->
-                <div id="char-hud-titlebar" class="flex items-center justify-between pb-2 border-b border-white/10">
-                    <div id="char-profile-summary" class="flex items-baseline gap-2 min-w-0">
-                        <span class="px-1.5 py-0.5 text-[9px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 shrink-0">輪迴者</span>
-                        <h2 id="char-name" class="text-base font-bold text-white tracking-wide truncate">—</h2>
+        <aside id="char-hud" aria-label="角色狀態" class="tactical-sidebar w-72 md:w-80 hud-float flex flex-col shrink-0 overflow-hidden">
+            <div class="name-plate">
+                    <div id="char-hud-titlebar" class="flex items-center justify-between">
+                    <div id="char-profile-summary">
+                        <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">輪迴者檔案</div>
+                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
-                    <div class="flex items-center gap-1 shrink-0">
-                        <!-- 收窄/關閉抽屜按鈕完全保留 -->
+                    <div class="flex items-center gap-1.5">
+                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
+                        <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
                         <button type="button" onclick="toggleCharHudCompact()" id="char-hud-collapse" aria-label="收窄角色欄" aria-pressed="false" title="收窄角色欄"
                                 class="char-hud-collapse-btn px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
-                            <i class="fas fa-angles-right text-xs"></i>
+                            <i class="fas fa-angles-right"></i>
                         </button>
                         <button type="button" onclick="closeCharHud()" aria-label="關閉角色狀態"
                                 class="md:hidden px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
-                            <i class="fas fa-times text-xs"></i>
+                            <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>
-
-                <!-- 關鍵狀態（收窄模式時顯示，原生 ID 完整保留） -->
                 <div class="char-hud-compact-mark" aria-hidden="true">HUD</div>
                 <div id="char-hud-compact-stats" class="char-hud-compact-stats" aria-label="關鍵狀態">
                     <div class="char-compact-stat" title="生命"><i class="fas fa-heart-pulse" aria-hidden="true"></i><span class="sr-only">生命</span><strong id="char-compact-hp">—</strong></div>
@@ -3487,24 +3558,18 @@
                     <div class="char-compact-stat" title="防禦"><i class="fas fa-shield-halved" aria-hidden="true"></i><span class="sr-only">防禦</span><strong id="char-compact-defense">—</strong></div>
                     <div class="char-compact-stat" title="先攻"><i class="fas fa-bolt" aria-hidden="true"></i><span class="sr-only">先攻</span><strong id="char-compact-initiative">—</strong></div>
                 </div>
+                <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
+                <div id="active-alerts" class="space-y-1 pt-2" aria-live="polite"></div>
 
-                <!-- 身分/階級說明與動態警報 -->
-                <div id="char-class" class="text-[11px] font-mono text-zinc-400 mt-1 flex items-center justify-between">—</div>
-                <div id="active-alerts" class="space-y-1 pt-1" aria-live="polite"></div>
-
-                <!-- 生命傷勢軌：保留 space-y-1 讓收窄模式能正常隱藏，內部採用無縫平滑條 -->
-                <div class="space-y-1 pt-2">
+                <!-- 四段傷勢軌 -->
+                <div class="space-y-1 pt-3">
                     <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-400">生命值 (HP)</span>
-                        <span id="hp-text" class="text-emerald-400 font-bold">—</span>
+                        <span class="text-zinc-300">生命傷勢軌</span>
+                        <span id="hp-text" class="text-zinc-100 font-bold">—</span>
                     </div>
-                    <!-- 外框容器：圓角裁切 + 底深色 -->
-                    <div class="h-2 bg-zinc-950/80 rounded-full overflow-hidden border border-white/10 p-0.5">
-                        <!-- 核心容器：gap-0 與行內消除子分段圓角，保持功能相容且視覺連續平滑 -->
-                        <div id="hp-bar-container" class="grid gap-0 h-full w-full rounded-full overflow-hidden" style="--hp-radius:0px;"></div>
-                    </div>
-                    <div id="hp-detail" class="text-[10px] font-mono text-zinc-500 pt-0.5">—</div>
-                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border border-white/5 mt-1"></div>
+                    <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
+                    <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
+                    <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
                 </div>
             </div>
 
@@ -3549,32 +3614,51 @@
 
             <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
 
-            <!-- 分頁 Tab：檔案夾造型。
-                 sidebar-tab-btn 這個 class 已經拿掉——它既沒有 CSS 定義，也沒有任何 JS 讀它
-                 （切換分頁是靠 id="tab-btn-*" 抓的，見下面的 switchSidebarTab）。
-                 換上 role=tab/tabpanel 這組真正有作用的語意，讀屏才唸得出「五個分頁，現在在第一個」。 -->
-            <div class="survival-tabs flex gap-1 px-2 pt-2 bg-zinc-900/30 hairline-b overflow-x-auto" role="tablist" aria-label="生存控制台分頁">
-                <button onclick="switchSidebarTab('status')" id="tab-btn-status" role="tab" aria-selected="true" aria-controls="sidebar-tab-status" class="folder-tab active">狀態</button>
-                <button onclick="switchSidebarTab('rebirth')" id="tab-btn-rebirth" role="tab" aria-selected="false" aria-controls="sidebar-tab-rebirth" class="folder-tab">輪迴</button>
-                <button onclick="switchSidebarTab('npcs')" id="tab-btn-npcs" role="tab" aria-selected="false" aria-controls="sidebar-tab-npcs" class="folder-tab">人物<span id="npc-tab-count" class="npc-tab-count" hidden></span></button>
-                <button onclick="switchSidebarTab('inventory')" id="tab-btn-inventory" role="tab" aria-selected="false" aria-controls="sidebar-tab-inventory" class="folder-tab">物資</button>
-                <button onclick="switchSidebarTab('events')" id="tab-btn-events" role="tab" aria-selected="false" aria-controls="sidebar-tab-events" class="folder-tab">事件</button>
-                <button onclick="switchSidebarTab('journal')" id="tab-btn-journal" role="tab" aria-selected="false" aria-controls="sidebar-tab-journal" class="folder-tab">日誌</button>
+            <!-- 雙分頁：把玩家做檢定時需要的資訊，與做決策時參考的情報分開。內容區仍沿用既有 ID，
+                 因此 app.js / combatV2.js 的資料更新不需要改動。 -->
+            <div class="survival-tabs tactical-tabs" role="tablist" aria-label="生存控制台分頁">
+                <button onclick="switchSidebarTab('status')" id="tab-btn-status" role="tab" aria-selected="true" aria-controls="sidebar-tab-status" class="folder-tab active">
+                    <span class="tab-index">01</span><span>戰術狀態</span><small>ATTR / SKILL</small>
+                </button>
+                <button onclick="switchSidebarTab('inventory')" id="tab-btn-inventory" role="tab" aria-selected="false" aria-controls="sidebar-tab-inventory" class="folder-tab">
+                    <span class="tab-index">02</span><span>物資與情報</span><small>SUPPLY / INTEL</small><span id="npc-tab-count" class="npc-tab-count" hidden></span>
+                </button>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-4 space-y-3">
-                <div id="sidebar-tab-status" role="tabpanel" aria-labelledby="tab-btn-status" class="space-y-3">
+            <div class="sidebar-scroll flex-1 overflow-y-auto">
+                <div id="sidebar-tab-status" role="tabpanel" aria-labelledby="tab-btn-status" class="sidebar-panel-content space-y-3">
+                    <div class="sidebar-section-heading"><span>能力矩陣</span><small>CORE ATTRIBUTES</small></div>
                     <div id="attr-grid" class="grid grid-cols-2 gap-1.5 text-xs font-mono"></div>
+                    <div class="sidebar-section-heading"><span>專精技能</span><small>TRAINED SKILLS</small></div>
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
-                    <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 uppercase tracking-wider px-0.5"><span>起始專長 / 資源</span><span>狀態摘要</span></div>
+                    <div class="sidebar-section-heading"><span>起始專長 / 資源</span><small>TRAITS &amp; BLOODLINE</small></div>
                     <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-3 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
                 </div>
-                <div id="sidebar-tab-rebirth" role="tabpanel" aria-labelledby="tab-btn-rebirth" class="hidden space-y-2"><div id="rebirth-summary" class="hud-data-card">尚未取得輪迴資料。</div></div>
-                <div id="sidebar-tab-npcs" role="tabpanel" aria-labelledby="tab-btn-npcs" class="hidden space-y-2"><div class="flex items-center justify-between gap-2 px-0.5"><span class="npc-panel-kicker">副本人物／關係</span><span id="npc-panel-note" class="npc-panel-note">等待副本資料</span></div><div id="npc-roster" class="npc-roster"></div><div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div></div>
-                <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="hidden space-y-2"><div id="reward-summary" class="hud-data-card">尚未取得獎勵資料。</div></div>
-                <div id="sidebar-tab-events" role="tabpanel" aria-labelledby="tab-btn-events" class="hidden space-y-2"><div id="story-nodes-list" class="space-y-2"><div class="text-[11px] text-zinc-500">尚未發現重大事件。</div></div></div>
-                <div id="sidebar-tab-journal" role="tabpanel" aria-labelledby="tab-btn-journal" class="hidden space-y-2"><div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div></div>
+
+                <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="sidebar-panel-content space-y-3 hidden">
+                    <section id="sidebar-tab-rebirth" class="sidebar-info-group" aria-labelledby="sidebar-rebirth-heading">
+                        <div id="sidebar-rebirth-heading" class="sidebar-section-heading"><span>輪迴資源</span><small>RUN DATA</small></div>
+                        <div id="rebirth-summary" class="hud-data-card">尚未取得輪迴資料。</div>
+                    </section>
+                    <section id="sidebar-tab-npcs" class="sidebar-info-group" aria-labelledby="sidebar-npcs-heading">
+                        <div class="sidebar-section-heading"><span id="sidebar-npcs-heading">人物／關係</span><span id="npc-panel-note" class="npc-panel-note">等待副本資料</span></div>
+                        <div id="npc-roster" class="npc-roster"></div>
+                        <div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div>
+                    </section>
+                    <section class="sidebar-info-group" aria-labelledby="sidebar-reward-heading">
+                        <div id="sidebar-reward-heading" class="sidebar-section-heading"><span>物資錢包</span><small>INVENTORY</small></div>
+                        <div id="reward-summary" class="hud-data-card">尚未取得獎勵資料。</div>
+                    </section>
+                    <section id="sidebar-tab-events" class="sidebar-info-group" aria-labelledby="sidebar-events-heading">
+                        <div id="sidebar-events-heading" class="sidebar-section-heading"><span>事件線索</span><small>ACTIVE THREADS</small></div>
+                        <div id="story-nodes-list" class="space-y-2"><div class="text-[11px] text-zinc-500">尚未發現重大事件。</div></div>
+                    </section>
+                    <section id="sidebar-tab-journal" class="sidebar-info-group" aria-labelledby="sidebar-journal-heading">
+                        <div id="sidebar-journal-heading" class="sidebar-section-heading"><span>行動日誌</span><small>SESSION LOG</small></div>
+                        <div id="journal-feed" class="space-y-1.5 font-mono text-[11px] text-zinc-300"></div>
+                    </section>
+                </div>
             </div>
         </aside>
 
@@ -3591,31 +3675,7 @@
                     <i class="fas fa-map-marker-alt text-emerald-400 shrink-0"></i>
                     <span id="current-scene-text" class="text-zinc-100 font-semibold truncate">主神空間 · 任務進行中</span>
                 </div>
-                <!-- [2026-08-18] 這一列在 390px 寬的手機上會整組擠成兩三行：
-                     「主神／商店」「回合：／1」「已存／檔」全部斷開，讀起來像壞掉的表格。
-                     作法是把每一顆都設成不換行、不壓縮，並在小螢幕上只留圖示——
-                     文字標籤改用 title/aria-label 保留語意，圖示本身在桌機仍然帶著文字。 -->
-                <div class="flex items-center gap-2 sm:gap-3 text-[11px] text-zinc-300 shrink-0">
-                    <!-- 主神商店。門禁規則見 content/shop/access.js（規則書第469行）：
-                         支線與獎勵點數只能在主神空間花，經驗兩邊都能花但副本中要兩倍。
-                         按鈕一直在，因為玩家在副本中也需要看得到「等我出去要買什麼」。 -->
-                    <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店" class="px-2.5 py-1 rounded bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-store text-[10px]"></i><span class="hidden sm:inline"> 主神商店</span>
-                    </button>
-                    <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧" class="px-2.5 py-1 rounded bg-stone-500/10 border border-stone-400/35 text-stone-300 hover:bg-stone-400/15 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-book-open text-[10px]"></i><span class="hidden sm:inline"> 劇情回顧</span>
-                    </button>
-                    <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟副本情報" aria-label="開啟副本情報" class="px-2.5 py-1 rounded bg-cyan-500/10 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-map text-[10px]"></i><span class="hidden sm:inline"> 副本情報</span>
-                    </button>
-                    <!-- 休息。哪一種由伺服器依地點決定（見 functions/api/rest.js）：
-                         主神空間完全恢復，副本中打坐並消耗3回合時間預算。 -->
-                    <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息" class="px-2.5 py-1 rounded bg-sky-500/10 border border-sky-500/40 text-sky-300 hover:bg-sky-500/20 transition-all hover:-translate-y-px font-mono font-semibold whitespace-nowrap shrink-0">
-                        <i class="fas fa-mug-hot text-[10px]"></i><span class="hidden sm:inline"> 休息</span>
-                    </button>
-                    <span class="whitespace-nowrap shrink-0"><span class="hidden sm:inline">回合: </span><span class="sm:hidden">#</span><span id="turn-counter" class="text-zinc-100 font-bold">1</span></span>
-                    <span id="save-status" class="px-2 py-0.5 rounded bg-panel border hairline-border text-zinc-300 whitespace-nowrap shrink-0">已存檔</span>
-                </div>
+                <!-- 操作控制已收束到右下角 Tactical Dock；故事列只保留場景上下文，讓敘事在垂直方向頂天展開。 -->
             </div>
 
             <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
@@ -3909,20 +3969,30 @@
         </div>
     </div>
 
-    <!-- 遊戲內系統工具：收進左下角，避免非遊戲功能在最上方永久佔一整列。 -->
-    <!-- [2026-08-31] 這裡原本是一個 <details> 齒輪選單，裡面有「檔案／主題／安裝／Discord 登入／設定」。
-         設定面板整個拆掉之後（API 金鑰與文風都改由伺服器端決定），齒輪也一併拿掉，
-         只留主題切換。
-
-         [已知取捨] `body.is-game-screen #site-header { display: none; }`（見上面的樣式區）
-         會在遊戲進行中隱藏頂欄，而頂欄是「輪迴者檔案／Discord 登入／安裝 App」的另一個入口。
-         所以現在遊戲進行中**只能**切主題；要存檔、登入或安裝 App 必須先回主選單。
-         這是刻意的決定，不是漏掉——不要「順手」把 dock 加回來。 -->
-    <div id="theme-tool-dock" class="system-tool-dock" data-theme-only>
-        <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題">
-            <i data-theme-toggle-icon class="fas fa-moon" aria-hidden="true"></i><span class="sr-only">切換明暗主題</span>
-        </button>
-    </div>
+    <!-- 遊戲內戰術 Dock：平時只露出微縮膠囊，展開後向上提供低頻系統操作，避免遮住底部行動輸入列。 -->
+    <details id="theme-tool-dock" class="system-tool-dock tactical-dock" data-theme-only>
+        <summary aria-label="展開戰術工具" title="戰術工具">
+            <span class="dock-live-dot" aria-hidden="true"></span>
+            <span class="dock-glyph" aria-hidden="true"><i class="fas fa-crosshairs"></i></span>
+            <span class="dock-code">SYS</span>
+            <span id="save-status" class="dock-save-status">已存檔</span>
+            <i class="fas fa-chevron-up dock-chevron" aria-hidden="true"></i>
+        </summary>
+        <div class="system-tool-panel tactical-dock-panel" role="dialog" aria-label="戰術工具抽屜">
+            <div class="system-tool-heading"><span>TACTICAL DOCK</span><span>LOW PROFILE / READY</span></div>
+            <div class="dock-turn-row"><span><i class="fas fa-repeat" aria-hidden="true"></i> CURRENT TURN</span><strong>#<span id="turn-counter">1</span></strong></div>
+            <div class="system-tool-actions tactical-actions">
+                <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店"><i class="fas fa-store"></i><span>商店</span></button>
+                <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧"><i class="fas fa-book-open"></i><span>回顧</span></button>
+                <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟副本情報" aria-label="開啟副本情報"><i class="fas fa-map"></i><span>情報</span></button>
+                <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息"><i class="fas fa-mug-hot"></i><span>休息</span></button>
+                <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
+                <button type="button" onclick="openModal('sessionModal')" title="輪迴者檔案" aria-label="開啟輪迴者檔案"><i class="fas fa-database"></i><span>檔案</span></button>
+                <button type="button" onclick="startDiscordLogin()" title="以 Discord 登入" aria-label="以 Discord 登入"><i class="fab fa-discord"></i><span>Discord</span></button>
+                <button type="button" data-pwa-install onclick="handlePwaInstallClick()" title="安裝到主畫面" aria-label="安裝到主畫面"><i class="fas fa-mobile-screen-button"></i><span>安裝 App</span></button>
+            </div>
+        </div>
+    </details>
 
     <!-- 劇情回顧：完整 chronicle 只在玩家主動開啟時按需載入，呈現成自己的小說。 -->
     <div id="chronicleModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
@@ -4352,11 +4422,12 @@
             });
         });
         function switchSidebarTab(tabKey) {
-            // 舊版鍵值記錄：['attr', 'skills', 'traits', 'npcs', 'journal']；目前統一為六層生存控制台。
-            ['status', 'rebirth', 'npcs', 'inventory', 'events', 'journal'].forEach(k => {
+            // 兩頁架構：保留舊鍵值作為相容入口，但所有物資／人物／事件／日誌都歸入情報頁。
+            const activeTab = ['rebirth', 'npcs', 'inventory', 'events', 'journal'].includes(tabKey) ? 'inventory' : 'status';
+            ['status', 'inventory'].forEach(k => {
                 const p = document.getElementById(`sidebar-tab-${k}`);
                 const b = document.getElementById(`tab-btn-${k}`);
-                if (k === tabKey) {
+                if (k === activeTab) {
                     p?.classList.remove('hidden');
                     p?.classList.add('anim-fade-up');
                     b?.classList.add('active');
@@ -4367,9 +4438,8 @@
                     b?.setAttribute('aria-selected', 'false');
                 }
             });
-            // 日誌是唯一需要去伺服器拿資料的分頁（人物關係則由 scenario response 隨回合同步）。
-            // 只在真的切過去的時候抓，不要每回合都預抓一份沒有人在看的日誌。
-            if (tabKey === 'journal') window.loadJournal?.();
+            // 日誌仍然只在玩家主動查看情報頁時載入，不改變既有的懶載入策略。
+            if (['journal', 'inventory'].includes(tabKey)) window.loadJournal?.();
         }
         function copySessionId() {
             const val = document.getElementById('modal-session-id').value;
