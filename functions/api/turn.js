@@ -1539,6 +1539,20 @@ async function executeTurn(context, streamHooks = null) {
       degraded.narrationSource = referenceFreeInputPending ? "bridge_llm" : "ai";
     }
     degraded.narrativeSafety = narrationSafety;
+    // [2026-09-02 新增，純觀測] 這條路徑每觸發一次就是這一回合多付一次完整 LLM 呼叫
+    // （見上面 rewriteAttempted 分支的 invokeNarrativeLlm()）。只在真的檢查過合約時記錄，
+    // 不改變任何行為——目的是量化「觸發率」，取代單靠玩家截圖臆測。
+    if (narrationSafety.rewriteAttempted || narrationSafety.fallbackUsed) {
+      console.log("[NARRATION_GUARD]", JSON.stringify({
+        sessionId: session?.id ?? null,
+        rewriteAttempted: narrationSafety.rewriteAttempted,
+        rewritePassed: narrationSafety.rewritePassed,
+        fallbackUsed: narrationSafety.fallbackUsed,
+        rewriteError: narrationSafety.rewriteError ?? false,
+        violations: narrationSafety.violations ?? [],
+        rewriteViolations: narrationSafety.rewriteViolations ?? [],
+      }));
+    }
   }
 
   // reference 自由輸入的威脅由 AI 提議、引擎驗證；固定 approach 的 threatDelta 不走這條路。
