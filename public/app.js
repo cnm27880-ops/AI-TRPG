@@ -1024,6 +1024,26 @@ function traitDescription(trait) {
   return trait?.description ?? trait?.desc ?? "";
 }
 
+// 起始專長目前全部是 skillBonus 類型的專長（見 renderTraitCards），單看 category
+// 分不出差異；圖示改成依專長實際加成的技能挑，同一排圖示才看得出「這幾張卡不一樣」，
+// 不用點開 title 逐張看。鍵值是 core/schema.js SKILLS 底下的十個技能名稱。
+const TRAIT_SKILL_ICON = {
+  格鬥: "fa-hand-fist",
+  射擊: "fa-crosshairs",
+  體魄: "fa-dumbbell",
+  潛行: "fa-user-ninja",
+  求生: "fa-campground",
+  偵察: "fa-binoculars",
+  技藝: "fa-screwdriver-wrench",
+  醫療: "fa-kit-medical",
+  秘識: "fa-book-skull",
+  交涉: "fa-comments",
+};
+
+function traitIcon(trait) {
+  return TRAIT_SKILL_ICON[trait?.effect?.skill] || "fa-shield-halved";
+}
+
 /**
  * 起始專長改成一排小圖示：側欄寸土寸金，一張卡片高度只夠換一句完整說明，
  * 不值得。完整說明改用原生 title（滑鼠懸浮／觸控長按都讀得到），不用另外
@@ -1049,7 +1069,7 @@ function renderTraitStage() {
     const tip = `${label}（${t.category || t.kind || "特質"}）\n${traitDescription(t)}`;
     return `
       <div class="trait-badge" tabindex="0" title="${escapeHtml(tip)}">
-        <i class="fas fa-shield-halved" aria-hidden="true"></i>
+        <i class="fas ${traitIcon(t)}" aria-hidden="true"></i>
         <span class="sr-only">${label}：${escapeHtml(traitDescription(t))}</span>
       </div>`;
   }).join("");
@@ -4050,8 +4070,27 @@ function downloadChroniclePackage() {
 // ---------------------------------------------------------------------------
 
 let shopState = null;
-let shopCategory = "全部";
+let shopCategory = "物品";
 let shopBusy = false;
+
+// [2026-09-02] 貨架現階段只有「物品」「血統」「其他」三類轉出真正的商品；
+// 「瞳術」「稱號」「功法」「技藝」四個分頁先保留 Tab 與樣式（之後補真商品時
+// 不用重新設計版面），但暫時不把貨架上已有的內容畫出來，避免玩家看到一堆
+// 「掛名，買不到」的空殼卡片。這是純前端的顯示篩選，不動 content/shop 的資料，
+// 也不影響 test/shopPacks.test.js 鎖住的「每類至少3件起始商品」規格。
+const SHOP_VISIBLE_CATEGORIES = new Set(["物品", "血統", "其他"]);
+
+// 「改造」模板底下的三件 D 級樣本（假面騎士EVOL／最蔡之人／紅馬尾戰士）跟下面
+// 既有的 retiredDPlaceholders 是同一種東西：資料留著給模板排他性機制用，
+// 畫面上先當佔位不展示。歸進「物品」分頁後排在最下面，玩家一眼就知道是雜訊。
+const RETIRED_SHOP_PLACEHOLDERS = new Set([
+  "technique.太玄鑲華劍譜.D",
+  "spell.暗示術.D",
+  "spell.阿尼馬格斯.D",
+  "cybernetic.假面騎士EVOL.D",
+  "cybernetic.最蔡之人.D",
+  "cybernetic.紅馬尾戰士.D",
+]);
 
 // 貨架分類（前端展示用，不是規則書分類）。書上的 category 只有六種
 // （服務/直接強化/物品/專長/模板能力/體系），「模板能力」把血統跟瞳術、改造全部
@@ -4171,16 +4210,18 @@ function renderShop() {
   );
   document.getElementById("shop-summary").textContent = `上架 ${totals.上架} · 掛名 ${totals.掛名}`;
 
-  // 分頁固定用這六格＋全部，不是從貨架現有的東西反推——這樣「目前還沒有商品的分類」
+  // 分頁固定用這七格，不是從貨架現有的東西反推——這樣「目前還沒有商品的分類」
   // 也會出現在分頁上（只是點進去是空的），而不是分類本身就消失，玩家才看得出
-  // 「商店以後還會長出瞳術／功法」而不是誤以為這幾類本來就不存在。
+  // 「商店以後還會長出瞳術／功法」而不是誤以為這幾類本來就不存在。不設「全部」分頁：
+  // 商品量還小的階段，「全部」跟「物品」幾乎是同一份清單，多一個分頁只是多一次選擇。
   const countByCategory = {};
   for (const s of shopState.shelf) {
+    if (RETIRED_SHOP_PLACEHOLDERS.has(s.good?.goodId)) continue;
     const cat = shopDisplayCategory(s.good);
+    if (!SHOP_VISIBLE_CATEGORIES.has(cat)) continue;
     countByCategory[cat] = (countByCategory[cat] ?? 0) + 1;
   }
-  const tabs = [{ key: "全部", meta: { icon: "fa-layer-group", accent: "amber" }, count: shopState.shelf.length },
-    ...SHOP_DISPLAY_CATEGORIES.map((c) => ({ key: c, meta: SHOP_CATEGORY_META[c], count: countByCategory[c] ?? 0 }))];
+  const tabs = SHOP_DISPLAY_CATEGORIES.map((c) => ({ key: c, meta: SHOP_CATEGORY_META[c], count: countByCategory[c] ?? 0 }));
   document.getElementById("shop-tabs").innerHTML = tabs
     .map(({ key, meta, count }) => {
       const active = key === shopCategory;
@@ -4190,8 +4231,11 @@ function renderShop() {
     })
     .join("");
 
-  const retiredDPlaceholders = new Set(["technique.太玄鑲華劍譜.D", "spell.暗示術.D", "spell.阿尼馬格斯.D"]);
-  const items = shopState.shelf.filter((s) => !retiredDPlaceholders.has(s.good?.goodId) && (shopCategory === "全部" || shopDisplayCategory(s.good) === shopCategory));
+  const items = shopState.shelf.filter((s) =>
+    !RETIRED_SHOP_PLACEHOLDERS.has(s.good?.goodId) &&
+    SHOP_VISIBLE_CATEGORIES.has(shopDisplayCategory(s.good)) &&
+    shopDisplayCategory(s.good) === shopCategory
+  );
   document.getElementById("shop-shelf").innerHTML = items.length
     ? items.map(shopItemHtml).join("")
     : `<div class="shop-shelf-empty">「${escapeHtml(shopCategory)}」目前還沒有商品上架，之後會慢慢補進來。</div>`;
