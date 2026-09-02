@@ -2396,16 +2396,16 @@
         }
 
         /* 任務 HUD 使用明確的卡片分區，不再讓迫近度 pips 與時間 badge 各自漂移。 */
-        .hud-sidebar-objective { display: grid; grid-template-columns: 1fr; gap: .62rem; padding: .7rem .62rem .68rem; border-top: 1px solid rgb(var(--c-line) / .14); border-bottom: 1px solid rgb(var(--c-line) / .14); }
+        .hud-sidebar-objective { display: grid; grid-template-columns: 1fr; gap: .42rem; padding: .48rem .58rem .46rem; border-top: 1px solid rgb(var(--c-line) / .14); border-bottom: 1px solid rgb(var(--c-line) / .14); }
         .hud-sidebar-objective .watch-crown { display: flex; flex-direction: row; justify-content: flex-start; gap: .42rem; padding: 0; }
-        .hud-sidebar-objective .watch-crown-mark { width: 1.2rem; height: 1.2rem; }
-        .hud-sidebar-objective .watch-crown-label { display: inline; font-size: .48rem; }
-        .hud-sidebar-objective .mission-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .48rem; align-items: center; padding: 0; border-left: 0; }
-        .hud-sidebar-objective .mission-objective-mark { width: 1.32rem; height: 1.32rem; }
-        .hud-sidebar-objective .mission-eyebrow { font-size: .48rem; letter-spacing: .13em; line-height: 1.2; }
-        .hud-sidebar-objective .mission-objective-title { font-size: .72rem; line-height: 1.35; white-space: normal; overflow-wrap: anywhere; }
-        .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .42rem; width: 100%; align-items: stretch; }
-        .hud-sidebar-objective .mission-metric { min-width: 0; padding: .42rem .42rem .38rem; border: 1px solid rgb(var(--c-line) / .13); border-radius: 4px; background: rgb(var(--c-line) / .035); }
+        .hud-sidebar-objective .watch-crown-mark { width: 1.05rem; height: 1.05rem; }
+        .hud-sidebar-objective .watch-crown-label { display: inline; font-size: .46rem; }
+        .hud-sidebar-objective .mission-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .44rem; align-items: center; padding: 0; border-left: 0; }
+        .hud-sidebar-objective .mission-objective-mark { width: 1.15rem; height: 1.15rem; }
+        .hud-sidebar-objective .mission-eyebrow { font-size: .46rem; letter-spacing: .13em; line-height: 1.15; }
+        .hud-sidebar-objective .mission-objective-title { font-size: .68rem; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+        .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .38rem; width: 100%; align-items: stretch; }
+        .hud-sidebar-objective .mission-metric { min-width: 0; padding: .32rem .38rem .3rem; border: 1px solid rgb(var(--c-line) / .13); border-radius: 4px; background: rgb(var(--c-line) / .035); }
         .hud-sidebar-objective .mission-metric-header { display: flex; align-items: baseline; justify-content: space-between; gap: .35rem; font-size: .48rem; line-height: 1.2; }
         .hud-sidebar-objective .mission-metric-value { font-size: .56rem; line-height: 1.2; white-space: nowrap; }
         .hud-sidebar-objective .mission-progress-track { width: 100%; height: .24rem; margin-top: .34rem; border-radius: 999px; overflow: hidden; }
@@ -3022,21 +3022,21 @@
         }
         #char-hud .name-plate {
             position: relative;
-            padding: .75rem .9rem .72rem;
+            padding: .55rem .8rem .5rem;
             background: linear-gradient(135deg, rgb(var(--c-surface-3) / .44), rgb(var(--c-surface-1) / .18));
             border-bottom: 1px solid rgb(var(--c-line) / .14);
         }
-        #char-hud-titlebar { min-height: 1.7rem; }
+        #char-hud-titlebar { min-height: 1.4rem; }
         #char-profile-summary { min-width: 0; }
-        #char-profile-summary > div:first-child { color: var(--accent); font-size: .48rem; letter-spacing: .18em; }
-        #char-name { margin-top: .15rem; font-size: 1.02rem; letter-spacing: .02em; }
-        #char-class { margin-top: .18rem; color: var(--ink-500); font-size: .58rem; }
-        #char-hud .char-hud-compact-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .32rem; margin-top: .65rem; padding: .42rem .1rem 0; border-top: 1px solid rgb(var(--c-line) / .11); }
-        #char-hud .char-compact-stat { min-height: 1.65rem; flex-direction: row; gap: .28rem; justify-content: flex-start; color: var(--ink-500); }
-        #char-hud .char-compact-stat i { font-size: .55rem; color: var(--accent); }
-        #char-hud .char-compact-stat strong { font-size: .56rem; }
-        #char-hud .name-plate > .space-y-1 { padding-top: .48rem; }
-        #char-hud .name-plate > .space-y-1 > div:first-child { font-size: .58rem; }
+        #char-profile-summary > div:first-child { color: var(--accent); font-size: .46rem; letter-spacing: .18em; }
+        #char-name { margin-top: .1rem; font-size: .92rem; letter-spacing: .02em; }
+        #char-class { margin-top: .12rem; color: var(--ink-500); font-size: .55rem; }
+        #char-hud .char-hud-compact-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .28rem; margin-top: .42rem; padding: .32rem .1rem 0; border-top: 1px solid rgb(var(--c-line) / .11); }
+        #char-hud .char-compact-stat { min-height: 1.4rem; flex-direction: row; gap: .24rem; justify-content: flex-start; color: var(--ink-500); }
+        #char-hud .char-compact-stat i { font-size: .52rem; color: var(--accent); }
+        #char-hud .char-compact-stat strong { font-size: .53rem; }
+        #char-hud .name-plate > .space-y-1 { padding-top: .34rem; }
+        #char-hud .name-plate > .space-y-1 > div:first-child { font-size: .54rem; }
         #char-hud #hp-bar-container {
             position: relative;
             display: flex !important;
@@ -3070,8 +3070,8 @@
         #char-hud .tactical-tabs {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: .35rem;
-            padding: .62rem .7rem .5rem;
+            gap: .3rem;
+            padding: .42rem .6rem .38rem;
             border-bottom: 1px solid rgb(var(--c-line) / .12);
             background: rgb(var(--c-surface-0) / .22);
         }
@@ -3082,8 +3082,8 @@
             grid-template-rows: auto auto;
             column-gap: .42rem;
             align-items: baseline;
-            min-height: 3rem;
-            padding: .58rem .62rem .5rem;
+            min-height: 2.4rem;
+            padding: .42rem .55rem .38rem;
             border: 1px solid rgb(var(--c-line) / .13);
             border-radius: .48rem;
             background: rgb(var(--c-line) / .035);
@@ -3106,6 +3106,11 @@
         #char-hud .sidebar-info-group > .sidebar-section-heading { margin-bottom: .4rem; }
         #char-hud .sidebar-info-group .npc-panel-note { color: var(--ink-500); font: 500 .48rem/1 'JetBrains Mono', monospace; }
         #char-hud .hud-data-card { border-radius: .45rem; padding: .58rem .62rem; background: rgb(var(--c-surface-2) / .42); border-color: rgb(var(--c-line) / .14); font-size: .58rem; }
+        .sidebar-intel-link { display: flex; align-items: center; gap: .5rem; width: 100%; margin-bottom: .5rem; padding: .5rem .62rem; border: 1px solid rgb(var(--c-accent-base) / .3); border-radius: .45rem; background: rgb(var(--c-accent-base) / .07); color: var(--ink-100); font: 700 .58rem/1.2 'Noto Serif TC', serif; letter-spacing: .04em; text-align: left; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+        .sidebar-intel-link i:first-child { color: var(--accent); font-size: .68rem; }
+        .sidebar-intel-link span { flex: 1 1 auto; }
+        .sidebar-intel-link i:last-child { color: var(--ink-500); font-size: .55rem; }
+        .sidebar-intel-link:hover, .sidebar-intel-link:focus-visible { border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-accent-base) / .12); transform: translateY(-1px); }
         #char-hud .stat-meter { width: 100%; height: .3rem; margin-top: .34rem; border-radius: 999px; background: rgb(var(--c-line) / .10); border-color: rgb(var(--c-line) / .16); }
         #char-hud .stat-meter-fill { width: min(100%, calc(var(--fill-pct, 0%) + 28%)) !important; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-alt)); box-shadow: 0 0 7px rgb(var(--c-accent-base) / .35); }
         #char-hud .stat-tile { border-radius: .45rem; border-color: rgb(var(--c-line) / .14); background: linear-gradient(135deg, rgb(var(--c-surface-2) / .55), rgb(var(--c-surface-1) / .28)); }
@@ -3127,7 +3132,7 @@
         .dock-turn-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-top: .62rem; padding: .45rem .55rem; border: 1px solid rgb(var(--c-line) / .12); border-radius: .42rem; background: rgb(var(--c-line) / .035); color: var(--ink-500); font: 500 .48rem/1 'JetBrains Mono', monospace; letter-spacing: .06em; }
         .dock-turn-row i { margin-right: .28rem; color: var(--accent); }
         .dock-turn-row strong { color: var(--ink-100); font-size: .72rem; letter-spacing: 0; }
-        .tactical-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .38rem; padding-top: .58rem; }
+        .tactical-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .38rem; padding-top: .58rem; }
         .tactical-actions button { min-height: 3.1rem; padding: .42rem .16rem; border-radius: .46rem; border-color: rgb(var(--c-line) / .14); background: rgb(var(--c-line) / .035); color: var(--ink-400); font-size: .49rem; }
         .tactical-actions button i { font-size: .72rem; color: var(--accent); }
         .tactical-actions button:hover, .tactical-actions button:focus-visible { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); background: rgb(var(--c-accent-base) / .1); }
@@ -3139,7 +3144,7 @@
             html[data-hud-position="right"] body.is-game-screen .tactical-sidebar.hud-open { box-shadow: -12px 0 38px rgb(var(--c-shadow) / .28); }
             body.is-game-screen .tactical-dock { right: max(.62rem, env(safe-area-inset-right, 0px)); bottom: max(.72rem, env(safe-area-inset-bottom, 0px)); }
             body.is-game-screen .tactical-dock > summary { min-width: 7.4rem; }
-            .tactical-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .tactical-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             #char-hud .sidebar-scroll { padding-bottom: 6.2rem; }
         }
         @media (prefers-reduced-motion: reduce) {
@@ -3637,6 +3642,11 @@
                 </div>
 
                 <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="sidebar-panel-content space-y-3 hidden">
+                    <button type="button" id="sidebar-intel-link" onclick="openExplorationTerminal()" class="sidebar-intel-link" aria-label="開啟副本情報：地圖、路線與人物">
+                        <i class="fas fa-map" aria-hidden="true"></i>
+                        <span>副本情報 · 地圖／路線／人物</span>
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    </button>
                     <section id="sidebar-tab-rebirth" class="sidebar-info-group" aria-labelledby="sidebar-rebirth-heading">
                         <div id="sidebar-rebirth-heading" class="sidebar-section-heading"><span>輪迴資源</span><small>RUN DATA</small></div>
                         <div id="rebirth-summary" class="hud-data-card">尚未取得輪迴資料。</div>
@@ -3983,13 +3993,8 @@
             <div class="dock-turn-row"><span><i class="fas fa-repeat" aria-hidden="true"></i> CURRENT TURN</span><strong>#<span id="turn-counter">1</span></strong></div>
             <div class="system-tool-actions tactical-actions">
                 <button id="shop-open-btn" onclick="openShop()" title="主神商店" aria-label="主神商店"><i class="fas fa-store"></i><span>商店</span></button>
-                <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧"><i class="fas fa-book-open"></i><span>回顧</span></button>
-                <button id="exploration-open-btn" onclick="openExplorationTerminal()" title="開啟副本情報" aria-label="開啟副本情報"><i class="fas fa-map"></i><span>情報</span></button>
-                <button id="rest-btn" onclick="doRest()" title="休息" aria-label="休息"><i class="fas fa-mug-hot"></i><span>休息</span></button>
                 <button type="button" data-theme-toggle onclick="toggleTheme()" title="切換明暗主題" aria-label="切換明暗主題"><i data-theme-toggle-icon class="fas fa-moon"></i><span>主題</span></button>
-                <button type="button" onclick="openModal('sessionModal')" title="輪迴者檔案" aria-label="開啟輪迴者檔案"><i class="fas fa-database"></i><span>檔案</span></button>
-                <button type="button" onclick="startDiscordLogin()" title="以 Discord 登入" aria-label="以 Discord 登入"><i class="fab fa-discord"></i><span>Discord</span></button>
-                <button type="button" data-pwa-install onclick="handlePwaInstallClick()" title="安裝到主畫面" aria-label="安裝到主畫面"><i class="fas fa-mobile-screen-button"></i><span>安裝 App</span></button>
+                <button id="chronicle-open-btn" onclick="openChronicle()" title="劇情回顧" aria-label="開啟劇情回顧"><i class="fas fa-book-open"></i><span>回顧</span></button>
             </div>
         </div>
     </details>

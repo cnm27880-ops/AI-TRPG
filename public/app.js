@@ -3066,6 +3066,15 @@ function scrollFeedToBottom() {
 
 let restBusy = false;
 
+// 側欄拿掉了常駐的「休息」按鈕：休息能不能做、回覆多少全部由 /api/rest 的伺服器邏輯
+// 判定，不是AI算的，所以玩家想休息時改成直接打字說出來，由這裡認出意圖再轉呼叫
+// doRest()。只認短句完整比對，避免誤觸「我猜她該不會想休息」這種夾在敘述裡的詞。
+const REST_INTENT_PATTERN = /^(?:讓我|我)?(?:先)?(?:稍作|原地|就地)?休息(?:一下|片刻)?[。.!！]?$|^(?:讓我|我)?打坐(?:一下|片刻)?[。.!！]?$|^rest[。.!！]?$/i;
+
+function isRestIntentText(text) {
+  return REST_INTENT_PATTERN.test(text.trim());
+}
+
 async function doRest() {
   if (!currentSessionId || restBusy) return;
   if (inCombat()) {
@@ -3823,6 +3832,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!text) return;
     input.value = "";
     updateActionInputCount(input);
+    if (isRestIntentText(text)) {
+      appendFeedEvent("action", "", escapeHtml(text));
+      doRest();
+      return;
+    }
     runTurn({ playerAction: text });
   }
 
