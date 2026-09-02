@@ -508,12 +508,14 @@ test("requires 只能用查表裡有的條件，拼錯一個字就在載入時�
   for (const persona of NPC_PERSONAS) assertMotivePredicates(persona);
 });
 
-test("動機的內容住在靜態層，動態層只送 ID", () => {
+test("動機的內容住在靜態層，動態層只送 ID；只留為什麼，不逐條寫死要做什麼", () => {
   const contract = buildNpcCooperationContract(reference);
-  // 為什麼、要做什麼、有什麼好處——全部在靜態契約裡，整場付一次。
-  assert.match(contract, /ORIENT_NEWCOMERS — 動機：/);
+  // [2026-09-02 簡化] 為什麼住在靜態契約裡，整場付一次；「要做什麼」「有什麼好處」
+  // 不再逐條寫死——那是把有限狀態機規格書攤給模型抄，抄出來的NPC會很機械化
+  // （玩家實測回報「NPC會主動互動了，但很僵硬」）。具體怎麼演交給模型自己接。
+  assert.match(contract, /ORIENT_NEWCOMERS — /);
   assert.match(contract, /新人不知道主神副本的規則/);
-  assert.match(contract, /收益：有效的引導可能換到主神提供的引導獎勵/);
+  assert.doesNotMatch(contract, /行為：|收益：/);
 
   let state = onStage();
   state = step(state, 1, "這裡是哪裡？發生什麼事？", { threatStage: "潛伏" });
