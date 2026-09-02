@@ -1,24 +1,32 @@
-# 排除大型規則文字檔與版本紀錄（極度消耗 Token，需要時再手動貼）
-rules-2.35.txt
-CHANGELOG.md
-ROADMAP.md
-ORIGINAL_TERMINOLOGY_RESEARCH.md
-ARCHITECTURE_HISTORY.md
-DECISIONS.md
-docs/
+# ==============================================================================
+# .claudeignore - AI-TRPG 專案 Token 節約與防全讀配置
+# ==============================================================================
 
-# 排除靜態圖片與圖示資源
+# 1. 核心規則原著與精簡備忘（Token 吞噬元兇，合計幾十萬字）
+rules-2.35.txt
+
+# 2. 排除根目錄所有冗長文檔與研究筆記（僅保留指引用的三份核心文檔）
+*.md
+!README.md
+!CLAUDE.md
+!ARCHITECTURE.md
+
+# 3. 排除規格文件、稽核與範本目錄
+docs/
+.github/
+.cursor/
+
+# 4. 排除已編譯/構建依賴與前端靜態資源
+package-lock.json
+public/tailwind.css
 public/icons/
 *.png
 *.jpg
+*.jpeg
 *.ico
 *.svg
+*.webmanifest
 
-# 排除前端打包與肥大範本內容
-package-lock.json
-public/tailwind.css
+# 5. 排除大型劇本世界觀 reference 與長篇內容包（需要除錯該劇本時再暫時解除）
 content/scenario/examples/
-
-# 排除 CI/CD 與部署配置
-.github/
-.cursor/
+content/packs/*.json
