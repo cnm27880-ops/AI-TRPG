@@ -2359,6 +2359,14 @@
         .system-tool-user span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .system-tool-user button { padding: .15rem .25rem; color: var(--ink-500); }
 
+        /* 這兩條刻意留在 min-width:768px 的媒體查詢之外：收窄側欄（.is-compact）只有
+           桌面版的收合鈕摸得到（手機版 .char-hud-collapse-btn 直接 display:none），
+           但下面那個「秀出縮圖」的規則卻只包在桌面媒體查詢裡——手機版永遠不會有
+           .is-compact，卻也永遠吃不到這條 display:none，於是「HUD」小標與四格縮圖
+           會在手機版一直顯示，跟展開狀態的大字重複。 */
+        .char-hud-compact-mark { display: none; }
+        .char-hud-compact-stats { display: none; }
+
         /* 第五輪：齒輪永遠跟角色欄同側；桌面角色欄預設右側，設定可切換左側。 */
         @media (min-width: 768px) {
             body.is-game-screen .system-tool-dock { left: auto; right: max(.75rem, env(safe-area-inset-right, 0px)); }
@@ -2377,7 +2385,6 @@
             #char-hud.is-compact > .flex-1 { display: none !important; }
             #char-hud.is-compact .name-plate { padding: .75rem .45rem; }
             #char-hud.is-compact #char-profile-summary,
-            #char-hud.is-compact #char-class,
             #char-hud.is-compact .name-plate > .space-y-1,
             #char-hud.is-compact #char-hud-titlebar > div:last-child > span { display: none; }
             #char-hud.is-compact #char-hud-titlebar { justify-content: center; }
@@ -2397,25 +2404,20 @@
 
         /* 任務 HUD 使用明確的卡片分區，不再讓迫近度 pips 與時間 badge 各自漂移。 */
         .hud-sidebar-objective { display: grid; grid-template-columns: 1fr; gap: .42rem; padding: .48rem .58rem .46rem; border-top: 1px solid rgb(var(--c-line) / .14); border-bottom: 1px solid rgb(var(--c-line) / .14); }
-        .hud-sidebar-objective .watch-crown { display: flex; flex-direction: row; justify-content: flex-start; gap: .42rem; padding: 0; }
-        .hud-sidebar-objective .watch-crown-mark { width: 1.05rem; height: 1.05rem; }
-        .hud-sidebar-objective .watch-crown-label { display: inline; font-size: .46rem; }
-        .hud-sidebar-objective .mission-objective { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .44rem; align-items: center; padding: 0; border-left: 0; }
+        .hud-sidebar-objective .mission-objective { display: flex; gap: .44rem; align-items: center; padding: 0; border-left: 0; }
         .hud-sidebar-objective .mission-objective-mark { width: 1.15rem; height: 1.15rem; }
-        .hud-sidebar-objective .mission-eyebrow { font-size: .46rem; letter-spacing: .13em; line-height: 1.15; }
-        .hud-sidebar-objective .mission-objective-title { font-size: .68rem; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
+        .hud-sidebar-objective .mission-objective-title { flex: 1 1 auto; min-width: 0; font-size: .7rem; font-weight: 700; line-height: 1.3; white-space: normal; overflow-wrap: anywhere; }
         .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .38rem; width: 100%; align-items: stretch; }
         .hud-sidebar-objective .mission-metric { min-width: 0; padding: .32rem .38rem .3rem; border: 1px solid rgb(var(--c-line) / .13); border-radius: 4px; background: rgb(var(--c-line) / .035); }
         .hud-sidebar-objective .mission-metric-header { display: flex; align-items: baseline; justify-content: space-between; gap: .35rem; font-size: .48rem; line-height: 1.2; }
         .hud-sidebar-objective .mission-metric-value { font-size: .56rem; line-height: 1.2; white-space: nowrap; }
-        .hud-sidebar-objective .mission-progress-track { width: 100%; height: .24rem; margin-top: .34rem; border-radius: 999px; overflow: hidden; }
         .hud-sidebar-objective .mission-threat-track { display: flex; align-items: center; min-height: .72rem; margin-top: .34rem; overflow: hidden; }
         .hud-sidebar-objective .mission-threat-pips { display: grid; grid-template-columns: repeat(auto-fit, minmax(.38rem, 1fr)); gap: .2rem; width: 100%; }
         .hud-sidebar-objective .mission-threat-pips .threat-pip { width: auto; height: .28rem; border-radius: 2px; box-shadow: none; }
-        .hud-sidebar-objective .mission-time-badge { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: .35rem; width: 100%; padding: .42rem .48rem; border-radius: 4px; font-size: .56rem; line-height: 1.2; white-space: normal; }
-        .hud-sidebar-objective .mission-time-kicker { color: var(--ink-500); font-size: .46rem; letter-spacing: .08em; white-space: nowrap; }
-        .hud-sidebar-objective .mission-time-status { min-width: 0; color: var(--ink-400); font-size: .52rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .hud-sidebar-objective .mission-time-remaining { justify-self: end; grid-column: 2; color: var(--ink-100); font: 700 .68rem/1 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        /* 剩餘回合：拿掉刻度條與狀態字，只留一個數字，跟迫近度並排在同一列即可。 */
+        .hud-sidebar-objective .mission-time-badge { display: flex; align-items: center; justify-content: center; gap: .34rem; height: 100%; padding: .32rem .38rem; border-radius: 4px; font-size: .56rem; }
+        .hud-sidebar-objective .mission-time-badge i { color: var(--ink-500); font-size: .58rem; }
+        .hud-sidebar-objective .mission-time-remaining { color: var(--ink-100); font: 700 .68rem/1 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
         html[data-theme="light"] .hud-sidebar-objective .mission-metric { background: rgba(60,55,47,.035); border-color: rgba(60,55,47,.16); }
 
         /* ================= 第七輪：HUD 資訊對齊與操作區回歸 =================
@@ -2436,28 +2438,14 @@
         .hud-sidebar-objective .mission-threat-pips .threat-pip.on-3 { border-color: rgb(var(--c-danger-base) / .8); background: rgb(var(--c-danger-base) / .68); }
         .hud-sidebar-objective .mission-threat-pips .threat-pip.on-4 { border-color: rgb(var(--c-danger-base) / .95); background: rgb(var(--c-danger-base) / .82); }
 
-        .hud-sidebar-objective .mission-time-badge {
-            display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
-            grid-template-areas: "kicker status remaining" "track track track";
-            align-items: baseline; column-gap: .38rem; row-gap: .34rem;
-            width: 100%; padding: .44rem .48rem; text-align: left; white-space: normal;
-        }
-        .hud-sidebar-objective .mission-time-kicker { grid-area: kicker; }
-        .hud-sidebar-objective .mission-time-status { grid-area: status; min-width: 0; }
-        .hud-sidebar-objective .mission-time-remaining { grid-area: remaining; justify-self: end; }
-        .mission-time-track { grid-area: track; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .22rem; width: 100%; min-height: .42rem; }
-        .mission-time-pip { display: block; height: .34rem; border: 1px solid rgb(var(--c-line) / .28); border-radius: 2px; background: transparent; }
-        .mission-time-pip.is-remaining { border-color: rgb(var(--c-accent-base) / .7); background: rgb(var(--c-accent-base) / .55); }
 
         /* 角色檔案先分出「身份／生命／衍生數值」三層，避免姓名、XP 和狀態散成一串。 */
         #char-hud .name-plate { padding: .86rem .9rem .76rem; background: linear-gradient(145deg, rgb(var(--c-accent-base) / .1), rgb(var(--c-surface-2) / .78) 66%, rgb(var(--c-surface-1) / .9)); }
         #char-hud #char-hud-titlebar { align-items: flex-start; padding-bottom: .62rem; border-bottom: 1px solid rgb(var(--c-line) / .18); }
         #char-profile-summary { min-width: 0; flex: 1 1 auto; }
         #char-profile-summary h2 { margin-top: .25rem !important; font-size: 1.12rem; letter-spacing: .06em; }
-        #char-hud #char-class { margin-top: .58rem; padding: .38rem .55rem; border-left: 2px solid rgb(var(--c-accent-base) / .55); border-top: 1px solid rgb(var(--c-line) / .13); background: rgb(var(--c-line) / .045); color: var(--ink-400) !important; font-size: .59rem; letter-spacing: .04em; }
         #char-hud .name-plate > .space-y-1 { margin-top: .68rem; padding-top: .66rem; border-top: 1px solid rgb(var(--c-line) / .15); }
         #char-hud #hp-text { font-size: .74rem; letter-spacing: .04em; }
-        #char-hud #hp-detail { padding-top: .32rem; letter-spacing: .02em; }
         #char-hud #derived-stats-bar { margin-top: .58rem; padding: .52rem .15rem .05rem; border: 0; border-top: 1px solid rgb(var(--c-line) / .15); border-radius: 0; background: transparent; }
         #char-hud #derived-stats-bar span { display: flex; flex-direction: column; align-items: center; gap: .18rem; color: var(--ink-500); font-size: .57rem; }
         #char-hud #derived-stats-bar strong { color: var(--ink-100) !important; font-size: .68rem; line-height: 1; }
@@ -2474,11 +2462,8 @@
 
         html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
         html[data-theme="light"] #char-hud #char-hud-titlebar { border-color: rgba(60,55,47,.16); }
-        html[data-theme="light"] #char-hud #char-class { background: rgba(60,55,47,.035); border-color: rgba(60,55,47,.15); border-left-color: rgba(140,118,81,.55); }
         html[data-theme="light"] #char-hud .name-plate > .space-y-1,
         html[data-theme="light"] #char-hud #derived-stats-bar { border-color: rgba(60,55,47,.16); }
-        html[data-theme="light"] .mission-time-pip { border-color: rgba(60,55,47,.22); }
-        html[data-theme="light"] .mission-time-pip.is-remaining { border-color: #586451; background: #7d8c77; }
 
         /* ================= 第八輪：檔案層級與 HUD 基準線 =================
            任務卡、屬性格與剩餘回合刻度共用同一個內容 gutter，避免每一塊各自漂移。 */
@@ -2487,11 +2472,7 @@
         #char-hud #attr-grid .stat-tile { min-width: 0; padding-inline: .42rem; }
         #char-hud #attr-grid .stat-tile-line { min-width: 0; }
 
-        /* 輪迴者檔案採「身份標頭／生命讀數／資料分頁」三段式，細線取代零散的盒子。 */
-        #char-hud #char-profile-summary > div:first-child { display: flex; align-items: center; gap: .42rem; }
-        #char-hud #char-profile-summary > div:first-child::before { content: ''; width: 1.1rem; height: 1px; flex: 0 0 auto; background: rgb(var(--c-accent-base) / .65); }
         #char-hud #char-name { line-height: 1.08; }
-        #char-hud #char-hud-titlebar > div:last-child > span { padding: .3rem .46rem; border-radius: 3px; letter-spacing: .08em; }
         #char-hud #derived-stats-bar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: .35rem; }
         #char-hud > [role="tablist"] { gap: 0; padding-inline: .55rem; padding-top: .3rem; background: rgb(var(--c-surface-2) / .42); }
         #char-hud > [role="tablist"] .folder-tab { flex: 1 1 0; padding: .5rem .25rem .44rem; letter-spacing: .05em; }
@@ -3030,8 +3011,9 @@
         #char-profile-summary { min-width: 0; }
         #char-profile-summary > div:first-child { color: var(--accent); font-size: .46rem; letter-spacing: .18em; }
         #char-name { margin-top: .1rem; font-size: .92rem; letter-spacing: .02em; }
-        #char-class { margin-top: .12rem; color: var(--ink-500); font-size: .55rem; }
-        #char-hud .char-hud-compact-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .28rem; margin-top: .42rem; padding: .32rem .1rem 0; border-top: 1px solid rgb(var(--c-line) / .11); }
+        /* 只在側欄收窄成窄軌（.is-compact）時才需要這排小圖示；展開狀態靠下面的
+           血量槽／衍生數值把同一批數字用大字顯示過一次，兩邊同時出現只是重複。 */
+        #char-hud.is-compact .char-hud-compact-stats { margin-top: .42rem; padding: .32rem .1rem 0; border-top: 1px solid rgb(var(--c-line) / .11); }
         #char-hud .char-compact-stat { min-height: 1.4rem; flex-direction: row; gap: .24rem; justify-content: flex-start; color: var(--ink-500); }
         #char-hud .char-compact-stat i { font-size: .52rem; color: var(--accent); }
         #char-hud .char-compact-stat strong { font-size: .53rem; }
@@ -3065,7 +3047,6 @@
         }
         #char-hud #hp-bar-container .hp-seg:first-child { border-radius: 999px 0 0 999px; }
         #char-hud #hp-bar-container .hp-seg:last-child { border-radius: 0 999px 999px 0; }
-        #char-hud #hp-detail { padding-top: .28rem; font-size: .56rem; color: var(--ink-500); }
         #char-hud #derived-stats-bar { margin-top: .38rem; padding: .34rem .45rem; border-color: rgb(var(--c-line) / .12); background: rgb(var(--c-line) / .035); font-size: .52rem; }
         #char-hud .tactical-tabs {
             display: grid;
@@ -3082,17 +3063,19 @@
             grid-template-rows: auto auto;
             column-gap: .42rem;
             align-items: baseline;
-            min-height: 2.4rem;
-            padding: .42rem .55rem .38rem;
-            border: 1px solid rgb(var(--c-line) / .13);
+            min-height: 2.15rem;
+            padding: .36rem .5rem .32rem;
+            border: 1px solid rgb(var(--c-line) / .28);
             border-radius: .48rem;
-            background: rgb(var(--c-line) / .035);
-            color: var(--ink-500);
+            background: rgb(var(--c-surface-2) / .55);
+            color: var(--ink-300);
             text-align: left;
-            transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
+            transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
         }
-        #char-hud .tactical-tabs .folder-tab:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .4); transform: translateY(-1px); }
-        #char-hud .tactical-tabs .folder-tab.active { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .58); background: linear-gradient(135deg, rgb(var(--c-accent-base) / .15), rgb(var(--c-line) / .04)); box-shadow: inset 0 0 0 1px rgb(var(--c-accent-base) / .07), 0 4px 14px rgb(var(--c-shadow) / .12); }
+        #char-hud .tactical-tabs .folder-tab:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); transform: translateY(-1px); }
+        /* 未選中的分頁刻意壓低到接近背景，選中的分頁用實色塊 + 陰影頂出來——
+           這兩個分頁以前用同一種半透明線條畫，色差太小，玩家分不出哪個能點、哪個是目前頁。 */
+        #char-hud .tactical-tabs .folder-tab.active { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .85); background: linear-gradient(135deg, rgb(var(--c-accent-base) / .32), rgb(var(--c-accent-base) / .12)); box-shadow: inset 0 0 0 1px rgb(var(--c-accent-base) / .2), 0 6px 16px rgb(var(--c-shadow) / .22); }
         #char-hud .tactical-tabs .folder-tab.active::after { content: ''; position: absolute; left: .62rem; right: .62rem; bottom: -.54rem; height: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 9px rgb(var(--c-accent-base) / .65); }
         #char-hud .tactical-tabs .tab-index { grid-row: 1 / span 2; align-self: center; color: var(--accent); font: 700 .53rem/1 'JetBrains Mono', monospace; letter-spacing: .05em; }
         #char-hud .tactical-tabs .folder-tab > span:nth-child(2) { font-size: .68rem; font-weight: 700; letter-spacing: .05em; }
@@ -3111,6 +3094,14 @@
         .sidebar-intel-link span { flex: 1 1 auto; }
         .sidebar-intel-link i:last-child { color: var(--ink-500); font-size: .55rem; }
         .sidebar-intel-link:hover, .sidebar-intel-link:focus-visible { border-color: rgb(var(--c-accent-base) / .55); background: rgb(var(--c-accent-base) / .12); transform: translateY(-1px); }
+        .trait-badge-row { display: flex; flex-wrap: wrap; gap: .4rem; }
+        .trait-badge { display: flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; border: 1px solid rgb(var(--c-accent-base) / .35); border-radius: .45rem; background: linear-gradient(135deg, rgb(var(--c-accent-base) / .18), rgb(var(--c-surface-2) / .5)); color: var(--accent); font-size: .85rem; cursor: default; transition: border-color .18s ease, transform .18s ease; }
+        .trait-badge:hover, .trait-badge:focus-visible { border-color: rgb(var(--c-accent-base) / .7); transform: translateY(-1px); }
+        .wallet-chips { display: flex; flex-wrap: wrap; gap: .38rem; margin-bottom: .5rem; }
+        .wallet-chip { display: inline-flex; align-items: center; gap: .32rem; padding: .32rem .55rem; border: 1px solid rgb(var(--c-accent-base) / .3); border-radius: 999px; background: rgb(var(--c-accent-base) / .1); color: var(--ink-100); font: 700 .56rem/1 'JetBrains Mono', monospace; white-space: nowrap; }
+        .wallet-chip i { color: var(--accent); font-size: .58rem; }
+        .wallet-chip-muted { border-color: rgb(var(--c-line) / .2); background: rgb(var(--c-line) / .04); color: var(--ink-500); font-weight: 500; }
+        .wallet-chip-muted i { color: var(--ink-500); }
         #char-hud .stat-meter { width: 100%; height: .3rem; margin-top: .34rem; border-radius: 999px; background: rgb(var(--c-line) / .10); border-color: rgb(var(--c-line) / .16); }
         #char-hud .stat-meter-fill { width: min(100%, calc(var(--fill-pct, 0%) + 28%)) !important; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--accent-alt)); box-shadow: 0 0 7px rgb(var(--c-accent-base) / .35); }
         #char-hud .stat-tile { border-radius: .45rem; border-color: rgb(var(--c-line) / .14); background: linear-gradient(135deg, rgb(var(--c-surface-2) / .55), rgb(var(--c-surface-1) / .28)); }
@@ -3540,11 +3531,9 @@
             <div class="name-plate">
                     <div id="char-hud-titlebar" class="flex items-center justify-between">
                     <div id="char-profile-summary">
-                        <div class="text-[11px] font-mono text-emerald-300/90 uppercase tracking-[0.25em]">輪迴者檔案</div>
-                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight mt-0.5 drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
+                        <h2 id="char-name" class="text-lg font-bold text-white tracking-tight drop-shadow-[0_1px_4px_rgba(0,0,0,.6)]">—</h2>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">輪迴者</span>
                         <!-- 抽屜的關閉鈕只在手機上有意義：桌機的側欄本來就一直在。 -->
                         <button type="button" onclick="toggleCharHudCompact()" id="char-hud-collapse" aria-label="收窄角色欄" aria-pressed="false" title="收窄角色欄"
                                 class="char-hud-collapse-btn px-2 py-1 rounded text-zinc-400 hover:text-zinc-100 transition-colors">
@@ -3557,46 +3546,37 @@
                     </div>
                 </div>
                 <div class="char-hud-compact-mark" aria-hidden="true">HUD</div>
+                <!-- 這一排四個小圖示只在側欄收窄成窄軌時才需要（見 .char-hud-compact-stats 的
+                     display:none 預設值）：展開狀態下面的血量槽跟衍生數值已經用大字重複過一次
+                     同一批數字，兩邊同時顯示只會讓玩家分不清楚該看哪一個。 -->
                 <div id="char-hud-compact-stats" class="char-hud-compact-stats" aria-label="關鍵狀態">
                     <div class="char-compact-stat" title="生命"><i class="fas fa-heart-pulse" aria-hidden="true"></i><span class="sr-only">生命</span><strong id="char-compact-hp">—</strong></div>
                     <div class="char-compact-stat" title="意志"><i class="fas fa-brain" aria-hidden="true"></i><span class="sr-only">意志</span><strong id="char-compact-will">—</strong></div>
                     <div class="char-compact-stat" title="防禦"><i class="fas fa-shield-halved" aria-hidden="true"></i><span class="sr-only">防禦</span><strong id="char-compact-defense">—</strong></div>
                     <div class="char-compact-stat" title="先攻"><i class="fas fa-bolt" aria-hidden="true"></i><span class="sr-only">先攻</span><strong id="char-compact-initiative">—</strong></div>
                 </div>
-                <div id="char-class" class="text-xs font-mono text-zinc-300 mt-1">—</div>
                 <div id="active-alerts" class="space-y-1 pt-2" aria-live="polite"></div>
 
-                <!-- 四段傷勢軌 -->
+                <!-- 血量槽：完好/衝擊/嚴重/惡性四段直接靠色塊比重表示，不再額外寫一行文字複述。 -->
                 <div class="space-y-1 pt-3">
                     <div class="flex justify-between text-xs font-mono">
-                        <span class="text-zinc-300">生命傷勢軌</span>
+                        <span class="text-zinc-300">血量槽</span>
                         <span id="hp-text" class="text-zinc-100 font-bold">—</span>
                     </div>
                     <div id="hp-bar-container" class="grid gap-0.5 h-2 p-0.5 bg-zinc-950/60 rounded border hairline-border"></div>
-                    <div id="hp-detail" class="text-[11px] font-mono text-zinc-400 pt-0.5">—</div>
                     <div id="derived-stats-bar" class="flex justify-between items-center text-[10px] font-mono text-zinc-400 bg-zinc-900/50 px-2 py-1.5 rounded border hairline-border"></div>
                 </div>
             </div>
 
             <!-- 任務目標整合到角色欄：桌面版不再讓主欄頂端被一整條 HUD 壓縮；
                  手機版仍會在欄內跟著角色抽屜一起查看。 -->
+            <!-- 目前位置跟完整任務描述已經併進副本情報（explorationTerminal），這裡只留
+                 「現在要做什麼」一句話，避免跟情報視窗講兩次同一件事。 -->
             <div id="scenario-hud" style="display:none" class="mission-state-bar watch-hud hud-sidebar-objective shrink-0" role="status" aria-live="polite">
                 <span class="watch-glass" aria-hidden="true"></span>
-                <div class="watch-crown" title="輪迴者手錶" aria-hidden="true">
-                    <span class="watch-crown-mark"><i class="fas fa-stopwatch"></i></span>
-                    <span class="watch-crown-label">輪迴者</span>
-                </div>
                 <div class="mission-objective min-w-0">
                     <div class="mission-objective-mark" aria-hidden="true"><i class="fas fa-crosshairs"></i></div>
-                    <div class="min-w-0">
-                        <div class="mission-eyebrow">目前目標</div>
-                        <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
-                    </div>
-                </div>
-                <div class="mission-location-block" aria-live="polite">
-                    <div class="mission-location-kicker">目前位置</div>
-                    <div id="scenario-location-text" class="mission-location-name" title="—">—</div>
-                    <div id="scenario-event-text" class="mission-event-name" title="—">—</div>
+                    <div id="scenario-node-title" class="mission-objective-title" title="—">—</div>
                 </div>
                 <div class="mission-metrics">
                     <div id="scenario-threat" style="display:none" class="mission-metric mission-threat-metric" title="">
@@ -3608,16 +3588,12 @@
                             <span id="scenario-threat-pips" class="mission-threat-pips"></span>
                         </div>
                     </div>
-                    <span id="scenario-time-badge" class="mission-time-badge">
-                        <span class="mission-time-kicker">剩餘回合</span>
-                        <span class="mission-time-status"></span>
-                        <span class="mission-time-remaining"></span>
-                        <span class="mission-time-track" aria-label="剩餘回合刻度"></span>
+                    <span id="scenario-time-badge" class="mission-time-badge" title="剩餘回合">
+                        <i class="fas fa-hourglass-half" aria-hidden="true"></i>
+                        <span class="mission-time-remaining">—</span>
                     </span>
                 </div>
             </div>
-
-            <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
 
             <!-- 雙分頁：把玩家做檢定時需要的資訊，與做決策時參考的情報分開。內容區仍沿用既有 ID，
                  因此 app.js / combatV2.js 的資料更新不需要改動。 -->
@@ -3637,32 +3613,32 @@
                     <div class="sidebar-section-heading"><span>專精技能</span><small>TRAINED SKILLS</small></div>
                     <div id="skill-display-grid" class="grid grid-cols-1 gap-1.5 text-xs font-mono"></div>
                     <div class="sidebar-section-heading"><span>起始專長 / 資源</span><small>TRAITS &amp; BLOODLINE</small></div>
-                    <div id="trait-carousel" class="trait-stage relative h-32 select-none"></div>
+                    <!-- 起始專長改成一排小圖示，滑鼠移上去（或觸控長按）用原生 title 顯示完整說明，
+                         不再用會佔一整塊高度的卡片輪播。 -->
+                    <div id="trait-carousel" class="trait-badge-row" aria-label="起始專長與資源"></div>
                     <div id="trait-empty" class="text-[11px] font-mono text-zinc-500 text-center py-3 border hairline-border border-dashed rounded">尚無已選起始專長或資源</div>
                 </div>
 
                 <div id="sidebar-tab-inventory" role="tabpanel" aria-labelledby="tab-btn-inventory" class="sidebar-panel-content space-y-3 hidden">
-                    <button type="button" id="sidebar-intel-link" onclick="openExplorationTerminal()" class="sidebar-intel-link" aria-label="開啟副本情報：地圖、路線與人物">
+                    <button type="button" id="sidebar-intel-link" onclick="openExplorationTerminal()" class="sidebar-intel-link" aria-label="開啟副本情報：地圖、路線、人物與重大事件">
                         <i class="fas fa-map" aria-hidden="true"></i>
-                        <span>副本情報 · 地圖／路線／人物</span>
+                        <span>副本情報 · 地圖／路線／人物／事件</span>
                         <i class="fas fa-chevron-right" aria-hidden="true"></i>
                     </button>
-                    <section id="sidebar-tab-rebirth" class="sidebar-info-group" aria-labelledby="sidebar-rebirth-heading">
-                        <div id="sidebar-rebirth-heading" class="sidebar-section-heading"><span>輪迴資源</span><small>RUN DATA</small></div>
-                        <div id="rebirth-summary" class="hud-data-card">尚未取得輪迴資料。</div>
-                    </section>
                     <section id="sidebar-tab-npcs" class="sidebar-info-group" aria-labelledby="sidebar-npcs-heading">
                         <div class="sidebar-section-heading"><span id="sidebar-npcs-heading">人物／關係</span><span id="npc-panel-note" class="npc-panel-note">等待副本資料</span></div>
                         <div id="npc-roster" class="npc-roster"></div>
                         <div id="npc-empty" class="text-[11px] font-mono text-zinc-500 text-center py-6 border hairline-border border-dashed rounded">目前副本沒有公開的人物關係資料</div>
                     </section>
+                    <!-- 背包欄：支線／分數／XP 是伺服器獎勵帳本的真實數字（rewardSummary），
+                         不是這裡臨場算的。實際攜帶道具目前沒有後端資料可畫，誠實留白，
+                         不要生一批假的道具卡出來充版面。 -->
                     <section class="sidebar-info-group" aria-labelledby="sidebar-reward-heading">
-                        <div id="sidebar-reward-heading" class="sidebar-section-heading"><span>物資錢包</span><small>INVENTORY</small></div>
-                        <div id="reward-summary" class="hud-data-card">尚未取得獎勵資料。</div>
-                    </section>
-                    <section id="sidebar-tab-events" class="sidebar-info-group" aria-labelledby="sidebar-events-heading">
-                        <div id="sidebar-events-heading" class="sidebar-section-heading"><span>事件線索</span><small>ACTIVE THREADS</small></div>
-                        <div id="story-nodes-list" class="space-y-2"><div class="text-[11px] text-zinc-500">尚未發現重大事件。</div></div>
+                        <div id="sidebar-reward-heading" class="sidebar-section-heading"><span>背包欄</span><small>LOADOUT</small></div>
+                        <div id="wallet-chips" class="wallet-chips"></div>
+                        <div id="inventory-list" class="space-y-1.5">
+                            <div class="text-[11px] font-mono text-zinc-500 text-center py-4 border hairline-border border-dashed rounded">目前沒有可攜式道具的追蹤資料；想使用道具時，直接在下方輸入框描述動作即可，能不能用由說書人判斷。</div>
+                        </div>
                     </section>
                     <section id="sidebar-tab-journal" class="sidebar-info-group" aria-labelledby="sidebar-journal-heading">
                         <div id="sidebar-journal-heading" class="sidebar-section-heading"><span>行動日誌</span><small>SESSION LOG</small></div>
@@ -3687,6 +3663,10 @@
                 </div>
                 <!-- 操作控制已收束到右下角 Tactical Dock；故事列只保留場景上下文，讓敘事在垂直方向頂天展開。 -->
             </div>
+
+            <!-- 劇情階段軌：原本放在側欄任務面板裡，跟目前目標擠在一起還要再分心看一次。
+                 移到故事區最上方，讓它單純只回答「我在這齣戲的哪一段」。 -->
+            <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
 
             <!-- 副本簡介（見 public/app.js 的 renderBriefing）：常駐、可收合。
                  測玩回饋是「在AI的回覆中，我完全摸不清故事背景」——固定開頭只講一次，
@@ -3740,6 +3720,10 @@
                                 <div id="exploration-terminal-npcs" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">目前沒有已確認的附近人物。</div>
                             </section>
                         </div>
+                        <section class="space-y-2">
+                            <div class="exploration-terminal-section-title">重大事件 / MAJOR STORY NODES</div>
+                            <div id="story-nodes-list" class="space-y-2"><div class="text-[11px] text-zinc-500">尚未發現重大事件。</div></div>
+                        </section>
                         <section class="space-y-2">
                             <div class="exploration-terminal-section-title">還沒解開的問題 / OPEN QUESTIONS</div>
                             <div id="exploration-terminal-questions" class="rounded border hairline-border bg-zinc-950/50 p-2.5 text-[11px] text-zinc-400 leading-relaxed" aria-live="polite">目前沒有待追查的問題。</div>

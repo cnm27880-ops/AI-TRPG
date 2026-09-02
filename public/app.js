@@ -805,7 +805,6 @@ async function submitChargen() {
 function adoptCharacter(charData) {
   currentCharacter = charData;
   document.getElementById("char-name").textContent = charData.concept.name;
-  document.getElementById("char-class").textContent = `輪迴者 / XP: ${charData.xp.earned - charData.xp.spent}`;
 
   // 窄化 rail 只保留玩家最常需要瞄一眼的四個狀態，仍由同一份角色資料驅動。
   const compactHp = document.getElementById("char-compact-hp");
@@ -820,7 +819,6 @@ function adoptCharacter(charData) {
   // 渲染生命傷勢軌
   const hp = charData.derived.hp;
   document.getElementById("hp-text").textContent = `${hp.intact} / ${hp.max}`;
-  document.getElementById("hp-detail").textContent = `完好 ${hp.intact} · 沖擊 ${hp.B} · 嚴重 ${hp.L} · 惡性 ${hp.A}`;
   renderHpBar("hp-bar-container", hp);
 
   // 衍生數值：防禦/先攻/意志 —— 建卡時算給玩家看過，進遊戲後不該就此消失
@@ -1002,9 +1000,8 @@ function refreshJournalIfOpen() {
   if (journalTabIsOpen()) loadJournal();
 }
 
-// --- 起始專長 / 資源卡 3D 堆疊抽屜 ---
+// --- 起始專長 / 資源：小圖示 + 原生 title 顯示說明 ---
 let currentTraits = [];
-let traitIndex = 0;
 
 function renderTraitCards(charData) {
   const feats = Array.isArray(charData.feats) ? charData.feats : [];
@@ -1015,7 +1012,6 @@ function renderTraitCards(charData) {
       category: "起始專長",
       description: `${feat.description}（${feat.effect.skill} +${feat.effect.amount} 顆相關檢定骰）`,
     }));
-  traitIndex = 0;
   renderTraitStage();
 }
 
@@ -1028,6 +1024,11 @@ function traitDescription(trait) {
   return trait?.description ?? trait?.desc ?? "";
 }
 
+/**
+ * 起始專長改成一排小圖示：側欄寸土寸金，一張卡片高度只夠換一句完整說明，
+ * 不值得。完整說明改用原生 title（滑鼠懸浮／觸控長按都讀得到），不用另外
+ * 疊一層自訂 tooltip。
+ */
 function renderTraitStage() {
   const stage = document.getElementById("trait-carousel");
   const empty = document.getElementById("trait-empty");
@@ -1043,26 +1044,15 @@ function renderTraitStage() {
   stage.classList.remove("hidden");
   empty.classList.add("hidden");
 
-  const n = currentTraits.length;
-  stage.innerHTML = currentTraits.map((t, i) => {
-    const rel = (i - traitIndex + n) % n;
-    let posClass = "trait-card-hidden";
-    if (rel === 0) posClass = "trait-card-active";
-    else if (rel === 1) posClass = "trait-card-next";
-    else if (rel === n - 1) posClass = "trait-card-prev";
+  stage.innerHTML = currentTraits.map((t) => {
+    const label = escapeHtml(t.name || "未命名");
+    const tip = `${label}（${t.category || t.kind || "特質"}）\n${traitDescription(t)}`;
     return `
-      <div data-trait-index="${i}" class="trait-card ${posClass} stat-tile rounded p-3 flex flex-col justify-between cursor-pointer">
-        <span class="text-[10px] font-mono text-emerald-300 font-semibold">[${escapeHtml(t.category || t.kind || "特質")}]</span>
-        <div class="font-bold text-zinc-100 text-sm">${escapeHtml(t.name || "未命名")}</div>
-        <div class="text-[11px] font-mono text-zinc-400 leading-snug line-clamp-3" title="${escapeHtml(traitDescription(t))}">${escapeHtml(traitDescription(t))}</div>
+      <div class="trait-badge" tabindex="0" title="${escapeHtml(tip)}">
+        <i class="fas fa-shield-halved" aria-hidden="true"></i>
+        <span class="sr-only">${label}：${escapeHtml(traitDescription(t))}</span>
       </div>`;
   }).join("");
-}
-
-function stepTrait(delta) {
-  if (!currentTraits.length) return;
-  traitIndex = (traitIndex + delta + currentTraits.length) % currentTraits.length;
-  renderTraitStage();
 }
 
 // [2026-08-31] buildLlmOverrides() / readActiveProfile() / PROVIDER_UI_META 都刪掉了。
@@ -1914,6 +1904,32 @@ function renderStoryPhase(phase) {
   host.hidden = !phases.length;
 }
 
+/** 支線面額，出處同 content/shop/wallet.js 的 TOKEN_TIERS——前端不重新定義規則，
+ *  只是借同一套面額順序把伺服器已經算好的 earnedTokens 排出來顯示。 */
+const TOKEN_TIER_DISPLAY_ORDER = ["S", "A", "B", "C", "D"];
+
+/**
+ * 背包欄的錢包晶片：支線／分數／XP 三個數字全部讀 rewardSummary（獎勵帳本算出來的
+ * 事實），不是這裡臨場算的。「取得的道具」目前沒有任何後端資料可畫——沒有就是
+ * 沒有，寧可留白也不要生一批假道具卡出來湊版面。
+ */
+function renderWalletChips(reward) {
+  const host = document.getElementById('wallet-chips');
+  if (!host) return;
+  if (!reward) { host.innerHTML = ''; return; }
+  const tokens = reward.mainline?.earnedTokens ?? {};
+  const points = (Number(reward.mainline?.earnedPoints) || 0) + (Number(reward.turningPoints?.points) || 0);
+  const xp = reward.ending?.xp;
+  const tokenChips = TOKEN_TIER_DISPLAY_ORDER
+    .filter((tier) => Number(tokens[tier]) > 0)
+    .map((tier) => '<span class="wallet-chip"><i class="fas fa-diamond" aria-hidden="true"></i>' + tier + '級支線 x' + tokens[tier] + '</span>')
+    .join('');
+  host.innerHTML =
+    (tokenChips || '<span class="wallet-chip wallet-chip-muted"><i class="fas fa-diamond" aria-hidden="true"></i>尚無支線</span>') +
+    '<span class="wallet-chip"><i class="fas fa-coins" aria-hidden="true"></i>' + points + ' 分</span>' +
+    '<span class="wallet-chip' + (xp == null ? ' wallet-chip-muted' : '') + '"><i class="fas fa-bolt" aria-hidden="true"></i>' + (xp == null ? 'XP 結算後入帳' : xp + ' XP') + '</span>';
+}
+
 function renderScenarioContracts(scenario) {
   const alertHost = document.getElementById('active-alerts');
   const alerts = Array.isArray(scenario?.warnings) ? scenario.warnings.filter(Boolean).slice(0, 4) : [];
@@ -1922,11 +1938,7 @@ function renderScenarioContracts(scenario) {
   const nodes = Array.isArray(scenario?.majorStoryNodes) ? scenario.majorStoryNodes.filter(n => n?.visibility !== 'hidden') : [];
   const nodeHost = document.getElementById('story-nodes-list');
   if (nodeHost) nodeHost.innerHTML = nodes.length ? nodes.map(n => '<details class="hud-data-card"><summary class="cursor-pointer text-zinc-100">' + escapeHtml(n.title || n.id || '重大事件') + '</summary><div class="pt-2 text-zinc-400">' + escapeHtml(n.status === 'resolved' ? '已完成' : n.status || '已發現') + (n.rewardGranted ? ' · 獎勵已發放' : '') + '</div></details>').join('') : '<div class="text-[11px] text-zinc-500">尚未發現重大事件。</div>';
-  const reward = scenario?.rewardSummary;
-  const rewardHost = document.getElementById('reward-summary');
-  if (rewardHost && reward) rewardHost.innerHTML = [['主線', reward.mainline], ['轉折', reward.turningPoints], ['結局', reward.ending]].filter(([,v]) => v).map(([label, value]) => '<div class="flex justify-between gap-3 border-b border-white/5 py-1.5 last:border-0"><span>' + label + '</span><strong class="text-amber-200">' + escapeHtml(Object.entries(value).filter(([k]) => k !== 'status').map(([k,v]) => k + ' ' + v).join(' · ') || value.status || '—') + '</strong></div>').join('');
-  const rebirthHost = document.getElementById('rebirth-summary');
-  if (rebirthHost && scenario?.rebirth) rebirthHost.textContent = typeof scenario.rebirth === 'string' ? scenario.rebirth : JSON.stringify(scenario.rebirth);
+  renderWalletChips(scenario?.rewardSummary);
 }
 
 function renderTacticalChips(options) {
@@ -2033,10 +2045,10 @@ function updateScenarioHud(scenario) {
 
   renderThreatMeter(scenario.threat);
 
+  // 剩餘回合只留數字（跟迫近度並排），狀態字與刻度條拿掉；但狀態仍然透過
+  // badge 底色（TIME_STATUS_STYLE）非文字地傳達緊急程度，不是整段拔掉不顯示。
   const badge = document.getElementById("scenario-time-badge");
-  const timeStatus = badge?.querySelector(".mission-time-status");
   const timeRemaining = badge?.querySelector(".mission-time-remaining");
-  const timeTrack = badge?.querySelector(".mission-time-track");
   const status = scenario.progress?.timeStatus;
   const timeBudget = scenario.progress?.timeBudget;
   if (badge && status) {
@@ -2045,28 +2057,15 @@ function updateScenarioHud(scenario) {
     const hasBudget = Number.isFinite(totalRounds) && totalRounds > 0 && Number.isFinite(spentRounds);
     const remain = hasBudget ? Math.max(0, totalRounds - spentRounds) : null;
     badge.className = `mission-time-badge border ${TIME_STATUS_STYLE[status] ?? ""}`;
-    if (timeStatus) timeStatus.textContent = status;
-    if (timeRemaining) timeRemaining.textContent = remain === null ? "—" : `${remain}/${totalRounds}`;
-    if (timeTrack) {
-      const filled = remain === null ? 0 : Math.ceil((remain / totalRounds) * 7);
-      timeTrack.innerHTML = Array.from({ length: 7 }, (_, i) =>
-        `<span class="mission-time-pip ${i < filled ? "is-remaining" : ""}" aria-hidden="true"></span>`
-      ).join("");
-      timeTrack.hidden = remain === null;
-      if (remain !== null) timeTrack.setAttribute("aria-label", `剩餘回合 ${remain}/${totalRounds}`);
-      else timeTrack.removeAttribute("aria-label");
-    }
-    if (!timeStatus || !timeRemaining) badge.textContent = remain === null ? `時間：${status}` : `時間：${status} (${remain}/${totalRounds})`;
-    badge.title = remain === null ? `時間狀態：${status}` : `剩餘 ${remain} 回合／共 ${totalRounds} 回合`;
+    const remainText = remain === null ? "—" : `${remain}/${totalRounds}`;
+    if (timeRemaining) timeRemaining.textContent = remainText;
+    else badge.textContent = remainText;
+    badge.title = remain === null ? `剩餘回合狀態：${status}` : `剩餘回合：${status}（${remain}/${totalRounds}）`;
   } else if (badge) {
-    badge.textContent = "";
+    if (timeRemaining) timeRemaining.textContent = "—";
+    else badge.textContent = "—";
     badge.className = "mission-time-badge";
     badge.removeAttribute("title");
-    if (timeTrack) {
-      timeTrack.innerHTML = "";
-      timeTrack.hidden = true;
-      timeTrack.removeAttribute("aria-label");
-    }
   }
 
   // 戰鬥由**局勢**觸發，不由按鈕觸發（2026-08-29 起沒有「遭遇戰鬥」按鈕）。
@@ -3793,19 +3792,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!suggestion) return;
     chargenReshape = { ...suggestion };
     renderReshape();
-  });
-
-  // 特質 / 資源卡：滾輪與點擊切換
-  const traitStage = document.getElementById("trait-carousel");
-  traitStage?.addEventListener("wheel", e => {
-    e.preventDefault();
-    stepTrait(e.deltaY > 0 ? 1 : -1);
-  }, { passive: false });
-  traitStage?.addEventListener("click", e => {
-    const card = e.target.closest("[data-trait-index]");
-    if (!card) return;
-    traitIndex = Number(card.dataset.traitIndex);
-    renderTraitStage();
   });
 
   // 戰鬥行動按鈕
