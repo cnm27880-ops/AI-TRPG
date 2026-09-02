@@ -1,0 +1,22 @@
+# 排除大型規則文字檔與版本紀錄（極度消耗 Token，需要時再手動貼）
+rules-2.35.txt
+CHANGELOG.md
+ROADMAP.md
+ORIGINAL_TERMINOLOGY_RESEARCH.md
+docs/
+
+# 排除靜態圖片與圖示資源
+public/icons/
+*.png
+*.jpg
+*.ico
+*.svg
+
+# 排除前端打包與肥大範本內容
+package-lock.json
+public/tailwind.css
+content/scenario/examples/
+
+# 排除 CI/CD 與部署配置
+.github/
+.cursor/
