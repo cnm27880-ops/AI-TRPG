@@ -93,7 +93,7 @@ import {
   trackCheckUsage,
 } from "../../content/scenario/progress.js";
 import { buildRetreadDirective, retreadLabel } from "../../content/scenario/repetition.js";
-import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
+import { buildNodeGuidance, validateNodeComplete, ACTIVE_DM_DIRECTIVE } from "../../content/scenario/nodePrompt.js";
 import { buildThreatDirective, threatSummary, applyDirectThreatDelta, getThreatStage } from "../../content/scenario/threat.js";
 import {
   normalizeReferenceState,
@@ -1089,6 +1089,10 @@ async function executeTurn(context, streamHooks = null) {
     completedChronicles,
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
+    // ACTIVE_DM_DIRECTIVE 逐字不變，只要這場遊戲有 scenarioPack 就整場都會用到，
+    // 所以跟 nodeGuidance 用同一個判斷式，但放進 staticBlocks 而不是動態層——
+    // 見 content/scenario/nodePrompt.js 的檔頭說明。
+    activeDmDirective: scenarioPack ? ACTIVE_DM_DIRECTIVE : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
     // S.A.E.P. 數值矩陣：動態層的**第一段**，見 buildPromptLayers() 裡的說明。
     npcActiveState: scenarioReference && referenceState
@@ -1992,6 +1996,7 @@ function buildPromptLayers({
   completedChronicles,
   character,
   nodeGuidance,
+  activeDmDirective = null,
   dmMemo,
   npcActiveState = null,
   npcCooperationContract = null,
@@ -2024,6 +2029,10 @@ function buildPromptLayers({
     referenceMode ? npcCooperationContract : null,
     // 已封存副本摘要：整場只在「打完一個副本」時變一次，是靜態層裡唯一會變的一段。
     completedChronicles,
+    // 主動說書人指令：逐字不變、不吃任何每回合狀態，原本掛在 nodeGuidance 動態回傳值
+    // 尾端，每回合都重新計費一次。後台用量顯示快取命中率長期卡在約 75%，這筆固定成本
+    // 已經貴到有感，所以搬來這裡整場只算一次。見 content/scenario/nodePrompt.js 的檔頭說明。
+    activeDmDirective,
     // styleAndRules 放**最後**，而且是刻意的，不是順手排的：
     // 它的結尾就是 composeSystemInstruction() 那句「文筆與規則契約衝突時一律以規則契約為準」，
     // 那句話必須是系統提示的最後一段（見 content/narrativeStyle.js：「順序本身就是防線的一部分」）。
