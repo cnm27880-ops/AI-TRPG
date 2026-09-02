@@ -3011,6 +3011,68 @@
             .shop-item-card-clickable:hover { transform: none; }
             .shop-item-card-clickable:active { transform: scale(.985); }
         }
+        /* ===================================================================
+           純 CSS 改造（安全版）：不干擾 JS 的 display 控制
+           ================================================================== */
+        #scenario-hud {
+            position: relative;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            margin: 0.5rem;
+            background: linear-gradient(135deg, rgba(22, 22, 26, 0.95), rgba(13, 13, 16, 0.98));
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+        }
+
+        /* 兩側金屬卡榫裝飾 */
+        #scenario-hud::before, #scenario-hud::after {
+            content: '';
+            position: absolute;
+            top: 0.4rem; bottom: 0.4rem;
+            width: 3px;
+            background: rgba(251, 191, 36, 0.45);
+            pointer-events: none;
+        }
+        #scenario-hud::before { left: 0; border-radius: 0 2px 2px 0; }
+        #scenario-hud::after { right: 0; border-radius: 2px 0 0 2px; }
+
+        /* 錶冠圖示微調 */
+        #scenario-hud .watch-crown {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            color: #fbbf24;
+        }
+        
+        /* 目標文字排版最佳化 */
+        #scenario-hud .mission-objective {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            border: none;
+        }
+        #scenario-hud .mission-objective-title {
+            font-size: 0.8rem;
+            color: #f4f4f5;
+            font-family: 'Noto Serif TC', serif;
+            font-weight: 600;
+        }
+
+        /* 底部數據與進度條區塊對齊 */
+        #scenario-hud .mission-metrics {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 0.4rem;
+            margin-top: 0.2rem;
+        }
 </style>
 </head>
 <body class="h-screen flex flex-col bg-zinc-950 text-zinc-100 antialiased bg-tech-grid overflow-hidden">
