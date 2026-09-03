@@ -999,6 +999,11 @@ async function executeTurn(context, streamHooks = null) {
         narrativeMode,
         scene: referenceScene,
         checkParams,
+        // 讓合約能偵測玩家這句話有沒有指名在場 NPC（例如「陸遠」），見
+        // content/scenario/freeActionContract.js 的 detectAddressedNpc()。
+        // 不篩選在不在場：篩選需要另外查 S.A.E.P. 狀態，這裡只做「文字裡有沒有提到這個名字」
+        // 的字串比對，模型自己會依 [NPC_ACTIVE_STATE] 判斷這個NPC真的在不在場。
+        npcs: scenarioReference?.npcs ?? [],
         threat: {
           ...(scenarioProgress?.threat ?? {}),
           stage: getThreatStage(scenarioProgress?.threat?.level ?? 0),
