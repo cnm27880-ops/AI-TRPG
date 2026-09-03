@@ -50,10 +50,14 @@ test("前端不提供任何 LLM 供應商／金鑰入口，一律由伺服器端
   assert.doesNotMatch(app, /localStorage\.getItem\("user_narrator_persona"\)/);
 });
 
-test("左下角只剩主題切換，設定齒輪已經拆掉", () => {
+// [2026-09-03] 這一題的問法也換掉了：左下角常駐的 SYS dock（#theme-tool-dock）
+// 本身被拿掉了，玩家已經用不到——存檔狀態跟回合數側欄都看得到，留著只是一顆
+// 多餘的浮動按鈕。主題切換的入口現在只剩側欄 #sidebar-tool-actions 裡那顆
+// [data-theme-toggle] 按鈕，所以這裡改成斷言 dock 消失、側欄按鈕還在。
+test("左下角浮動 dock 已拆掉，主題切換入口留在側欄", () => {
   assert.doesNotMatch(index, /id="system-tool-dock"/, "齒輪 dock 應該已經拆掉");
-  assert.match(index, /id="theme-tool-dock"/, "左下角要留一顆主題按鈕");
-  assert.match(index, /data-theme-toggle onclick="toggleTheme\(\)"/);
+  assert.doesNotMatch(index, /id="theme-tool-dock"/, "左下角浮動 SYS dock 應該已經拆掉");
+  assert.match(index, /data-theme-toggle onclick="toggleTheme\(\)"/, "側欄要留一顆主題按鈕");
   assert.doesNotMatch(index, /openModal\('settingsModal'\)/, "三個設定入口都要移除");
   // 主題本身仍然要能運作。
   assert.match(index, /function toggleTheme\(\)/);

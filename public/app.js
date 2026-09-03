@@ -1439,7 +1439,10 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
       referenceMode: Boolean(res.scenario?.reference?.enabled),
       dmPrompt: res.scenario?.reference?.dmPrompt,
     });
-    if (res.turnCount) document.getElementById("turn-counter").textContent = res.turnCount;
+    if (res.turnCount) {
+      const turnCounterEl = document.getElementById("turn-counter");
+      if (turnCounterEl) turnCounterEl.textContent = res.turnCount;
+    }
     if (Number.isFinite(Number(res.recentChronicleTotal))) {
       recentStoryChronicleTotal = Number(res.recentChronicleTotal);
       renderRecentStoryWindow();
@@ -1888,7 +1891,10 @@ async function travelToLocation(destinationId, existingRequestId = null) {
       referenceMode: Boolean(response.scenario?.reference?.enabled),
       dmPrompt: response.scenario?.reference?.dmPrompt,
     });
-    if (response.turnCount) document.getElementById("turn-counter").textContent = response.turnCount;
+    if (response.turnCount) {
+      const turnCounterEl = document.getElementById("turn-counter");
+      if (turnCounterEl) turnCounterEl.textContent = response.turnCount;
+    }
     if (response.scenario) updateScenarioHud(response.scenario);
     lastTravelRequest = null;
     refreshJournalIfOpen();
