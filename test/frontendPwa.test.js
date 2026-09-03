@@ -75,8 +75,13 @@ test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約",
   assert.match(turnApi, /recentChronicleTotal: Array\.isArray\(session\?\.chronicle\)/);
 });
 
-test("Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference 隱藏契約", () => {
-  assert.match(index, /id="tab-btn-npcs"/);
+// [2026-09-03] 這一題原本斷言的是側欄還是五個分頁（attr/skills/traits/npcs/journal）
+// 的年代，人物關係有自己的 #tab-btn-npcs。後來的側欄改版把它併進「物資與情報」
+// （#tab-btn-inventory）底下的 #sidebar-tab-npcs 區塊，變成兩頁架構——
+// 這個測試從那時候起就一直是假紅燈：不是這次改動弄壞的，是題目沒跟著改版更新。
+// 這裡改成斷言目前實際的兩頁架構：人物關係區塊仍然完整存在，只是掛在情報頁下面。
+test("Alien V2 人物關係區塊具備 roster、信任 tone，掛在情報頁（兩頁架構）下面", () => {
+  assert.match(index, /id="tab-btn-inventory"/);
   assert.match(index, /id="sidebar-tab-npcs"/);
   assert.match(index, /id="npc-roster"/);
   assert.match(index, /class="npc-tab-count"/);
@@ -84,8 +89,8 @@ test("Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference �
   assert.match(app, /NPC_TRUST_TONE_CLASS/);
   assert.match(app, /function renderNpcRelationships\(npcs\)/);
   assert.match(app, /renderNpcRelationships\(scenario\?\.reference\?\.npcs \?\? \[\]\)/);
-  assert.match(index, /\['attr', 'skills', 'traits', 'npcs', 'journal'\]/);
-  assert.match(index, /五個分頁/);
+  assert.match(index, /function switchSidebarTab\(tabKey\)/);
+  assert.match(index, /兩頁架構/);
 });
 
 test("玩家行動、命運判定與說書人 pending 使用不同視覺層級", () => {
