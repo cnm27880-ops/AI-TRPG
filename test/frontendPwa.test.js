@@ -102,20 +102,30 @@ test("玩家行動、命運判定與說書人 pending 使用不同視覺層級",
   assert.match(index, /typingBlink/);
 });
 
-test("V2 正常遊玩以 DM 自由行動為主，選項只保留 server 相容資料流", () => {
-  assert.match(index, /id="dm-action-guidance"/);
-  assert.doesNotMatch(index, /id="dm-action-question"/);
-  assert.match(index, /id="dm-action-hint"/);
-  assert.match(index, /id="dm-action-hints"/);
-  assert.match(index, /可參考的情境線索/);
+// [2026-09-03] V2 一度改成「不把 options 畫成卡片，只給自由行動提示」的純 DM 模式——
+// 玩家實測回報：自由輸入常常沒命中任何 reference approach，掉進敘事安全網之後
+// 印出「這次嘗試沒有帶來突破」這種原地踏步的罐頭句，一直「撞牆」。現在回歸成
+// 可以直接點選的選項卡：伺服器判得出的合法 approach 一律做成按鈕（點下去保證
+// 命中 canonical 結果，不必經過安全網），打字框仍然留給真的想自由發揮的人。
+// 這題原本斷言的是純提示文字（#dm-action-guidance／renderDmPrompt）那個年代的
+// 行為，已經整個拿掉，這裡改成斷言目前真正的兩軌並存：選項卡 + 自由輸入框。
+test("V2 正常遊玩兩軌並存：伺服器判得出的合法行動做成選項卡，同時保留自由輸入框", () => {
+  assert.doesNotMatch(index, /id="dm-action-guidance"/);
+  assert.doesNotMatch(index, /id="dm-action-hint"/);
+  assert.doesNotMatch(index, /id="dm-action-hints"/);
+  assert.match(index, /id="option-grid"/);
+  assert.match(index, /你現在要怎麼做？/);
   assert.match(index, /data-action-input[^>]*maxlength="1000"/);
   assert.match(index, /data-action-count/);
-  assert.match(app, /function renderDmPrompt\(/);
-  assert.match(app, /currentOptions = \[\];/);
-  assert.match(app, /decisionTitle\.textContent = "可參考的情境線索"/);
+  assert.doesNotMatch(app, /function renderDmPrompt\(/);
+  // 選項卡不再預告會不會擲骰（屬性/技能/DC/骰池、風險警告、套路懲罰全部拿掉）：
+  // 玩家看到的只有這個行動在幹嘛，擲不擲骰、擲得怎樣交給選下去之後的骰子動畫。
+  assert.doesNotMatch(app, /decision-card-meta/);
+  assert.doesNotMatch(app, /decision-card-risk/);
+  assert.doesNotMatch(app, /decision-card-tag-free/);
+  assert.doesNotMatch(app, /decision-card-tag-retread/);
   assert.match(app, /decisionTitle\.textContent = "你現在要怎麼做？"/);
   assert.doesNotMatch(app, /question\.textContent =/);
-  assert.match(app, /自由行動 · 不使用預設選項/);
   assert.match(app, /referenceMode: Boolean\(res\.scenario\?\.reference\?\.enabled\)/);
   assert.match(app, /Array\.from\(input\?\.value \?\? \"\"\)\.length/);
 });

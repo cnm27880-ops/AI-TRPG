@@ -33,14 +33,6 @@ const SKILL_NAMES = [
   "偵察", "技藝", "醫療", "秘識", "交涉"
 ];
 
-// 技能分類（對應 core/schema.js 的 SKILLS，用來在前端試算 0 級技能的懲罰提示）
-const SKILL_CATEGORY = {
-  格鬥: "戰鬥", 射擊: "戰鬥",
-  體魄: "身手", 潛行: "身手", 求生: "身手",
-  偵察: "心智", 技藝: "心智", 醫療: "心智", 秘識: "心智",
-  交涉: "社交",
-};
-
 function legendaryAttributeBonus(val) {
   return Math.max(0, Math.floor((val - 1) / 5));
 }
@@ -1437,7 +1429,6 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     renderTurnQuality(res.degraded);
     renderOptions(res.options || [], {
       referenceMode: Boolean(res.scenario?.reference?.enabled),
-      dmPrompt: res.scenario?.reference?.dmPrompt,
     });
     if (res.turnCount) {
       const turnCounterEl = document.getElementById("turn-counter");
@@ -1474,10 +1465,14 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
 async function renderCheckResult(r) {
   await playDiceRollAnimation(r);
   const outcomeColor = r.autoFail || !r.success ? "text-red-400" : "text-emerald-400";
+  // autoFail（心智技能為0）沒有真的擲骰，core/check.js 的 performCheck() 也刻意不
+  // 假造一組 rolls——見 test/integration.test.js「不會誤觸發後續的傷害/骰子邏輯」。
+  // 這裡只是不要把「沒有骰面」印成字面上的「[undefined]」給玩家看。
+  const rollsText = Array.isArray(r.rolls) ? `[${r.rolls.join(",")}]` : "未擲骰";
   appendFeedEvent(
     "check",
     r.autoFail ? "命運拒絕" : (r.success ? "驚險成功" : "失敗"),
-    `${r.note?.join(" + ")} ➔ 成功數 <span class="fe-num">${r.totalSuccesses}</span> ／ DC <span class="fe-num">${r.dc}</span> · 骰面 [${r.rolls?.join(",")}]`,
+    `${r.note?.join(" + ") ?? "—"} ➔ 成功數 <span class="fe-num">${r.totalSuccesses ?? 0}</span> ／ DC <span class="fe-num">${r.dc ?? "—"}</span> · 骰面 ${rollsText}`,
     { tone: r.success && !r.autoFail ? "good" : "bad" }
   );
 }
@@ -1889,7 +1884,6 @@ async function travelToLocation(destinationId, existingRequestId = null) {
     if (response.character) adoptCharacter(response.character);
     renderOptions(response.options || [], {
       referenceMode: Boolean(response.scenario?.reference?.enabled),
-      dmPrompt: response.scenario?.reference?.dmPrompt,
     });
     if (response.turnCount) {
       const turnCounterEl = document.getElementById("turn-counter");
@@ -2001,7 +1995,6 @@ function updateScenarioHud(scenario) {
   const hud = document.getElementById("scenario-hud");
   const referenceMode = Boolean(scenario?.reference?.enabled);
   currentReferenceMode = referenceMode;
-  renderDmPrompt(scenario?.reference?.dmPrompt ?? null, { visible: referenceMode });
   renderNpcRelationships(scenario?.reference?.npcs ?? []);
   renderExplorationTerminal(scenario?.reference?.exploration ?? null);
   if (!hud) return;
@@ -2544,88 +2537,39 @@ function setDecisionContext(text) {
 }
 
 /**
- * V2 的行動出口：問題與方向提示由 server/reference 的 safe view 提供，
- * 不把 options 畫成必須點選的卡片。所有文字仍經 escapeHtml，避免任何敘事資料成為 HTML。
+ * [2026-09-03] V2 一度改成「不把 options 畫成卡片，只給自由行動提示」的純 DM 模式——
+ * 玩家實測回報：一旦自由輸入沒有命中任何 reference approach，就會掉進 LLM 敘事
+ * 安全網（見 content/scenario/narrationGuard.js／freeActionContract.js），而那個安全網
+ * 判得相當嚴，一失手就印出「這次嘗試沒有帶來突破」這種原地踏步的罐頭句——玩家形容
+ * 成「撞牆」。回歸成可以直接點選的選項卡：只要伺服器判定得出目前有哪些合法 approach
+ * （由 server 端的 buildReferenceOptions() 產生），玩家點下去就是保證命中 canonical
+ * 結果、不必經過那道安全網；打字框仍然留著給真的想自由發揮的人用。
+ *
+ * 卡片本身不再顯示「會不會擲骰」（屬性/技能/DC/骰池、風險警告、套路懲罰）：
+ * 玩家該看到的是「這個行動在幹嘛」，不是預先算好的機率表。要不要擲骰、擲得怎樣，
+ * 交給選下去之後才出現的骰子動畫（見 playDiceRollAnimation()），沒觸發就不會多畫。
  */
-function renderDmPrompt(dmPrompt, { visible = currentReferenceMode } = {}) {
-  const panel = document.getElementById("dm-action-guidance");
-  const hint = document.getElementById("dm-action-hint");
-  const hints = document.getElementById("dm-action-hints");
-  if (!panel || !hint || !hints) return;
-
-  panel.hidden = !visible;
-  if (!visible) {
-    hints.innerHTML = "";
-    return;
-  }
-
-  const data = dmPrompt && typeof dmPrompt === "object" ? dmPrompt : {};
-  hint.textContent = typeof data.hint === "string" && data.hint.trim()
-    ? data.hint.trim()
-    : "以下僅供參考，你也可以自由行動。";
-  const safeHints = Array.isArray(data.referenceHints)
-    ? data.referenceHints.filter((value) => typeof value === "string" && value.trim()).slice(0, 3)
-    : [];
-  hints.innerHTML = safeHints.length
-    ? `<span class="dm-hints-label">情境提示</span>${safeHints.map((value) => `<span class="dm-hint-pill">${escapeHtml(value.trim())}</span>`).join("")}`
-    : "";
-}
-
-function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt = null } = {}) {
+function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
   const grid = document.getElementById("option-grid");
   const decisionKicker = document.getElementById("decision-kicker");
   const decisionTitle = document.getElementById("decision-title");
   const safeOptions = Array.isArray(options) ? options : [];
   currentReferenceMode = Boolean(referenceMode);
-  if (currentReferenceMode) {
-    currentOptions = [];
-    renderTacticalChips([]);
-    if (grid) {
-      grid.hidden = true;
-      grid.innerHTML = "";
-    }
-    if (decisionKicker) decisionKicker.textContent = "行動方向";
-    if (decisionTitle) decisionTitle.textContent = "可參考的情境線索";
-    setDecisionContext("自由行動 · 不使用預設選項");
-    renderDmPrompt(dmPrompt, { visible: true });
-    return;
-  }
 
   currentOptions = safeOptions;
   renderTacticalChips(safeOptions);
   if (decisionKicker) decisionKicker.textContent = "下一步";
   if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
   if (grid) grid.hidden = false;
-  renderDmPrompt(null, { visible: false });
   if (!safeOptions.length) {
     setDecisionContext("沒有預設方案 · 請描述自己的行動");
-    grid.innerHTML = `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`;
+    if (grid) grid.innerHTML = `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`;
     return;
   }
 
-  const freeCount = safeOptions.filter((opt) => opt.requiresCheck === false).length;
-  setDecisionContext(`${safeOptions.length} 個可行方案${freeCount ? ` · ${freeCount} 個無需檢定` : " · 選擇會改變局勢"}`);
+  setDecisionContext(`${safeOptions.length} 個可行方案 · 也可以在下方自由行動`);
 
   grid.innerHTML = safeOptions.map((opt, i) => {
-    // 純敘事選項（requiresCheck === false，見 content/turnOptions.js）：沒有屬性、
-    // 沒有技能、沒有DC，所以底下那一整行檢定資訊全部不畫——畫出來會是「null+null DCnull」。
-    // 改成一個明確的「無需檢定」標籤：玩家有權在按下去之前就知道這一手不會擲骰。
-    const isFreeAction = opt.requiresCheck === false;
-
-    // 試算玩家目前的骰池(DP)，讓玩家點下去之前就知道自己大概有幾顆骰子可拼，
-    // 而不是看著「屬性+技能」的組合名稱自己臆測。
-    const attrVal = currentCharacter?.attributes?.[opt.attribute] ?? 1;
-    const skillVal = opt.skill ? (currentCharacter?.skills?.[opt.skill] ?? 0) : null;
-    const dp = attrVal + (skillVal ?? 0);
-
-    let warningHtml = "";
-    if (!isFreeAction && opt.skill && skillVal === 0) {
-      const category = SKILL_CATEGORY[opt.skill];
-      warningHtml = category === "心智"
-        ? `<span class="decision-card-risk decision-card-risk-danger whitespace-nowrap">⚠ 自動失敗</span>`
-        : `<span class="decision-card-risk whitespace-nowrap">⚠ 未受訓 ${category === "社交" ? "-2" : "-1"}成功</span>`;
-    }
-
     // 引擎墊出來的保底選項標一個小標籤：它跟這一輪的敘事完全無關（見 content/turnOptions.js
     // 的 FALLBACK_OPTIONS），玩家有權知道自己按下去的是不是AI真的替這個場景想出來的行動。
     const isFallback = opt.source === "fallback";
@@ -2633,47 +2577,21 @@ function renderOptions(options, { referenceMode = currentReferenceMode, dmPrompt
       ? `<span class="decision-card-tag decision-card-tag-fallback" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
       : "";
 
-    // 套路懲罰預告（見 content/scenario/repetition.js）。玩家必須在**按下去之前**就看到
-    // 「這是連續第3次用潛行，DC會+1」，這個標籤才有意義——按完才知道等於在罰他，不是在設計。
-    const freeTag = isFreeAction
-      ? `<span class="decision-card-tag decision-card-tag-free" title="這個行動不需要擲骰，不會失敗，但場景仍然會推進">無需檢定</span>`
-      : "";
-
-    const retreadTag = opt.retread
-      ? `<span class="decision-card-tag decision-card-tag-retread" title="同一個「屬性＋技能」連續使用會愈來愈難。換個做法就會歸零。">${escapeHtml(opt.retread.label)}</span>`
-      : "";
-    const rawDc = opt.effectiveDc ?? opt.dc;
-    const shownDc = Number.isFinite(Number(rawDc)) ? String(rawDc) : "待裁定";
-
-    // hint（這個行動想達成什麼）刻意排在第二行、字級比骰池數字大：
-    // 測玩回饋是「我就是看選項哪個數字高就按哪個」——那不是玩家的問題，是版面把
-    // 唯一醒目的資訊做成了數字。現在最醒目的是「做這件事想得到什麼」，
-    // 檢定組合與DP退到最後一行的灰字。
     const hintHtml = opt.hint
       ? `<span class="decision-card-hint">${escapeHtml(opt.hint)}</span>`
       : "";
 
-    // 玩家先看行動意義，再看規則細節；這裡只負責把後端已算好的資訊分層呈現。
-    const metaHtml = isFreeAction
-      ? `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-comment-dots"></i>純敘事行動</span><span class="decision-card-rule-secondary">不擲骰 · 場景仍會推進</span></span>`
-      : `<span class="decision-card-meta"><span class="decision-card-rule-primary"><i class="fas fa-dice-d20"></i>${escapeHtml(opt.attribute)}${opt.skill ? '+' + escapeHtml(opt.skill) : ''} · ${escapeHtml(opt.difficulty)} DC${escapeHtml(shownDc)}</span><span class="decision-card-rule-secondary">骰池 ${dp}</span>${warningHtml ? `<span class="decision-card-risk-wrap">${warningHtml}</span>` : ""}</span>`;
-
-    const cardTone = isFallback ? "decision-card-fallback" : isFreeAction ? "decision-card-free" : "";
-
     return `
-    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${cardTone}" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${isFallback ? "decision-card-fallback" : ""}" style="animation-delay:${i * .06}s">
       <span class="decision-card-key">${i + 1}</span>
       <span class="decision-card-main">
         <span class="decision-card-head">
           <span class="decision-card-label">${escapeHtml(opt.label)}</span>
           <span class="decision-card-tags">
-            ${freeTag}
             ${fallbackTag}
-            ${retreadTag}
           </span>
         </span>
         ${hintHtml || `<span class="decision-card-hint">描述這個行動可能帶來的改變</span>`}
-        ${metaHtml}
       </span>
     </button>`;
   }).join("");
@@ -3451,7 +3369,6 @@ async function resumeSession(id) {
 
   renderOptions(res.session.scene?.options || [], {
     referenceMode: Boolean(res.scenario?.reference?.enabled),
-    dmPrompt: res.scenario?.reference?.dmPrompt,
   });
   // [2026-08-20 修正] 副本 HUD（當前目標／簡介／主線進度／迫近度／時間預算）也要在
   // 讀取存檔時就畫出來。先前這一份只有 /api/turn 的回應才有，於是重整頁面接續遊戲的人

@@ -934,12 +934,6 @@
         .decision-kicker { color: var(--accent); font-size: .56rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: .18em; }
         .decision-title { margin-top: .22rem; color: var(--ink-100); font-size: .88rem; font-weight: 700; }
         .decision-context { color: var(--ink-500); font: 600 .62rem/1.35 'JetBrains Mono', monospace; text-align: right; }
-        .dm-action-guidance { padding: .55rem .7rem .65rem; border-left: 2px solid rgba(16,185,129,.62); background: linear-gradient(90deg, rgba(16,185,129,.09), transparent 72%); }
-        .dm-action-question { color: var(--ink-100); font: 700 .83rem/1.45 'Noto Serif TC', 'Songti TC', serif; }
-        .dm-action-hint { margin-top: .22rem; color: var(--ink-400); font: .62rem/1.45 'JetBrains Mono', monospace; }
-        .dm-action-hints { display: flex; align-items: center; gap: .35rem; flex-wrap: wrap; margin-top: .45rem; }
-        .dm-hints-label { color: var(--ink-500); font: 700 .56rem/1.3 'JetBrains Mono', monospace; }
-        .dm-hint-pill { padding: .2rem .42rem; border: 1px solid rgba(255,255,255,.13); border-radius: 999px; color: var(--ink-300); background: rgba(255,255,255,.035); font: .58rem/1.3 'Noto Serif TC', 'Songti TC', serif; }
         /* 行動方向／選項現在是故事流最後一則「訊息」，跟其他 .feed-event 共用同一個
            置中寬度，並用一條頂線把它跟上面的敘事分開，視覺上讀作「這裡輪到你了」。 */
         #inline-decision-panel { width: 100%; max-width: 78rem; margin: 1rem auto 0; padding-top: .9rem; border-top: 1px solid rgb(var(--c-line) / .16); }
@@ -3825,17 +3819,18 @@
                          手機上舊版會把可讀高度壓縮到剩一兩行。這個節點永遠留在
                          #recent-story-list 裡：見 app.js 的 renderRecentStoryWindow，
                          每次重繪都會把它排進 desired 清單的最後一位，不會被當成過期節點清掉。 -->
+                    <!-- [2026-09-03] 拿掉了 #dm-action-guidance（純文字的「情境提示」區塊）：
+                         玩家實測回報自由輸入常常撞上敘事安全網、印出原地踏步的罐頭句。
+                         回歸成可以直接點的選項卡（#option-grid）——伺服器判得出的合法
+                         行動一律做成按鈕，點下去保證命中 canonical 結果，不再只給一段
+                         看得到、點不到的提示文字。真的想自由發揮的人，下面的輸入框還在。 -->
                     <div id="inline-decision-panel">
                         <div class="decision-panel-heading">
                             <div>
-                                <div id="decision-kicker" class="decision-kicker">行動方向</div>
-                                <div id="decision-title" class="decision-title">可參考的情境線索</div>
+                                <div id="decision-kicker" class="decision-kicker">下一步</div>
+                                <div id="decision-title" class="decision-title">你現在要怎麼做？</div>
                             </div>
                             <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
-                        </div>
-                        <div id="dm-action-guidance" class="dm-action-guidance" aria-live="polite" hidden>
-                            <div id="dm-action-hint" class="dm-action-hint">以下僅供參考，你也可以自由行動。</div>
-                            <div id="dm-action-hints" class="dm-action-hints"></div>
                         </div>
                         <div id="option-grid" class="decision-grid grid grid-cols-1 sm:grid-cols-2 gap-2" aria-live="polite" hidden></div>
                     </div>
@@ -3941,7 +3936,7 @@
                              baseline 的行高空隙（經典的「圖片/textarea下方多一截空白」）。
                              這一截空隙撐高了它外層的 .relative.flex-1，跟旁邊按鈕欄的
                              items-end 對齊基準點就對不齊了，改成 block 就沒有這個問題。 -->
-                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="dm-action-hint action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="block w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
+                        <textarea data-action-input rows="2" maxlength="1000" aria-describedby="action-input-counter" placeholder="> 描述你想做的事，DM 會依當前情勢裁定……" class="block w-full resize-y bg-zinc-900 border hairline-border pl-3 pr-10 py-2.5 text-xs font-mono focus:outline-none focus:border-emerald-500 focus-ring-accent transition text-zinc-100 placeholder-zinc-500 rounded"></textarea>
                         <i class="fas fa-terminal absolute right-3 top-3 text-zinc-500 text-xs pointer-events-none"></i>
                     </div>
                     <div class="flex flex-col items-end gap-1 shrink-0">

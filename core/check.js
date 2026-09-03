@@ -29,9 +29,25 @@ export function performCheck(character, params) {
     if (level === 0) {
       // 0級技能懲罰
       if (category === "心智") {
+        // [2026-09-03 修正] 這裡以前只回 { autoFail, reason }，沒有骰子結果所以
+        // 沒有 rolls 是對的（test/integration.test.js 鎖住這一點），但連 note／dc／
+        // totalSuccesses／success／margin 也一起漏掉了——這些不是「骰出來的東西」，
+        // 是「這次判定的結論摘要」，任何讀 checkResult 的地方（前端 renderCheckResult()、
+        // functions/api/turn.js 寫回事件日誌那段）都預期它們存在。少了它們，畫面上
+        // 印出的是一整排「undefined」，存檔裡也是一整排 undefined，這是純粹的資料
+        // 缺角，不是刻意不擲骰的那個設計決定。
+        const reason = `心智系技能「${skill}」為0，缺乏專業知識，判定自動失敗`;
+        note.push(reason);
         return {
           autoFail: true,
-          reason: `心智系技能「${skill}」為0，缺乏專業知識，判定自動失敗`,
+          reason,
+          dp,
+          note,
+          bonusSuccessesRaw: 0,
+          totalSuccesses: 0,
+          dc,
+          success: false,
+          margin: 0 - dc,
         };
       }
       if (category === "戰鬥" || category === "身手") {
