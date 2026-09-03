@@ -102,23 +102,27 @@ test("固定開頭的選項一樣要通過規則查驗(屬性/技能/難度都�
   assert.deepEqual(openingWarnings, [], "副本包裡的固定選項不該需要引擎修正");
 });
 
-test("canonical 玩家行動不呼叫AI，而且讀檔續玩不會再播一次開場", async () => {
+// [2026-09-03] 固定開場**仍然**不呼叫 AI（那一段是作者逐字寫好的開場白，每一場都一樣，
+// 沒有「這一回合的處境」可言）。但命中 approach 的玩家行動反過來了：canonical 結果
+// 從「逐字印出去」降級成「餵給模型的事實素材」，句子由模型依當回合處境重寫——
+// 否則同一個 approach 失敗三次會印出三段一模一樣的話（見 turn.js 第二段的說明）。
+test("固定開場不呼叫AI；canonical 玩家行動改由模型依既定事實重寫", async () => {
   const env = makeEnv();
   const sessionId = await newSession(env);
   const opening = await readJson(await turnPost(req(env, { sessionId })));
+  assert.equal(env.calls.length, 0, "固定開場仍然不呼叫AI");
 
   const next = await readJson(await turnPost(req(env, { sessionId, chosenOption: opening.options[0] })));
-  assert.equal(env.calls.length, 0, "命中 canonical approach 的玩家行動不應呼叫AI");
-  assert.notEqual(next.narration, "AI寫的敘事");
-  assert.match(next.degraded.narrationSource, /^canonical_result/);
-  assert.equal(next.degraded.llmCalled, false);
+  assert.equal(env.calls.length, 1, "命中 canonical approach 的行動要把事實交給模型改寫");
+  assert.match(next.degraded.narrationSource, /^canonical_result.*_rewritten$/);
+  assert.equal(next.degraded.llmCalled, true);
   assert.ok(next.checkResult, "選了帶檢定的選項就要真的擲骰");
 
   // 讀檔續玩：已經有歷史了，開場短路不可以再觸發；沒有新 action 時才進入 AI continuation。
   const resumed = await readJson(await turnPost(req(env, { sessionId })));
   assert.equal(resumed.degraded.narrationSource, "ai");
   assert.equal(resumed.degraded.llmCalled, true);
-  assert.equal(env.calls.length, 1);
+  assert.equal(env.calls.length, 2);
 });
 
 test("沒有固定開頭的副本行為完全不變(開場照樣交給AI)", async () => {

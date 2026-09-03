@@ -33,6 +33,16 @@ const SKILL_NAMES = [
   "偵察", "技藝", "醫療", "秘識", "交涉"
 ];
 
+// 技能分類（對應 core/schema.js 的 SKILLS）。用來在選項卡上標示 0 級技能的懲罰：
+// 心智系 0 級在規則上是自動失敗，其餘只是成功數懲罰——兩者對玩家的意義完全不同，
+// 不能混成同一句「未受訓」。
+const SKILL_CATEGORY = {
+  格鬥: "戰鬥", 射擊: "戰鬥",
+  體魄: "身手", 潛行: "身手", 求生: "身手",
+  偵察: "心智", 技藝: "心智", 醫療: "心智", 秘識: "心智",
+  交涉: "社交",
+};
+
 function legendaryAttributeBonus(val) {
   return Math.max(0, Math.floor((val - 1) / 5));
 }
@@ -1962,13 +1972,6 @@ function renderScenarioContracts(scenario) {
   renderWalletChips(scenario?.rewardSummary);
 }
 
-function renderTacticalChips(options) {
-  const host = document.getElementById('tactical-chips');
-  if (!host) return;
-  const safe = Array.isArray(options) ? options.slice(0, 8) : [];
-  host.innerHTML = safe.map((opt, i) => '<button type="button" class="tactical-chip" onclick="selectOption(' + i + ')">' + escapeHtml(opt.label || '行動 ' + (i + 1)) + (opt.hint ? '<small>' + escapeHtml(opt.hint) + '</small>' : '') + '</button>').join('');
-}
-
 // --- 副本節點 HUD：目前目標 / 主線進度 / 時間預算狀態 ---
 const TIME_STATUS_STYLE = {
   充裕: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
@@ -2537,17 +2540,20 @@ function setDecisionContext(text) {
 }
 
 /**
- * [2026-09-03] V2 一度改成「不把 options 畫成卡片，只給自由行動提示」的純 DM 模式——
- * 玩家實測回報：一旦自由輸入沒有命中任何 reference approach，就會掉進 LLM 敘事
- * 安全網（見 content/scenario/narrationGuard.js／freeActionContract.js），而那個安全網
- * 判得相當嚴，一失手就印出「這次嘗試沒有帶來突破」這種原地踏步的罐頭句——玩家形容
- * 成「撞牆」。回歸成可以直接點選的選項卡：只要伺服器判定得出目前有哪些合法 approach
- * （由 server 端的 buildReferenceOptions() 產生），玩家點下去就是保證命中 canonical
- * 結果、不必經過那道安全網；打字框仍然留著給真的想自由發揮的人用。
+ * 本回合的行動選項。唯一的選項出口——畫在輸入框正上方的 #decision-dock 裡。
  *
- * 卡片本身不再顯示「會不會擲骰」（屬性/技能/DC/骰池、風險警告、套路懲罰）：
- * 玩家該看到的是「這個行動在幹嘛」，不是預先算好的機率表。要不要擲骰、擲得怎樣，
- * 交給選下去之後才出現的骰子動畫（見 playDiceRollAnimation()），沒觸發就不會多畫。
+ * [2026-09-03 第二次修正] 這個函式先前把同一批選項畫在**兩個**地方：故事流裡的
+ * #inline-decision-panel 大卡片，外加輸入框上方的 #tactical-chips 小晶片。玩家等於
+ * 把同一件事讀兩次，而且小晶片那一份還砍掉了 hint 以外的所有資訊。現在只留一個。
+ *
+ * 卡片重新公開檢定資訊（屬性＋技能・難度・骰池・未受訓風險）。這是刻意的回頭路，
+ * 理由是柏德之門系列的作法：選項上先標示 [技能] 與 DC，玩家看得到才做得成決定，
+ * 點下去立刻擲骰、看 d20 動畫、再看結果。上一版把這排數字全部藏起來，玩家的體感
+ * 變成「按了才知道又失敗」——那不是張力，是資訊不足。
+ *
+ * 代價是知道的：玩家會傾向挑骰池最大的那一個。對策不在藏資訊，而在
+ * content/scenario/repetition.js 的套路遞減（同一招連用會愈來愈難），
+ * 以及把 hint（做這件事想得到什麼）排在比數字更醒目的位置。
  */
 function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
   const grid = document.getElementById("option-grid");
@@ -2557,7 +2563,6 @@ function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
   currentReferenceMode = Boolean(referenceMode);
 
   currentOptions = safeOptions;
-  renderTacticalChips(safeOptions);
   if (decisionKicker) decisionKicker.textContent = "下一步";
   if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
   if (grid) grid.hidden = false;
@@ -2567,31 +2572,69 @@ function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
     return;
   }
 
-  setDecisionContext(`${safeOptions.length} 個可行方案 · 也可以在下方自由行動`);
+  const checkCount = safeOptions.filter((opt) => opt.requiresCheck !== false).length;
+  setDecisionContext(
+    `${safeOptions.length} 個方案 · ${checkCount ? `${checkCount} 個需要擲骰` : "都不需要擲骰"} · 也可以在下方自由行動`
+  );
 
   grid.innerHTML = safeOptions.map((opt, i) => {
-    // 引擎墊出來的保底選項標一個小標籤：它跟這一輪的敘事完全無關（見 content/turnOptions.js
-    // 的 FALLBACK_OPTIONS），玩家有權知道自己按下去的是不是AI真的替這個場景想出來的行動。
-    const isFallback = opt.source === "fallback";
-    const fallbackTag = isFallback
-      ? `<span class="decision-card-tag decision-card-tag-fallback" title="這個選項是引擎的通用保底選項，不是AI針對本回合劇情產生的">保底</span>`
-      : "";
+    // 純敘事選項（requiresCheck === false）沒有屬性、技能與 DC，那一行整排不畫——
+    // 畫出來會是「null+null DCnull」。
+    const isFreeAction = opt.requiresCheck === false;
 
-    const hintHtml = opt.hint
-      ? `<span class="decision-card-hint">${escapeHtml(opt.hint)}</span>`
-      : "";
+    // 骰池 = 屬性值 + 技能等級。跟伺服器用的是同一個組合，所以這個數字不是估算，
+    // 是玩家按下去之後真的會擲的骰子數。
+    const attrVal = currentCharacter?.attributes?.[opt.attribute] ?? 1;
+    const skillVal = opt.skill ? (currentCharacter?.skills?.[opt.skill] ?? 0) : null;
+    const dp = attrVal + (skillVal ?? 0);
+
+    let warningHtml = "";
+    if (!isFreeAction && opt.skill && skillVal === 0) {
+      const category = SKILL_CATEGORY[opt.skill];
+      warningHtml = category === "心智"
+        ? `<span class="decision-card-risk decision-card-risk-danger">未受訓 · 自動失敗</span>`
+        : `<span class="decision-card-risk">未受訓 ${category === "社交" ? "-2" : "-1"} 成功</span>`;
+    }
+
+    // 來源標籤。玩家有權知道自己按的是哪一種東西：
+    //   ai_free  = 說書人臨場想出來的行動，不在既定路線上（伺服器現場推論檢定）
+    //   fallback = 引擎的通用保底選項，跟這一輪的劇情無關
+    // 其餘（AI 依當前局勢寫、綁到副本分支的選項）是常態，不標籤——每一張都標等於沒標。
+    const sourceTag = opt.source === "ai_free"
+      ? `<span class="decision-card-tag decision-card-tag-improvised" title="說書人臨場想出的行動，不在既定路線上；結果由當下情勢推導">臨場</span>`
+      : opt.source === "fallback"
+        ? `<span class="decision-card-tag decision-card-tag-fallback" title="這個選項是引擎的通用保底選項，不是針對本回合劇情產生的">保底</span>`
+        : "";
+
+    const rawDc = opt.effectiveDc ?? opt.dc;
+    const shownDc = Number.isFinite(Number(rawDc)) ? `DC${rawDc}` : "";
+    const checkName = `${escapeHtml(opt.attribute ?? "")}${opt.skill ? " + " + escapeHtml(opt.skill) : ""}`;
+
+    // 排版順序＝閱讀順序：行動 → 想達成什麼 → 規則細節。
+    // 最醒目的必須是「做這件事想得到什麼」，不是骰池數字。
+    const metaHtml = isFreeAction
+      ? `<span class="decision-card-meta"><span class="decision-card-chip decision-card-chip-safe"><i class="fas fa-comment-dots" aria-hidden="true"></i>不需擲骰</span></span>`
+      : `<span class="decision-card-meta">
+           <span class="decision-card-chip"><i class="fas fa-dice-d20" aria-hidden="true"></i>${checkName}</span>
+           ${opt.difficulty ? `<span class="decision-card-chip">${escapeHtml(opt.difficulty)}${shownDc ? ` · ${shownDc}` : ""}</span>` : ""}
+           <span class="decision-card-chip decision-card-chip-pool" title="你會擲 ${dp} 顆骰">骰池 ${dp}</span>
+           ${warningHtml}
+         </span>`;
+
+    const cardTone = opt.source === "fallback"
+      ? "decision-card-fallback"
+      : isFreeAction ? "decision-card-free" : "";
 
     return `
-    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${isFallback ? "decision-card-fallback" : ""}" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${cardTone}" style="animation-delay:${i * .06}s">
       <span class="decision-card-key">${i + 1}</span>
       <span class="decision-card-main">
         <span class="decision-card-head">
           <span class="decision-card-label">${escapeHtml(opt.label)}</span>
-          <span class="decision-card-tags">
-            ${fallbackTag}
-          </span>
+          <span class="decision-card-tags">${sourceTag}</span>
         </span>
-        ${hintHtml || `<span class="decision-card-hint">描述這個行動可能帶來的改變</span>`}
+        ${opt.hint ? `<span class="decision-card-hint">${escapeHtml(opt.hint)}</span>` : ""}
+        ${metaHtml}
       </span>
     </button>`;
   }).join("");
@@ -2902,12 +2945,6 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
   if (!desired.length) {
     desired.push(storyEmptyPlaceholder(current));
   }
-
-  // 行動方向／選項面板（index.html 裡的 #inline-decision-panel）永遠排在最後一位，
-  // 讓它跟故事文字一起捲動而不是固定在輸入框上方。用同一套 keep-set 診斷邏輯保留它，
-  // 不然下面的「移掉不在 desired 裡的節點」會把它當成過期內容清掉。
-  const inlineDecisionPanel = document.getElementById("inline-decision-panel");
-  if (inlineDecisionPanel) desired.push(inlineDecisionPanel);
 
   // 只動真的需要動的節點：先移掉不該在的，再把位置不對的搬過去。
   // 一次換掉全部子節點會讓每一則都重新插入 DOM，動畫與捲動位置一起被重設。

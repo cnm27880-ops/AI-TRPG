@@ -188,13 +188,22 @@ test("極端壓力下 `/api/turn` 會合併 Parker／Lambert state 且 retryPend
   assert.equal(replayed.pendingTurn.referenceState.npcCooperation.npc_lambert.incidents, 1);
 });
 
-test("V2 reference action uses canonical direct-send without an LLM response", async () => {
+// [2026-09-03] 這個測試的契約反轉了，反轉的理由值得留在測試裡。
+//
+// 舊契約是「命中 approach 就直送 canonical 原文、完全不呼叫 LLM」。那條路徑讓同一個
+// approach 失敗三次會印出三段逐字相同的文字（實測劇情包第 11~13 回），所以 canonical
+// 原文降級成**保底**：有供應商就交給模型依當回合處境重寫，模型整條 fallback chain
+// 都失敗時才拿原文收尾。
+//
+// 這裡鎖住的正是那個保底：模型每次呼叫都丟例外，玩家仍然要拿到正確、完整的一回合
+// （canonical 原文 + 已套用的 effects），而不是一個 502。
+test("V2 reference action falls back to canonical text when every LLM attempt fails", async () => {
   let llmCalls = 0;
   const env = {
     AI: {
       run: async () => {
         llmCalls += 1;
-        throw new Error("canonical direct-send 不應呼叫 LLM");
+        throw new Error("測試用：模型不可用");
       },
     },
   };
@@ -231,13 +240,13 @@ test("V2 reference action uses canonical direct-send without an LLM response", a
   assert.equal(actionBody.degraded.llmCalled, false);
   assert.equal(actionBody.degraded.narrationSource, "canonical_result");
   assert.equal(actionBody.degraded.llmCalled, false);
-  assert.equal(llmCalls, 0);
+  assert.ok(llmCalls > 0, "有供應商時一定要先試著讓模型寫，直送原文只是保底");
   assert.equal(actionBody.pendingTurn, null);
 
   const saved = await resolveSessionStore(env).get(sessionId);
   const canonicalScene = getScenarioReference("scenario.nostromo-01-v2").scenes.find((scene) => scene.id === "evt_cryo_clearance");
   const canonicalTexts = Object.values(canonicalScene.narrativeSource.outcomes.app_cryo_recon);
-  assert.ok(canonicalTexts.includes(actionBody.narration), "direct-send 必須逐字採用 canonical outcome 原文");
+  assert.ok(canonicalTexts.includes(actionBody.narration), "保底路徑必須逐字採用 canonical outcome 原文");
   assert.equal(saved.scenario.referenceState.lastApproachId, "app_cryo_recon");
   assert.equal(saved.scenario.referenceState.lastOutcomeTier !== null, true);
   assert.equal(saved.scenario.referenceState.currentSceneId, "evt_cryo_clearance");

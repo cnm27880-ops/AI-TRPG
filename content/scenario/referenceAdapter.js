@@ -9,7 +9,7 @@
 // 注意：referenceState 存在 session.scenario.referenceState，不放進 progress。
 // progress 仍然只負責章節、節點、時間、迫近度與套路，避免破壞舊存檔。
 
-import { difficultyToDc, validateOption } from "../turnOptions.js";
+import { dcToDifficulty, difficultyToDc, validateOption } from "../turnOptions.js";
 import { inferCheckParams } from "../checkIntent.js";
 import { matchReferenceCondition } from "./conditions.js";
 import { evaluateMajorStoryNodes, normalizeMajorStoryState } from "./majorStoryNodes.js";
@@ -463,6 +463,144 @@ function publicReferenceOption(approach, sceneId, phaseId) {
       phaseId: phaseId ?? null,
     },
   };
+}
+
+/**
+ * [2026-09-03] 同一個 approach 在同一個場景已經被試過幾次、其中失敗幾次。
+ *
+ * 資料來源是既有的 state.actionHistory（applyReferenceResult() 每次裁定都會追加一筆），
+ * 不新增任何 state 欄位——舊存檔不用轉檔，也不會多一個要同步維護的真理來源。
+ *
+ * 為什麼需要這個數字：實測劇情包（USCSS 諾斯托羅莫號，第 11~13 回）出現同一個
+ * approach「以檢疫協議交涉」連續失敗三次、每一次印出**逐字相同**的結果文字。
+ * 成因是 approach 的前置條件（flagsAbsent: flag_ash_talked）在失敗時不會成立，
+ * 於是它永遠留在選單上、永遠回同一段罐頭。統計出「這一招已經失敗 N 次」之後：
+ *   - buildReferencePromptBlock() 把它寫進提示，要求 AI 換角度、不要重述同一段；
+ *   - listSelectableApproaches() 把連續失敗達上限的 approach 標成 exhausted，
+ *     AI 不再把它做成選項——選單才會真的隨著局勢改變。
+ */
+export function approachAttemptStats(state, sceneId, approachId) {
+  const history = Array.isArray(state?.actionHistory) ? state.actionHistory : [];
+  let attempts = 0;
+  let failures = 0;
+  let lastResultKey = null;
+  for (const entry of history) {
+    if (entry?.sceneId !== sceneId || entry?.approachId !== approachId) continue;
+    attempts += 1;
+    lastResultKey = entry.resultKey ?? entry.outcomeTier ?? null;
+    if (FAILURE_RESULT_KEYS.has(String(lastResultKey))) failures += 1;
+  }
+  return { attempts, failures, lastResultKey };
+}
+
+/** 算「這次沒成」的結果分級。大成功／成功／自動一律不算失敗。 */
+const FAILURE_RESULT_KEYS = new Set(["失敗", "大失敗"]);
+
+/**
+ * 同一個 approach 累計失敗到這個次數，就不再放進可選清單。
+ *
+ * 2 是刻意的：第一次失敗是「這條路這次沒走通」，第二次失敗才確立「這條路走不通」。
+ * 再往上加只是讓玩家重複讀同一段失敗文字——那正是這一輪要修掉的體感問題。
+ * 這是 [設計]，規則書沒有這一條；改數字要連 test/referenceOptions.test.js 一起改。
+ */
+export const APPROACH_FAILURE_LIMIT = 2;
+
+/**
+ * 目前場景真的能選的 approach（含嘗試統計）。
+ *
+ * 這是「AI 產生選項」與「引擎查驗選項」共用的**同一份**清單——AI 只能從這裡挑 id，
+ * 挑到清單外的 id 一律當成它自創的自由選項，換不到作者寫好的結果與 effects。
+ */
+export function listSelectableApproaches(reference, state, { limit = 8 } = {}) {
+  const { scene, phase, entries } = currentApproaches(reference, state);
+  if (!scene) return { scene: null, phase: null, approaches: [] };
+  const approaches = entries.slice(0, Math.max(1, limit)).map(({ approach, phaseId }) => {
+    const stats = approachAttemptStats(state, scene.id, approach.id);
+    return {
+      id: approach.id,
+      label: approach.label,
+      intent: approach.intent ?? null,
+      requiresCheck: approach.requiresCheck === true,
+      attribute: approach.requiresCheck === true ? approach.attribute : null,
+      skill: approach.requiresCheck === true ? approach.skill ?? null : null,
+      difficulty: approach.requiresCheck === true ? approach.difficulty : null,
+      phaseId: phaseId ?? phase?.id ?? null,
+      ...stats,
+      exhausted: stats.failures >= APPROACH_FAILURE_LIMIT,
+    };
+  });
+  return { scene, phase, approaches };
+}
+
+/**
+ * 把 AI 這一回合寫出來的選項綁回引擎資料。
+ *
+ * 分工跟 content/turnOptions.js 檔頭那條分界線完全一致：
+ *   AI 負責 label 與 hint——「這個行動用什麼字講出來」是說書人的工作；
+ *   引擎負責 attribute／skill／difficulty／dc 與 reference 綁定——AI 若在這幾格填了值
+ *   一律不採用，全部從 reference 資料重建。AI 說某個選項對應 app_ash_talk_quarantine，
+ *   引擎仍會自己去查那個 id 現在可不可選、它的檢定組合是什麼。
+ *
+ * approachId 不在可選清單裡（AI 自創、幻覺 id、或已 exhausted 的招）一律降級成自由選項：
+ * source="ai_free"、沒有 reference 綁定，送出後走既有的自由行動路徑，
+ * 由 content/checkIntent.js 推論檢定——它拿不到作者寫好的 effects，
+ * 所以一個幻覺 id 換不到任何世界狀態改變。
+ */
+export function bindAiReferenceOptions({ reference, state, aiOptions, character = null, limit = 4 } = {}) {
+  const { scene, approaches } = listSelectableApproaches(reference, state);
+  if (!scene) return [];
+  const byId = new Map(approaches.filter((entry) => !entry.exhausted).map((entry) => [entry.id, entry]));
+  const usedApproachIds = new Set();
+  const seenLabels = new Set();
+  const options = [];
+
+  for (const raw of Array.isArray(aiOptions) ? aiOptions : []) {
+    if (options.length >= limit) break;
+    const label = String(raw?.label ?? "").trim().slice(0, 30);
+    if (!label) continue;
+    // 同一句話出現兩次是模型偶發的重複，不是兩個選項。
+    const labelKey = label.replace(/\s+/g, "");
+    if (seenLabels.has(labelKey)) continue;
+    seenLabels.add(labelKey);
+
+    const hint = String(raw?.hint ?? "").trim().slice(0, 24) || null;
+    const wantedId = typeof raw?.approachId === "string" ? raw.approachId.trim() : "";
+    const bound = wantedId && !usedApproachIds.has(wantedId) ? byId.get(wantedId) : null;
+
+    if (bound) {
+      usedApproachIds.add(bound.id);
+      options.push({
+        label,
+        hint: hint ?? bound.intent ?? null,
+        requiresCheck: bound.requiresCheck,
+        attribute: bound.attribute,
+        skill: bound.skill,
+        difficulty: bound.difficulty,
+        dc: bound.requiresCheck ? difficultyToDc(bound.difficulty) : null,
+        source: "ai_reference",
+        reference: { sceneId: scene.id, approachId: bound.id, phaseId: bound.phaseId },
+      });
+      continue;
+    }
+
+    // AI 自創的行動。檢定由引擎推論，不是 AI 自己填的——選項卡上顯示的「感知＋偵察」
+    // 才會跟玩家按下去之後真正擲的那一組相同。這是資訊公開的前提：
+    // 公開的數字必須就是實際會用的那一個，否則公開反而是騙人。
+    const inferred = inferCheckParams(label, character ? { character } : {});
+    const requiresCheck = Boolean(inferred?.requiresCheck && inferred?.attribute);
+    options.push({
+      label,
+      hint,
+      requiresCheck,
+      attribute: requiresCheck ? inferred.attribute : null,
+      skill: requiresCheck ? inferred.skill ?? null : null,
+      difficulty: requiresCheck ? dcToDifficulty(inferred.dc) : null,
+      dc: requiresCheck ? inferred.dc ?? null : null,
+      source: "ai_free",
+      reference: null,
+    });
+  }
+  return options;
 }
 
 /** 由 reference event 產生目前能做的簡要選項。順序完全依作者資料，不依骰池排序。 */
@@ -1215,20 +1353,42 @@ export function buildReferencePromptBlock({
     "",
     "可供玩家參考的 approach（不是限制；合理的其他行動可以由 adapter 以最接近的方法裁定）：",
   ];
+  const attemptedApproaches = [];
   for (const { approach } of entries) {
+    const stats = approachAttemptStats(state, scene.id, approach.id);
+    const exhausted = stats.failures >= APPROACH_FAILURE_LIMIT;
+    // 嘗試次數要跟 approach 印在同一行：模型讀到「這一招已經失敗 2 次」才有機會
+    // 換個角度重寫，而不是第三次再端出同一段話（見 approachAttemptStats 的說明）。
+    const history = stats.attempts
+      ? `；玩家已試過 ${stats.attempts} 次（失敗 ${stats.failures} 次）${exhausted ? "，已判定為走不通：不要再把它做成選項，也不要重述前幾次的失敗文字" : "，再寫一次必須換角度、換措辭"}`
+      : "";
+    if (stats.attempts) attemptedApproaches.push(`${approach.label}（${stats.attempts}次）`);
     lines.push(
       `- ${approach.id}：${approach.label}；目的：${approach.intent ?? "推進局面"}；` +
         `${approach.requiresCheck === false ? "無需檢定" : `檢定 ${approach.attribute}+${approach.skill ?? "純屬性"}，難度 ${approach.difficulty}`} ` +
-        `；前置：${JSON.stringify(approach.required ?? {})}`
+        `；前置：${JSON.stringify(approach.required ?? {})}${history}`
     );
+  }
+  if (attemptedApproaches.length) {
+    lines.push(`玩家在這個場景已經試過：${attemptedApproaches.join("、")}。這些嘗試都已經發生過，敘事必須承接它們，不可以寫得像第一次遇到。`);
   }
   if (resolution?.matched && applied) {
     lines.push("", "【這一回合已由 adapter 裁定的 reference 結果】");
     lines.push(`採用方法：${resolution.approach.id}`);
     lines.push(`結果分級：${applied.resultKey}`);
-    lines.push(`固定結果核心：${applied.resultText}`);
+    lines.push(`本回合已定案的事實（素材，不是要你照抄的成品）：${applied.resultText}`);
     lines.push(`已套用狀態效果：${JSON.stringify(applied.effectSummary)}`);
-    lines.push("只能在這些固定結果之上擴寫畫面與對話；不要新增資料中不存在的物品、NPC、真相或狀態效果。若固定結果與玩家輸入的自我宣稱衝突，以固定結果為準。 ");
+    // [2026-09-03] 這一段的措辭是刻意改過的，改動理由值得留下來。
+    //
+    // 舊版寫的是「只能在這些固定結果之上擴寫」，而 turn.js 那時根本沒有把這段送給模型——
+    // 命中 approach 的回合直接把 resultText 逐字印給玩家（canonicalDirectSend）。
+    // 後果在實測劇情包裡看得一清二楚：同一個 approach 失敗三次，玩家連續讀到三段
+    // 逐字相同的文字。現在改成「事實由引擎給、句子由你寫」：
+    //   - 事實不可增刪：不能多一個引擎沒授權的物品／傷勢／旗標，也不能少掉已定案的結果；
+    //   - 句子必須重寫：同一個事實在第二次、第三次發生時要用不同的鏡頭與措辭。
+    // 引擎仍然一個數字都不讓模型碰——effects 早在呼叫模型之前就套用完畢了。
+    lines.push("這段固定結果是**事實清單**，不是要你照抄的成品：請用你自己的文字把它演出來。事實本身不可增刪（不可新增資料中不存在的物品、NPC、真相或狀態效果，也不可略過已定案的結果）；若固定結果與玩家輸入的自我宣稱衝突，以固定結果為準。");
+    lines.push("如果上面標示玩家已經試過這個 approach，這一次的敘事必須明顯不同於前幾次：換鏡頭、換切入點、讓在場 NPC 有新的反應或不耐煩，嚴禁重述同一段話。");
     const majorVariant = narrativeMajorSceneVariant(reference, {
       sceneId: resolution.scene?.id,
       approachId: resolution.approach?.id,
@@ -1281,7 +1441,54 @@ export function buildReferencePromptBlock({
   }
   const npcVoiceBlock = buildNarrativeNpcPromptBlock(reference, state);
   if (npcVoiceBlock) lines.push("", npcVoiceBlock);
+  lines.push("", buildReferenceOptionsSpec(reference, state));
   lines.push("</Reference_Event>");
+  return lines.join("\n");
+}
+
+/**
+ * 要求模型產出「下一步選項」的規格。放在動態層（跟著 <Reference_Event> 一起送）是必然的：
+ * 它列出的 approach id 每一回合都可能不同，寫進 system 會讓整段靜態前綴每回合失效
+ * （見 CLAUDE.md 的 Prompt 快取三層契約）。
+ *
+ * 這裡只描述「怎麼寫」，不描述「怎麼算」：模型挑 approachId、寫 label 與 hint，
+ * 屬性／技能／難度／DC 一律由 bindAiReferenceOptions() 從 reference 資料重建。
+ */
+export function buildReferenceOptionsSpec(reference, state, { count = 4 } = {}) {
+  const { scene, approaches } = listSelectableApproaches(reference, state);
+  const usable = approaches.filter((entry) => !entry.exhausted);
+  const exhausted = approaches.filter((entry) => entry.exhausted);
+  const lines = [
+    "<Next_Options>",
+    `【你還要產出 ${count} 個「下一步」選項】`,
+    "選項的文字由你自己寫——不要照抄下面 approach 的 label，那是給你看的內部資料，不是玩家該讀到的句子。",
+    "每個選項三格：",
+    '- label：玩家會說出口的行動，18 字以內，寫成人話（例如「假裝接受檢疫、退到門邊」），不要寫「進行交涉檢定」這種系統語言。',
+    "- hint：做這件事想得到什麼，14 字以內。不要寫成功率，不要重複 label 的字面。",
+    "- approachId：這個選項對應下面哪一個 approach 的 id；你自己想的新行動填 null。",
+    "",
+    scene ? `這一回合可以綁定的 approach（只有這些 id 有效，填其他 id 會被當成 null 處理）：` : "這一回合沒有可綁定的 approach，全部填 null。",
+    ...usable.map((entry) =>
+      `- ${entry.id}：${entry.intent ?? entry.label}${entry.attempts ? `（玩家已試 ${entry.attempts} 次）` : ""}`
+    ),
+    ...(usable.length ? [] : ["（無）"]),
+  ];
+  if (exhausted.length) {
+    lines.push(
+      "",
+      `已經走不通、禁止再做成選項的 approach：${exhausted.map((entry) => entry.id).join("、")}。`,
+      "玩家已經在這幾招上失敗過了；再端出同一個選項只會讓他重讀同一段失敗。請改成別的角度。",
+    );
+  }
+  lines.push(
+    "",
+    "寫選項時請遵守：",
+    `- ${count} 個選項要是 ${count} 種**不同的解決思路**（正面處理／迂迴／溝通／觀察搜證），不可以是同一件事的不同說法。`,
+    "- 至少 1 個、最多 2 個選項填 null（你自己想的新行動）。全部綁 approach 會讓選單永遠是同一批；全部填 null 則會浪費作者寫好的劇情分支。",
+    "- 玩家上一回合剛失敗過的做法，如果還要再給一次，label 必須換一種切入方式，不可以跟上一回合的選項逐字相同。",
+    "- 局勢變了（NPC 態度、威脅逼近、拿到新線索），選項就要跟著變。選單是這一刻的處境，不是一張固定菜單。",
+    "</Next_Options>",
+  );
   return lines.join("\n");
 }
 
