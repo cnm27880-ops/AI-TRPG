@@ -4197,11 +4197,140 @@ function renderShop() {
     SHOP_VISIBLE_CATEGORIES.has(shopDisplayCategory(s.good)) &&
     shopDisplayCategory(s.good) === shopCategory
   );
+  // 血統現在一條線有 D→S 五級，各自都是獨立商品，攤平了會變成一長串同名的卡片
+  // （「白虎星血統 D級」「白虎星血統 C級」……）。血統這一頁改成依 lineageId 併成
+  // 一張卡，點進去才看到完整的 D→S 切換——其他分類目前還是每個 rank 各一件(見
+  // shopPacks.test.js「這一輪只有血統補完到 D-S」)，維持原本的攤平列表。
+  const shelfHtml =
+    shopCategory === "血統"
+      ? [...groupByLineage(items).entries()]
+          .sort((a, b) => a[1][0].good.name.localeCompare(b[1][0].good.name, "zh-Hant"))
+          .map(([lineageId, ranks]) => bloodlineLineageCardHtml(lineageId, ranks))
+          .join("")
+      : items.map(shopItemHtml).join("");
   document.getElementById("shop-shelf").innerHTML = items.length
-    ? items.map(shopItemHtml).join("")
+    ? shelfHtml
     : `<div class="shop-shelf-empty">「${escapeHtml(shopCategory)}」目前還沒有商品上架，之後會慢慢補進來。</div>`;
 
   renderForms();
+}
+
+// ---------------------------------------------------------------------------
+// 血統合併卡：D→S 五級攤平成一條 lineageId，商店只顯示一張代表卡，
+// 點進去才用 lineageDetailState 在同一個 modal 裡左右切換級數(不重新打API，
+// 五級的資料本來就都在 shopState.shelf 裡)。
+// ---------------------------------------------------------------------------
+
+const RANK_SEQUENCE = ["D", "C", "B", "A", "AA", "S"];
+
+function lineageTitleOf(name) {
+  return String(name ?? "").replace(/\s+(D|C|B|A|AA|S)級[:：].*$/, "").trim() || String(name ?? "");
+}
+
+function ownedGoodIdSet() {
+  return new Set((shopState?.owned ?? []).map((o) => o.goodId));
+}
+
+function groupByLineage(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const lineageId = item.good?.lineageId;
+    if (!lineageId) continue;
+    if (!groups.has(lineageId)) groups.set(lineageId, []);
+    groups.get(lineageId).push(item);
+  }
+  for (const ranks of groups.values()) {
+    ranks.sort((a, b) => RANK_SEQUENCE.indexOf(a.good.rank) - RANK_SEQUENCE.indexOf(b.good.rank));
+  }
+  return groups;
+}
+
+/** 這條血統要在合併卡上代表出場的那一級：第一個還沒買的，全買完了就秀最高級。 */
+function representativeRankIndex(ranks, ownedIds) {
+  const idx = ranks.findIndex((r) => !ownedIds.has(r.good.goodId));
+  return idx === -1 ? ranks.length - 1 : idx;
+}
+
+function bloodlineLineageCardHtml(lineageId, ranks) {
+  const ownedIds = ownedGoodIdSet();
+  const repIdx = representativeRankIndex(ranks, ownedIds);
+  const rep = ranks[repIdx];
+  const good = rep.good;
+  const title = lineageTitleOf(good.name);
+  const ownedCount = ranks.filter((r) => ownedIds.has(r.good.goodId)).length;
+  const fullyOwned = ownedCount === ranks.length;
+
+  const pips = ranks
+    .map((r) => {
+      const accent = SHOP_RANK_META[r.good.rank]?.accent ?? "zinc";
+      const owned = ownedIds.has(r.good.goodId);
+      return `<span class="shop-lineage-pip shop-rank-${accent} ${owned ? "is-owned" : ""}" title="${escapeHtml(r.good.rank)}級：${escapeHtml(r.good.name)}">${escapeHtml(r.good.rank)}</span>`;
+    })
+    .join("");
+
+  const border = rep.status === "掛名"
+    ? "border-zinc-700/60 bg-zinc-950/40"
+    : rep.purchasable
+    ? "border-emerald-500/30 bg-emerald-500/[0.04]"
+    : "hairline-border bg-panel";
+
+  const priceLine = fullyOwned
+    ? `<span class="text-emerald-300/90"><i class="fas fa-check"></i> 已修至頂級</span>`
+    : `<span>下一級 ${escapeHtml(rep.good.rank)}：${escapeHtml(rep.price)}</span>`;
+
+  return `
+    <div class="shop-item-card shop-item-card-clickable border ${border}" data-lineage-detail="${escapeHtml(lineageId)}" data-lineage-start="${escapeHtml(good.goodId)}" role="button" tabindex="0" aria-label="查看${escapeHtml(title)}的完整 D 到 S 級數">
+      <div class="shop-item-cat-icon shop-item-cat-rose" title="血統"><i class="fas fa-dna"></i></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs font-bold text-zinc-100">${escapeHtml(title)}</span>
+          ${ownedCount > 0 ? `<span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-200">已持有${ownedCount}級</span>` : ""}
+        </div>
+        <div class="text-[11px] font-mono text-amber-300/90 mt-0.5">${priceLine}</div>
+        <div class="shop-lineage-rank-row mt-1.5">${pips}</div>
+        <div class="shop-item-detail-hint"><i class="fas fa-expand-alt"></i> 點擊預覽 D→S 全部型態</div>
+      </div>
+    </div>`;
+}
+
+let lineageDetailState = null; // { lineageId, ranks: [storefront item, ...], index }
+
+function openLineageDetail(lineageId, startGoodId) {
+  const ranks = (shopState?.shelf ?? [])
+    .filter((s) => s.good?.lineageId === lineageId)
+    .sort((a, b) => RANK_SEQUENCE.indexOf(a.good.rank) - RANK_SEQUENCE.indexOf(b.good.rank));
+  if (!ranks.length) return;
+  const found = ranks.findIndex((r) => r.good.goodId === startGoodId);
+  lineageDetailState = { lineageId, ranks, index: found === -1 ? 0 : found };
+  renderLineageDetail();
+  openModal("bloodlineDetailModal");
+}
+
+function renderLineageDetail() {
+  if (!lineageDetailState) return;
+  const content = document.getElementById("bloodline-detail-content");
+  if (!content) return;
+  const { ranks, index } = lineageDetailState;
+  const item = ranks[index];
+  const ownedIds = ownedGoodIdSet();
+
+  const switcher = `
+    <div class="lineage-rank-switcher">
+      <button type="button" class="lineage-rank-nav" data-rank-nav="prev" ${index === 0 ? "disabled" : ""} aria-label="上一級"><i class="fas fa-chevron-left"></i></button>
+      <div class="lineage-rank-pips">
+        ${ranks
+          .map((r, i) => {
+            const accent = SHOP_RANK_META[r.good.rank]?.accent ?? "zinc";
+            const active = i === index;
+            const owned = ownedIds.has(r.good.goodId);
+            return `<button type="button" class="lineage-rank-pip shop-rank-${accent} ${active ? "is-active" : ""} ${owned ? "is-owned" : ""}" data-rank-jump="${i}" aria-label="切換到${escapeHtml(r.good.rank)}級">${escapeHtml(r.good.rank)}</button>`;
+          })
+          .join("")}
+      </div>
+      <button type="button" class="lineage-rank-nav" data-rank-nav="next" ${index === ranks.length - 1 ? "disabled" : ""} aria-label="下一級"><i class="fas fa-chevron-right"></i></button>
+    </div>`;
+
+  content.innerHTML = switcher + bloodlineDetailHtml(item);
 }
 
 // ---------------------------------------------------------------------------
@@ -4437,6 +4566,9 @@ function bloodlineDetailHtml(item) {
 }
 
 function openBloodlineDetail(goodId) {
+  // 非血統分類(瞳術/稱號/技藝/…)還是每個 rank 各一件獨立商品，走原本的單件詳情，
+  // 不套用血統的等級切換列。
+  lineageDetailState = null;
   const item = shopState?.shelf?.find((entry) => entry.good?.goodId === goodId);
   if (!item) return;
   const content = document.getElementById("bloodline-detail-content");
@@ -4535,6 +4667,13 @@ async function buyGood(goodId) {
     }
     shopState = res;
     renderShop();
+    // 如果是在血統的等級切換modal裡按下兌換，shopState整包換新了，
+    // 舊的 lineageDetailState.ranks 還指著換掉之前的 storefront item——
+    // 重新從新的 shopState 找一次同一條 lineage，並停在剛買的那一級，
+    // 這樣 modal 不用關掉重開，pip 的「已持有」狀態也會馬上跟著變。
+    if (lineageDetailState) {
+      openLineageDetail(lineageDetailState.lineageId, goodId);
+    }
     toast.className = "px-4 py-2 text-[11px] font-mono shrink-0 hairline-t text-emerald-300 bg-emerald-500/10";
     toast.textContent = `已兌換「${res.receipt.name}」，付出 ${res.receipt.pricePaid}`;
     // 買到的東西會改角色卡（屬性/技能/生命上限），側邊欄要跟著更新
@@ -4567,6 +4706,30 @@ document.addEventListener("click", (e) => {
     openBloodlineDetail(detail.getAttribute("data-shop-detail"));
     return;
   }
+  const lineageDetail = e.target.closest("[data-lineage-detail]");
+  if (lineageDetail) {
+    openLineageDetail(lineageDetail.getAttribute("data-lineage-detail"), lineageDetail.getAttribute("data-lineage-start"));
+    return;
+  }
+  const rankNav = e.target.closest("[data-rank-nav]");
+  if (rankNav && !rankNav.disabled && lineageDetailState) {
+    const step = rankNav.getAttribute("data-rank-nav") === "prev" ? -1 : 1;
+    const next = lineageDetailState.index + step;
+    if (next >= 0 && next < lineageDetailState.ranks.length) {
+      lineageDetailState.index = next;
+      renderLineageDetail();
+    }
+    return;
+  }
+  const rankJump = e.target.closest("[data-rank-jump]");
+  if (rankJump && lineageDetailState) {
+    const idx = Number(rankJump.getAttribute("data-rank-jump"));
+    if (Number.isInteger(idx) && idx >= 0 && idx < lineageDetailState.ranks.length) {
+      lineageDetailState.index = idx;
+      renderLineageDetail();
+    }
+    return;
+  }
   const form = e.target.closest("[data-form-toggle]");
   if (form) toggleForm(form.getAttribute("data-form-toggle"), form.getAttribute("data-form-action"));
 });
@@ -4574,9 +4737,16 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Enter" && e.key !== " ") return;
   const detail = e.target.closest?.("[data-shop-detail]");
-  if (!detail || e.target.closest("button, a")) return;
-  e.preventDefault();
-  openBloodlineDetail(detail.getAttribute("data-shop-detail"));
+  if (detail && !e.target.closest("button, a")) {
+    e.preventDefault();
+    openBloodlineDetail(detail.getAttribute("data-shop-detail"));
+    return;
+  }
+  const lineageDetail = e.target.closest?.("[data-lineage-detail]");
+  if (lineageDetail && !e.target.closest("button, a")) {
+    e.preventDefault();
+    openLineageDetail(lineageDetail.getAttribute("data-lineage-detail"), lineageDetail.getAttribute("data-lineage-start"));
+  }
 });
 
 // 「輪迴者檔案」清單裡的「接續」與「刪除」。

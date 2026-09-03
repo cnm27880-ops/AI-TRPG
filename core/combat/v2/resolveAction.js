@@ -20,6 +20,7 @@ import {
   getStatus,
   hasStatus,
   isDown,
+  livePlayerCombatProfile,
   publicHealthTier,
   removeStatus,
   setRange,
@@ -107,8 +108,17 @@ export function performAttack({ battle, attacker, defender, weapon, rng, extraBo
         0,
         Math.max(defender.skills?.格鬥 ?? 0, defender.skills?.體魄 ?? 0) - defenseReduction
       ),
-      equipmentDefense: (defender.combatProfile?.equipmentDefense ?? 0) + defenseBonusOf(defender),
-      armor: defender.armor ?? 0,
+      // 玩家的護甲/防御現查(見 livePlayerCombatProfile 的接線缺口說明)——敵人沒有型態，
+      // 一路都是樣板上的靜態數值，繼續讀 defender.combatProfile/defender.armor 就好。
+      ...(defender.id === "player"
+        ? (() => {
+            const live = livePlayerCombatProfile(battle);
+            return { equipmentDefense: live.equipmentDefense + defenseBonusOf(defender), armor: live.armor };
+          })()
+        : {
+            equipmentDefense: (defender.combatProfile?.equipmentDefense ?? 0) + defenseBonusOf(defender),
+            armor: defender.armor ?? 0,
+          }),
     },
     defenderHpState: defender.hpState,
     severity: weapon.severity ?? "B",

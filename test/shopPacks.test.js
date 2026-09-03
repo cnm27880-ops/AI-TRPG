@@ -21,7 +21,7 @@ import {
 } from "../content/shop/catalog.js";
 import { parsePrice } from "../content/shop/wallet.js";
 import { featCost } from "../core/xp.js";
-import { emptyCharacter } from "../core/schema.js";
+import { emptyCharacter, SKILLS } from "../core/schema.js";
 import { createWallet } from "../content/shop/wallet.js";
 import { purchase, evaluatePurchase, buildStorefront, summarizeStorefront } from "../content/shop/catalog.js";
 import { weaponsFrom, checkModifiersFor, combatProfileFrom, attackModifiersFor, effectiveSpellPower } from "../content/shop/effects.js";
@@ -289,7 +289,9 @@ test("七個模板化資源分類，每一類的起始貨架都有3件商品(能
       counts[good.resourceType] = (counts[good.resourceType] ?? 0) + 1;
     }
   }
-  for (const type of 分類) { if(type === "血統") { assert.equal(counts[type] || 0, 11); } else { assert.equal(counts[type] || 0, 3); } }
+  // [2026-09-03] 血統從「11 條各一件 D 級」補完成「11 條各五件 D→S」，
+  // 見 content/packs/d-tier-rebalanced-bloodlines.json 的 pack.note。
+  for (const type of 分類) { if(type === "血統") { assert.equal(counts[type] || 0, 55); } else { assert.equal(counts[type] || 0, 3); } }
 });
 
 test("能量池來源包裡的條目，每一件都真的開得出一個登錄過關鍵屬性的池子", () => {
@@ -305,13 +307,20 @@ test("能量池來源包裡的條目，每一件都真的開得出一個登錄�
   }
 });
 
-test("這一輪不放 D 級以上的商品：所有商品的 rank 只會是 D 或無分級", () => {
+test("這一輪只有血統補完到 D-S，其餘模板能力分類仍然只放 D 級或無分級", () => {
+  // [2026-09-03 放寬] 血統在使用者要求下補完了完整的 D→C→B→A→S(見 pack.note)，
+  // 其餘六個模板化分類(改造/瞳術/稱號/流派/技藝/法術)這一輪沒有動，仍然守著
+  // 「只放 D 級，更高級數只登錄名字」的舊規格。
   for (const good of allGoods) {
     if (good.rank == null) continue;
+    if (good.resourceType === "血統") {
+      assert.ok(RANK_ORDER.includes(good.rank), `${good.name} 的 rank「${good.rank}」不合法`);
+      continue;
+    }
     assert.equal(
       good.rank,
       "D",
-      `${good.name} 的 rank 是 ${good.rank}——使用者明確要求這一輪只放到 D 級，更高的級數只登錄名字`
+      `${good.name} 的 rank 是 ${good.rank}——除了血統以外，這一輪其餘分類只放到 D 級，更高的級數只登錄名字`
     );
   }
 });
@@ -478,9 +487,17 @@ test("貨架上的每一個型態都啟動得起來，而且啟動後真的改�
       const profileChanged =
         JSON.stringify(combatProfileFrom(owner)) !== JSON.stringify(combatProfileFrom(owner, { extraSources }));
       const weaponsChanged = weaponsFrom(owner, { extraSources }).length > weaponsFrom(owner).length;
-      const checkChanged = ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
-        (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
-      );
+      // 檢定類的匹配鍵可以是屬性也可以是技能(見 effects.js 的 matchAttributes/matchSkills)，
+      // 兩邊都要問一次——只問屬性會漏掉「秘識檢定加骰」這種純技能匹配的型態授予，
+      // 那種型態會被誤判成「啟動了但什麼都沒變」。
+      const checkChanged =
+        ["力量", "敏捷", "耐力", "智力", "感知", "意志"].some(
+          (attribute) => checkModifiersFor(owner, { attribute }, { extraSources }).dp !== checkModifiersFor(owner, { attribute }).dp
+        ) ||
+        Object.values(SKILLS).flat().some(
+          (skill) => checkModifiersFor(owner, { skill }, { extraSources }).dp !== checkModifiersFor(owner, { skill }).dp ||
+            checkModifiersFor(owner, { skill }, { extraSources }).bonusSuccesses !== checkModifiersFor(owner, { skill }).bonusSuccesses
+        );
       // 攻擊路徑是獨立的一條(scope:"攻擊" 的效果只在這裡生效)，所以也要問一次
       const attackChanged = Object.keys(ATTACK_CHECK_KEYS).some((attackType) => {
         const before = attackModifiersFor(owner, attackType);

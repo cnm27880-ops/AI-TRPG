@@ -1,13 +1,14 @@
 {
-  "id": "bloodline-d-tier-rebalanced-v1",
+  "id": "bloodline-full-ladder-v1",
   "type": "商品",
-  "version": "1.0.0",
-  "schemaVersion": "bloodline-d-tier-rebalanced-v1",
-  "packId": "bloodline-d-tier-rebalanced-v1",
+  "version": "2.0.0",
+  "schemaVersion": "bloodline-full-ladder-v1",
+  "packId": "bloodline-full-ladder-v1",
   "status": "上架",
   "candidateOnly": false,
   "runtimeImported": true,
   "sourceDraft": "bloodline-rebalanced-draft-v1",
+  "note": "[2026-09-03 重新設計] 11 個血統的完整 D→C→B→A→S 全數補完(跳過AA，依使用者指示)。上一版只轉出 D 級，而且全部只用『屬性點包＋檢定加骰＋生命上限/護甲』四種效果，11 個血統的機制外觀完全相同，只差挑哪兩個技能——這一版的目的是讓每個血統有自己的機制手感(常態技能型／型態爆發型／能量池可變量型／維持成本型／modes二選一型)，同時把每一級的『加值量』盡量對齊，不讓 11 條血統彼此強弱差太多。型態(S級)的 grants 刻意只用「檢定加骰／附加成功／武器／法術增幅」，護甲／防御刻意不用——當初設計時 Combat V2 的 combatProfileFrom() 只在 startBattleV2() 算一次快照，戰鬥中途啟動的型態授予護甲/防御/天生武器都不會真的生效。[2026-09-03 後續修正] 這個接線缺口已經在 core/combat/v2/battleState.js 補上 livePlayerCombatProfile()(護甲/防御現查，不吃快照)，順便補了另一個對稱的缺口：型態到期時 battle.loadout 沒有跟著重建，型態授予的武器會變成到期後還按得到的永久武器，兩個缺口都各自有 test/combatV2Forms.test.js 的回歸測試守住。護甲/防御現在已經可以安全放進型態，這裡沒有回頭把已上架的 11 條血統改成用它——先攻(initiativeBonus)仍然只適合放常態效果，因為先攻只在開戰時 rollBattleInitiative() 排一次序，型態中途授予不會重新排。",
   "entries": [
     {
       "goodId": "bloodline.rebalanced.martial_arts_prodigy.D",
@@ -21,7 +22,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -37,14 +38,169 @@
         },
         {
           "kind": "檢定加骰",
-          "skill": "求生",
-          "amount": 1
+          "amount": 1,
+          "skill": "求生"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.martial_arts_prodigy.C",
+      "name": "萬中無一的武學奇才 C級：入門武者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.martial_arts_prodigy",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "生命上限+2(累計4)",
+        "格鬥檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "格鬥"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.martial_arts_prodigy.B",
+      "name": "萬中無一的武學奇才 B級：武道行者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.martial_arts_prodigy",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "格鬥攻擊附加成功+1",
+        "求生檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "求生"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.martial_arts_prodigy.A",
+      "name": "萬中無一的武學奇才 A級：一流高手",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.martial_arts_prodigy",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "天生武學拳勁(3L肉搏)",
+        "格鬥攻擊附加成功+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "武器",
+          "label": "武學拳勁",
+          "attackType": "肉搏",
+          "weaponDamage": 3,
+          "severity": "L",
+          "ranged": false
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.martial_arts_prodigy.S",
+      "name": "萬中無一的武學奇才 S級：天下無雙",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.martial_arts_prodigy",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「破限拳意」：標準動作+2意志力，撐2輪，格鬥檢定加骰+2、格鬥攻擊附加成功+2"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "破限拳意",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 2
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 2,
+              "skill": "格鬥",
+              "scope": "檢定"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 2,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     },
     {
       "goodId": "bloodline.rebalanced.coordinator.D",
-      "name": "調整者 D級：初代調整者",
+      "name": "調整者Coordinator D級：初代調整者",
       "category": "模板能力",
       "resourceType": "血統",
       "exclusiveGroup": "血統",
@@ -54,7 +210,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -70,13 +226,164 @@
         },
         {
           "kind": "檢定加骰",
-          "skill": "醫療",
+          "amount": 1,
+          "skill": "醫療"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.coordinator.C",
+      "name": "調整者Coordinator C級：二代調整者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.coordinator",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "先攻+1",
+        "醫療檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "先攻",
+          "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "醫療"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.coordinator.B",
+      "name": "調整者Coordinator B級：三代調整者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.coordinator",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "先攻+1(累計2)",
+        "意志上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "先攻",
+          "amount": 1
+        },
+        {
+          "kind": "意志上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.coordinator.A",
+      "name": "調整者Coordinator A級：超級調整者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.coordinator",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "醫療檢定加骰+2(累計4)",
+        "先攻+1(累計3)"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 2,
+          "skill": "醫療"
+        },
+        {
+          "kind": "先攻",
           "amount": 1
         }
       ]
     },
     {
-      "goodId": "bloodline.rebalanced.allance_citizen.D",
+      "goodId": "bloodline.rebalanced.coordinator.S",
+      "name": "調整者Coordinator S級：完美調整者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.coordinator",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「基因鎖解放」：迅捷動作+2意志力，撐3輪，生理系屬性(力量/敏捷/耐力)檢定加骰+2、格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "基因鎖解放",
+          "activation": {
+            "action": "迅捷",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 3
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 2,
+              "attributes": [
+                "力量",
+                "敏捷",
+                "耐力"
+              ],
+              "scope": "全部"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance.D",
       "name": "阿蘭斯血統 D級：帝國公民",
       "category": "模板能力",
       "resourceType": "血統",
@@ -87,7 +394,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -99,13 +406,165 @@
       "effects": [
         {
           "kind": "檢定加骰",
-          "skill": "技藝",
-          "amount": 1
+          "amount": 1,
+          "skill": "技藝"
         },
         {
           "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "交涉"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance.C",
+      "name": "阿蘭斯血統 C級：古代阿蘭斯人",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.allance",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "技藝檢定加骰+1(累計2)",
+        "意志上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "技藝"
+        },
+        {
+          "kind": "意志上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance.B",
+      "name": "阿蘭斯血統 B級：遠古阿蘭斯人",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.allance",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "交涉檢定加骰+1(累計2)",
+        "交涉附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "交涉"
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
           "skill": "交涉",
-          "amount": 1
+          "scope": "檢定"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance.A",
+      "name": "阿蘭斯血統 A級：阿蘭斯士兵",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.allance",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "防御+2",
+        "技藝檢定加骰+1(累計3)"
+      ],
+      "effects": [
+        {
+          "kind": "防御",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "技藝"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.allance.S",
+      "name": "阿蘭斯血統 S級：戰爭之影",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.allance",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「戰爭之影」：標準動作+2意志力，撐2輪，召喚帝國制式劍(3L肉搏)、格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "戰爭之影",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 2
+          },
+          "grants": [
+            {
+              "kind": "武器",
+              "label": "帝國制式劍",
+              "attackType": "肉搏",
+              "weaponDamage": 3,
+              "severity": "L",
+              "ranged": false
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     },
@@ -121,27 +580,179 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
       },
       "traits": [
-        "天生武器",
-        "護甲+1"
+        "天生武器：白虎爪(2L肉搏)",
+        "偵察檢定加骰+1(靈獸感官)"
       ],
       "effects": [
         {
           "kind": "武器",
           "label": "白虎爪",
           "attackType": "肉搏",
-          "weaponDamage": 1,
-          "severity": "B",
+          "weaponDamage": 2,
+          "severity": "L",
           "ranged": false
         },
         {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "偵察"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.white_tiger.C",
+      "name": "白虎星血統 C級：白虎行者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.white_tiger",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "護甲+1",
+        "偵察檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
           "kind": "護甲",
           "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "偵察"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.white_tiger.B",
+      "name": "白虎星血統 B級：白虎武者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.white_tiger",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "格鬥攻擊附加成功+1(征伐之心)",
+        "格鬥檢定加骰+1"
+      ],
+      "effects": [
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "格鬥"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.white_tiger.A",
+      "name": "白虎星血統 A級：白虎尊者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.white_tiger",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "護甲+1(累計2)",
+        "格鬥攻擊附加成功+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
+          "amount": 1
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.white_tiger.S",
+      "name": "白虎星血統 S級：白虎顯真",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.white_tiger",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「白虎顯真」：標準動作+2意志力，撐2輪，格鬥檢定加骰+3、格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "白虎顯真",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 2
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 3,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     },
@@ -157,7 +768,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -173,8 +784,157 @@
         },
         {
           "kind": "檢定加骰",
-          "skill": "體魄",
+          "amount": 1,
+          "skill": "體魄"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.ancient_sacred_body.C",
+      "name": "荒古聖體 C級：脫胎",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.ancient_sacred_body",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "生命上限+2(累計4)",
+        "護甲+1"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "護甲",
           "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.ancient_sacred_body.B",
+      "name": "荒古聖體 B級：換骨",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.ancient_sacred_body",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "生命上限+2(累計6)",
+        "體魄檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "生命上限",
+          "amount": 2
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "體魄"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.ancient_sacred_body.A",
+      "name": "荒古聖體 A級：洗髓",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.ancient_sacred_body",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "護甲+1(累計2)",
+        "生命上限+2(累計8)"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
+          "amount": 1
+        },
+        {
+          "kind": "生命上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.ancient_sacred_body.S",
+      "name": "荒古聖體 S級：聖體顯世",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.ancient_sacred_body",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「聖體顯世」：標準動作+2意志力，撐3輪，力量/耐力檢定加骰+2、肉搏攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "聖體顯世",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 3
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 2,
+              "attributes": [
+                "力量",
+                "耐力"
+              ],
+              "scope": "全部"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     },
@@ -190,7 +950,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -202,13 +962,171 @@
       "effects": [
         {
           "kind": "檢定加骰",
-          "skill": "秘識",
+          "amount": 1,
+          "skill": "秘識"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "技藝"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.crimson_demon.C",
+      "name": "紅魔族 C級：紅魔法師",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.crimson_demon",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "法術增幅+1",
+        "意志上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "法術增幅",
+          "amount": 1
+        },
+        {
+          "kind": "意志上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.crimson_demon.B",
+      "name": "紅魔族 B級：紅魔賢者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.crimson_demon",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "法術增幅+1(累計2)",
+        "秘識檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "法術增幅",
           "amount": 1
         },
         {
           "kind": "檢定加骰",
-          "skill": "技藝",
+          "amount": 1,
+          "skill": "秘識"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.crimson_demon.A",
+      "name": "紅魔族 A級：紅魔大賢者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.crimson_demon",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "意志上限+2(累計4)",
+        "法術增幅+1(累計3)"
+      ],
+      "effects": [
+        {
+          "kind": "意志上限",
+          "amount": 2
+        },
+        {
+          "kind": "法術增幅",
           "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.crimson_demon.S",
+      "name": "紅魔族 S級：爆裂之心",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.crimson_demon",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「爆裂之心」：標準動作+2意志力，撐1輪，啟動時二選一——爆裂(秘識附加成功+2)或詠唱(秘識檢定加骰+3)"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "爆裂之心",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 1
+          },
+          "modes": [
+            {
+              "key": "爆裂",
+              "label": "爆裂",
+              "grants": [
+                {
+                  "kind": "附加成功",
+                  "amount": 2,
+                  "skill": "秘識",
+                  "scope": "檢定"
+                }
+              ]
+            },
+            {
+              "key": "詠唱",
+              "label": "詠唱",
+              "grants": [
+                {
+                  "kind": "檢定加骰",
+                  "amount": 3,
+                  "skill": "秘識",
+                  "scope": "檢定"
+                }
+              ]
+            }
+          ]
         }
       ]
     },
@@ -224,7 +1142,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -236,13 +1154,160 @@
       "effects": [
         {
           "kind": "檢定加骰",
-          "skill": "偵察",
+          "amount": 1,
+          "skill": "偵察"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "求生"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.wisewolf.C",
+      "name": "賢狼變化 C級：森之狼",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.wisewolf",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "先攻+1",
+        "求生檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "先攻",
           "amount": 1
         },
         {
           "kind": "檢定加骰",
-          "skill": "求生",
+          "amount": 1,
+          "skill": "求生"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.wisewolf.B",
+      "name": "賢狼變化 B級：賢狼",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.wisewolf",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "偵察檢定加骰+1(累計2)",
+        "格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "偵察"
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.wisewolf.A",
+      "name": "賢狼變化 A級：古狼",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.wisewolf",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "先攻+1(累計2)",
+        "求生檢定加骰+1(累計3)"
+      ],
+      "effects": [
+        {
+          "kind": "先攻",
           "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "求生"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.wisewolf.S",
+      "name": "賢狼變化 S級：森之守望者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.wisewolf",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「森之守望」：迅捷動作+1意志力，撐3輪，敏捷/感知檢定加骰+2"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "森之守望",
+          "activation": {
+            "action": "迅捷",
+            "willpower": 1
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 3
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 2,
+              "attributes": [
+                "敏捷",
+                "感知"
+              ],
+              "scope": "全部"
+            }
+          ]
         }
       ]
     },
@@ -258,7 +1323,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -274,8 +1339,157 @@
         },
         {
           "kind": "檢定加骰",
-          "skill": "格鬥",
+          "amount": 1,
+          "skill": "格鬥"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.garuda.C",
+      "name": "迦樓羅血統 C級：迦樓羅之翼",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.garuda",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "護甲+1",
+        "意志上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
           "amount": 1
+        },
+        {
+          "kind": "意志上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.garuda.B",
+      "name": "迦樓羅血統 B級：迦樓羅之魂",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.garuda",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "格鬥攻擊附加成功+1(迦樓羅之魂)",
+        "護甲+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        },
+        {
+          "kind": "護甲",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.garuda.A",
+      "name": "迦樓羅血統 A級：迦樓羅之佑",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.garuda",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "意志上限+2(累計4)",
+        "格鬥攻擊附加成功+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "意志上限",
+          "amount": 2
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.garuda.S",
+      "name": "迦樓羅血統 S級：迦樓羅顯羽",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.garuda",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「迦樓羅顯羽」：標準動作+2意志力，撐2輪，格鬥檢定加骰+3、格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "迦樓羅顯羽",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 2
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 3,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     },
@@ -291,7 +1505,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -303,13 +1517,162 @@
       "effects": [
         {
           "kind": "檢定加骰",
-          "attribute": "意志",
-          "amount": 1
+          "amount": 1,
+          "attribute": "意志"
         },
         {
           "kind": "檢定加骰",
-          "skill": "秘識",
-          "amount": 1
+          "amount": 1,
+          "skill": "秘識"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.holy_gem.C",
+      "name": "聖寶石體質 C級：共鳴",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.holy_gem",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "能量池：以內力運作的寶石之光",
+        "秘識檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "能量池",
+          "pool": "內力"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "秘識"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.holy_gem.B",
+      "name": "聖寶石體質 B級：融合",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.holy_gem",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "秘識檢定加骰+1(累計3)",
+        "意志上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "秘識"
+        },
+        {
+          "kind": "意志上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.holy_gem.A",
+      "name": "聖寶石體質 A級：覺醒",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.holy_gem",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "意志檢定加骰+1(累計2)",
+        "秘識檢定加骰+1(累計4)"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "attribute": "意志"
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "秘識"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.holy_gem.S",
+      "name": "聖寶石體質 S級：寶石顯世",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.holy_gem",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「寶石顯世」：迅捷動作，支付1～意志值點內力，每點秘識檢定加骰+1，撐3輪"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "寶石顯世",
+          "activation": {
+            "action": "迅捷",
+            "poolVariable": {
+              "name": "內力",
+              "min": 1,
+              "maxFromAttributes": [
+                "意志"
+              ]
+            }
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 3
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amountPerPoint": 1,
+              "skill": "秘識",
+              "scope": "檢定"
+            }
+          ]
         }
       ]
     },
@@ -325,7 +1688,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -337,13 +1700,163 @@
       "effects": [
         {
           "kind": "檢定加骰",
-          "skill": "潛行",
-          "amount": 1
+          "amount": 1,
+          "skill": "潛行"
         },
         {
           "kind": "檢定加骰",
-          "skill": "醫療",
+          "amount": 1,
+          "skill": "醫療"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.fungus_lord.C",
+      "name": "毒茸之侵略者 C級：孢子擴散",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.fungus_lord",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "潛行檢定加骰+1(累計2)",
+        "生命上限+2"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "潛行"
+        },
+        {
+          "kind": "生命上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.fungus_lord.B",
+      "name": "毒茸之侵略者 B級：菌絲蔓延",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.fungus_lord",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "醫療檢定加骰+1(累計2)",
+        "護甲+1"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "醫療"
+        },
+        {
+          "kind": "護甲",
           "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.fungus_lord.A",
+      "name": "毒茸之侵略者 A級：森林支配者",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.fungus_lord",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "護甲+1(累計2)",
+        "生命上限+2(累計4)"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
+          "amount": 1
+        },
+        {
+          "kind": "生命上限",
+          "amount": 2
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.fungus_lord.S",
+      "name": "毒茸之侵略者 S級：孢子共生",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.fungus_lord",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「孢子共生」：迅捷動作+1意志力啟動，之後每輪維持1點意志力，付不出來當場解除，期間潛行/醫療檢定加骰+3"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "孢子共生",
+          "activation": {
+            "action": "迅捷",
+            "willpower": 1
+          },
+          "duration": {
+            "unit": "輪",
+            "untilUpkeepFails": true
+          },
+          "upkeep": {
+            "willpower": 1
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 3,
+              "skill": "潛行",
+              "scope": "檢定"
+            },
+            {
+              "kind": "檢定加骰",
+              "amount": 3,
+              "skill": "醫療",
+              "scope": "檢定"
+            }
+          ]
         }
       ]
     },
@@ -359,7 +1872,7 @@
       "status": "上架",
       "price": "D+600",
       "consumable": false,
-      "sourceRef": "rules-2.35.txt 第0行",
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
       "attributePool": {
         "points": 4,
         "capPerAttribute": 2
@@ -375,8 +1888,159 @@
         },
         {
           "kind": "檢定加骰",
-          "skill": "體魄",
+          "amount": 1,
+          "skill": "體魄"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.saiyan.C",
+      "name": "賽亞人血統 C級：中級戰士",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.saiyan",
+      "pathId": "default",
+      "rank": "C",
+      "status": "上架",
+      "price": "C+1200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 6,
+        "capPerAttribute": 3
+      },
+      "traits": [
+        "護甲+1(累計2)",
+        "體魄檢定加骰+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "護甲",
           "amount": 1
+        },
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "體魄"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.saiyan.B",
+      "name": "賽亞人血統 B級：上級戰士",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.saiyan",
+      "pathId": "default",
+      "rank": "B",
+      "status": "上架",
+      "price": "B+3600",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 8,
+        "capPerAttribute": 4
+      },
+      "traits": [
+        "格鬥攻擊附加成功+1",
+        "護甲+1(累計3)"
+      ],
+      "effects": [
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        },
+        {
+          "kind": "護甲",
+          "amount": 1
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.saiyan.A",
+      "name": "賽亞人血統 A級：精英戰士",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.saiyan",
+      "pathId": "default",
+      "rank": "A",
+      "status": "上架",
+      "price": "A+7200",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 12,
+        "capPerAttribute": 6
+      },
+      "traits": [
+        "體魄檢定加骰+1(累計3)",
+        "格鬥攻擊附加成功+1(累計2)"
+      ],
+      "effects": [
+        {
+          "kind": "檢定加骰",
+          "amount": 1,
+          "skill": "體魄"
+        },
+        {
+          "kind": "附加成功",
+          "amount": 1,
+          "skill": "格鬥",
+          "scope": "攻擊"
+        }
+      ]
+    },
+    {
+      "goodId": "bloodline.rebalanced.saiyan.S",
+      "name": "賽亞人血統 S級：界限突破",
+      "category": "模板能力",
+      "resourceType": "血統",
+      "exclusiveGroup": "血統",
+      "lineageId": "bloodline.saiyan",
+      "pathId": "default",
+      "rank": "S",
+      "status": "上架",
+      "price": "S+14400",
+      "consumable": false,
+      "sourceRef": "rules-2.35.txt 第0行(2026-09-03 重新設計：D-S五級全數原創補完，理由與各級 conversionNote 並列)",
+      "attributePool": {
+        "points": 24,
+        "capPerAttribute": 8
+      },
+      "traits": [
+        "型態「界限突破」：標準動作+2意志力，撐3輪，格鬥檢定加骰+3、格鬥攻擊附加成功+1"
+      ],
+      "effects": [
+        {
+          "kind": "型態",
+          "label": "界限突破",
+          "activation": {
+            "action": "標準",
+            "willpower": 2
+          },
+          "duration": {
+            "unit": "輪",
+            "rounds": 3
+          },
+          "grants": [
+            {
+              "kind": "檢定加骰",
+              "amount": 3,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            },
+            {
+              "kind": "附加成功",
+              "amount": 1,
+              "skill": "格鬥",
+              "scope": "攻擊"
+            }
+          ]
         }
       ]
     }

@@ -12,7 +12,15 @@ import { createActionBudget } from "./actionBudget.js";
 import { COMBAT_RANGES, isValidRange, rangeKey } from "./range.js";
 import { rollBattleInitiative } from "./initiative.js";
 import { createRng, createSeed } from "./rng.js";
-import { createFormsState, endCombat as endCombatForms, payUpkeep, tickFormsOnRound } from "../../../content/shop/forms.js";
+import {
+  activeGrantSources,
+  createFormsState,
+  endCombat as endCombatForms,
+  payUpkeep,
+  tickFormsOnRound,
+} from "../../../content/shop/forms.js";
+import { combatProfileFrom } from "../../../content/shop/effects.js";
+import { rebuildWeapons } from "../../../content/combat/v2/loadout.js";
 import { ACTION_TYPE_LABELS, fromLegacyActionLevel } from "./actionTypes.js";
 import { spendAction } from "./actionBudget.js";
 
@@ -182,6 +190,39 @@ export function getParticipant(battle, id) {
 
 export function playerOf(battle) {
   return getParticipant(battle, "player");
+}
+
+/**
+ * 玩家目前真正的護甲／防御(equipmentDefense)。
+ *
+ * [2026-09-03 補接線缺口] `player.combatProfile`／`player.armor` 是 createBattle() 在
+ * 開戰當下算一次就寫死的快照——之後型態在戰鬥中途授予的護甲/防御，如果一路只讀這份
+ * 快照就永遠不會生效，因為沒有任何地方會在型態啟動/到期時回頭改寫它。
+ *
+ * 這裡改成跟 attackModifiersFor()/weaponsFrom() 同一個做法：每次要用的時候現查
+ * `combatProfileFrom(battle.character, { extraSources: activeGrantSources(battle.forms) })`，
+ * 不維護一份快照。理由跟 content/shop/forms.js 檔頭「刻意寫成每次讀取前先對一次鑰匙，
+ * 而不是換地點時記得清一次」是同一個——後者要求每一個會改變 battle.forms 的地方都記得
+ * 回頭更新快照(啟動/到期/維持成本失敗，一共四個寫入點)，漏掉一個就是一個不會生效的
+ * 護甲效果，而漏掉的那個地方不會有任何症狀。前者只要消費端都經過這裡就不可能漏。
+ *
+ * 先攻(initiativeBonus)刻意不在這裡處理：先攻只在 rollBattleInitiative() 決定一次
+ * 出手順序，戰鬥中途變了值也不會重新排序，這是規則設計本身如此，不是接線缺口，
+ * 所以型態血統的先攻加值只該放在購買當下就生效的常態效果，不該放進型態。
+ */
+export function livePlayerCombatProfile(battle) {
+  const player = playerOf(battle);
+  const fallback = {
+    skillCorrection: player.combatProfile?.skillCorrection ?? 0,
+    equipmentDefense: player.combatProfile?.equipmentDefense ?? 0,
+    armor: player.armor ?? 0,
+    initiativeBonus: player.combatProfile?.initiativeBonus ?? 0,
+  };
+  if (!battle.character) return fallback;
+  return combatProfileFrom(battle.character, {
+    skillCorrection: fallback.skillCorrection,
+    extraSources: activeGrantSources(battle.forms),
+  });
 }
 
 export function enemiesOf(battle) {
@@ -397,6 +438,19 @@ function tickForms(battle) {
   }
   for (const form of upkeep.ended) {
     pushLog(battle, { actor: "player", kind: "info", text: `${form.label} 結束（${form.endReason}）。` });
+  }
+
+  // [2026-09-03 補接線缺口] 型態到期(輪數用盡或維持成本付不出來)時，battle.forms 已經
+  // 把它從 active 裡拿掉了，但 battle.loadout 是啟動當下 rebuildWeapons() 算好就存著的
+  // 快照，沒有人會在到期的這一刻回頭重算——型態授予的天生武器因此會在型態結束後繼續
+  // 留在裝備表裡，變成一件永久武器。跟 livePlayerCombatProfile() 的護甲/防御同一個
+  // 病灶，這裡的解法卻只能是「在會改變 battle.forms 的地方重建」，因為 loadout 不像
+  // combatProfile 有一個現查的讀取入口——resolveAction.js 的 attackWith() 直接從
+  // battle.loadout 挑武器，沒有經過任何會現查型態的函式。啟動時已經 rebuildWeapons()
+  // 一次(見 resolveAction.js 的 resolve_activate_form)，到期是第二個、也是本來就該對稱
+  // 存在的寫入點。
+  if (ticked.expired.length > 0 || upkeep.ended.length > 0) {
+    battle.loadout = rebuildWeapons(battle.loadout, battle.character, activeGrantSources(battle.forms));
   }
   return battle;
 }

@@ -17,6 +17,7 @@ import { resolveTurn, validateSelection, TurnValidationError } from "../core/com
 import { toPublicBattle } from "../core/combat/v2/publicState.js";
 import { LEGACY_ACTION_LEVEL_TO_V2, fromLegacyActionLevel } from "../core/combat/v2/actionTypes.js";
 import { performAttack } from "../core/combat/v2/resolveAction.js";
+import { beginNextRound, livePlayerCombatProfile } from "../core/combat/v2/battleState.js";
 import { combatProfileFrom } from "../content/shop/effects.js";
 import { activeGrantSources } from "../content/shop/forms.js";
 
@@ -321,6 +322,50 @@ const Orphnoch = {
   assert.ok(after > before, `變身後防御要變高（${before} -> ${after}）`);
 });
 
+// [2026-09-03 補接線缺口] 上面那則測試的標題說「不是只有查表函式知道」，但斷言其實
+// 只問了 combatProfileFrom() 這個查表函式本身，從沒問過 performAttack() 真正的傷害計算
+// 有沒有跟著變——這正是它沒能抓到接線缺口的原因：`player.combatProfile`／`player.armor`
+// 是 createBattle() 在開戰當下算一次就寫死的快照，戰鬥中途啟動的型態如果只更新
+// combatProfileFrom() 查得到的資料、卻沒有人回頭改寫這份快照，傷害計算依然吃到舊數字。
+// 這一則直接跑一次完整的 performAttack()，用固定骰子鎖住命中與基礎傷害，
+// 只讓「型態有沒有啟動」這一個變因不同，確認護甲吸收是不是真的跟著變身變了。
+test("型態中途授予的護甲，真的會讓 performAttack() 算出來的傷害變低（不是只有查表函式知道）", () => {
+  const Orphnoch = {
+    goodId: "mock.Orphnoch.裝甲",
+    name: "Orphnoch",
+    effects: [{
+      kind: "型態",
+      label: "裝甲化",
+      activation: { action: "移動", willpower: 1 },
+      duration: { unit: "場景" },
+      grants: [{ kind: "護甲", amount: 3 }],
+    }],
+  };
+
+  const battle = battleWith(帶型態的角色卡({ goods: [Orphnoch] }));
+  const enemy = battle.participants.find((p) => p.side === "enemy");
+  const player = battle.participants.find((p) => p.id === "player");
+  // 固定每顆骰都是 9：>= 成功門檻(8)所以必中，< 重擲門檻(10)所以不會觸發無限重擲隊列，
+  // 每次攻擊的原始成功數因此完全固定，傷害差異只可能來自護甲。
+  const rng = { d10: () => 9, next: () => 0.5, pick: (list) => list[0] };
+  const weapon = { key: "測試重擊", label: "測試重擊", attackType: "肉搏", weaponDamage: 8, severity: "L", ranged: false };
+
+  const before = performAttack({ battle, attacker: enemy, defender: player, weapon, rng });
+  assert.equal(before.hit, true, "固定骰子下這一擊應該要命中，不然這則測試量不到護甲");
+
+  const activated = resolveTurn(battle, [{ actionId: "form:mock.Orphnoch.裝甲:裝甲化" }]);
+  assert.equal(activated.ok !== false, true, "型態啟動不該失敗");
+  assert.equal(
+    livePlayerCombatProfile(battle).armor,
+    3,
+    "livePlayerCombatProfile() 要現查到型態剛授予的護甲"
+  );
+
+  const after = performAttack({ battle, attacker: enemy, defender: player, weapon, rng });
+  assert.equal(after.hit, true, "護甲不影響命中，這一擊也該命中");
+  assert.equal(before.damage - after.damage, 3, `變身後護甲+3，傷害要少3點（${before.damage} -> ${after.damage}）`);
+});
+
 test("買到的加骰商品真的進到戰鬥的攻擊骰池裡", () => {
   // 怎麼觀察骰池大小：餵一個永遠擲出 5 的骰子——5 不是成功、也不觸發加骰，
   // 所以「擲了幾顆」就等於這次攻擊的有效 DP。比直接偷看內部變數誠實，
@@ -403,5 +448,47 @@ const Orphnoch = {
   assert.ok(
     battle.loadout.weapons.length > before,
     "型態授予的天生武器要進裝備表，否則變身少了一半的價值"
+  );
+});
+
+// [2026-09-03 補接線缺口] 上面那則測試的型態以「場景」計時，戰鬥中永遠不會到期，
+// 所以從沒測過「型態到期之後，它授予的武器有沒有跟著從裝備表拿掉」——rebuildWeapons()
+// 先前只有 resolve_activate_form(啟動時)會呼叫，型態到期(輪數用盡／維持成本付不出來)
+// 沒有對稱地重建 loadout，武器就會變成一把型態結束後依然按得到的永久武器。
+test("型態以「輪」到期後，它授予的天生武器要跟著從裝備表消失（不是永久武器）", () => {
+  const 限時武裝 = {
+    goodId: "mock.限時武裝.D",
+    name: "限時武裝",
+    effects: [{
+      kind: "型態",
+      label: "召喚武器",
+      activation: { action: "移動", willpower: 1 },
+      duration: { unit: "輪", rounds: 2 },
+      grants: [{ kind: "武器", label: "限時神劍", attackType: "肉搏", weaponDamage: 4, severity: "L", ranged: false }],
+    }],
+  };
+
+  const c = 帶型態的角色卡({ goods: [限時武裝] });
+  const battle = battleWith(c);
+  // resolveTurn 會連敵人回合一起結算並自動推進到下一輪，所以啟動當下就已經跨過1輪，
+  // 撐 2 輪的型態這時候應該還在生效——這一步先確認裝備表真的按得到，不然下面「消失了」
+  // 的斷言就分不出是「本來就沒生效」還是「到期後才消失」。
+  resolveTurn(battle, [{ actionId: "form:mock.限時武裝.D:召喚武器" }]);
+  assert.ok(
+    battle.loadout.weapons.some((w) => w.label === "限時神劍"),
+    "型態還在生效期間，武器應該按得到"
+  );
+
+  // 明確再推進一輪，確保時鐘一定走過了到期點。
+  beginNextRound(battle);
+  assert.equal(
+    (battle.forms.active ?? []).some((f) => f.label === "召喚武器"),
+    false,
+    "型態應該已經到期"
+  );
+  assert.equal(
+    battle.loadout.weapons.some((w) => w.label === "限時神劍"),
+    false,
+    "型態到期後，它授予的武器不該繼續留在裝備表裡"
   );
 });
