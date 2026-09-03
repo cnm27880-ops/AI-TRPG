@@ -50,10 +50,14 @@ test("前端不提供任何 LLM 供應商／金鑰入口，一律由伺服器端
   assert.doesNotMatch(app, /localStorage\.getItem\("user_narrator_persona"\)/);
 });
 
-test("左下角只剩主題切換，設定齒輪已經拆掉", () => {
+// [2026-09-03] 這一題的問法也換掉了：左下角常駐的 SYS dock（#theme-tool-dock）
+// 本身被拿掉了，玩家已經用不到——存檔狀態跟回合數側欄都看得到，留著只是一顆
+// 多餘的浮動按鈕。主題切換的入口現在只剩側欄 #sidebar-tool-actions 裡那顆
+// [data-theme-toggle] 按鈕，所以這裡改成斷言 dock 消失、側欄按鈕還在。
+test("左下角浮動 dock 已拆掉，主題切換入口留在側欄", () => {
   assert.doesNotMatch(index, /id="system-tool-dock"/, "齒輪 dock 應該已經拆掉");
-  assert.match(index, /id="theme-tool-dock"/, "左下角要留一顆主題按鈕");
-  assert.match(index, /data-theme-toggle onclick="toggleTheme\(\)"/);
+  assert.doesNotMatch(index, /id="theme-tool-dock"/, "左下角浮動 SYS dock 應該已經拆掉");
+  assert.match(index, /data-theme-toggle onclick="toggleTheme\(\)"/, "側欄要留一顆主題按鈕");
   assert.doesNotMatch(index, /openModal\('settingsModal'\)/, "三個設定入口都要移除");
   // 主題本身仍然要能運作。
   assert.match(index, /function toggleTheme\(\)/);
@@ -71,8 +75,13 @@ test("主畫面移除近期現場標題並保留頂端劇情回顧提示契約",
   assert.match(turnApi, /recentChronicleTotal: Array\.isArray\(session\?\.chronicle\)/);
 });
 
-test("Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference 隱藏契約", () => {
-  assert.match(index, /id="tab-btn-npcs"/);
+// [2026-09-03] 這一題原本斷言的是側欄還是五個分頁（attr/skills/traits/npcs/journal）
+// 的年代，人物關係有自己的 #tab-btn-npcs。後來的側欄改版把它併進「物資與情報」
+// （#tab-btn-inventory）底下的 #sidebar-tab-npcs 區塊，變成兩頁架構——
+// 這個測試從那時候起就一直是假紅燈：不是這次改動弄壞的，是題目沒跟著改版更新。
+// 這裡改成斷言目前實際的兩頁架構：人物關係區塊仍然完整存在，只是掛在情報頁下面。
+test("Alien V2 人物關係區塊具備 roster、信任 tone，掛在情報頁（兩頁架構）下面", () => {
+  assert.match(index, /id="tab-btn-inventory"/);
   assert.match(index, /id="sidebar-tab-npcs"/);
   assert.match(index, /id="npc-roster"/);
   assert.match(index, /class="npc-tab-count"/);
@@ -80,8 +89,8 @@ test("Alien V2 人物關係分頁具備 roster、信任 tone 與無 reference �
   assert.match(app, /NPC_TRUST_TONE_CLASS/);
   assert.match(app, /function renderNpcRelationships\(npcs\)/);
   assert.match(app, /renderNpcRelationships\(scenario\?\.reference\?\.npcs \?\? \[\]\)/);
-  assert.match(index, /\['attr', 'skills', 'traits', 'npcs', 'journal'\]/);
-  assert.match(index, /五個分頁/);
+  assert.match(index, /function switchSidebarTab\(tabKey\)/);
+  assert.match(index, /兩頁架構/);
 });
 
 test("玩家行動、命運判定與說書人 pending 使用不同視覺層級", () => {

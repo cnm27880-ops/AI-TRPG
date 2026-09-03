@@ -10,6 +10,7 @@
 // progress 仍然只負責章節、節點、時間、迫近度與套路，避免破壞舊存檔。
 
 import { difficultyToDc, validateOption } from "../turnOptions.js";
+import { inferCheckParams } from "../checkIntent.js";
 import { matchReferenceCondition } from "./conditions.js";
 import { evaluateMajorStoryNodes, normalizeMajorStoryState } from "./majorStoryNodes.js";
 import { applyDamage } from "../../core/health.js";
@@ -485,18 +486,77 @@ function referenceTerms(text) {
   return terms;
 }
 
-function matchScore(input, approach) {
+const EMPTY_SET = Object.freeze(new Set());
+
+/** 目前場景開場白（entryNarration）出現過的詞——玩家複述這些詞不代表在挑對應 approach。 */
+function sceneFurnitureTerms(scene) {
+  return referenceTerms(narrativeEntryText(scene));
+}
+
+/** 這個 reference 裡所有 NPC 的名字——即使開場白提過，指名道姓仍是強訊號，不算場景雜訊。 */
+function referenceNpcNameTerms(reference) {
+  const names = (reference?.npcs ?? []).map((npc) => npc?.name).filter(Boolean).join(" ");
+  return referenceTerms(names);
+}
+
+/**
+ * [2026-09-03] 兩個新門檻是實測抓到的一個誤觸發案例逼出來的，值得寫下取捨過程。
+ *
+ * 休眠室唯一 approach「撿起手電筒照拖痕」（intent：確認痕跡通往哪裡）。玩家其實是
+ * 在回應 NPC「別看血跡，看著天花板」，照做時提到「撿起手電筒」——只是複述場景
+ * 開場白已經講過的道具，跟「追查拖痕」的目的完全無關。但舊版只看原始 bigram 分數
+ * （門檻僅 2），「撿起手電筒」這四個字就命中 label 一半以上的 bigram，直接觸發了
+ * 跟玩家意圖無關的酸蝕黏液劇本，蓋掉了玩家真正想做的事。
+ *
+ * 第一版修法試過「比例」（命中 bigram / label 全部 bigram），失敗了：label 越長，
+ * 门槛就要求越高比例，而 label 的長短是作者行文風格決定的，跟玩家講話像不像這個
+ * approach 完全無關。實測第二個案例戳破了這個假設——「我安撫 Lambert，請 Ripley
+ * 說明下一步」要命中「透過對講機用冷靜專業的語氣安撫崩潰的 Lambert」，label 長達
+ * 17 字，玩家一句話的比例怎麼样都拉不上去，比例門檻反而擋掉了這個本來就該命中的
+ * 合法案例。純粹比較 bigram 數量/比例，沒辦法同時擋掉第一案、放行第二案——兩邊的
+ * 表面訊號其實一樣模糊（[動詞]+[名詞受詞]），差別只在於「手電筒」是這個場景開場
+ * 白就講過的道具、「Lambert」是這個 approach 真正要安撫的對象。
+ *
+ * 所以改成兩條真正不同性質的證據，任一條成立就算數：
+ *
+ *   (a) 場景過濾後的 bigram 分數：跟這個場景 entryNarration 撞詞的 label bigram
+ *       不計分——因為玩家提到場景已經講過的道具/描述，不代表他在挑這個 approach；
+ *       但 NPC 的名字例外，不因為開場白提過這個名字就不算數，指名道姓通常正是
+ *       在挑「跟這個人互動」的那個 approach。
+ *   (b) checkIntent 的推論：approach 需要判定時，如果玩家這句話用 content/checkIntent.js
+ *       （骰池判定用的同一套規則）獨立推得出跟這個 approach 完全相同的屬性/技能，
+ *       這是比字面重疊更硬的證據——兩套完全獨立的判準都認為玩家在做同一件事。
+ */
+const FREE_TEXT_MIN_SCORE = 10;
+
+function matchScore(input, approach, { furnitureTerms = EMPTY_SET, npcNameTerms = EMPTY_SET } = {}) {
   const text = String(input ?? "").replace(/\s+/g, "");
   if (!text) return 0;
   const label = String(approach?.label ?? "").replace(/\s+/g, "");
   const intent = String(approach?.intent ?? "").replace(/\s+/g, "");
-  if (label && text.includes(label)) return 100;
-  if (intent && text.includes(intent)) return 90;
+  if ((label && text.includes(label)) || (intent && text.includes(intent))) {
+    // 玩家逐字打出 label 或 intent：意圖不可能更明確，直接視為滿分命中。
+    return Infinity;
+  }
   const inputTerms = referenceTerms(text);
+  const labelTerms = referenceTerms(label);
+  const intentTerms = referenceTerms(intent);
   let score = 0;
-  for (const term of referenceTerms(label)) if (inputTerms.has(term)) score += 2;
-  for (const term of referenceTerms(intent)) if (inputTerms.has(term)) score += 1;
+  for (const term of labelTerms) {
+    if (!inputTerms.has(term)) continue;
+    const isSceneFurniture = furnitureTerms.has(term) && !npcNameTerms.has(term);
+    if (!isSceneFurniture) score += 2;
+  }
+  for (const term of intentTerms) if (inputTerms.has(term)) score += 1;
   return score;
+}
+
+/** checkIntent 獨立推出跟這個 approach 相同的屬性（與技能，若 approach 有指定技能）。 */
+function checkIntentCorroborates(playerAction, approach, character) {
+  if (!approach?.requiresCheck || !approach?.attribute) return false;
+  const inferred = inferCheckParams(playerAction, { character });
+  if (!inferred?.requiresCheck || inferred.attribute !== approach.attribute) return false;
+  return !approach.skill || inferred.skill === approach.skill;
 }
 
 function findApproach(reference, state, selection) {
@@ -519,11 +579,23 @@ export function resolveReferenceAction({ reference, state, chosenOption, playerA
   let selection = chosenOption?.reference ?? null;
   let source = selection ? "option" : "free_input";
   if (!selection && playerAction) {
-    const candidates = currentApproaches(reference, state).entries
-      .map(({ approach, phaseId }) => ({ approach, phaseId, score: matchScore(playerAction, approach) }))
-      .filter((candidate) => candidate.score >= 2)
-      .sort((a, b) => b.score - a.score);
-    if (candidates.length && (candidates.length === 1 || candidates[0].score > candidates[1].score)) {
+    const { scene: currentScene, entries } = currentApproaches(reference, state);
+    const furnitureTerms = sceneFurnitureTerms(currentScene);
+    const npcNameTerms = referenceNpcNameTerms(reference);
+    const candidates = entries
+      .map(({ approach, phaseId }) => {
+        const score = matchScore(playerAction, approach, { furnitureTerms, npcNameTerms });
+        const corroborated = checkIntentCorroborates(playerAction, approach, character);
+        return { approach, phaseId, score, corroborated };
+      })
+      // corroborated 只當「補強證據」用，不能單獨成立：純粹字數很長、剛好開頭撞上
+      // 一個技能關鍵字（例如「觀察」開頭接一千個無意義字元）不該無視後面全部內容，
+      // 靠兩個字直接鎖定一個 approach，所以仍要求 score > 0，確定文字上跟這個
+      // approach 的 label/intent 有實質重疊，而不是只有 checkIntent 單方面say yes。
+      .filter(({ score, corroborated }) => score >= FREE_TEXT_MIN_SCORE || (corroborated && score > 0))
+      // corroborated 命中直接視為最高信心，排序上優先於單純 bigram 分數。
+      .sort((a, b) => (b.corroborated - a.corroborated) || (b.score - a.score));
+    if (candidates.length && (candidates.length === 1 || candidates[0].corroborated !== candidates[1].corroborated || candidates[0].score > candidates[1].score)) {
       selection = {
         sceneId: state.currentSceneId,
         approachId: candidates[0].approach.id,

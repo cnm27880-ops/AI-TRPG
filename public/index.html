@@ -2246,7 +2246,10 @@
         .hud-sidebar-objective .mission-metrics { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .5rem; width: 100%; }
         .hud-sidebar-objective .mission-progress-metric, .hud-sidebar-objective .mission-threat-metric { min-width: 0; }
         .hud-sidebar-objective .mission-progress-track { width: 100%; }
-        .hud-sidebar-objective .mission-time-badge { grid-column: 1 / -1; justify-self: stretch; padding: .35rem .45rem; text-align: center; }
+        /* [2026-09-03] 拿掉 grid-column:1/-1：那條規則讓回合數整條霸佔一整列，
+           跟下面「跟迫近度並排在同一列」的規則互相打架，畫面上一直是長條贏。
+           拿掉之後回合數乖乖回到迫近度旁邊的第二欄，跟其他 mission-metric 一樣高。 */
+        .hud-sidebar-objective .mission-time-badge { padding: .3rem .4rem; text-align: center; }
 
         /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。 */
         #story-action-panel { padding: .52rem clamp(.75rem, 2vw, 2rem) .62rem; }
@@ -2445,11 +2448,16 @@
 
 
         /* 角色檔案先分出「身份／生命／衍生數值」三層，避免姓名、XP 和狀態散成一串。 */
-        #char-hud .name-plate { padding: .86rem .9rem .76rem; background: linear-gradient(145deg, rgb(var(--c-accent-base) / .1), rgb(var(--c-surface-2) / .78) 66%, rgb(var(--c-surface-1) / .9)); }
-        #char-hud #char-hud-titlebar { align-items: flex-start; padding-bottom: .3rem; }
+        /* [2026-09-03] 名字/屬性/血槽這一整塊壓縮：舊 padding 跟 h2 字級是留給
+           「姓名單獨一行、防禦先攻意志另成一排」的舊排版，兩者併成同一行之後
+           上下留白就顯得過鬆，這裡直接縮小 padding 與行高。 */
+        #char-hud .name-plate { padding: .52rem .7rem .5rem; background: linear-gradient(145deg, rgb(var(--c-accent-base) / .1), rgb(var(--c-surface-2) / .78) 66%, rgb(var(--c-surface-1) / .9)); }
+        #char-hud #char-hud-titlebar { align-items: center; padding-bottom: 0; }
         #char-profile-summary { min-width: 0; flex: 1 1 auto; }
-        #char-profile-summary h2 { margin-top: .25rem !important; font-size: 1.12rem; letter-spacing: .06em; }
+        #char-profile-summary h2 { margin-top: 0 !important; font-size: .92rem; letter-spacing: .04em; }
         #char-hud .name-plate > .space-y-1 { margin-top: .3rem; padding-top: 0; }
+        #char-hud .name-plate #active-alerts:empty { display: none; }
+        #char-hud .name-plate .pt-2 { padding-top: .3rem !important; }
         #char-hud #hp-text { font-size: .74rem; letter-spacing: .04em; }
         /* 防禦/先攻/意志現在跟玩家名同一行（緊湊排版），不再是血量槽下面單獨一條
            有分隔線的橫幅——見 index.html 的 name-plate 結構與下面 .derived-stats-inline。 */
@@ -3063,53 +3071,63 @@
         #char-hud #hp-bar-container .hp-seg:first-child { border-radius: 999px 0 0 999px; }
         #char-hud #hp-bar-container .hp-seg:last-child { border-radius: 0 999px 999px 0; }
         #char-hud .derived-stats-inline { font-size: .52rem; }
-        /* 商店／主題／回顧從右下角浮動 Dock 搬進側欄常駐顯示：改成左圖右字橫排，
-           不再是浮動 Dock 那種上圖下字的方形鍵——這裡是側欄裡的一排列，橫向排版更緊湊。 */
-        .sidebar-tool-actions { display: flex; flex-direction: column; gap: .3rem; margin-top: .5rem; }
+        /* 商店／主題／回顧從右下角浮動 Dock 搬進側欄常駐顯示。
+           [2026-09-03] 三個工具鍵改成一列橫排、壓低高度；並且刻意跟上面的
+           起始專長（emerald accent）用不同色（warn/amber）+ 上緣分隔線，
+           讓玩家一眼認得這排是「操作」而不是角色build資訊，不用再靠直向堆疊
+           佔掉的高度來區分。 */
+        .sidebar-tool-actions {
+            display: flex; flex-direction: row; gap: .35rem; margin-top: .6rem;
+            padding-top: .55rem; border-top: 1px dashed rgb(var(--c-warn-base) / .32);
+        }
         .sidebar-tool-actions button {
-            display: flex; align-items: center; gap: .55rem; padding: .5rem .65rem;
-            border: 1px solid rgb(var(--c-line) / .16); border-radius: 6px;
-            color: var(--ink-400); background: rgb(var(--c-line) / .045);
-            font-size: .68rem; font-family: 'JetBrains Mono', monospace;
+            flex: 1 1 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .22rem;
+            padding: .4rem .3rem .34rem;
+            border: 1px solid rgb(var(--c-warn-base) / .38); border-radius: 6px;
+            color: var(--ink-300); background: linear-gradient(135deg, rgb(var(--c-warn-base) / .16), rgb(var(--c-surface-2) / .5));
+            font-size: .58rem; font-weight: 700; letter-spacing: .03em; font-family: 'JetBrains Mono', monospace;
             transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease;
         }
-        .sidebar-tool-actions button i { width: 1rem; text-align: center; color: var(--accent); font-size: .78rem; }
+        .sidebar-tool-actions button i { text-align: center; color: rgb(var(--c-warn-base)); font-size: .85rem; }
         .sidebar-tool-actions button:hover, .sidebar-tool-actions button:focus-visible {
-            color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5);
-            background: rgb(var(--c-accent-base) / .1); transform: translateY(-1px); outline: none;
+            color: var(--ink-100); border-color: rgb(var(--c-warn-base) / .75);
+            background: linear-gradient(135deg, rgb(var(--c-warn-base) / .24), rgb(var(--c-surface-2) / .5)); transform: translateY(-1px); outline: none;
         }
+        /* [2026-09-03] 兩個分頁原本是各自獨立、上下還留一整條分隔帶的「卡片」，
+           改成同一條分頁列裡的切換段：單一容器、置中對齊、選中段用色塊標出，
+           不再靠外框把兩顆按鈕隔成兩塊。英文子標（ATTR/SKILL、SUPPLY/INTEL）
+           直接從 HTML 拿掉，中文標籤已經講清楚這是什麼分頁。 */
         #char-hud .tactical-tabs {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: .3rem;
-            padding: .42rem .6rem .38rem;
-            border-bottom: 1px solid rgb(var(--c-line) / .12);
-            background: rgb(var(--c-surface-0) / .22);
+            display: flex;
+            gap: .2rem;
+            margin: .5rem .6rem 0;
+            padding: .18rem;
+            border: 1px solid rgb(var(--c-line) / .16);
+            border-radius: .5rem;
+            background: rgb(var(--c-surface-0) / .32);
         }
         #char-hud .tactical-tabs .folder-tab {
             position: relative;
-            display: grid;
-            grid-template-columns: auto 1fr;
-            grid-template-rows: auto auto;
-            column-gap: .42rem;
-            align-items: baseline;
-            min-height: 2.15rem;
-            padding: .36rem .5rem .32rem;
-            border: 1px solid rgb(var(--c-line) / .28);
-            border-radius: .48rem;
-            background: rgb(var(--c-surface-2) / .55);
-            color: var(--ink-300);
-            text-align: left;
-            transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease, box-shadow .18s ease;
+            flex: 1 1 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: .32rem;
+            min-height: 1.65rem;
+            padding: .3rem .4rem;
+            border: none;
+            border-radius: .38rem;
+            background: transparent;
+            color: var(--ink-400);
+            text-align: center;
+            transition: color .18s ease, background .18s ease;
         }
-        #char-hud .tactical-tabs .folder-tab:hover { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .5); transform: translateY(-1px); }
-        /* 未選中的分頁刻意壓低到接近背景，選中的分頁用實色塊 + 陰影頂出來——
+        #char-hud .tactical-tabs .folder-tab:hover { color: var(--ink-100); background: rgb(var(--c-line) / .07); }
+        /* 未選中的分頁刻意壓低到接近背景，選中的分頁用實色塊頂出來——
            這兩個分頁以前用同一種半透明線條畫，色差太小，玩家分不出哪個能點、哪個是目前頁。 */
-        #char-hud .tactical-tabs .folder-tab.active { color: var(--ink-100); border-color: rgb(var(--c-accent-base) / .85); background: linear-gradient(135deg, rgb(var(--c-accent-base) / .32), rgb(var(--c-accent-base) / .12)); box-shadow: inset 0 0 0 1px rgb(var(--c-accent-base) / .2), 0 6px 16px rgb(var(--c-shadow) / .22); }
-        #char-hud .tactical-tabs .folder-tab.active::after { content: ''; position: absolute; left: .62rem; right: .62rem; bottom: -.54rem; height: 2px; border-radius: 2px; background: var(--accent); box-shadow: 0 0 9px rgb(var(--c-accent-base) / .65); }
-        #char-hud .tactical-tabs .tab-index { grid-row: 1 / span 2; align-self: center; color: var(--accent); font: 700 .53rem/1 'JetBrains Mono', monospace; letter-spacing: .05em; }
-        #char-hud .tactical-tabs .folder-tab > span:nth-child(2) { font-size: .68rem; font-weight: 700; letter-spacing: .05em; }
-        #char-hud .tactical-tabs .folder-tab small { grid-column: 2; color: var(--ink-500); font: 500 .42rem/1.2 'JetBrains Mono', monospace; letter-spacing: .08em; }
+        #char-hud .tactical-tabs .folder-tab.active { color: var(--ink-100); background: rgb(var(--c-accent-base) / .28); box-shadow: inset 0 0 0 1px rgb(var(--c-accent-base) / .5); }
+        #char-hud .tactical-tabs .tab-index { color: var(--accent); font: 700 .53rem/1 'JetBrains Mono', monospace; letter-spacing: .05em; }
+        #char-hud .tactical-tabs .folder-tab > span:nth-child(2) { font-size: .66rem; font-weight: 700; letter-spacing: .05em; white-space: nowrap; }
         #char-hud .sidebar-scroll { min-height: 0; padding: .8rem .78rem 5.4rem; scrollbar-gutter: stable; }
         #char-hud .sidebar-panel-content { animation: sidebar-panel-in .22s ease both; }
         #char-hud .sidebar-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; padding: .18rem .12rem .35rem; border-bottom: 1px solid rgb(var(--c-line) / .11); color: var(--ink-200); font: 700 .58rem/1.2 'Noto Serif TC', serif; letter-spacing: .08em; }
@@ -3631,10 +3649,10 @@
                  因此 app.js / combatV2.js 的資料更新不需要改動。 -->
             <div class="survival-tabs tactical-tabs" role="tablist" aria-label="生存控制台分頁">
                 <button onclick="switchSidebarTab('status')" id="tab-btn-status" role="tab" aria-selected="true" aria-controls="sidebar-tab-status" class="folder-tab active">
-                    <span class="tab-index">01</span><span>戰術狀態</span><small>ATTR / SKILL</small>
+                    <span class="tab-index">01</span><span>戰術狀態</span>
                 </button>
                 <button onclick="switchSidebarTab('inventory')" id="tab-btn-inventory" role="tab" aria-selected="false" aria-controls="sidebar-tab-inventory" class="folder-tab">
-                    <span class="tab-index">02</span><span>物資與情報</span><small>SUPPLY / INTEL</small><span id="npc-tab-count" class="npc-tab-count" hidden></span>
+                    <span class="tab-index">02</span><span>物資與情報</span><span id="npc-tab-count" class="npc-tab-count" hidden></span>
                 </button>
             </div>
 
@@ -3709,9 +3727,10 @@
                 </div>
             </div>
 
-            <!-- 劇情階段軌：原本放在側欄任務面板裡，跟目前目標擠在一起還要再分心看一次。
-                 移到故事區最上方，讓它單純只回答「我在這齣戲的哪一段」。 -->
-            <div id="story-phase-track" class="story-phase-track" hidden aria-label="劇情階段"></div>
+            <!-- [2026-09-03] 劇情階段軌拿掉：玩家反應這條四階段列沒有必要，
+                 佔故事欄頂端的空間卻沒有提供玩家判斷會用到的資訊。
+                 renderStoryPhase() 保留在 app.js（找不到 #story-phase-track 就直接
+                 no-op return），未來如果要恢復不用重寫渲染邏輯。 -->
 
             <!-- 跨副本探索情報面板：地圖、路線、最近發現與 NPC 情報集中在同一個情境面板。
                  [2026-09-02] 副本簡介（原本是這裡上方常駐可收合的一條）搬進這個面板的
@@ -4012,19 +4031,10 @@
     </div>
 
     <!-- 遊戲內戰術 Dock：平時只露出微縮膠囊，展開後向上提供低頻系統操作，避免遮住底部行動輸入列。 -->
-    <details id="theme-tool-dock" class="system-tool-dock tactical-dock" data-theme-only>
-        <summary aria-label="展開戰術工具" title="戰術工具">
-            <span class="dock-live-dot" aria-hidden="true"></span>
-            <span class="dock-glyph" aria-hidden="true"><i class="fas fa-crosshairs"></i></span>
-            <span class="dock-code">SYS</span>
-            <span id="save-status" class="dock-save-status">已存檔</span>
-            <i class="fas fa-chevron-up dock-chevron" aria-hidden="true"></i>
-        </summary>
-        <div class="system-tool-panel tactical-dock-panel" role="dialog" aria-label="戰術工具抽屜">
-            <div class="system-tool-heading"><span>TACTICAL DOCK</span><span>LOW PROFILE / READY</span></div>
-            <div class="dock-turn-row"><span><i class="fas fa-repeat" aria-hidden="true"></i> CURRENT TURN</span><strong>#<span id="turn-counter">1</span></strong></div>
-        </div>
-    </details>
+    <!-- [2026-09-03] 拿掉最下方常駐的 SYS 懸浮 dock：玩家已經用不到（存檔狀態、
+         回合數都已經在側欄其他地方看得到），留著只是一顆多餘的浮動按鈕。
+         #turn-counter / #save-status 這兩個 id 一併拿掉；app.js 對應的讀寫
+         已經改成安全的 optional chaining，元素不存在時就靜默跳過。 -->
 
     <!-- 劇情回顧：完整 chronicle 只在玩家主動開啟時按需載入，呈現成自己的小說。 -->
     <div id="chronicleModal" class="fixed inset-0 z-50 flex items-center justify-center modal-backdrop opacity-0 pointer-events-none transition-opacity duration-200 p-3 sm:p-6" aria-hidden="true" inert>
@@ -4487,7 +4497,8 @@
         // 的 NARRATIVE_STYLE / NARRATOR_PERSONA 環境變數決定（見 LLM_PROVIDERS.md）。
         //
         // 主題切換沒有跟著消失——applyTheme() / toggleTheme() 還在，
-        // 入口換成左下角那顆按鈕（見上面的 #theme-tool-dock）。
+        // 入口是側欄的 [data-theme-toggle] 按鈕（見 #sidebar-tool-actions；
+        // 舊的左下角 #theme-tool-dock 已在 2026-09-03 拿掉，玩家用不到了）。
         // 角色欄左右位置（applyHudPosition）也還在，只是沒有 UI 可以改了：
         // 已經設過的人會繼續沿用 localStorage 裡那個值，新玩家吃預設的右側。
         //

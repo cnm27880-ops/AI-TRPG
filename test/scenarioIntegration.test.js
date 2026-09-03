@@ -206,7 +206,12 @@ test("回合數：頂欄那個「回合」要數敘事推進了幾輪，不是�
   const sessionId = created.session.id;
 
   const t1 = await readJson(await turnPost(req(env, { sessionId })));
-  const t2 = await readJson(await turnPost(req(env, { sessionId, playerAction: "推開艙門" })));
+  // [2026-09-03] 這裡原本寫「推開艙門」，靠字面上跟 app_cryo_seal 的 label
+  // 「把艙門推回去」共用「艙門」這個名詞湊巧命中——但兩者動作方向其實相反
+  // （推開 vs 推回去關上），只是舊版自由輸入比對門檻太鬆才會被判定成同一件事。
+  // 比對邏輯收緊後這句話不再誤觸發，這裡改用 approach 自己的 label 逐字比對，
+  // 不再依賴會隨比對演算法調整而變動的巧合命中。
+  const t2 = await readJson(await turnPost(req(env, { sessionId, playerAction: "把艙門推回去" })));
   assert.equal(t1.turnCount, 1);
   assert.equal(t2.turnCount, 2);
 
