@@ -17,6 +17,11 @@ const CONTENT_PACKAGES = Object.freeze({
 // Alien V2 專用的場景→NPC 對照表（沒有在 reference.npcs[] 宣告
 // contactFlags／presenceScenes 的舊副本，繼續吃這張表）。
 const SCENE_NPCS = Object.freeze({
+  // [2026-09-03] 陸遠從休眠室這一刻起就在場（玩家一睜眼就看到他），不是到了 A 甲板
+  // 才第一次登場——canonical entryNarration 已經把他寫進休眠室的開場敘述。
+  // 少了這一行，[NPC_ACTIVE_STATE] 不會把他列進在場名單，AI 就只能演出一個無名男子，
+  // 到了 A 甲板才「正式介紹」，變成同一個人被介紹兩次。
+  evt_cryo_clearance: ["npc_luyuan"],
   evt_deck_a_recon: ["npc_luyuan"],
   evt_meet_ash: ["npc_ash"],
   evt_ash_ambush: ["npc_ash"],
