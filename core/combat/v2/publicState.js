@@ -15,7 +15,7 @@ import { publicBudget } from "./actionBudget.js";
 import { getAvailableCombatActions, groupActionsByType } from "./availableActions.js";
 import { ACTION_TYPE_LIST, ACTION_TYPE_LABELS, ACTION_TYPE_COST_HINTS } from "./actionTypes.js";
 import { COMBAT_RANGES, RANGE_DESCRIPTIONS, RANGE_LABELS } from "./range.js";
-import { getRange, isDown, playerOf, primaryRange, publicHealthTier } from "./battleState.js";
+import { getRange, isDown, livePlayerCombatProfile, playerOf, primaryRange, publicHealthTier } from "./battleState.js";
 
 /** 玩家自己的狀態卡（規格第7.1節B區）。玩家看得到自己的精確 HP，那是他自己的角色。 */
 function publicPlayer(battle) {
@@ -28,7 +28,9 @@ function publicPlayer(battle) {
     down: isDown(player),
     statuses: player.statuses.map((s) => ({ id: s.id, label: s.label, description: s.description ?? null })),
     coverFeatureId: player.coverFeatureId,
-    armor: player.armor ?? 0,
+    // 現查而不是讀 player.armor 快照——見 livePlayerCombatProfile 的接線缺口說明，
+    // 否則型態在戰鬥中途授予的護甲會在傷害計算裡生效、畫面上卻沒有跟著變。
+    armor: livePlayerCombatProfile(battle).armor,
     // 進行中的型態。玩家要看得到自己現在變著什麼身、還要付幾輪維持成本，
     // 否則「鬼魅身每輪扣 1 點內力」在畫面上是完全隱形的。
     forms: (battle.forms?.active ?? []).map((form) => ({

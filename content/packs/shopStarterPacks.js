@@ -1186,7 +1186,7 @@ export const SHOP_STARTER_PACKS = [
     "candidateOnly": false,
     "runtimeImported": true,
     "sourceDraft": "bloodline-rebalanced-draft-v1",
-    "note": "[2026-09-03 重新設計] 11 個血統的完整 D→C→B→A→S 全數補完(跳過AA，依使用者指示)。上一版只轉出 D 級，而且全部只用『屬性點包＋檢定加骰＋生命上限/護甲』四種效果，11 個血統的機制外觀完全相同，只差挑哪兩個技能——這一版的目的是讓每個血統有自己的機制手感(常態技能型／型態爆發型／能量池可變量型／維持成本型／modes二選一型)，同時把每一級的『加值量』盡量對齊，不讓 11 條血統彼此強弱差太多。型態(S級)的 grants 刻意只用「檢定加骰／附加成功／武器／法術增幅」——護甲／防御／先攻在 Combat V2 是開戰當下算一次的快照(combatProfileFrom 只在 startBattleV2() 呼叫一次)，戰鬥中途啟動的型態授予這三種目前不會真的生效，所以型態一律避開，等那個接線缺口補上再檢討。",
+    "note": "[2026-09-03 重新設計] 11 個血統的完整 D→C→B→A→S 全數補完(跳過AA，依使用者指示)。上一版只轉出 D 級，而且全部只用『屬性點包＋檢定加骰＋生命上限/護甲』四種效果，11 個血統的機制外觀完全相同，只差挑哪兩個技能——這一版的目的是讓每個血統有自己的機制手感(常態技能型／型態爆發型／能量池可變量型／維持成本型／modes二選一型)，同時把每一級的『加值量』盡量對齊，不讓 11 條血統彼此強弱差太多。型態(S級)的 grants 刻意只用「檢定加骰／附加成功／武器／法術增幅」，護甲／防御刻意不用——當初設計時 Combat V2 的 combatProfileFrom() 只在 startBattleV2() 算一次快照，戰鬥中途啟動的型態授予護甲/防御/天生武器都不會真的生效。[2026-09-03 後續修正] 這個接線缺口已經在 core/combat/v2/battleState.js 補上 livePlayerCombatProfile()(護甲/防御現查，不吃快照)，順便補了另一個對稱的缺口：型態到期時 battle.loadout 沒有跟著重建，型態授予的武器會變成到期後還按得到的永久武器，兩個缺口都各自有 test/combatV2Forms.test.js 的回歸測試守住。護甲/防御現在已經可以安全放進型態，這裡沒有回頭把已上架的 11 條血統改成用它——先攻(initiativeBonus)仍然只適合放常態效果，因為先攻只在開戰時 rollBattleInitiative() 排一次序，型態中途授予不會重新排。",
     "entries": [
       {
         "goodId": "bloodline.rebalanced.martial_arts_prodigy.D",
