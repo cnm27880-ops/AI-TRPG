@@ -100,6 +100,7 @@ export function buildUnmatchedFreeActionContract({
   threat = null,
   checkParams = null,
   npcs = [],
+  turnNumber = 0,
 } = {}) {
   const outcomeTier = stringOrNull(outcome?.tier);
   const success = outcome?.success == null ? null : Boolean(outcome.success);
@@ -113,6 +114,8 @@ export function buildUnmatchedFreeActionContract({
   return {
     contractVersion: FREE_ACTION_CONTRACT_VERSION,
     mode: "unmatched_free_input",
+    // 只給保底模板用來輪替句式（見 buildEngineSafeNarration）。不進 prompt，不影響裁定。
+    turnNumber: Number.isInteger(turnNumber) && turnNumber > 0 ? turnNumber : 0,
     inputKind,
     addressedNpc,
     actionText: String(actionText ?? "").trim().slice(0, 500),
@@ -237,13 +240,33 @@ export function buildEngineSafeNarration(contract) {
   const stage = contract?.threat?.stageSummary || "危險尚未散去";
   const npcName = contract?.addressedNpc?.name || null;
 
+  // [2026-09-03] 句式輪替。這段文字是保底模板（不是模型寫的），而保底在實測劇情包裡
+  // 觸發得比預期頻繁——連著兩三回合掉進來，玩家就會讀到逐字相同的三段話，體感是卡帶。
+  // 用回合數輪替句式不能讓保底變好看，但至少讓「又是這一段」不再那麼刺眼。
+  // 真正的修法仍然是少觸發保底，不是把保底寫得更長。
+  const variant = (n) => (Number.isInteger(contract?.turnNumber) && contract.turnNumber > 0 ? contract.turnNumber : 0) % n;
+
   if (contract?.inputKind === "free_action") {
-    return [
-      npcName
-        ? `${npcName}沒有立刻給出答案，只是繃著神經看了一眼四周，像是在權衡該怎麼說。`
-        : "沒有人立刻回應這句話，四周只剩下環境本身的動靜。",
-      `${stage}，這一刻仍舊沒有鬆懈的餘地。`,
+    const openings = npcName
+      ? [
+          `${npcName}沒有立刻給出答案，只是繃著神經看了一眼四周，像是在權衡該怎麼說。`,
+          `${npcName}的視線在你臉上停了一下，話卻沒有跟上來。`,
+          `${npcName}像是聽見了，也像是沒有；至少這一刻，他沒有把話接下去。`,
+        ]
+      : [
+          "沒有人立刻回應這句話，四周只剩下環境本身的動靜。",
+          "這句話落進空氣裡就散了，回應它的只有周圍的聲響。",
+          "沒有誰接話。你聽見的仍然是這個地方自己的聲音。",
+        ];
+    const closings = [
       "眼前能看見、能查的東西還在原地，下一步要怎麼走，仍然由你決定。",
+      "該看的、該問的都還在，接下來往哪裡走是你的事。",
+      "沒有什麼被關上；你仍然可以換一個方向試試。",
+    ];
+    return [
+      openings[variant(openings.length)],
+      `${stage}，這一刻仍舊沒有鬆懈的餘地。`,
+      closings[variant(closings.length)],
     ].join("\n\n");
   }
 
@@ -252,9 +275,19 @@ export function buildEngineSafeNarration(contract) {
   const containsControlOrSecretToken = /gmtruth|privategoals|referencestate|stthought|system\s*override|ignore\s+(?:all|every)?\s*game\s*rule|(?:忽略|無視).{0,12}(?:規則|指令)/iu.test(action);
   const safeAction = containsControlOrSecretToken ? "以不明方式介入當前局勢" : action;
   const boundedAction = [...safeAction].slice(0, 180).join("") + ([...safeAction].length > 180 ? "…" : "");
-  return [
+  const attempts = [
     `${boundedAction}的這次嘗試沒有帶來突破——阻力、干擾，或是還沒看清的障礙，仍然擋在原地。`,
-    `${stage}，容不得繼續耽擱。`,
+    `你去做了${boundedAction}這件事，卻只換到一陣停滯：手感不對，位置不對，或是缺了什麼還沒找到的東西。`,
+    `${boundedAction}——動作做完了，該有的變化沒有跟著發生，擋在中間的東西還沒有讓開。`,
+  ];
+  const closings = [
     "手上能用的辦法、眼前能看見的東西都還在，下一個決定仍由你做出。",
+    "工具還在手上，路也還在腳下；換個做法未必走不通。",
+    "沒有什麼被永久堵死，只是這一次不行。下一步仍然由你挑。",
+  ];
+  return [
+    attempts[variant(attempts.length)],
+    `${stage}，容不得繼續耽擱。`,
+    closings[variant(closings.length)],
   ].join("\n\n");
 }

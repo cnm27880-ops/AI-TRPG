@@ -102,14 +102,14 @@ test("玩家行動、命運判定與說書人 pending 使用不同視覺層級",
   assert.match(index, /typingBlink/);
 });
 
-// [2026-09-03] V2 一度改成「不把 options 畫成卡片，只給自由行動提示」的純 DM 模式——
-// 玩家實測回報：自由輸入常常沒命中任何 reference approach，掉進敘事安全網之後
-// 印出「這次嘗試沒有帶來突破」這種原地踏步的罐頭句，一直「撞牆」。現在回歸成
-// 可以直接點選的選項卡：伺服器判得出的合法 approach 一律做成按鈕（點下去保證
-// 命中 canonical 結果，不必經過安全網），打字框仍然留給真的想自由發揮的人。
-// 這題原本斷言的是純提示文字（#dm-action-guidance／renderDmPrompt）那個年代的
-// 行為，已經整個拿掉，這裡改成斷言目前真正的兩軌並存：選項卡 + 自由輸入框。
-test("V2 正常遊玩兩軌並存：伺服器判得出的合法行動做成選項卡，同時保留自由輸入框", () => {
+// [2026-09-03 第二次修正] 選項只在**一個**地方出現，而且重新公開檢定資訊。
+//
+// 上一版把同一批選項畫在兩個地方（故事流裡的 #inline-decision-panel 大卡片 +
+// 輸入框上方的 #tactical-chips 小晶片），玩家等於把同一件事讀兩次；而且卡片刻意
+// 藏起了屬性／技能／DC／骰池，玩家的體感變成「按了才知道又失敗」。
+// 現在改成柏德之門式的資訊公開：唯一的選項區在輸入框正上方（#decision-dock），
+// 卡片上直接標示會擲什麼、多難、骰池幾顆，點下去立刻擲骰。
+test("V2 正常遊玩兩軌並存：唯一的選項區在輸入框上方，且公開檢定資訊", () => {
   assert.doesNotMatch(index, /id="dm-action-guidance"/);
   assert.doesNotMatch(index, /id="dm-action-hint"/);
   assert.doesNotMatch(index, /id="dm-action-hints"/);
@@ -118,12 +118,20 @@ test("V2 正常遊玩兩軌並存：伺服器判得出的合法行動做成選�
   assert.match(index, /data-action-input[^>]*maxlength="1000"/);
   assert.match(index, /data-action-count/);
   assert.doesNotMatch(app, /function renderDmPrompt\(/);
-  // 選項卡不再預告會不會擲骰（屬性/技能/DC/骰池、風險警告、套路懲罰全部拿掉）：
-  // 玩家看到的只有這個行動在幹嘛，擲不擲骰、擲得怎樣交給選下去之後的骰子動畫。
-  assert.doesNotMatch(app, /decision-card-meta/);
-  assert.doesNotMatch(app, /decision-card-risk/);
-  assert.doesNotMatch(app, /decision-card-tag-free/);
-  assert.doesNotMatch(app, /decision-card-tag-retread/);
+  // 第二個選項出口整個拿掉：舊的晶片列不能再從任何一邊復活。
+  assert.doesNotMatch(index, /id="tactical-chips"/);
+  assert.doesNotMatch(index, /id="inline-decision-panel"/);
+  assert.doesNotMatch(app, /renderTacticalChips/);
+  // 選項區必須在輸入框所在的操作面板裡，不在故事流裡。
+  const dockIndex = index.indexOf('id="decision-dock"');
+  const actionPanelIndex = index.indexOf('id="story-action-panel"');
+  const storyListIndex = index.indexOf('id="recent-story-list"');
+  assert.ok(dockIndex > actionPanelIndex && actionPanelIndex > storyListIndex, "選項區要在輸入框所在的操作面板內");
+  // 檢定資訊回到卡片上（柏德之門式的資訊公開）。
+  assert.match(app, /decision-card-meta/);
+  assert.match(app, /decision-card-chip-pool/);
+  assert.match(app, /骰池 \$\{dp\}/);
+  assert.match(app, /自動失敗/);
   assert.match(app, /decisionTitle\.textContent = "你現在要怎麼做？"/);
   assert.doesNotMatch(app, /question\.textContent =/);
   assert.match(app, /referenceMode: Boolean\(res\.scenario\?\.reference\?\.enabled\)/);

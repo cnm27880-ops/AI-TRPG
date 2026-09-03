@@ -63,6 +63,7 @@ import {
 import { appendChronicle, registerChroniclePackage, buildCompactAiContext } from "../../content/storage/chronicle.js";
 import {
   buildOptionsSpec,
+  OPTION_COUNT,
   parseTurnResponse,
   extractNarrationFallback,
   validateOption,
@@ -102,6 +103,7 @@ import {
   resolveCanonicalNarrative,
   applyReferenceCharacterEffects,
   buildReferenceOptions,
+  bindAiReferenceOptions,
   buildReferencePromptBlock,
   buildSceneBriefBlock,
   referenceStateForResponse,
@@ -949,8 +951,22 @@ async function executeTurn(context, streamHooks = null) {
   }
 
   // ---------------------------------------------------------------------
-  // 第二段：敘事層。canonical result 先於 AI；只有沒有授權原文時才需要 AI。
+  // 第二段：敘事層。
+  //
+  // [2026-09-03 反轉] 這一段以前的規則是「canonical result 先於 AI」：只要玩家命中了
+  // 一個 approach，就把作者寫在副本資料裡的 result.text **逐字**印給玩家，完全不呼叫模型。
+  // 那條路徑在實測劇情包裡的後果是致命的——同一個 approach 失敗三次，玩家連續讀到三段
+  // 一模一樣的文字（USCSS 諾斯托羅莫號第 11、12、13 回），故事看起來像卡帶。
+  //
+  // 現在反過來：canonical result 仍然是**唯一的事實來源**（effects 早在呼叫模型之前
+  // 就已經套用完畢，模型碰不到任何數字），但那段文字改成餵進 prompt 的素材，
+  // 由模型用這一回合的處境重新寫一遍（見 referenceAdapter.buildReferencePromptBlock()）。
+  // directNarrative 降級成**保底**：沒有可用供應商，或模型整條 fallback chain 都失敗時，
+  // 才拿它直接印出去——玩家至少讀得到正確的結果，而不是一個 502。
   // ---------------------------------------------------------------------
+  // 供應商完全由伺服器端決定：環境變數 LLM_PROVIDER，沒設就由 pickProvider() 依現有金鑰挑。
+  // 呼叫端送什麼都不影響這一行（見上面 body 解構處的說明）。
+  const provider = env.LLM_PROVIDER ?? pickProvider(env);
   const canonicalNarrative = scenarioReference && referenceState && referenceApplied?.applied
     ? resolveCanonicalNarrative({
         reference: scenarioReference,
@@ -968,7 +984,8 @@ async function executeTurn(context, streamHooks = null) {
         text: "這次行動已由副本規則處理，但目前沒有對應的公開演出文字。局勢已依現有狀態更新，請根據眼前線索決定下一步。",
       }
     : null);
-  const canonicalDirectSend = Boolean(directNarrative);
+  // 有 canonical 原文、而且**沒有**任何可用供應商時才直送。有供應商就一律交給模型改寫。
+  const canonicalDirectSend = Boolean(directNarrative) && !provider;
 
   const referenceScene = scenarioReference && referenceState
     ? (referenceResolution.matched
@@ -1004,6 +1021,8 @@ async function executeTurn(context, streamHooks = null) {
         // 不篩選在不在場：篩選需要另外查 S.A.E.P. 狀態，這裡只做「文字裡有沒有提到這個名字」
         // 的字串比對，模型自己會依 [NPC_ACTIVE_STATE] 判斷這個NPC真的在不在場。
         npcs: scenarioReference?.npcs ?? [],
+        // 只給保底模板輪替句式用，讓連續掉進安全網的回合不會逐字相同。
+        turnNumber: (session?.turns ?? 0) + 1,
         threat: {
           ...(scenarioProgress?.threat ?? {}),
           stage: getThreatStage(scenarioProgress?.threat?.level ?? 0),
@@ -1011,9 +1030,6 @@ async function executeTurn(context, streamHooks = null) {
       })
     : null;
 
-  // 供應商完全由伺服器端決定：環境變數 LLM_PROVIDER，沒設就由 pickProvider() 依現有金鑰挑。
-  // 呼叫端送什麼都不影響這一行（見上面 body 解構處的說明）。
-  const provider = env.LLM_PROVIDER ?? pickProvider(env);
   if (!canonicalDirectSend && !provider) {
     logReferenceAction();
     await persistReferenceTurn();
@@ -1163,6 +1179,9 @@ async function executeTurn(context, streamHooks = null) {
   let llmDiagnostic = null;
   let cacheStats = null;
   let cacheStatsEstimate = null;
+  // 模型整條 fallback chain 都失敗、改用 canonical 原文收尾。只影響 degraded 的回報，
+  // 不影響任何規則裁定——effects 在這之前就已經套用完了。
+  let llmFailedToCanonical = false;
   // 一律走 server-managed fallback chain。玩家不再自備金鑰，也就沒有「單一 provider 直送」
   // 這條路了；少一條分支，就少一個只有在特定設定下才會被執行到的程式路徑。
   const callNarrativeLlm = callLlmWithFallback;
@@ -1252,6 +1271,17 @@ async function executeTurn(context, streamHooks = null) {
     });
     if (session) session.lastLlmDiagnostic = llmDiagnostic;
     logLlmFailure(err, { provider: err?.provider ?? provider, sessionId: session?.id, diagnostic: llmDiagnostic });
+    // [2026-09-03] canonical 原文從「主要輸出」降級成「保底」之後，這裡多了一條出路。
+    //
+    // 命中 approach 的回合，世界狀態早就在呼叫模型之前裁定並套用完了——玩家的行動
+    // 已經生效，只是沒有人把它寫成句子。以前這種情況會回 502，玩家看到的是一個錯誤
+    // 訊息，卻不知道自己剛才那一手其實成功了。既然作者寫好的結果文字就在手上，
+    // 就用它把這一回合收尾：文字會比模型寫的乾一點，但至少是正確且完整的一回合。
+    if (directNarrative) {
+      warnings.push(`敘事模型暫時無法使用（${describeLlmFailure(err)}），本回合改用副本內建的結果文字。`);
+      text = JSON.stringify({ narration: directNarrative.text, options: [] });
+      llmFailedToCanonical = true;
+    } else {
     logReferenceAction();
     await persistReferenceTurn();
     return await jsonPartial(
@@ -1278,6 +1308,7 @@ async function executeTurn(context, streamHooks = null) {
       },
       502
     );
+    }
     }
   }
 
@@ -1340,8 +1371,16 @@ async function executeTurn(context, streamHooks = null) {
   // 這一輪到底是AI生的還是引擎墊的，不用再靠肉眼比對選項文字有沒有重複。
   const degraded = {
     parseFailed: !parsed.ok,
-    narrationSource: canonicalDirectSend ? directNarrative.source : "ai",
-    llmCalled: !canonicalDirectSend,
+    // narrationSource 三態，玩家與開發者都靠它分辨這一段字是誰寫的：
+    //   canonical_result*            = 直接印副本原文（沒有供應商，或模型整條鏈失敗）
+    //   canonical_result*_rewritten  = 事實由副本資料裁定、句子由模型依本回合處境重寫
+    //   ai                           = 沒有 canonical 原文的回合，整段由模型負責
+    narrationSource: canonicalDirectSend || llmFailedToCanonical
+      ? directNarrative.source
+      : directNarrative
+        ? `${directNarrative.source}_rewritten`
+        : "ai",
+    llmCalled: !canonicalDirectSend && !llmFailedToCanonical,
     aiOptionCount: 0,
     fallbackOptionCount: 0,
     freeOptionCount: 0,
@@ -1389,7 +1428,7 @@ async function executeTurn(context, streamHooks = null) {
     if (scenarioReference && referenceState) {
       aiThreatAssessment = parsed.data.threatAssessment ?? null;
       aiNarrativeMode = parsed.data.narrativeMode ?? null;
-      // reference 模式下，AI 只描述下一步；選項由 adapter 依當前 state 重建。
+      // reference 模式的選項在下面用 bindAiReferenceOptions() 綁定，這裡先不計數。
       degraded.aiOptionCount = 0;
       degraded.fallbackOptionCount = 0;
     } else {
@@ -1401,15 +1440,41 @@ async function executeTurn(context, streamHooks = null) {
       degraded.freeOptionCount = validated.freeOptionCount;
     }
 
-    // reference 模式下，AI 仍然負責描述下一步，但不能凭空創造未登記的選項。
-    // 由 adapter 依目前事件與已套用狀態重建簡要 approach；這也讓玩家按下去後
-    // 能以不信任前端的 reference metadata 回查同一個事件。
+    // [2026-09-03] reference 模式的選項改由 AI 寫、由引擎綁定。
+    //
+    // 舊版是 buildReferenceOptions()：把作者寫在副本資料裡的 approach.label 逐字端給
+    // 玩家。那批字串是固定的，所以玩家不管做了什麼、失敗幾次，看到的永遠是同一組——
+    // 這正是「選項全都是固定套版、失敗一輪之後也不會變」的成因。
+    //
+    // 現在 AI 依當前局勢自己寫 label 與 hint，並在 approachId 指出它綁的是哪一個
+    // approach；bindAiReferenceOptions() 拿那個 id 回 reference 查一次（不信任模型），
+    // 屬性／技能／難度／DC 全部從作者資料重建，AI 一個數字都碰不到。
+    // 綁不到的（AI 自創或幻覺 id）降級成自由選項，走既有的自由行動裁定路徑。
+    //
+    // AI 一個合法選項都沒給時才退回 buildReferenceOptions()：那是保底，不是常態。
     if (scenarioReference && referenceState) {
-      const referenceOptions = buildReferenceOptions(scenarioReference, referenceState);
+      const boundOptions = bindAiReferenceOptions({
+        reference: scenarioReference,
+        state: referenceState,
+        aiOptions: parsed.data.options,
+        character,
+      });
+      // 保底：模型一個 approach 都沒綁時（提示詞沒被遵守、或這一回合模型整批寫壞），
+      // 作者寫好的劇情分支就只剩自由輸入才能命中，玩家等於被關在 AI 這一回合的想像力裡。
+      // 這時整批改用引擎自建的選項（source:"reference"），AI 自創的選項只在還有空位時補上。
+      // 這是保底，不是常態——degraded.fallbackOptionCount 會把它算出來，
+      // 補得太頻繁就代表提示詞需要修，而不是把保底當成正常路徑。
+      const boundCount = boundOptions.filter((option) => option.reference).length;
+      const referenceOptions = boundCount
+        ? boundOptions
+        : [
+            ...buildReferenceOptions(scenarioReference, referenceState, { limit: OPTION_COUNT }),
+            ...boundOptions,
+          ].slice(0, OPTION_COUNT);
       if (referenceOptions.length) {
         options = referenceOptions;
-        degraded.aiOptionCount = 0;
-        degraded.fallbackOptionCount = 0;
+        degraded.aiOptionCount = referenceOptions.filter((option) => String(option.source ?? "").startsWith("ai_")).length;
+        degraded.fallbackOptionCount = referenceOptions.filter((option) => option.source === "reference").length;
         degraded.freeOptionCount = referenceOptions.filter((option) => option.requiresCheck === false).length;
       } else {
         warnings.push("reference 目前事件沒有可用 approach，玩家仍可使用自由輸入");

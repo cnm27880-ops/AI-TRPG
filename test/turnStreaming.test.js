@@ -90,7 +90,9 @@ test("/api/turn NDJSON：先送 lifecycle，最後才送完整安全 payload 與
 });
 
 
-test("V2 canonical direct-send 的 NDJSON 仍完成完整 lifecycle 且不呼叫 AI", async () => {
+// [2026-09-03] canonical 回合改成「事實由引擎裁定、句子由模型重寫」之後，這個回合會
+// 呼叫 AI；串流的 lifecycle 事件與 delta 拼接契約不受影響，這裡鎖的正是後者。
+test("canonical 回合的 NDJSON 仍完成完整 lifecycle，delta 拼起來等於最終敘事", async () => {
   const env = envWithReply();
   const session = await readJson(await sessionPost(plainRequest(env, {
     draft: DRAFT,
@@ -116,10 +118,10 @@ test("V2 canonical direct-send 的 NDJSON 仍完成完整 lifecycle 且不呼叫
   const complete = events.at(-1);
   assert.equal(complete.type, "complete");
   assert.equal(complete.payload.ok, true);
-  assert.equal(complete.payload.degraded.llmCalled, false);
-  assert.match(complete.payload.degraded.narrationSource, /^canonical_/);
-  assert.equal(env.calls.length, 0);
-  assert.equal(events.find((event) => event.type === "narrator_writing")?.source, "canonical");
+  assert.equal(complete.payload.degraded.llmCalled, true);
+  assert.match(complete.payload.degraded.narrationSource, /^canonical_.*_rewritten$/);
+  assert.equal(env.calls.length, 1);
+  assert.ok(events.some((event) => event.type === "narrator_writing"));
   const deltas = events.filter((event) => event.type === "narration_delta").map((event) => event.delta).join("");
   assert.equal(deltas, complete.payload.narration);
 });

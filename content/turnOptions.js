@@ -214,6 +214,30 @@ export const REFERENCE_TURN_RESPONSE_SCHEMA = {
   properties: {
     st_thought: { type: "string" },
     narration: { type: "string" },
+    // [2026-09-03] reference 回合改成由 AI 自己寫選項文字。
+    //
+    // 在這之前 reference 模式的選項完全來自 buildReferenceOptions()——也就是把作者寫在
+    // 副本資料裡的 approach.label 逐字端給玩家。那份 label 是固定的，於是玩家不管做了
+    // 什麼、失敗幾次，看到的都是同一批四個字串（實測劇情包連續三回合都是同一組）。
+    //
+    // 現在 AI 負責措辭、引擎負責綁定：approachId 是模型從當前合法清單裡挑的**索引**，
+    // 不是可信資料——bindAiReferenceOptions() 會拿它回 reference 查一次，
+    // 查不到就降級成自由選項。attribute/skill/difficulty/dc 刻意不進這份 schema：
+    // 那幾格永遠由引擎從 reference 資料重建，模型填了也不會被採用。
+    options: {
+      type: "array",
+      minItems: 1,
+      maxItems: OPTION_COUNT,
+      items: {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          hint: { type: "string" },
+          approachId: { type: ["string", "null"] },
+        },
+        required: ["label", "hint"],
+      },
+    },
     narrativeMode: { type: "string", enum: ["micro", "normal", "major", "reveal", "combat"] },
     threatAssessment: {
       type: "object",
@@ -285,11 +309,17 @@ export const TURN_RESPONSE_SCHEMA = {
  */
 export function buildReferenceResponseSpec() {
   return `【Reference GM 回覆格式】
-這是 reference 副本回合，不要產生 options 陣列；玩家可做的 approach 已由伺服器提供並會重新查驗。
+這是 reference 副本回合。除了敘事，你還要產出這一回合的「下一步」選項——選項的**文字由你寫**，
+但每個選項對應哪一個 approach、要不要擲骰、擲什麼，一律由伺服器依副本資料重新查驗與重建。
+你只提供 label／hint／approachId 三格，其餘欄位填了也不會被採用。
+可綁定的 approach 清單、以及哪些招已經走不通，寫在這一回合的 <Next_Options> 區塊裡。
 只輸出單一合法 JSON 物件：
 {
   "st_thought": "玩家看不到的短摘要，80字以內",
   "narration": "依引擎已裁定事實寫出的敘事",
+  "options": [
+    { "label": "玩家會說出口的行動，18字內", "hint": "想得到什麼，14字內", "approachId": "app_xxx 或 null" }
+  ],
   "narrativeMode": "micro|normal|major|reveal|combat",
   "threatAssessment": { "level": "stable", "reason": "只有自由行動需要，說明威脅為何上升或下降" }
 }
@@ -301,7 +331,7 @@ narrativeMode 是敘事規模提示，不是世界狀態；以場景與行動規
 
 若 <Reference_Event> 標示「未命中任何 approach 的自由行動」：這回合只有一次嘗試與引擎判定，不等於已獲得任何新的 effect。除非資料明確列出並由 engine effect 套用，禁止把門已打開／鎖死、通道已打通／封死、物品已取得／遺失、NPC已執行特殊指令、異形已直接接觸／衝出、路徑已確定可通、位置或傷勢已改變寫成完成事實。可以描寫施力、阻力、卡住、聲音、光線、氣味、NPC對嘗試的可觀察反應與不確定的危險；請以「試圖」「似乎」「尚未」「被阻住」「無法確認」等語氣保留玩家下一步的裁量。即使引擎分級為成功，也只能寫成這次嘗試的可觀察成功部分，不得自行兌現未授權的持久世界改變。
 
-敘事出口：reference 模式不是卡片遊戲。請讓 narration 在自然收束後，以一句簡短、開放且不預設答案的 DM 式問句把決定權交還玩家，例如「你打算怎麼做？」或依當前處境提出一個不含編號清單的問題。不要在 narration 中列出 1/2/3 選項，不要把伺服器提供的 approach 寫成玩家只能選的路線；玩家可以輸入任何合理行動。`;
+敘事出口：narration 與 options 分工，不要重複。narration 負責把這一回合演完，並在自然收束後以一句簡短、開放且不預設答案的 DM 式問句把決定權交還玩家（例如「你打算怎麼做？」）。**不要在 narration 裡列出 1/2/3 的編號選項**——選項是 options 陣列的事，前端會把它畫成按鈕，寫在敘事裡只會讓玩家讀到同樣的東西兩次。也不要把選項寫成玩家只能選的路線：玩家隨時可以輸入任何合理行動，options 只是這一刻最順手的幾條路。`;
 }
 
 export function parseTurnResponse(text) {
@@ -638,4 +668,22 @@ export function optionToCheckParams(option) {
   const params = { attribute: option.attribute, dc: option.dc ?? difficultyToDc(option.difficulty) };
   if (option.skill) params.skill = option.skill;
   return params;
+}
+
+/**
+ * DC -> 難度分級。difficultyToDc() 的反向查表。
+ *
+ * 為什麼需要它：AI 自創的自由選項不經過難度分級，它的 DC 是 content/checkIntent.js
+ * 直接推論出來的數字。但選項卡上要給玩家看的是「困難」而不是裸露的「DC3」——
+ * 這是 BG3 式資訊公開的最低要求：公開的東西要看得懂，不是把後端欄位倒給玩家。
+ * 落在量表之外的 DC 一律取最接近的一級，不丟錯。
+ */
+export function dcToDifficulty(dc) {
+  const value = Number(dc);
+  if (!Number.isFinite(value)) return DEFAULT_DIFFICULTY;
+  let best = DIFFICULTY_TIERS[0];
+  for (const tier of DIFFICULTY_TIERS) {
+    if (Math.abs(tier.dc - value) < Math.abs(best.dc - value)) best = tier;
+  }
+  return best.id;
 }

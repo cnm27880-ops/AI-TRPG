@@ -493,12 +493,21 @@ test("buildOptionsSpec：明確告訴AI可以給1~2個 requiresCheck:false 的�
   assert.match(spec, /"requiresCheck": false/);
 });
 
-test("V2 reference prompt 以 DM 開放問句取代編號選項，且 schema 不要求 options", () => {
+// [2026-09-03] reference 回合改成「AI 寫選項文字、引擎綁定與查驗」。
+// 選項回到 schema 裡，但 narration 仍然不可以自己列 1/2/3——那會讓玩家把同一批選項
+// 讀兩次（一次在故事裡、一次在按鈕上）。
+test("V2 reference prompt：選項文字由 AI 產出，但 narration 不得自列編號選項", () => {
   const spec = buildReferenceResponseSpec();
-  assert.match(spec, /不是卡片遊戲/);
+  assert.match(spec, /選項的\*\*文字由你寫\*\*/);
   assert.match(spec, /開放且不預設答案/);
-  assert.match(spec, /不要在 narration 中列出 1\/2\/3 選項/);
-  assert.equal("options" in REFERENCE_TURN_RESPONSE_SCHEMA.properties, false);
+  assert.match(spec, /不要在 narration 裡列出 1\/2\/3 的編號選項/);
+  const optionItem = REFERENCE_TURN_RESPONSE_SCHEMA.properties.options.items;
+  assert.deepEqual(optionItem.required, ["label", "hint"]);
+  // approachId 是「索引」不是「真理」：引擎會拿它回 reference 查一次。
+  assert.ok("approachId" in optionItem.properties);
+  // 檢定參數刻意不進 schema——那幾格永遠由引擎從副本資料重建。
+  assert.equal("attribute" in optionItem.properties, false);
+  assert.equal("difficulty" in optionItem.properties, false);
   assert.equal(MAX_FREE_ACTION_CHARS, 1000);
   assert.equal(countActionCharacters("中文😀"), 3);
   assert.equal(countActionCharacters("a".repeat(1001)), 1001);
