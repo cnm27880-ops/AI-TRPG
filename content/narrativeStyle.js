@@ -210,8 +210,8 @@ export const NARRATOR_PERSONAS = {
 };
 
 export const PERSONA_KEYS = Object.keys(NARRATOR_PERSONAS);
-// 預設用冷酷裁判——那是《無限恐怖》主神空間最接近原作的敘事聲音。
-// 要換就設環境變數 NARRATOR_PERSONA，或在前端設定裡選（跟 NARRATIVE_STYLE 同一個層級）。
+// [2026-09-03] 面具文字已經不再送進 prompt（見 buildStylePrompt() 的說明），
+// 這個常數只剩下「NARRATOR_PERSONA/personaKey 合不合法」的驗證用途。
 export const DEFAULT_PERSONA_KEY = "RUTHLESS_JUDGE";
 
 /** 取出一個面具設定；key 是 null/undefined 時退回預設，不認得的 key 一律丟錯（不靜默吞掉）。 */
@@ -437,10 +437,20 @@ export const LIVE_SCENE_RULES = `【活場法：用畫面說話，不要用旁�
  *     不是要 NPC 開口問玩家要去哪。方向要從畫面與 NPC 的行動裡長出來。
  *   - 第四面牆條款跟規則契約層的「不可以自己編數值」是兩件事：那條防的是編造，
  *     這條防的是**照實說出來**——引擎算對了，然後說書人把 DC 跟骰子念給玩家聽。
+ *
+ * [2026-09-03 新增第五條：NPC 常識反應] 使用者提出的設計缺口：玩家做出脫序、挑釁或
+ * 帶有敵意的舉動（在NPC面前無意義地翻跟斗、出言羞辱、甚至伸手侵犯/攻擊）時，
+ * 一個正常人會覺得莫名其妙、警惕、惱火，甚至反擊——這正是LLM相對於傳統寫死規則的
+ * 引擎最擅長的常識推理，但沒有這條明講，模型預設會退回「冷血旁觀者」的安全牌
+ * （只描述動作、不給反應，或者反過來只問「你想做什麼」把主導權丟回玩家）。
+ * 這條刻意鎖住「反應強度必須跟挑釁程度成正比」，並且明講反應只是演出強度、
+ * 不是新的傷害判定——跟第四面牆條款、content/scenario/freeActionContract.js 的
+ * prohibitedClaims（未授權的傷勢/死亡/戰鬥結果）不衝突：NPC 可以拔槍瞄準、
+ * 一把攔住、劈頭警告，但玩家有沒有真的受傷、戰鬥是否開打，依然只能由引擎裁定。
  */
 export const ANTI_ASSISTANT_PROTOCOL = `【最高約束：這不是一個以玩家為中心的世界】
 你不是助理，NPC 也不是客服。這個世界在玩家出現之前就在運轉，玩家離開之後也會繼續運轉。
-以下四條的優先序高於任何文筆偏好：
+以下五條的優先序高於任何文筆偏好：
 
 一、**世界不等玩家。**
    NPC 有自己的目標、自己的判斷與自己的時間表，而且會在玩家還沒決定的時候就去執行。
@@ -468,7 +478,19 @@ export const ANTI_ASSISTANT_PROTOCOL = `【最高約束：這不是一個以玩�
    XP、獎勵點數、回合數、機率，以及任何欄位名或英文代號。
    也不可以把它們翻譯成角色的口白（「他的耐心只剩兩點」「這次判定很危險」同樣禁止）。
    引擎算出來的東西只能以**世界內部的樣子**呈現：不是「你的敏捷判定失敗了」，
-   而是腳下的格柵鬆脫、你抓空、膝蓋撞在管線上。玩家看到的是一個世界，不是一台機器。`
+   而是腳下的格柵鬆脫、你抓空、膝蓋撞在管線上。玩家看到的是一個世界，不是一台機器。
+
+五、**NPC 有自尊與危機感，脫序或挑釁的舉動一定要換來符合常識的真實反應。**
+   玩家對在場 NPC 做出脫序、荒謬、挑釁或帶有敵意的舉動時（例如在他面前無意義地
+   翻跟斗、出言羞辱、伸手侵犯或攻擊），一個正常人不會冷血旁觀、也不會只是
+   被動地問「你想做什麼」——他會依照自己的個性與當下處境給出真實反應：
+   錯愕、不耐、戒備、出言喝止，乃至立刻的肢體制止。
+   **反應強度要跟挑釁程度成正比**：無傷大雅的怪異行為，換來側目或幾句調侃就夠了；
+   真正帶有敵意或侵犯性的舉動，NPC 可以立刻表現出「這是動真格的」——
+   一把攔住、拔槍瞄準、劈頭警告——不必等玩家先解釋自己在幹嘛。
+   這一條動用的仍然只是**演出強度**，不是新的判定：NPC 的警戒、恐嚇或制止動作
+   可以寫得很兇，但玩家有沒有真的因此受傷、戰鬥是否因此開打，依然只能由引擎的
+   判定決定，不可以在敘事裡自行宣告命中、傷害或死亡（見第四面牆條款）。`
 
 export const PACING_RULES = `【敘事篇幅與節奏動態調配】
 narration 正文嚴禁兩三句話草草帶過，篇幅要跟著「這一回合有多兇險」動態調整，
@@ -512,20 +534,25 @@ narration 是一大段連續文字時，玩家實際看到的是一整團字，�
 - 嚴禁三言兩語直接跳到結果。
 - 嚴禁用空洞的哲學感嘆、重複的天氣描寫來灌水湊字數，篇幅必須由「具體的物理動作、
   環境反饋、傷勢細節」撐起來。
-- 寫完之後回頭看一眼段落的形狀：如果每一段都差不多長，就把其中一段拆成
-  「長段＋一句話的短段」。
 
 字數只算 narration 正文；st_thought 與 options 不計入這個範圍。`;
 
 /**
- * 組出**完整的文筆層**：人格面具 + 文筆設定檔 + 活場法/防全知 + 敘事篇幅節奏 +
+ * 組出**完整的文筆層**：文筆設定檔 + 活場法/防全知 + 敘事篇幅節奏 +
  * 通用敘事守則 + 定向要求。
  *
- * 這是文筆層唯一的組裝入口，composeSystemInstruction() 內部也走它，
- * 所以「換面具」與「換文筆」永遠是同一條路徑，不會有兩份長得不一樣的文筆提示。
+ * 這是文筆層唯一的組裝入口，composeSystemInstruction() 內部也走它。
  * 回傳的字串**不含任何規則契約**——組進系統提示的順序由 composeSystemInstruction() 負責。
  *
- * @param {string} [personaKey] NARRATOR_PERSONAS 的 key，省略時用 DEFAULT_PERSONA_KEY
+ * [2026-09-03 拿掉敘事者人格面具的文字] AI 本來就是這場遊戲唯一的說書人，不是在
+ * 三個可切換的「角色」之間選一個來演——玩家從沒有介面能選面具，這裡只是站長端
+ * 的 env var，實測也感受不到差異。拿掉的是**面具文字本身**（含它夾帶的「不評價／
+ * 不預告成功」但書），不是 NARRATOR_PERSONAS 這份資料本身：getPersona()/personaKey
+ * 参数仍然保留、仍然驗證，只是驗證完不再把 instruction 塞進 prompt——這樣
+ * env.NARRATOR_PERSONA 打錯字仍然會在載入時噴錯，不會被靜默吞掉。
+ *
+ * @param {string} [personaKey] NARRATOR_PERSONAS 的 key，省略時用 DEFAULT_PERSONA_KEY。
+ *   只用來驗證這個 key 存在，不再影響輸出內容（見上方說明）。
  * @param {object} [options]
  * @param {string} [options.styleId] 內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [options.customStyle] 自訂文筆提示詞（有傳就取代內建設定檔）
@@ -544,7 +571,8 @@ export function buildStylePrompt(
     characterHints = [],
   } = {}
 ) {
-  const persona = getPersona(personaKey);
+  // 只驗證 key 合不合法（未知 key 仍然丟錯），驗證完的結果不再用來組文字。
+  getPersona(personaKey);
 
   const style = customStyle ?? STYLE_PROFILES[styleId]?.instruction;
   if (!style) {
@@ -554,8 +582,7 @@ export function buildStylePrompt(
     );
   }
 
-  // 面具排在文筆設定檔**之前**：先決定「誰在說話」，再套「他怎麼寫字」。
-  const parts = [persona.instruction, style];
+  const parts = [style];
   if (characterHints.length > 0) {
     parts.push(
       `角色性格提示（只是這個角色的反應傾向，不是規則，也不強制玩家怎麼選）：\n` +
@@ -579,7 +606,8 @@ export function buildStylePrompt(
  *
  * @param {object} params
  * @param {string} params.rulesContract 規則契約層，直接傳 promptContract.js 的 SYSTEM_INSTRUCTION
- * @param {string} [params.personaKey] 敘事者人格面具，見 NARRATOR_PERSONAS，預設 DEFAULT_PERSONA_KEY
+ * @param {string} [params.personaKey] 只用來驗證 NARRATOR_PERSONAS 裡有沒有這個 key，
+ *   不再影響輸出內容（面具文字已於 2026-09-03 拿掉，見 buildStylePrompt() 的說明）
  * @param {string} [params.styleId] 使用哪個內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [params.customStyle] 你自己的文筆提示詞。有傳的話就用這個，不用內建的
  * @param {boolean} [params.includeUniversalRules] 是否附上通用敘事守則，預設 true
@@ -601,7 +629,8 @@ export function composeSystemInstruction({
     throw new Error("composeSystemInstruction需要rulesContract(規則契約層，見promptContract.js)");
   }
 
-  // 文筆層整段交給 buildStylePrompt()（面具 + 文筆 + 活場法 + 通用守則 + 定向要求），
+  // 文筆層整段交給 buildStylePrompt()（文筆 + 活場法 + 通用守則 + 定向要求；
+  // 敘事者人格面具已於 2026-09-03 拿掉，personaKey 只用來驗證合法性），
   // 這裡只負責「文筆在前、規則契約在後、最後宣告優先序」這個順序。
   const parts = [
     buildStylePrompt(personaKey, { styleId, customStyle, includeUniversalRules, characterHints }),

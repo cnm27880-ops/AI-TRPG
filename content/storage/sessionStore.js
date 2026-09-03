@@ -26,8 +26,15 @@ import { createGodspaceProfile, normalizeGodspaceProfile } from "../godspace/sch
  * 餵給AI的敘事短期記憶**最少**要保留幾輪。調大會更連貫但更花錢，調小會失憶。
  *
  * [2026-08-31] 這個常數的語意從「固定保留 N 輪」改成「裁切之後的下限」，見 HISTORY_MAX。
+ *
+ * [2026-09-02 從 8 調降為 5] 四階段重構（PR #54-56）把單回合 static/dynamic 層的規則
+ * 密度大幅推高後，玩家實測回報回應時間從 8-10 秒惡化到 30~100+ 秒，且後台用量顯示
+ * 平均每回合呼叫 LLM 2.3 次（見 [NARRATION_GUARD] log 與 PR #62 的討論）。History
+ * 是隨對話累積、體積最大宗的一層（8 輪 × 每輪 400~800 字的敘事），調小是目前能立即
+ * 生效、不用等 narrative-behaviour-eval 就能看到效果的一刀。連貫性的實際影響需要
+ * 玩家自己在遊戲裡感受回報——這不是靠自動測試能驗證的事，數字先調保守一點。
  */
-export const HISTORY_LIMIT = 8;
+export const HISTORY_LIMIT = 5;
 
 /**
  * 歷史的**上限**，也是這次 prompt cache 優化的核心。
@@ -40,13 +47,15 @@ export const HISTORY_LIMIT = 8;
  *
  * 改成遲滯（hysteresis）窗：平常只在尾端追加，直到累積到 HISTORY_MAX 才一次裁回
  * HISTORY_LIMIT。追加不會動到既有 token，所以 HISTORY_MAX - HISTORY_LIMIT 這幾回合裡
- * 歷史前綴是**逐字不變**的，全部命中；每 8 回合才會發生一次「窗口重排」的整段 miss。
- * 用一次比較貴的回合，換掉七次比較貴的回合。
+ * 歷史前綴是**逐字不變**的，全部命中；每隔 HISTORY_MAX - HISTORY_LIMIT 回合才會發生
+ * 一次「窗口重排」的整段 miss，用一次比較貴的回合換掉其餘比較貴的回合。
  *
  * 記憶量只會變多不會變少：任何時刻保留的輪數都 >= 舊行為的 HISTORY_LIMIT，
  * 所以這個改動不會讓AI比以前更健忘。
+ *
+ * [2026-09-02] 跟著 HISTORY_LIMIT 一起從 16 調降為 10，維持原本 2 倍的遲滯窗比例。
  */
-export const HISTORY_MAX = 16;
+export const HISTORY_MAX = 10;
 
 /**
  * 存檔格式版本。

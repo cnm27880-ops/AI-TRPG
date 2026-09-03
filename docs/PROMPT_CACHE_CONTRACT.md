@@ -106,7 +106,7 @@
    歷史必須是獨立的 `user`/`assistant` messages，這樣新增一輪才只是尾端追加。
 
 4. **不要讓歷史每回合都從頭部裁掉一格。**
-   `pushHistory()` 的遲滯窗（`HISTORY_MAX` 16 → 裁回 `HISTORY_LIMIT` 8）是刻意的：
+   `pushHistory()` 的遲滯窗（`HISTORY_MAX` 10 → 裁回 `HISTORY_LIMIT` 5）是刻意的：
    每回合裁一格 = 每回合都重排前綴 = 快取等於關掉。
    要調整記憶長度就改這兩個常數，不要改成「每次都裁」。
 

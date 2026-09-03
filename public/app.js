@@ -1360,10 +1360,11 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
         sessionId: currentSessionId,
         chosenOption,
         playerAction,
-        // 文筆風格與敘事者面具不再由前端指定：兩者都由伺服器端的環境變數決定
-        // （NARRATIVE_STYLE / NARRATOR_PERSONA，見 content/narrativeStyle.js 的預設值）。
-        // 它們是靜態層的內容，交給玩家逐回合切換等於每次切換都作廢一次快取前綴；
+        // 文筆風格不由前端指定：由伺服器端的環境變數決定
+        // （NARRATIVE_STYLE，見 content/narrativeStyle.js 的預設值）。
+        // 它是靜態層的內容，交給玩家逐回合切換等於每次切換都作廢一次快取前綴；
         // 而且這個遊戲的敘事語氣是設計的一部分，不是偏好設定。
+        // （敘事者人格面具已於 2026-09-03 拿掉，NARRATOR_PERSONA 不再影響輸出。）
         turnRequestId: stableRequestId,
         retryPending,
         // server 會以 NDJSON 先送安全狀態事件，再送完整 canonical response；

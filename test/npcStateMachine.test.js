@@ -309,7 +309,7 @@ test("legend 是靜態的、狀態行是動態的：兩者不可以混在同一�
   assert.equal(block, buildNpcActiveStateBlock(reference, state));
 });
 
-test("反客服協定進了文筆層，並且把四條約束都寫進去", () => {
+test("反客服協定進了文筆層，並且把五條約束都寫進去", () => {
   const prompt = buildStylePrompt();
   assert.ok(prompt.includes(ANTI_ASSISTANT_PROTOCOL), "協定必須真的組進系統提示，不是只 export 出來");
   assert.match(ANTI_ASSISTANT_PROTOCOL, /不是一個以玩家為中心的世界/);
@@ -319,6 +319,14 @@ test("反客服協定進了文筆層，並且把四條約束都寫進去", () =>
   // 跟既有守則的分界必須寫在提示裡：拿走的是場面主導權，不是玩家角色的自主權。
   // 少了這一句，模型會在「NPC 要搶話」跟「不可以替玩家決定」之間二選一。
   assert.match(ANTI_ASSISTANT_PROTOCOL, /不可以寫玩家角色/);
+});
+
+// [2026-09-03 新增] 第五條：NPC 對脫序/挑釁舉動要給常識反應，但反應只是演出強度，
+// 不是新的傷害/戰鬥判定——這條測試釘住兩個方向都要在，缺一個都是退化。
+test("反客服協定第五條：NPC 常識反應成正比，但不能自行宣告傷害或戰鬥結果", () => {
+  assert.match(ANTI_ASSISTANT_PROTOCOL, /反應強度要跟挑釁程度成正比/);
+  assert.match(ANTI_ASSISTANT_PROTOCOL, /翻跟斗/);
+  assert.match(ANTI_ASSISTANT_PROTOCOL, /不可以在敘事裡自行宣告命中、傷害或死亡/);
 });
 
 test("patienceLabel 在整個 0-10 區間都有對應標籤，邊界不會掉出去", () => {
@@ -508,12 +516,14 @@ test("requires 只能用查表裡有的條件，拼錯一個字就在載入時�
   for (const persona of NPC_PERSONAS) assertMotivePredicates(persona);
 });
 
-test("動機的內容住在靜態層，動態層只送 ID", () => {
+test("動機的內容住在靜態層，動態層只送 ID；只留為什麼，不逐條寫死要做什麼", () => {
   const contract = buildNpcCooperationContract(reference);
-  // 為什麼、要做什麼、有什麼好處——全部在靜態契約裡，整場付一次。
-  assert.match(contract, /ORIENT_NEWCOMERS — 動機：/);
+  // [2026-09-02 簡化] 為什麼住在靜態契約裡，整場付一次；「要做什麼」「有什麼好處」
+  // 不再逐條寫死——那是把有限狀態機規格書攤給模型抄，抄出來的NPC會很機械化
+  // （玩家實測回報「NPC會主動互動了，但很僵硬」）。具體怎麼演交給模型自己接。
+  assert.match(contract, /ORIENT_NEWCOMERS — /);
   assert.match(contract, /新人不知道主神副本的規則/);
-  assert.match(contract, /收益：有效的引導可能換到主神提供的引導獎勵/);
+  assert.doesNotMatch(contract, /行為：|收益：/);
 
   let state = onStage();
   state = step(state, 1, "這裡是哪裡？發生什麼事？", { threatStage: "潛伏" });

@@ -93,7 +93,7 @@ import {
   trackCheckUsage,
 } from "../../content/scenario/progress.js";
 import { buildRetreadDirective, retreadLabel } from "../../content/scenario/repetition.js";
-import { buildNodeGuidance, validateNodeComplete } from "../../content/scenario/nodePrompt.js";
+import { buildNodeGuidance, validateNodeComplete, ACTIVE_DM_DIRECTIVE } from "../../content/scenario/nodePrompt.js";
 import { buildThreatDirective, threatSummary, applyDirectThreatDelta, getThreatStage } from "../../content/scenario/threat.js";
 import {
   normalizeReferenceState,
@@ -382,9 +382,10 @@ async function executeTurn(context, streamHooks = null) {
   // 但「前端沒有入口」跟「後端不接受」是兩件事——留著這條路，等於留一個沒有任何 UI、
   // 沒有人會去看、卻仍然可以用 curl 打進來的分支。這種分支壞掉時不會有人發現。
   //
-  // 現在供應商、金鑰、Base URL、模型、文筆與敘事者面具全部由伺服器端的環境變數決定
-  // （LLM_PROVIDER / *_API_KEY / LLM_BASE_URL / LLM_MODEL / NARRATIVE_STYLE /
-  //  NARRATOR_PERSONA，見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。
+  // 現在供應商、金鑰、Base URL、模型與文筆全部由伺服器端的環境變數決定
+  // （LLM_PROVIDER / *_API_KEY / LLM_BASE_URL / LLM_MODEL / NARRATIVE_STYLE，
+  //  見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。NARRATOR_PERSONA 仍然存在只是為了
+  // 驗證合法性，2026-09-03 起面具文字已經不再影響輸出（見 narrativeStyle.js）。
   // 多送這些欄位不會報錯、也不會生效，就只是被忽略。
   // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
   // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
@@ -998,6 +999,11 @@ async function executeTurn(context, streamHooks = null) {
         narrativeMode,
         scene: referenceScene,
         checkParams,
+        // 讓合約能偵測玩家這句話有沒有指名在場 NPC（例如「陸遠」），見
+        // content/scenario/freeActionContract.js 的 detectAddressedNpc()。
+        // 不篩選在不在場：篩選需要另外查 S.A.E.P. 狀態，這裡只做「文字裡有沒有提到這個名字」
+        // 的字串比對，模型自己會依 [NPC_ACTIVE_STATE] 判斷這個NPC真的在不在場。
+        npcs: scenarioReference?.npcs ?? [],
         threat: {
           ...(scenarioProgress?.threat ?? {}),
           stage: getThreatStage(scenarioProgress?.threat?.level ?? 0),
@@ -1082,13 +1088,16 @@ async function executeTurn(context, streamHooks = null) {
     actionText,
     outcome,
     freeAction,
-    personaKey: env.NARRATOR_PERSONA ?? null,
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
     historyMessages,
     completedChronicles,
     character,
     nodeGuidance: scenarioPack ? buildNodeGuidance(activeNode, stalledRounds) : null,
+    // ACTIVE_DM_DIRECTIVE 逐字不變，只要這場遊戲有 scenarioPack 就整場都會用到，
+    // 所以跟 nodeGuidance 用同一個判斷式，但放進 staticBlocks 而不是動態層——
+    // 見 content/scenario/nodePrompt.js 的檔頭說明。
+    activeDmDirective: scenarioPack ? ACTIVE_DM_DIRECTIVE : null,
     dmMemo, // [新增] 將表格傳遞給組裝器
     // S.A.E.P. 數值矩陣：動態層的**第一段**，見 buildPromptLayers() 裡的說明。
     npcActiveState: scenarioReference && referenceState
@@ -1535,6 +1544,20 @@ async function executeTurn(context, streamHooks = null) {
       degraded.narrationSource = referenceFreeInputPending ? "bridge_llm" : "ai";
     }
     degraded.narrativeSafety = narrationSafety;
+    // [2026-09-02 新增，純觀測] 這條路徑每觸發一次就是這一回合多付一次完整 LLM 呼叫
+    // （見上面 rewriteAttempted 分支的 invokeNarrativeLlm()）。只在真的檢查過合約時記錄，
+    // 不改變任何行為——目的是量化「觸發率」，取代單靠玩家截圖臆測。
+    if (narrationSafety.rewriteAttempted || narrationSafety.fallbackUsed) {
+      console.log("[NARRATION_GUARD]", JSON.stringify({
+        sessionId: session?.id ?? null,
+        rewriteAttempted: narrationSafety.rewriteAttempted,
+        rewritePassed: narrationSafety.rewritePassed,
+        fallbackUsed: narrationSafety.fallbackUsed,
+        rewriteError: narrationSafety.rewriteError ?? false,
+        violations: narrationSafety.violations ?? [],
+        rewriteViolations: narrationSafety.rewriteViolations ?? [],
+      }));
+    }
   }
 
   // reference 自由輸入的威脅由 AI 提議、引擎驗證；固定 approach 的 threatDelta 不走這條路。
@@ -1985,13 +2008,13 @@ function buildPromptLayers({
   referenceMode = false,
   referenceFreeInput = false,
   narrativeMode = "normal",
-  personaKey = null,
   sceneContext,
   recentEvents,
   historyMessages = [],
   completedChronicles,
   character,
   nodeGuidance,
+  activeDmDirective = null,
   dmMemo,
   npcActiveState = null,
   npcCooperationContract = null,
@@ -2009,7 +2032,7 @@ function buildPromptLayers({
   // 「玩家這次的輸入」後面，等於每回合白付一次三千字的 prompt token。
   const optionsSpec = referenceMode ? buildReferenceResponseSpec() : buildOptionsSpec(character);
   const staticBlocks = [
-    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildStaticContextBlocks({ sceneContext }),
     optionsSpec,
     // S.A.E.P. 狀態矩陣的**讀法**。數字每回合都變，但「SOC 是什麼意思」整場不變，
     // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
@@ -2024,6 +2047,10 @@ function buildPromptLayers({
     referenceMode ? npcCooperationContract : null,
     // 已封存副本摘要：整場只在「打完一個副本」時變一次，是靜態層裡唯一會變的一段。
     completedChronicles,
+    // 主動說書人指令：逐字不變、不吃任何每回合狀態，原本掛在 nodeGuidance 動態回傳值
+    // 尾端，每回合都重新計費一次。後台用量顯示快取命中率長期卡在約 75%，這筆固定成本
+    // 已經貴到有感，所以搬來這裡整場只算一次。見 content/scenario/nodePrompt.js 的檔頭說明。
+    activeDmDirective,
     // styleAndRules 放**最後**，而且是刻意的，不是順手排的：
     // 它的結尾就是 composeSystemInstruction() 那句「文筆與規則契約衝突時一律以規則契約為準」，
     // 那句話必須是系統提示的最後一段（見 content/narrativeStyle.js：「順序本身就是防線的一部分」）。

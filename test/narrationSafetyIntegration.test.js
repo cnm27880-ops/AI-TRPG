@@ -139,7 +139,15 @@ test("unmatched free input：安全重寫仍不合格時使用 engine-safe narra
   assert.equal(mock.prompts.length, 2);
   assert.equal(result.body.degraded.narrationSource, "engine-safe");
   assert.equal(result.body.degraded.narrativeSafety.fallbackUsed, true);
-  assert.match(result.body.narration, /沒有任何新的道路、物品、位置或傷勢變化被確認/);
+  // [2026-09-03] 保底模板已經改成敘事化語言，不再印出「沒有任何新的道路、物品、
+  // 位置或傷勢變化被確認」這種機械詞彙（見 content/scenario/freeActionContract.js
+  // 的 buildEngineSafeNarration()）。這句輸入沒有可失敗的目標（見 checkIntent.js），
+  // 走的是 free_action 分支，斷言改成鎖住「沒有洩漏引擎/除錯字眼」與「沒有洩漏
+  // 未授權的幻覺內容」這兩件事，而不是鎖住舊模板的逐字文案。
+  assert.doesNotMatch(
+    result.body.narration,
+    /引擎判定|自動失敗|stateChangeAuthorized|沒有任何新的道路、物品、位置或傷勢變化被確認/
+  );
   assert.doesNotMatch(result.body.narration, /封死|特殊指令|撲出|攻擊/);
   assert.equal(result.body.scenario.nodeCompleted, null);
 });

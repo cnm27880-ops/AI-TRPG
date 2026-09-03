@@ -11,8 +11,19 @@
      改遊戲介面就有機會弄壞這裡。這裡的 CSS 只有幾十行，全部寫在這一頁。 */
   :root {
     color-scheme: dark;
-    --bg: #09090b; --card: #131316; --line: #26262b;
-    --ink: #e7e7ea; --dim: #8b8b93; --accent: #34d399; --warn: #fbbf24;
+    /* 色階換算自 Tailwind zinc/amber 色票的等值 hex，不引入 Tailwind 本身
+       （理由見上方註解：這頁刻意零框架、零依賴）。 */
+    --bg: #18181b;              /* zinc-900 */
+    --card: #27272a;            /* zinc-800 */
+    --card-alt: #303033;        /* 表頭／交替列底色，比 --card 再深一階 */
+    --line: #3f3f46;            /* zinc-700 */
+    --ink: #f4f4f5;             /* zinc-100，關鍵文字 */
+    --dim: #a1a1aa;             /* zinc-400，次要說明文字，比舊版 #8b8b93 更亮 */
+    --accent: #34d399;
+    --warn: #fbbf24;
+    --warn-bg: rgba(69, 26, 3, .4);   /* amber-950/40 */
+    --warn-border: rgba(245, 158, 11, .5); /* amber-500/50 */
+    --warn-ink: #fde68a;         /* amber-200 */
   }
   * { box-sizing: border-box; }
   body {
@@ -20,29 +31,31 @@
     font: 13px/1.65 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   main { max-width: 940px; margin: 0 auto; }
-  h1 { font-size: 1.05rem; margin: 0 0 .2rem; letter-spacing: .04em; }
+  h1 { font-size: 1.05rem; margin: 0 0 .2rem; letter-spacing: .04em; color: #fff; font-weight: 700; }
   .sub { color: var(--dim); font-size: .72rem; margin: 0 0 1.4rem; }
   .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .7rem; margin-bottom: 1.2rem; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: .8rem .9rem; }
+  .card { background: rgba(39, 39, 42, .8); border: 1px solid var(--line); border-radius: 6px; padding: .8rem .9rem; }
   .card .k { color: var(--dim); font-size: .64rem; letter-spacing: .1em; text-transform: uppercase; }
-  .card .v { font-size: 1.35rem; font-weight: 700; margin-top: .25rem; }
+  .card .v { font-size: 1.35rem; font-weight: 700; margin-top: .25rem; color: #fff; }
   .card .n { color: var(--dim); font-size: .66rem; margin-top: .2rem; }
   .accent { color: var(--accent); }
-  /* 推算值（非供應商回報，字元比例猜的）刻意用跟真實數字不一樣的樣式：虛線框＋警示色，
-     不能讓人一眼把它跟上面真正的快取命中率／省下金額看成同一種數字。 */
-  .card.estimate { border-style: dashed; border-color: var(--warn); }
-  .card.estimate .k::after { content: " · 推算"; color: var(--warn); text-transform: none; letter-spacing: 0; }
-  .card.estimate .v { color: var(--warn); }
+  /* 推算值（非供應商回報，字元比例猜的）刻意用跟真實數字不一樣的樣式：柔和高對比的
+     amber 警示風格，不能讓人一眼把它跟上面真正的快取命中率／省下金額看成同一種數字。 */
+  .card.estimate { border-style: dashed; border-color: var(--warn-border); background: var(--warn-bg); }
+  .card.estimate .k::after { content: " · 推算"; color: var(--warn-ink); text-transform: none; letter-spacing: 0; }
+  .card.estimate .v { color: var(--warn-ink); }
   .notice {
-    border: 1px solid var(--warn); background: rgba(251,191,36,.08); color: var(--warn);
+    border: 1px solid var(--warn-border); background: var(--warn-bg); color: var(--warn-ink);
     border-radius: 6px; padding: .7rem .9rem; font-size: .72rem; margin-bottom: 1.1rem;
   }
   .notice code { background: rgba(0,0,0,.35); padding: .05rem .3rem; border-radius: 3px; }
   .wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 6px; }
   table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: .74rem; }
   th, td { padding: .45rem .7rem; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
-  th { color: var(--dim); font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
+  th { background: var(--card-alt); color: var(--dim); font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 400; }
   th:first-child, td:first-child { text-align: left; }
+  tbody tr:nth-child(even) td { background: rgba(255, 255, 255, .02); }
+  tbody tr:hover td { background: rgba(255, 255, 255, .06); }
   tbody tr:last-child td { border-bottom: none; }
   .bar { height: 3px; background: var(--line); border-radius: 2px; overflow: hidden; margin-top: .35rem; }
   .bar > i { display: block; height: 100%; background: var(--accent); }

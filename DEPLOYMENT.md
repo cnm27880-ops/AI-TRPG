@@ -188,14 +188,16 @@ Cloudflare Dashboard → **Workers & Pages** → 選你的 Pages 專案 → **Se
 
 ### 敘事語氣也在這裡設
 
-文筆與敘事者面具也從前端拿掉了，改由環境變數決定（兩個都是 Text，選配）：
+文筆也從前端拿掉了，改由環境變數決定（Text，選配）：
 
 | 變數 | 可用值 |
 | --- | --- |
 | `NARRATIVE_STYLE` | `白描` / `恐怖懸疑` / `冷硬寫實` / `電影感` / `標準` |
-| `NARRATOR_PERSONA` | `RUTHLESS_JUDGE` / `GENTLE_GOD` / `PANIC_SURVIVOR` |
 
 值必須跟 `content/narrativeStyle.js` 的 key 一字不差，打錯會讓回合回 400。
+
+`NARRATOR_PERSONA`（敘事者人格面具）已於 2026-09-03 停用：設了仍會驗證合法性，
+但面具文字不再送進 prompt，見 `LLM_PROVIDERS.md` 的說明。
 
 ### 怎麼確認真的切過去了
 

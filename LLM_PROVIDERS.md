@@ -71,7 +71,7 @@
 | `LLM_ALLOW_PAID_FALLBACK` | 必須明確設為 `true` 才允許 Gemini／DeepSeek／OpenRouter 自動加入 fallback；預設不允許 |
 | `LLM_MAX_TOKENS` | 輸出長度上限，預設 2048。**不要調到 1000 以下**，原因見下方 |
 | `NARRATIVE_STYLE` | 文筆設定檔名稱：`白描`（預設）/`標準`/`恐怖懸疑`/`冷硬寫實`/`電影感` |
-| `NARRATOR_PERSONA` | 敘事者人格面具：`RUTHLESS_JUDGE`（預設）/`GENTLE_GOD`/`PANIC_SURVIVOR` |
+| `NARRATOR_PERSONA` | [已停用，見下方「敘事者人格面具」] 只驗證合法性，不再影響輸出 |
 
 > **為什麼 `LLM_MAX_TOKENS` 不能調小**：每一回合要模型輸出「敘事 + 4個選項」的完整 JSON。
 > 上限太低時，模型會在寫完敘事、還沒開始寫 `options` 的地方被切斷，於是 JSON 解析失敗、
@@ -437,27 +437,20 @@ curl -X POST http://localhost:8788/api/turn \
   -d '{"character": {...}, "style": "冷硬寫實"}'
 ```
 
-### 敘事者人格面具（persona）
+### 敘事者人格面具（persona）——[2026-09-03 已停用]
 
-文筆設定檔管「怎麼寫」（句子長短、修辭密度、禁用詞），人格面具管「**誰**在寫」。
-兩者互相獨立，可以任意搭配：同一份白描規範，換一個面具讀起來就是另一個人在講這場輪迴。
+這裡原本有三個可切換的敘事者人格面具（`RUTHLESS_JUDGE`/`GENTLE_GOD`/`PANIC_SURVIVOR`），
+管「**誰**在寫」，跟管「怎麼寫」的文筆設定檔互相獨立。
 
-| 面具 key | 是誰 |
-|---|---|
-| `RUTHLESS_JUDGE`（預設） | 主神的冷酷裁判：冷酷、簡練，永遠讓代價與死亡氣息被看見 |
-| `GENTLE_GOD` | 溫柔的異界神明：旁觀者視角、悲憫、如詠嘆調 |
-| `PANIC_SURVIVOR` | 崩潰的倖存者：神經質、急促，只看得見陰影與血 |
+拿掉的理由：這從來不是玩家介面上能選的東西，只是站長端的環境變數；AI 本來就是這場遊戲
+唯一的說書人，玩家只在意劇情推不推得動，感受不到換面具的差異。面具文字本身每回合要
+額外付一段固定 token，拿掉之後系統提示更精簡。
 
-切換方式同樣兩種：`NARRATOR_PERSONA` 環境變數（全域），或呼叫時帶 `persona` 欄位：
-
-```bash
-curl -X POST http://localhost:8788/api/turn \
-  -H "content-type: application/json" \
-  -d '{"sessionId": "...", "persona": "PANIC_SURVIVOR"}'
-```
-
-面具跟文筆一樣屬於**文筆層**：它只影響語氣與取鏡，組進系統提示時仍然排在規則契約之前，
-最後一句仍然是「以規則契約為準」（見 `content/narrativeStyle.js` 的 `buildStylePrompt`）。
+`content/narrativeStyle.js` 的 `NARRATOR_PERSONAS`／`getPersona()`／`NARRATOR_PERSONA`
+環境變數本身還留著，但只剩下「驗證這個 key 存不存在」的作用——打錯字仍然會在載入時
+噴錯，只是驗證通過之後不會再把面具文字塞進 prompt。`/api/turn` 從 2026-08-31 起
+就已經不接受請求裡的 `persona` 欄位（見 `functions/api/turn.js` 的說明），
+只有 legacy 的 `/api/narrate` demo 端點還會讀 `persona` 欄位做驗證。
 
 ### 兩個為了配合單人TRPG而做的調整
 

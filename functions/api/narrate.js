@@ -15,7 +15,8 @@
 //   LLM_BASE_URL   接第三方OpenAI相容中轉時使用
 //   GEMINI_API_KEY / DEEPSEEK_API_KEY / OPENROUTER_API_KEY / LLM_API_KEY
 //   NARRATIVE_STYLE 文筆設定檔名稱（見 content/narrativeStyle.js 的 STYLE_PROFILES）
-//   NARRATOR_PERSONA 敘事者人格面具（見 content/narrativeStyle.js 的 NARRATOR_PERSONAS）
+//   NARRATOR_PERSONA 只驗證合法性，2026-09-03 起面具文字已不再影響輸出
+//   （見 content/narrativeStyle.js 的 buildStylePrompt() 說明）
 //
 // BYOK 呼叫端若明確指定 provider + 自己的設定，可以透過這個 legacy/demo 端點測試。
 // 未指定 provider 時，匿名 request 預設會被擋下；只有部署者明確設定

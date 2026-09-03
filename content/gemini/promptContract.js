@@ -16,11 +16,10 @@
 // [已知簡化] 這裡沒有處理「長期記憶/RAG」——如果之後劇情變長，光靠「最近N筆事件」當context
 // 可能不夠，需要另外設計摘要/檢索機制，這次先不做，範圍只到「單回合的敘事prompt組裝」。
 
-// 面具查表來自文筆層。這是**唯一**一個從規則契約層指向文筆層的引用，而且只用來
-// 「把面具那段文字原封不動貼進 prompt」——規則契約本身完全沒有因此改變。
-// buildTurnPrompt() 要接 personaKey（見 Phase 5.3 任務1）就一定要有這條線；
-// 為了不讓它擴散，這裡刻意只 import getPersona 一個函式，不 import 任何文筆內容常數。
-import { getPersona } from "../narrativeStyle.js";
+// [2026-09-03] 這裡原本從文筆層 import getPersona 來組敘事者人格面具區塊
+// （<Narrator_Persona>，見 Phase 5.3 任務1）。面具文字已經整個拿掉
+// （見 narrativeStyle.js 的說明：AI 本來就是唯一的說書人，玩家也沒有介面能選面具），
+// 這個規則契約層指向文筆層的引用也一併移除。
 
 // [2026-08-31] Prompt Cache 分層。
 //
@@ -87,18 +86,6 @@ function tagged(tag, body) {
   return `<${tag}>\n${body}\n</${tag}>`;
 }
 
-/** 這一回合的敘事者面具區塊。personaKey 省略時回傳 null（呼叫端就不放這一段）。 */
-function personaBlock(personaKey) {
-  if (!personaKey) return null;
-  const persona = getPersona(personaKey);
-  return tagged(
-    "Narrator_Persona",
-    `【本回合的敘事者人格面具】\n${persona.instruction}\n` +
-      `注意：面具只決定你用什麼聲音講這段話，不影響任何數值與判定結果。` +
-      `面具與 <Engine_Result> 衝突時，一律以 <Engine_Result> 為準。`
-  );
-}
-
 /**
  * 記憶區塊（前情提要 + 事件日誌 + 已封存副本短摘要）。
  *
@@ -135,20 +122,22 @@ export function buildMemoryBlocks({ recentNarration, recentEvents = [], complete
 /**
  * 【靜態層】整場遊戲不會變的敘事上下文區塊，要放進 system message。
  *
- * 只有兩樣東西夠格待在這裡：這一場指定的敘事者面具，以及副本的固定場景背景。
- * 兩者在一場遊戲裡都是常數——面具由玩家在設定裡選一次，場景背景由副本定義。
+ * 目前只有副本的固定場景背景夠格待在這裡——它在一場遊戲裡是常數，由副本定義。
+ *
+ * [2026-09-03] 這裡原本還有一段敘事者人格面具區塊（<Narrator_Persona>），跟
+ * narrativeStyle.js 的 buildStylePrompt() 各自組一次面具文字，是兩個獨立的注入點；
+ * 面具本身已經決定整個拿掉（見 narrativeStyle.js 的說明），這裡也一併移除，
+ * 不留一個「NARRATOR_PERSONA 設了才會生效」的第二個入口。
  *
  * **不要**把任何跟「這一回合」有關的東西加進來。回合數、血量、剩餘時間、判定結果、
  * 迫近度、卡關計數全部屬於動態層；混一個進來，這一層後面的所有 token 就每回合重算，
  * 而且從遊戲行為上完全看不出來（照跑，只是變貴變慢）。
  * content/llm/cacheLayers.js 的 detectDynamicLeaks() 就是用來擋這件事的。
  *
- * @returns {string[]} 固定順序：面具在前、場景在後。順序是快取前綴的一部分，不可調換。
+ * @returns {string[]}
  */
-export function buildStaticContextBlocks({ personaKey, sceneContext }) {
+export function buildStaticContextBlocks({ sceneContext }) {
   const blocks = [];
-  const persona = personaBlock(personaKey);
-  if (persona) blocks.push(persona);
   if (sceneContext) blocks.push(tagged("Scene", `【場景背景】${sceneContext}`));
   return blocks;
 }
@@ -214,9 +203,6 @@ export function buildDynamicFreeActionBlocks({ playerAction }) {
  *   的 historyToPromptText)。跟 recentEvents 的差別：事件摘要只有事實(「判定：躲藏，成功」)，
  *   沒有語氣、場景細節與NPC說過的話，光靠它AI寫不出連貫的劇情。兩個都要給。
  * @param {string|null} [params.completedChronicles] 已封存副本的短摘要，最多幾份且已截斷；完整 chronicle 不進每回合。
- * @param {string} [params.personaKey] 這一回合的敘事者人格面具(見 content/narrativeStyle.js
- *   的 NARRATOR_PERSONAS)。省略就不放面具區塊——系統提示裡本來就有一份，
- *   這裡是「這一回合特別指定」用的，例如某個節點想臨時換一個聲音來講。
  * @param {string|null} [params.specialtyNarrationDirective] server 依成功 tier、實際 skill
  *   與已核發起始專長產生的一次性動作演出指令；空值時不得自行推測專長。
  * @returns {string} 可以直接當作 LLM API 的使用者訊息使用
@@ -228,7 +214,6 @@ export function buildTurnPrompt({
   recentEvents = [],
   recentNarration,
   completedChronicles = null,
-  personaKey,
   specialtyNarrationDirective = null,
 }) {
   if (!playerAction) throw new Error("buildTurnPrompt需要playerAction(玩家這次的行動描述)");
@@ -237,7 +222,7 @@ export function buildTurnPrompt({
   // 三層各自只有一份定義，這裡只負責把它們接回一段字串（相容路徑），
   // 不要在這裡重寫任何區塊——重寫就會出現「分層路徑跟相容路徑內容不一樣」的分岔。
   const blocks = [
-    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildStaticContextBlocks({ sceneContext }),
     ...buildMemoryBlocks({ recentNarration, recentEvents, completedChronicles }),
     ...buildDynamicTurnBlocks({ playerAction, outcome, specialtyNarrationDirective }),
   ];
@@ -261,12 +246,11 @@ export function buildFreeActionPrompt({
   recentEvents = [],
   recentNarration,
   completedChronicles = null,
-  personaKey,
 }) {
   if (!playerAction) throw new Error("buildFreeActionPrompt需要playerAction(玩家這次的行動描述)");
 
   const blocks = [
-    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildStaticContextBlocks({ sceneContext }),
     ...buildMemoryBlocks({ recentNarration, recentEvents, completedChronicles }),
     ...buildDynamicFreeActionBlocks({ playerAction }),
   ];
