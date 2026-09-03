@@ -153,34 +153,18 @@ test("buildTurnPrompt：專長成功演出指令只以獨立區塊注入，且�
   assert.doesNotMatch(prompt, /因為玩家有街頭鬥狠|因為玩家有軍械直覺/);
 });
 
-test("buildTurnPrompt：帶 personaKey 時把面具原文注入，且宣告面具不能蓋掉引擎結果", () => {
+// [2026-09-03] 敘事者人格面具的 <Narrator_Persona> 區塊已經整個拿掉（見
+// content/gemini/promptContract.js 的 buildStaticContextBlocks() 說明：玩家沒有
+// 介面能選面具，實測也感受不到差異，兩個各自獨立的注入點——這裡跟
+// narrativeStyle.js 的 buildStylePrompt()——都已經移除）。buildTurnPrompt() 也
+// 不再接受 personaKey 參數；「personaKey 合不合法」的驗證現在只發生在
+// composeSystemInstruction()/buildStylePrompt() 那條路徑上，見 narrativeStyle.test.js。
+test("buildTurnPrompt：不會輸出 <Narrator_Persona> 區塊", () => {
   const outcome = classifyOutcome({ margin: 3 });
-  const prompt = buildTurnPrompt({
-    playerAction: "我朝門口衝",
-    outcome,
-    personaKey: "GENTLE_GOD",
-  });
-
-  assert.ok(prompt.includes(NARRATOR_PERSONAS.GENTLE_GOD.instruction), "面具原文必須進到prompt");
-  assert.match(prompt, /<Narrator_Persona>/);
-  assert.match(prompt, /以 <Engine_Result> 為準/);
-  // 面具排在引擎結果之前：優先序的最後一句話仍然屬於引擎。
-  assert.ok(prompt.indexOf("<Narrator_Persona>") < prompt.indexOf("<Engine_Result>"));
-});
-
-test("buildTurnPrompt：沒帶 personaKey 就不放面具區塊(系統提示裡已經有一份)", () => {
-  const prompt = buildTurnPrompt({ playerAction: "我等待", outcome: classifyOutcome({ margin: 1 }) });
+  const prompt = buildTurnPrompt({ playerAction: "我朝門口衝", outcome });
   assert.ok(!prompt.includes("<Narrator_Persona>"));
-});
-
-test("buildTurnPrompt：未知的面具key要丟錯，不可以靜靜略過", () => {
-  assert.throws(() =>
-    buildTurnPrompt({
-      playerAction: "我等待",
-      outcome: classifyOutcome({ margin: 1 }),
-      personaKey: "NOT_A_PERSONA",
-    })
-  );
+  assert.ok(!prompt.includes(NARRATOR_PERSONAS.GENTLE_GOD.instruction));
+  assert.match(prompt, /<Engine_Result>/);
 });
 
 test("buildFreeActionPrompt：明確禁止描寫成敗，但要求場景照樣推進", () => {

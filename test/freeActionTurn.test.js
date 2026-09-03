@@ -13,7 +13,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { onRequestPost as sessionPost } from "../functions/api/session.js";
 import { onRequestPost as turnPost } from "../functions/api/turn.js";
-import { NARRATOR_PERSONAS, DEFAULT_PERSONA_KEY } from "../content/narrativeStyle.js";
+import { NARRATOR_PERSONAS } from "../content/narrativeStyle.js";
 import { SYSTEM_INSTRUCTION } from "../content/gemini/promptContract.js";
 
 const DRAFT = {
@@ -197,13 +197,14 @@ test("無目標行動的演出協議在系統提示裡，而且不含任何動�
   assert.match(system, /禁止把它寫成失敗/, "沒有判定就沒有失敗，這句話要真的送到模型面前");
 });
 
-// [2026-08-31] 這兩題的前提換了：面具不再由呼叫端指定。
+// [2026-08-31] 這兩題的前提換了：面具不再由呼叫端指定，改由伺服器端的
+// NARRATOR_PERSONA 環境變數決定（沒設就用 DEFAULT_PERSONA_KEY）。
 //
-// 舊版讓前端在設定視窗裡選面具，body 帶 persona 過來。設定視窗整個拆掉之後，
-// 面具改由伺服器端的 NARRATOR_PERSONA 環境變數決定（沒設就用 DEFAULT_PERSONA_KEY）。
-// 面具是**靜態層**的內容：讓玩家逐回合切換，等於每切一次就作廢一次快取前綴，
-// 而且這個遊戲的敘事語氣是設計的一部分，不是偏好設定。
-test("面具由伺服器環境變數決定，且規則契約仍然完整、優先序宣告仍在最後", async () => {
+// [2026-09-03 再次更新] 面具文字本身已經整個拿掉（見 content/narrativeStyle.js 的
+// buildStylePrompt() 說明：玩家沒有介面能選面具，實測也感受不到差異）。
+// NARRATOR_PERSONA 現在只驗證合法性，不再讓輸出出現任何面具專屬文字——
+// 下面兩題改成鎖住這個現況，而不是鎖住「面具生效」這件已經不存在的行為。
+test("NARRATOR_PERSONA 環境變數只驗證合法性，不再讓面具文字出現在輸出裡；規則契約仍然完整、優先序宣告仍在最後", async () => {
   const env = scriptedEnv([replyWithFreeOption(1)]);
   env.NARRATOR_PERSONA = "PANIC_SURVIVOR";
   const sessionId = await newSession(env);
@@ -211,15 +212,22 @@ test("面具由伺服器環境變數決定，且規則契約仍然完整、優�
   await turnPost(req(env, { sessionId }));
   const { system } = lastMessages(env);
 
-  assert.ok(system.includes(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction), "環境變數指定的面具要真的生效");
+  assert.ok(!system.includes(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction), "面具文字不該再出現在輸出裡");
   assert.ok(system.includes(SYSTEM_INSTRUCTION), "規則契約必須完整保留");
-  assert.ok(
-    system.indexOf(NARRATOR_PERSONAS.PANIC_SURVIVOR.instruction) < system.indexOf(SYSTEM_INSTRUCTION)
-  );
   assert.match(system.trim().split("\n\n").at(-1), /以規則契約為準/);
 });
 
-test("body 送 persona 不會生效，也不會讓回合失敗", async () => {
+test("NARRATOR_PERSONA 設成不存在的 key 時，回合在載入階段就要丟錯，不能靜默吞掉", async () => {
+  const env = scriptedEnv([replyWithFreeOption(1)]);
+  env.NARRATOR_PERSONA = "NOT_A_PERSONA";
+  const sessionId = await newSession(env);
+
+  const { status, body } = await readJson(await turnPost(req(env, { sessionId })));
+  assert.notEqual(status, 200, "無效的 NARRATOR_PERSONA 不該讓回合悄悄成功");
+  assert.match(body.error ?? "", /NOT_A_PERSONA|可用的有/);
+});
+
+test("body 送 persona/style 不會生效，也不會讓回合失敗", async () => {
   // 舊版對未知面具回 400。現在 body 的 persona 根本不被讀取，所以送一個不存在的值
   // 既不該改變敘事、也不該把回合打掛——它就只是被忽略。
   // 「前端沒有入口」跟「後端不接受」是兩件事，這一題釘的是後者。
@@ -232,11 +240,6 @@ test("body 送 persona 不會生效，也不會讓回合失敗", async () => {
 
   assert.equal(status, 200, `送了無效的 persona/style 不該讓回合失敗：${body.error}`);
   assert.equal(body.ok, true);
-  const { system } = lastMessages(env);
-  assert.ok(
-    system.includes(NARRATOR_PERSONAS[DEFAULT_PERSONA_KEY].instruction),
-    "應該沿用伺服器端的預設面具，不是呼叫端送來的那個"
-  );
 });
 
 test("[安全] 思維鏈(st_thought)不會被印進敘事，也不會出現在公開API回應的任何欄位", async () => {

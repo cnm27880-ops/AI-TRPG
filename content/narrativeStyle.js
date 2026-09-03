@@ -210,8 +210,8 @@ export const NARRATOR_PERSONAS = {
 };
 
 export const PERSONA_KEYS = Object.keys(NARRATOR_PERSONAS);
-// 預設用冷酷裁判——那是《無限恐怖》主神空間最接近原作的敘事聲音。
-// 要換就設環境變數 NARRATOR_PERSONA，或在前端設定裡選（跟 NARRATIVE_STYLE 同一個層級）。
+// [2026-09-03] 面具文字已經不再送進 prompt（見 buildStylePrompt() 的說明），
+// 這個常數只剩下「NARRATOR_PERSONA/personaKey 合不合法」的驗證用途。
 export const DEFAULT_PERSONA_KEY = "RUTHLESS_JUDGE";
 
 /** 取出一個面具設定；key 是 null/undefined 時退回預設，不認得的 key 一律丟錯（不靜默吞掉）。 */
@@ -512,20 +512,25 @@ narration 是一大段連續文字時，玩家實際看到的是一整團字，�
 - 嚴禁三言兩語直接跳到結果。
 - 嚴禁用空洞的哲學感嘆、重複的天氣描寫來灌水湊字數，篇幅必須由「具體的物理動作、
   環境反饋、傷勢細節」撐起來。
-- 寫完之後回頭看一眼段落的形狀：如果每一段都差不多長，就把其中一段拆成
-  「長段＋一句話的短段」。
 
 字數只算 narration 正文；st_thought 與 options 不計入這個範圍。`;
 
 /**
- * 組出**完整的文筆層**：人格面具 + 文筆設定檔 + 活場法/防全知 + 敘事篇幅節奏 +
+ * 組出**完整的文筆層**：文筆設定檔 + 活場法/防全知 + 敘事篇幅節奏 +
  * 通用敘事守則 + 定向要求。
  *
- * 這是文筆層唯一的組裝入口，composeSystemInstruction() 內部也走它，
- * 所以「換面具」與「換文筆」永遠是同一條路徑，不會有兩份長得不一樣的文筆提示。
+ * 這是文筆層唯一的組裝入口，composeSystemInstruction() 內部也走它。
  * 回傳的字串**不含任何規則契約**——組進系統提示的順序由 composeSystemInstruction() 負責。
  *
- * @param {string} [personaKey] NARRATOR_PERSONAS 的 key，省略時用 DEFAULT_PERSONA_KEY
+ * [2026-09-03 拿掉敘事者人格面具的文字] AI 本來就是這場遊戲唯一的說書人，不是在
+ * 三個可切換的「角色」之間選一個來演——玩家從沒有介面能選面具，這裡只是站長端
+ * 的 env var，實測也感受不到差異。拿掉的是**面具文字本身**（含它夾帶的「不評價／
+ * 不預告成功」但書），不是 NARRATOR_PERSONAS 這份資料本身：getPersona()/personaKey
+ * 参数仍然保留、仍然驗證，只是驗證完不再把 instruction 塞進 prompt——這樣
+ * env.NARRATOR_PERSONA 打錯字仍然會在載入時噴錯，不會被靜默吞掉。
+ *
+ * @param {string} [personaKey] NARRATOR_PERSONAS 的 key，省略時用 DEFAULT_PERSONA_KEY。
+ *   只用來驗證這個 key 存在，不再影響輸出內容（見上方說明）。
  * @param {object} [options]
  * @param {string} [options.styleId] 內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [options.customStyle] 自訂文筆提示詞（有傳就取代內建設定檔）
@@ -544,7 +549,8 @@ export function buildStylePrompt(
     characterHints = [],
   } = {}
 ) {
-  const persona = getPersona(personaKey);
+  // 只驗證 key 合不合法（未知 key 仍然丟錯），驗證完的結果不再用來組文字。
+  getPersona(personaKey);
 
   const style = customStyle ?? STYLE_PROFILES[styleId]?.instruction;
   if (!style) {
@@ -554,8 +560,7 @@ export function buildStylePrompt(
     );
   }
 
-  // 面具排在文筆設定檔**之前**：先決定「誰在說話」，再套「他怎麼寫字」。
-  const parts = [persona.instruction, style];
+  const parts = [style];
   if (characterHints.length > 0) {
     parts.push(
       `角色性格提示（只是這個角色的反應傾向，不是規則，也不強制玩家怎麼選）：\n` +
@@ -579,7 +584,8 @@ export function buildStylePrompt(
  *
  * @param {object} params
  * @param {string} params.rulesContract 規則契約層，直接傳 promptContract.js 的 SYSTEM_INSTRUCTION
- * @param {string} [params.personaKey] 敘事者人格面具，見 NARRATOR_PERSONAS，預設 DEFAULT_PERSONA_KEY
+ * @param {string} [params.personaKey] 只用來驗證 NARRATOR_PERSONAS 裡有沒有這個 key，
+ *   不再影響輸出內容（面具文字已於 2026-09-03 拿掉，見 buildStylePrompt() 的說明）
  * @param {string} [params.styleId] 使用哪個內建文筆設定檔，預設 DEFAULT_STYLE_ID
  * @param {string} [params.customStyle] 你自己的文筆提示詞。有傳的話就用這個，不用內建的
  * @param {boolean} [params.includeUniversalRules] 是否附上通用敘事守則，預設 true
@@ -601,7 +607,8 @@ export function composeSystemInstruction({
     throw new Error("composeSystemInstruction需要rulesContract(規則契約層，見promptContract.js)");
   }
 
-  // 文筆層整段交給 buildStylePrompt()（面具 + 文筆 + 活場法 + 通用守則 + 定向要求），
+  // 文筆層整段交給 buildStylePrompt()（文筆 + 活場法 + 通用守則 + 定向要求；
+  // 敘事者人格面具已於 2026-09-03 拿掉，personaKey 只用來驗證合法性），
   // 這裡只負責「文筆在前、規則契約在後、最後宣告優先序」這個順序。
   const parts = [
     buildStylePrompt(personaKey, { styleId, customStyle, includeUniversalRules, characterHints }),

@@ -382,9 +382,10 @@ async function executeTurn(context, streamHooks = null) {
   // 但「前端沒有入口」跟「後端不接受」是兩件事——留著這條路，等於留一個沒有任何 UI、
   // 沒有人會去看、卻仍然可以用 curl 打進來的分支。這種分支壞掉時不會有人發現。
   //
-  // 現在供應商、金鑰、Base URL、模型、文筆與敘事者面具全部由伺服器端的環境變數決定
-  // （LLM_PROVIDER / *_API_KEY / LLM_BASE_URL / LLM_MODEL / NARRATIVE_STYLE /
-  //  NARRATOR_PERSONA，見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。
+  // 現在供應商、金鑰、Base URL、模型與文筆全部由伺服器端的環境變數決定
+  // （LLM_PROVIDER / *_API_KEY / LLM_BASE_URL / LLM_MODEL / NARRATIVE_STYLE，
+  //  見 LLM_PROVIDERS.md 與 DEPLOYMENT.md）。NARRATOR_PERSONA 仍然存在只是為了
+  // 驗證合法性，2026-09-03 起面具文字已經不再影響輸出（見 narrativeStyle.js）。
   // 多送這些欄位不會報錯、也不會生效，就只是被忽略。
   // [效能][安全] sceneContext 是呼叫端可控、會被寫進存檔並持續餵給LLM的文字，
   // 沒有上限的話一次超大輸入會被永久留在 session.scene.context 裡。安全截斷，不報錯。
@@ -1082,7 +1083,6 @@ async function executeTurn(context, streamHooks = null) {
     actionText,
     outcome,
     freeAction,
-    personaKey: env.NARRATOR_PERSONA ?? null,
     sceneContext: sceneContext ?? session?.scene?.context,
     recentEvents,
     historyMessages,
@@ -2003,7 +2003,6 @@ function buildPromptLayers({
   referenceMode = false,
   referenceFreeInput = false,
   narrativeMode = "normal",
-  personaKey = null,
   sceneContext,
   recentEvents,
   historyMessages = [],
@@ -2028,7 +2027,7 @@ function buildPromptLayers({
   // 「玩家這次的輸入」後面，等於每回合白付一次三千字的 prompt token。
   const optionsSpec = referenceMode ? buildReferenceResponseSpec() : buildOptionsSpec(character);
   const staticBlocks = [
-    ...buildStaticContextBlocks({ personaKey, sceneContext }),
+    ...buildStaticContextBlocks({ sceneContext }),
     optionsSpec,
     // S.A.E.P. 狀態矩陣的**讀法**。數字每回合都變，但「SOC 是什麼意思」整場不變，
     // 所以兩者拆開：說明住在這裡付一次錢，數字住在動態層最頂端每回合只付幾十個 token。
