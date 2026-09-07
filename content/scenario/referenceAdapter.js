@@ -969,6 +969,34 @@ export function appendDistinctNarrativePart(parts, candidate, { threshold = 0.78
   return [...parts, freshSentences.join("")];
 }
 
+/**
+ * 模型這一回合的敘事，有多少比例是把副本原文整句搬過來的。
+ *
+ * 為什麼要量它（2026-09-07）：把 narrativeSource 的完稿散文當「素材」餵給模型，
+ * 再要求它「用自己的話重寫」，是一個**沒有辦法從程式碼看出有沒有生效**的設計。
+ * 提示改對了或改錯了，遊戲都照跑、測試都照過，差別只有玩家會不會讀到似曾相識的段落。
+ * 這正是本專案 PROMPT_CACHE_CONTRACT 講的那種「安靜的退化」，處理方式也一樣：
+ * 量出來、寫成 log，讓它可被觀察。
+ *
+ * 算法刻意是 deterministic 的字元 bigram 逐句比對，不呼叫 LLM 判斷「像不像」：
+ * 這個數字要能在 CI 與測試裡重現。回傳的是**原文有多少句被搬進敘事**
+ * （不是敘事有多少句抄自原文）——後者會因為模型多寫幾句就自動變好看。
+ *
+ * @returns {{ratio:number, echoed:number, total:number}} total 為 0 時 ratio 為 0
+ */
+export function canonicalEchoRatio(narration, canonicalText, { threshold = 0.78 } = {}) {
+  const sourceSentences = splitSentences(canonicalText);
+  if (!sourceSentences.length) return { ratio: 0, echoed: 0, total: 0 };
+  const narrationGrams = splitSentences(narration).map(bigramSet);
+  if (!narrationGrams.length) return { ratio: 0, echoed: 0, total: sourceSentences.length };
+  let echoed = 0;
+  for (const sentence of sourceSentences) {
+    const grams = bigramSet(sentence);
+    if (narrationGrams.some((candidate) => overlapRatio(grams, candidate) >= threshold)) echoed += 1;
+  }
+  return { ratio: echoed / sourceSentences.length, echoed, total: sourceSentences.length };
+}
+
 export function resolveCanonicalNarrative({
   reference,
   state,
@@ -1648,6 +1676,38 @@ export function buildReferencePromptBlock({
     lines.push(`結果分級：${applied.resultKey}`);
     lines.push(`本回合已定案的事實（素材，不是要你照抄的成品）：${applied.resultText}`);
     lines.push(`已套用狀態效果：${JSON.stringify(applied.effectSummary)}`);
+    // [2026-09-07] 依「這段原文有多長」與「玩家看過幾次」加強重寫要求。
+    //
+    // 背景數據：narrativeSource.outcomes 是一份 131 段的完稿散文（中位數 96 字、
+    // 最長 1762 字）。把一段**完稿散文**交給模型再叫它「不要照抄」，模型會照抄——
+    // 這是可預期的，不是模型不聽話。而同一個 approach＋同一個結果分級永遠對應同一段文字，
+    // 所以第二次撞到就是逐字重播，正是玩家回報的「舊式固定文字」。
+    //
+    // 這裡不改寫原文一個字（它仍是唯一的事實來源），只是把「這是素材」講得更硬：
+    // 文字越長越容易被整段搬走，看過越多次越不能重複，兩者都寫進提示。
+    const resultLength = String(applied.resultText ?? "").length;
+    if (resultLength >= 120) {
+      lines.push(
+        `注意：上面那段原文有 ${resultLength} 字，它是**給你看的事實清單**，不是給玩家讀的成品。` +
+          "字數越多越容易整段搬走——請逐句確認你寫出來的每一句都是你自己的措辭，" +
+          "只有事實（誰做了什麼、結果如何、狀態怎麼變）必須一致。"
+      );
+    }
+    // 同一個「場景＋方法＋結果分級」玩家已經演過幾次。actionHistory 早就記了這三格，
+    // 不用新增任何 state 欄位。
+    const replayCount = (state?.actionHistory ?? []).filter(
+      (entry) => entry?.sceneId === resolution.scene?.id
+        && entry?.approachId === resolution.approach?.id
+        && String(entry?.resultKey ?? entry?.outcomeTier ?? "") === String(applied.resultKey)
+    ).length;
+    if (replayCount > 0) {
+      lines.push(
+        `**這個結果玩家已經讀過 ${replayCount} 次了。** 同一段原文再演一次，` +
+          "他會看到跟上次幾乎一樣的文字——那是這一輪最該避免的體感問題。" +
+          "這一次請換鏡頭（換視角、換感官、換切入的時間點）、換句式、換長度，" +
+          "並且寫出「又一次」的重量：他已經試過了，這次的挫折不該讀起來像第一次。"
+      );
+    }
     // [2026-09-03] 這一段的措辭是刻意改過的，改動理由值得留下來。
     //
     // 舊版寫的是「只能在這些固定結果之上擴寫」，而 turn.js 那時根本沒有把這段送給模型——
