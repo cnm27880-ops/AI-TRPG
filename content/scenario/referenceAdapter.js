@@ -387,6 +387,29 @@ export function isApproachAvailable(approach, state, phase = null) {
   );
 }
 
+/**
+ * 這個 approach 只差在 flagsAbsent 嗎？
+ *
+ * flagsAbsent 在兩個內建副本裡幾乎都是「你已經做過這件事了」的閘門（做完就加旗標，
+ * 於是它自己從選單消失），跟 items／locations／flags／npcStatuses 這種
+ * 「你還不具備條件」的閘門性質完全不同：前者重開只是讓玩家再試一次，
+ * 後者重開會讓玩家用一把他沒有的切割器、或跟一個還沒遇到的人講話。
+ *
+ * 選單保底只准重開前者。這個函式就是那條界線。
+ */
+function blockedOnlyByFlagsAbsent(approach, state, phase = null) {
+  const required = approach?.required ?? {};
+  if (isApproachAvailable(approach, state, phase)) return false;
+  if (!(required.flagsAbsent ?? []).length) return false;
+  return (
+    phaseRequirementsMet(phase, state) &&
+    hasRequiredItems(state, required) &&
+    hasRequiredLocations(state, required) &&
+    hasRequiredFlags(state, required) &&
+    hasRequiredNpcStatuses(state, required)
+  );
+}
+
 function activePhase(scene, state) {
   const phases = scene?.phases ?? [];
   if (!phases.length) return null;
@@ -399,18 +422,32 @@ function activePhase(scene, state) {
   return phases.find((phase) => !(phase.requiredStates?.length)) ?? phases[0];
 }
 
+/**
+ * 目前場景真正可以裁定的 approach。
+ *
+ * 【選單保底，第一道】entries 全空時，重新開放「只差在 flagsAbsent」的那些。
+ *
+ * 這一層刻意放在 currentApproaches() 而不是 listSelectableApproaches()：
+ * 兩者必須看到**同一份**清單，否則會出現「選單端得出來、按下去卻說這個行動不屬於目前事件」
+ * 的分裂（2026-09-07 第一版就是這樣，Alien 第 19 回合實測到）。
+ * 這裡是那份清單唯一的產生點，提示、選項、查驗、自由輸入比對全部共用它。
+ *
+ * 空選單的兩種成因是分開處理的：
+ *   - 條件全被關掉（做過就加旗標）→ 這一層；
+ *   - 條件成立但全部失敗到上限 → listSelectableApproaches() 那一層。
+ */
 function currentApproaches(reference, state) {
   const scene = findScene(reference, state?.currentSceneId) ?? firstScene(reference);
-  if (!scene) return { scene: null, phase: null, entries: [] };
+  if (!scene) return { scene: null, phase: null, entries: [], reopened: false };
   const phase = activePhase(scene, state);
-  const entries = phase
+  const pool = phase
     ? (phase.approaches ?? []).map((approach) => ({ approach, phaseId: phase.id }))
     : (scene.approaches ?? []).map((approach) => ({ approach, phaseId: null }));
-  return {
-    scene,
-    phase,
-    entries: entries.filter(({ approach }) => isApproachAvailable(approach, state, phase)),
-  };
+  const entries = pool.filter(({ approach }) => isApproachAvailable(approach, state, phase));
+  if (entries.length) return { scene, phase, entries, reopened: false };
+
+  const reopenedEntries = pool.filter(({ approach }) => blockedOnlyByFlagsAbsent(approach, state, phase));
+  return { scene, phase, entries: reopenedEntries, reopened: reopenedEntries.length > 0 };
 }
 
 function approachHint(approach) {
@@ -505,14 +542,28 @@ const FAILURE_RESULT_KEYS = new Set(["失敗", "大失敗"]);
  */
 export const APPROACH_FAILURE_LIMIT = 2;
 
+/** 選單全數走不通時，一次重新開放幾個 approach。 */
+const RELIEF_APPROACH_COUNT = 2;
+
 /**
  * 目前場景真的能選的 approach（含嘗試統計）。
  *
  * 這是「AI 產生選項」與「引擎查驗選項」共用的**同一份**清單——AI 只能從這裡挑 id，
  * 挑到清單外的 id 一律當成它自創的自由選項，換不到作者寫好的結果與 effects。
+ *
+ * 【選單保底，第二道】entries 都在、但全部失敗到上限時，重新開放失敗次數最少的幾個。
+ *
+ * 沒有這一層會發生什麼（2026-09-07 模擬）：侏羅紀 evt_dock_arrival 的玩家連續失敗，
+ * 第 8 回合可選 approach 歸零——選單是空的，而場景又因為 defaultTransition: "stay"
+ * 永遠不會離場。壓力閥（sceneStallReliefDue）會在第 6 回合先救場，但兩者守的不是
+ * 同一件事：壓力閥保證「世界會往前走」，這一層保證「玩家永遠有東西可以按」。
+ * 只留一層的話，另一種進場方式（travel、戰鬥收尾後回到已耗盡的場景）仍會看到空選單。
+ *
+ * 重新開放的 approach 帶 relief 標記，buildReferenceOptionsSpec() 會據此要求模型
+ * 換角度重寫並升高代價——不是讓玩家再讀一次同一段失敗文字。
  */
 export function listSelectableApproaches(reference, state, { limit = 8 } = {}) {
-  const { scene, phase, entries } = currentApproaches(reference, state);
+  const { scene, phase, entries, reopened } = currentApproaches(reference, state);
   if (!scene) return { scene: null, phase: null, approaches: [] };
   const approaches = entries.slice(0, Math.max(1, limit)).map(({ approach, phaseId }) => {
     const stats = approachAttemptStats(state, scene.id, approach.id);
@@ -526,9 +577,27 @@ export function listSelectableApproaches(reference, state, { limit = 8 } = {}) {
       difficulty: approach.requiresCheck === true ? approach.difficulty : null,
       phaseId: phaseId ?? phase?.id ?? null,
       ...stats,
-      exhausted: stats.failures >= APPROACH_FAILURE_LIMIT,
+      // 重開的那批不再受失敗次數限制——它們本來就是最後一條路了，
+      // 再用「失敗兩次就收掉」把它們關起來，等於又回到空選單。
+      exhausted: reopened ? false : stats.failures >= APPROACH_FAILURE_LIMIT,
+      relief: reopened,
     };
   });
+
+  if (approaches.length && approaches.every((entry) => entry.exhausted)) {
+    // 失敗最少的優先重新開放；同分時維持作者寫的順序（不要用不決定性的排序）。
+    const revive = new Set(
+      approaches
+        .map((entry, index) => ({ index, failures: entry.failures }))
+        .sort((a, b) => a.failures - b.failures || a.index - b.index)
+        .slice(0, RELIEF_APPROACH_COUNT)
+        .map((entry) => entry.index)
+    );
+    for (const index of revive) {
+      approaches[index] = { ...approaches[index], exhausted: false, relief: true };
+    }
+  }
+
   return { scene, phase, approaches };
 }
 
@@ -556,14 +625,18 @@ export function bindAiReferenceOptions({ reference, state, aiOptions, character 
 
   for (const raw of Array.isArray(aiOptions) ? aiOptions : []) {
     if (options.length >= limit) break;
-    const label = String(raw?.label ?? "").trim().slice(0, 30);
+    // [2026-09-07] 40／32 是從 30／24 放寬的。短上限本身就是選項單調的成因之一：
+    // 18 字寫不下「用什麼方式、對什麼、想達成什麼」，模型只能退回「查看通風管道」
+    // 這種動詞＋名詞的骨架，而骨架的排列組合有限，於是每回合看起來都一樣。
+    // 前端的 .decision-card-label 會自動換行（沒有 nowrap 也沒有截斷），排版撐得住。
+    const label = String(raw?.label ?? "").trim().slice(0, 40);
     if (!label) continue;
     // 同一句話出現兩次是模型偶發的重複，不是兩個選項。
     const labelKey = label.replace(/\s+/g, "");
     if (seenLabels.has(labelKey)) continue;
     seenLabels.add(labelKey);
 
-    const hint = String(raw?.hint ?? "").trim().slice(0, 24) || null;
+    const hint = String(raw?.hint ?? "").trim().slice(0, 32) || null;
     const wantedId = typeof raw?.approachId === "string" ? raw.approachId.trim() : "";
     const bound = wantedId && !usedApproachIds.has(wantedId) ? byId.get(wantedId) : null;
 
@@ -1072,8 +1145,11 @@ function conditionMatches(condition, scene, state) {
   return false;
 }
 
-function shouldAdvanceScene(scene, state, result) {
-  if (!scene) return false;
+/**
+ * 作者資料對「這一回合要不要離場」的裁定。true／false 都是作者明確表達的意思，
+ * 這一層完全不看回合數——把時間因素混進來會讓作者寫的條件變得不可預測。
+ */
+function authoredAdvanceDecision(scene, state, result) {
   const explicitResultTransition = result?.effects?.sceneTransition;
   if (["advance", "branch", "force_escape"].includes(explicitResultTransition)) return true;
 
@@ -1091,6 +1167,43 @@ function shouldAdvanceScene(scene, state, result) {
   }
   // 多回合 reference scene 的安全預設：一次 action 只改變局面，不自動離場。
   return false;
+}
+
+/**
+ * 一個場景在沒有任何離場條件成立的情況下，最多能停留幾回合。
+ *
+ * 6 是刻意的：正常推進一個場景大約 2~4 回合，所以這個數字不會打斷正常節奏，
+ * 只會在玩家真的卡住時介入。副本可以用 scene.maxSceneTurns 自行調整，
+ * 設成 0 或 null 代表這個場景永不強制離場（結局場景就靠這個保護）。
+ */
+export const SCENE_STALL_LIMIT = 6;
+
+/**
+ * 【壓力閥】場景停滯救援：沒有任何作者條件成立，但玩家已經在同一個場景耗了太多回合。
+ *
+ * 為什麼需要這一條（2026-09-07 實測）：兩個內建副本的**每一個**非結局場景，
+ * defaultTransition 都是 "stay"，而失敗結果帶 sceneTransition 的只有 Alien 3/113、
+ * 侏羅紀 0/73。也就是說「一直失敗」在資料上永遠不會離場。加上每次嘗試都會靠
+ * worldFlagsAdd + required.flagsAbsent 把該 approach 從選單永久移除（選單只減不增），
+ * 模擬跑出來的結果是：侏羅紀第一個場景，全失敗的玩家在第 8 回合選單歸零、
+ * 場景一次都沒推進——硬鎖死。
+ *
+ * 這一層刻意**只在作者說「不離場」時才介入**，而且守三個門檻：
+ *   1. 場景自己沒有關掉這個機制（maxSceneTurns 為 0／null）；
+ *   2. 不是結局場景——把玩家推出結局會讓 deriveEndingId 的前提消失；
+ *   3. 真的有下一個已解鎖的場景可去——沒有出口就不要假裝有。
+ *
+ * 它不改寫任何 effects、不補判定、不發獎勵：只讓世界往前走一格。
+ * 觸發時會由 applyReferenceResult() 回報 stallRelief，敘事層必須把它演成
+ * 「情勢把你推走了」，不能無聲換場（見 buildReferencePromptBlock 的 Stall_Relief 區塊）。
+ */
+function sceneStallReliefDue(scene, state, { sceneTurnCount = 0, reference = null, effects = {} } = {}) {
+  if (!reference) return false;
+  const limit = scene?.maxSceneTurns ?? SCENE_STALL_LIMIT;
+  if (!Number.isFinite(limit) || limit <= 0) return false;
+  if (sceneTurnCount < limit) return false;
+  if (isFinaleScene(reference, scene)) return false;
+  return Boolean(nextSceneFor(reference, scene, state, effects));
 }
 
 function sceneIsLastForNode(reference, scene) {
@@ -1178,7 +1291,17 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
   const completedSceneIds = new Set(nextState.completedSceneIds);
   const sceneTurnCount = (state.sceneTurnCount ?? 0) + 1;
   let nextScene = null;
-  const sceneAdvanced = shouldAdvanceScene(resolution.scene, nextState, selected.result);
+  // 離場有兩種來源，而且敘事層必須分得出來：
+  //   作者條件成立 = 玩家自己推進的，照常演；
+  //   壓力閥       = 玩家卡住、引擎把世界往前推，必須演成外力介入（見 <Stall_Relief>）。
+  const authoredAdvance = authoredAdvanceDecision(resolution.scene, nextState, selected.result);
+  const stallRelief = !authoredAdvance
+    && sceneStallReliefDue(resolution.scene, nextState, {
+      sceneTurnCount,
+      reference,
+      effects: selected.result.effects ?? {},
+    });
+  const sceneAdvanced = authoredAdvance || stallRelief;
   if (sceneAdvanced) {
     completedSceneIds.add(resolution.scene.id);
     nextScene = nextSceneFor(reference, resolution.scene, nextState, selected.result.effects ?? {});
@@ -1261,6 +1384,9 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     effectSummary: effectSummary(selected.result.effects),
     sceneCompleted: sceneAdvanced,
     sceneAdvanced,
+    // 壓力閥推的離場。turn.js 把它轉成提示區塊，讓敘事把換場演出來而不是無聲跳走。
+    stallRelief,
+    stallReliefFrom: stallRelief ? resolution.scene.id : null,
     sceneTurnCount: nextState.sceneTurnCount,
     transition: selected.result.effects?.sceneTransition ?? (sceneAdvanced ? "advance" : "stay"),
     nextSceneId: nextState.currentSceneId,
@@ -1346,6 +1472,20 @@ export function buildReferencePromptBlock({
       ? [
           `下一事件：${currentScene?.id ?? "依狀態決定"}`,
           `下一事件固定進入文字：${narrativeEntryText(currentScene) || "依目前事件資料演出抵達場景"}`,
+        ]
+      : []),
+    // 壓力閥推的離場一定要說出來，否則玩家會讀到一段跟他剛才那一手毫無關係的換場——
+    // 那正是「跑出跟當下選項不協調的文字」的體感成因。
+    ...(applied?.stallRelief
+      ? [
+          "",
+          "<Stall_Relief>",
+          "【這一回合的換場是情勢推的，不是玩家達成了離場條件】",
+          `玩家在「${applied.stallReliefFrom ?? scene.id}」已經耗掉太多回合，每一條路都試過了。引擎判定局面不能再停在原地。`,
+          "請把換場寫成**外力介入**：時間到了、聲音逼近、NPC 出手拉走、環境自己變了、原本的路被切斷所以只剩下這一條。",
+          "不要寫成玩家終於成功了（他沒有），也不要寫成他自己決定離開（那會讓他覺得系統替他做了決定）。",
+          "他這一回合的行動結果仍然照上面的固定結果演出，換場是接在那之後發生的第二件事。",
+          "</Stall_Relief>",
         ]
       : []),
     `玩家最近確認的探索紀錄：${publicExplorationDiscoveries(state).map((item) => `${item.title}：${item.text}`).join("；") || "尚無"}`,
@@ -1463,8 +1603,11 @@ export function buildReferenceOptionsSpec(reference, state, { count = 4 } = {}) 
     `【你還要產出 ${count} 個「下一步」選項】`,
     "選項的文字由你自己寫——不要照抄下面 approach 的 label，那是給你看的內部資料，不是玩家該讀到的句子。",
     "每個選項三格：",
-    '- label：玩家會說出口的行動，18 字以內，寫成人話（例如「假裝接受檢疫、退到門邊」），不要寫「進行交涉檢定」這種系統語言。',
-    "- hint：做這件事想得到什麼，14 字以內。不要寫成功率，不要重複 label 的字面。",
+    '- label：玩家會說出口的行動，20～36 字，寫成人話（例如「假裝接受檢疫、一邊退到門邊留意他的手」），不要寫「進行交涉檢定」這種系統語言。',
+    "  **不要只寫「查看通風管道」這種動詞＋名詞的骨架**：那種寫法每個回合都長一樣，玩家分不出這一次跟上一次有什麼不同。",
+    "  一個好的 label 要同時交代三件事：用什麼方式、對什麼東西、承擔什麼代價或風險。",
+    "  請把這一回合的具體情境寫進去——剛才發生的事、在場的人、手上的道具、聽到的聲音，讓它只可能屬於這一個回合。",
+    "- hint：做這件事想得到什麼，14～26 字。不要寫成功率，不要重複 label 的字面。",
     "- approachId：這個選項對應下面哪一個 approach 的 id；你自己想的新行動填 null。",
     "",
     scene ? `這一回合可以綁定的 approach（只有這些 id 有效，填其他 id 會被當成 null 處理）：` : "這一回合沒有可綁定的 approach，全部填 null。",
@@ -1478,6 +1621,15 @@ export function buildReferenceOptionsSpec(reference, state, { count = 4 } = {}) 
       "",
       `已經走不通、禁止再做成選項的 approach：${exhausted.map((entry) => entry.id).join("、")}。`,
       "玩家已經在這幾招上失敗過了；再端出同一個選項只會讓他重讀同一段失敗。請改成別的角度。",
+    );
+  }
+  const relief = usable.filter((entry) => entry.relief);
+  if (relief.length) {
+    lines.push(
+      "",
+      `【重新開放】${relief.map((entry) => entry.id).join("、")}：這個場景的每一條路玩家都已經試到走不通，引擎重新開放這幾個，避免他無事可做。`,
+      "這不是「重來一次」：玩家已經失敗過，所以這一次的 label 必須是**明顯不同的切入方式**（換工具、換順序、換對象、接受某個代價），",
+      "而且要寫出他為什麼現在才願意這樣做——通常是因為情況更糟了、時間更少了、或者他已經沒有別的選擇。",
     );
   }
   lines.push(

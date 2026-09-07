@@ -134,8 +134,12 @@ ${skillsByCategory}
   除非你就是想給一個明知極險的選項，否則不要指定角色沒練的心智系技能。
 - 難度分級只能從這五個裡挑：${DIFFICULTY_IDS.join("／")}
   （${DIFFICULTY_TIERS.map((t) => `${t.id}=${t.hint}`).join("；")}）
-- 選項文字寫成玩家會說出口的行動，20字以內，不要寫成「進行感知檢定」這種系統語言。
-- **每個選項都要附一句 hint（15字以內）：玩家做這件事是想得到什麼。**
+- 選項文字寫成玩家會說出口的行動，20～36字，不要寫成「進行感知檢定」這種系統語言。
+  **不要只寫「查看通風管道」這種動詞＋名詞的骨架**——那種寫法每回合都長一樣，
+  玩家分不出這一次跟上一次的差別。一個好的選項要交代：用什麼方式、對什麼、承擔什麼風險，
+  並且把這一回合的具體情境（剛發生的事、在場的人、手上的道具）寫進去，
+  讓這句話只可能屬於這一個回合。
+- **每個選項都要附一句 hint（15～26字）：玩家做這件事是想得到什麼。**
   例如「想知道血跡通往哪裡」「想搶在它繞過來之前離開這層」。
   這一格是玩家判斷「該按哪個」的主要依據——沒有它，玩家只能比較骰池數字大小，
   那等於整個故事都白寫了。hint 寫目的與可能的收穫，不要寫成功率、不要重複 label 的字面。
@@ -248,7 +252,16 @@ export const REFERENCE_TURN_RESPONSE_SCHEMA = {
       required: ["level"],
     },
   },
-  required: ["st_thought", "narration"],
+  // [2026-09-07] options 從選填改成必填。
+  //
+  // 選填的後果是靜默的：模型只要省略這一格，bindAiReferenceOptions() 的 boundCount
+  // 就是 0，turn.js 於是整批退回 buildReferenceOptions()——也就是把作者寫在副本資料裡的
+  // approach.label **逐字**端給玩家。遊戲照跑、測試照過，唯一的差別是玩家每回合看到
+  // 同一批固定字串，正好是這一輪要修掉的「選項很枯燥、怎麼生成都只有那些」。
+  //
+  // 保底路徑本身要留著（模型整批寫壞時玩家仍要有東西可按），但它必須是例外而不是常態；
+  // 實際退回頻率看回應裡的 degraded.fallbackOptionCount。
+  required: ["st_thought", "narration", "options"],
 };
 
 export const TURN_RESPONSE_SCHEMA = {
@@ -318,7 +331,7 @@ export function buildReferenceResponseSpec() {
   "st_thought": "玩家看不到的短摘要，80字以內",
   "narration": "依引擎已裁定事實寫出的敘事",
   "options": [
-    { "label": "玩家會說出口的行動，18字內", "hint": "想得到什麼，14字內", "approachId": "app_xxx 或 null" }
+    { "label": "玩家會說出口的行動，20~36字，要具體到只屬於這一回合", "hint": "想得到什麼，14~26字", "approachId": "app_xxx 或 null" }
   ],
   "narrativeMode": "micro|normal|major|reveal|combat",
   "threatAssessment": { "level": "stable", "reason": "只有自由行動需要，說明威脅為何上升或下降" }
