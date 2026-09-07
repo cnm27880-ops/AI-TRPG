@@ -7724,5 +7724,40 @@
         }
       }
     }
-  ]
+  ],
+  "flagMeanings": {
+    "flag_airlock_damaged": "氣閘已受損，密封性不再可靠",
+    "flag_alien_followed": "異形已跟上玩家的行進路線",
+    "flag_ash_ambush_unlocked": "Ash 的伏擊條件已成立",
+    "flag_ash_disarming": "Ash 正在解除玩家的武裝或防備",
+    "flag_ash_hostile": "Ash 已公開敵對",
+    "flag_ash_hostile_pending": "Ash 已起戒心，隨時可能翻臉",
+    "flag_cargo_tool_shot_failed": "在貨艙開槍未能解決問題，只留下聲響",
+    "flag_cargo_tool_smash_failed": "強行破壞工具櫃失敗，櫃體變形卡死",
+    "flag_coolant_spent": "冷卻劑已耗盡",
+    "flag_core_locked": "核心區權限已被鎖定",
+    "flag_engine_damaged": "引擎已受損",
+    "flag_engine_locked": "引擎控制權限已被鎖定",
+    "flag_engine_noise": "引擎區發出異常巨響，聲音已傳開",
+    "flag_engine_steam_leak": "引擎區蒸汽外洩，能見度與通行受阻",
+    "flag_flashlight_lost": "手電筒已遺失，玩家目前沒有隨身光源",
+    "flag_infection_suspected": "檢查結果顯示玩家可能已感染",
+    "flag_infection_unresolved": "感染狀態仍未確認",
+    "flag_lower_deck_collapsed": "下層甲板已坍塌，該路線不再可通行",
+    "flag_medbay_vault_leak": "醫療區保險櫃破損外洩，該區域空氣受污染",
+    "flag_mother_alarm": "主機警報已觸發，全船都聽得到",
+    "flag_mother_core_locked": "主機核心艙門已鎖死",
+    "flag_parasite_exposure": "玩家曾近距離暴露於寄生體，感染風險未排除",
+    "flag_player_dead_combat": "玩家已於戰鬥中死亡",
+    "flag_player_dead_vacuum": "玩家已暴露於真空而死亡",
+    "flag_player_displaced": "玩家被衝擊推離原本位置",
+    "flag_ripley_refused": "Ripley 拒絕了玩家這一次的提議",
+    "flag_ripley_route_blocked": "與 Ripley 合作的路線已經談崩",
+    "flag_sample_destroyed": "樣本已毀損",
+    "flag_sample_spilled": "樣本已灑出並污染現場",
+    "flag_science_locked": "科學實驗區已被鎖上，無法由正常途徑進入",
+    "flag_tool_cabinet_breach": "工具櫃外殼被破壞，內容物散落且暴露",
+    "flag_tool_lost": "原本取得的工具已遺失或損毀",
+    "flag_weapon_lost": "玩家的武器已遺失"
+  }
 }

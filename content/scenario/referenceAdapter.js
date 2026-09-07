@@ -343,6 +343,34 @@ export function normalizeReferenceState(reference, rawState) {
   return synchronizeExplorationState(reference, normalized);
 }
 
+/**
+ * 目前成立的世界旗標，翻成人話送進提示。
+ *
+ * 【2026-09-07】在這之前**旗標一個字都沒有進過 prompt**。後果在實測劇情包裡很具體：
+ * 玩家在 evt_cryo_clearance 慘烈失敗，引擎記下 flag_flashlight_lost，
+ * 然後敘事層繼續寫他打著手電筒走路——因為說書人根本不知道手電筒掉了。
+ * 「跑出跟當下處境不協調的文字」有一部分就是這樣來的。
+ *
+ * 這也是「失敗要能開路」的前半段：模型知道局面變了，才寫得出回應這個變化的自由選項
+ * （approachId: null 那一種）。後半段是把旗標接進 approach.required.flags，
+ * 那屬於副本資料的工作，見 scripts/audit-dead-flags.mjs 列出的清單。
+ *
+ * 旗標的人話說明來自副本資料的 flagMeanings（選填）；沒寫的就直接送 id——
+ * flag_flashlight_lost 這種命名模型讀得懂，送 id 也比完全不送好。
+ *
+ * 只取最後 limit 個：flags 是累積的，整場下來會有幾十個，全送會把動態層灌爆，
+ * 而且久遠的旗標對「這一回合怎麼寫」幾乎沒有影響。陣列尾端就是最近加入的
+ * （unique() 保序），所以取尾端即可，不需要另外存時間戳。
+ */
+function activeFlagLines(reference, state, { limit = 12 } = {}) {
+  const meanings = reference?.flagMeanings ?? {};
+  const flags = Array.isArray(state?.flags) ? state.flags : [];
+  return flags.slice(-Math.max(1, limit)).map((flag) => {
+    const meaning = meanings[flag];
+    return meaning ? `${flag}（${meaning}）` : flag;
+  });
+}
+
 function flagSet(state) {
   return new Set(state?.flags ?? []);
 }
@@ -1465,6 +1493,9 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     // 不用再自己從 effects 反推一次。
     productive,
     stallStreak: nextState.stallStreak,
+    // 這一回合新成立的旗標。提示層用它標出「剛剛發生的改變」——
+    // 只送完整清單的話，模型分不出哪一條是這一手造成的。
+    flagsAdded: (nextState.flags ?? []).filter((flag) => !(state.flags ?? []).includes(flag)),
     sceneTurnCount: nextState.sceneTurnCount,
     transition: selected.result.effects?.sceneTransition ?? (sceneAdvanced ? "advance" : "stay"),
     nextSceneId: nextState.currentSceneId,
@@ -1568,6 +1599,27 @@ export function buildReferencePromptBlock({
       : []),
     `玩家最近確認的探索紀錄：${publicExplorationDiscoveries(state).map((item) => `${item.title}：${item.text}`).join("；") || "尚無"}`,
     `玩家未解問題：${publicUnresolvedQuestions(state).filter((item) => item.status !== "answered").map((item) => item.text).join("；") || "尚無"}`,
+    // 世界旗標。放這裡（動態層）是必然的：它每回合都會變，進 system 會讓整段靜態前綴失效。
+    ...(() => {
+      const active = activeFlagLines(reference, state);
+      if (!active.length) return [];
+      const fresh = Array.isArray(applied?.flagsAdded) ? applied.flagsAdded : [];
+      return [
+        "",
+        "<World_State>",
+        "【目前成立的世界狀態旗標】這些是引擎已裁定的既成事實，敘事必須跟它們一致。",
+        ...active.map((line) => `- ${line}`),
+        ...(fresh.length
+          ? [
+              `**這一回合剛成立的**：${fresh.join("、")}。這是玩家這一手造成的改變，敘事要讓他看得出來發生了什麼。`,
+            ]
+          : []),
+        "旗標描述的是「已經發生的事」，不是可以再判定一次的東西：東西掉了就是掉了、門鎖上了就是鎖上了、",
+        "NPC 拒絕過就是拒絕過。不要寫成玩家還握著已經失去的道具，也不要讓已經關上的路自己打開。",
+        "反過來也成立：這些變化是新的處境，寫下一步選項時應該把它們當成素材，讓玩家有機會針對新局面採取行動。",
+        "</World_State>",
+      ];
+    })(),
     "",
     "可供玩家參考的 approach（不是限制；合理的其他行動可以由 adapter 以最接近的方法裁定）：",
   ];

@@ -18,6 +18,7 @@ import {
   SCENE_STALL_LIMIT,
   STALL_STREAK_LIMIT,
   applyReferenceResult,
+  buildReferencePromptBlock,
   createReferenceState,
   listSelectableApproaches,
   resolveReferenceAction,
@@ -291,4 +292,86 @@ test("同一個場景的空轉計數會延續，不會每回合重來", () => {
     "同一個場景的空轉要累積：差一次就到上限時，再空轉一次就該觸發壓力閥"
   );
   assert.equal(applied.stallStreak, 0, "觸發之後計數歸零，玩家在新場景重新開始");
+});
+
+// ---------------------------------------------------------------------------
+// 世界旗標進提示層。
+//
+// 在 2026-09-07 之前旗標一個字都沒有進過 prompt：引擎記下 flag_flashlight_lost，
+// 敘事層卻繼續寫玩家打著手電筒走路。這一組釘住「引擎裁定的事實一定會送到說書人手上」。
+// ---------------------------------------------------------------------------
+
+test("失敗造成的世界旗標會進入提示，並帶上人話說明", () => {
+  const reference = getScenarioReference("scenario.nostromo-01-v2");
+  const state = createReferenceState(reference);
+  const { scene, approaches } = listSelectableApproaches(reference, state);
+  const check = approaches.find((entry) => entry.requiresCheck);
+  assert.ok(check);
+
+  const applied = playApproach(reference, state, check.id, "慘烈失敗");
+  assert.ok(applied.flagsAdded.length > 0, "慘烈失敗應該至少留下一個世界旗標");
+
+  const block = buildReferencePromptBlock({
+    reference,
+    state: applied.state,
+    resolution: resolveReferenceAction({
+      reference,
+      state,
+      chosenOption: { reference: { sceneId: scene.id, approachId: check.id, phaseId: check.phaseId } },
+      character: null,
+    }),
+    applied,
+    actionText: "",
+    outcomeTier: "慘烈失敗",
+    turnNumber: 1,
+  });
+
+  assert.match(block, /<World_State>/, "提示必須包含世界狀態區塊");
+  for (const flag of applied.flagsAdded) {
+    assert.ok(block.includes(flag), `這一回合新成立的旗標 ${flag} 必須出現在提示裡`);
+  }
+  // flagMeanings 有寫的旗標要以人話呈現，不能只丟一個 id 給模型。
+  const meanings = reference.flagMeanings ?? {};
+  const described = applied.flagsAdded.filter((flag) => meanings[flag]);
+  for (const flag of described) {
+    assert.ok(block.includes(meanings[flag]), `旗標 ${flag} 的說明必須一起送進提示`);
+  }
+});
+
+test("沒有任何旗標時不會硬塞一個空的世界狀態區塊", () => {
+  const reference = getScenarioReference("scenario.nostromo-01-v2");
+  const state = { ...createReferenceState(reference), flags: [] };
+  const block = buildReferencePromptBlock({
+    reference,
+    state,
+    resolution: { matched: false, mode: "inactive" },
+    applied: null,
+    actionText: "",
+    outcomeTier: null,
+    turnNumber: 1,
+  });
+  assert.equal(/<World_State>/.test(block), false);
+});
+
+test("flagMeanings 只描述副本真的會寫入的旗標", () => {
+  // 描述一個不存在的 id 不會壞掉，但會讓提示層送出一段永遠對不上的說明——
+  // 那正是這一輪在修的那種「安靜的錯」。
+  for (const referenceId of REFERENCE_IDS) {
+    const reference = getScenarioReference(referenceId);
+    const written = new Set();
+    for (const scene of reference.scenes ?? []) {
+      const apps = [...(scene.approaches ?? []), ...(scene.phases ?? []).flatMap((p) => p.approaches ?? [])];
+      for (const approach of apps) {
+        for (const outcome of Object.values(approach.outcomes ?? {})) {
+          for (const flag of outcome.effects?.worldFlagsAdd ?? []) written.add(flag);
+          for (const conditional of outcome.conditionalEffects ?? []) {
+            for (const flag of conditional.effects?.worldFlagsAdd ?? []) written.add(flag);
+          }
+        }
+      }
+    }
+    for (const flag of Object.keys(reference.flagMeanings ?? {})) {
+      assert.ok(written.has(flag), `${referenceId} 的 flagMeanings 描述了副本不會寫入的旗標 ${flag}`);
+    }
+  }
 });
