@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 import { getScenarioReference } from "../content/scenario/registry.js";
 import {
   SCENE_STALL_LIMIT,
+  STALL_STREAK_LIMIT,
   applyReferenceResult,
   createReferenceState,
   listSelectableApproaches,
@@ -178,4 +179,116 @@ test("還有路可走的時候不會亂發 relief 標記", () => {
     approaches.every((entry) => entry.relief === false),
     "一次都還沒失敗過的場景不該出現 relief"
   );
+});
+
+// ---------------------------------------------------------------------------
+// 空轉計數（stallStreak）。
+//
+// 這一組跟上面的「壓力閥」是同一個機制的兩端：壓力閥是出口，空轉計數是觸發條件。
+// 分開測是因為它們會為了不同的原因壞掉——出口壞了是玩家走不掉，
+// 計數壞了是玩家在正常推進的場景被莫名其妙推走（2026-09-07 實測過一次，見下面那個測試）。
+// ---------------------------------------------------------------------------
+
+/** 對指定 approach 打一次判定，回傳 applyReferenceResult 的完整結果。 */
+function playApproach(reference, state, approachId, outcomeTier) {
+  const { scene, approaches } = listSelectableApproaches(reference, state);
+  const pick = approaches.find((entry) => entry.id === approachId);
+  assert.ok(pick, `場景 ${scene?.id} 找不到 approach ${approachId}`);
+  const resolution = resolveReferenceAction({
+    reference,
+    state,
+    chosenOption: { reference: { sceneId: scene.id, approachId: pick.id, phaseId: pick.phaseId } },
+    character: null,
+  });
+  assert.ok(resolution.matched, resolution.error ?? "");
+  const applied = applyReferenceResult({ reference, state, resolution, outcomeTier, turnNumber: 1 });
+  assert.ok(applied.applied, applied.error ?? "");
+  return applied;
+}
+
+test("空轉計數只算「什麼都沒推動」的回合，成功會歸零", () => {
+  const reference = getScenarioReference("scenario.nostromo-01-v2");
+  const state = createReferenceState(reference);
+  const { approaches } = listSelectableApproaches(reference, state);
+  const check = approaches.find((entry) => entry.requiresCheck);
+  assert.ok(check, "起始場景應該有需要檢定的 approach");
+
+  const failed = playApproach(reference, state, check.id, "失敗");
+  assert.equal(failed.productive, false, "失敗且沒換到任何東西的回合應該算空轉");
+  assert.equal(failed.stallStreak, 1);
+
+  const succeeded = playApproach(reference, state, check.id, "成功");
+  assert.equal(succeeded.productive, true, "成功的回合一定算有進展");
+  assert.equal(succeeded.stallStreak, 0, "有進展就要把計數歸零");
+});
+
+test(`連續 ${STALL_STREAK_LIMIT} 個空轉回合就觸發壓力閥`, () => {
+  const reference = getScenarioReference("scenario.jurassic-park-01-v1");
+  let state = createReferenceState(reference);
+  const startSceneId = state.currentSceneId;
+  let fired = null;
+  for (let turn = 1; turn <= STALL_STREAK_LIMIT + 2; turn += 1) {
+    const { scene, approaches } = listSelectableApproaches(reference, state);
+    if (scene.id !== startSceneId) break;
+    const pick = approaches.filter((entry) => !entry.exhausted).find((entry) => entry.requiresCheck);
+    if (!pick) break;
+    const applied = playApproach(reference, state, pick.id, "失敗");
+    state = applied.state;
+    if (applied.stallRelief) {
+      fired = { turn, applied };
+      break;
+    }
+  }
+  assert.ok(fired, `連續空轉 ${STALL_STREAK_LIMIT} 回合之後壓力閥應該要觸發`);
+  assert.ok(
+    fired.turn <= STALL_STREAK_LIMIT,
+    `壓力閥在第 ${fired.turn} 回合才觸發，應該最晚在第 ${STALL_STREAK_LIMIT} 回合`
+  );
+});
+
+test("空轉計數綁在場景上：換過場景之後不會把舊帳算到新場景頭上", () => {
+  // 這是實際發生過的回歸：travel 換場不經過 applyReferenceResult()，
+  // 計數如果是全域的就不會歸零，於是玩家一到新場景做第一個動作就被推走
+  // （test/referenceV2Smoke.test.js 的貨艙路線因此紅過一次）。
+  const reference = getScenarioReference("scenario.nostromo-01-v2");
+  const base = createReferenceState(reference);
+  const { approaches } = listSelectableApproaches(reference, base);
+  const check = approaches.find((entry) => entry.requiresCheck);
+  assert.ok(check);
+
+  // 模擬「玩家在別的場景已經空轉到上限，然後 travel 到這個場景」：
+  // 計數還在，但它屬於另一個場景。
+  const carriedOver = {
+    ...base,
+    stallStreak: STALL_STREAK_LIMIT,
+    stallStreakSceneId: "evt_some_other_scene",
+  };
+  const applied = playApproach(reference, carriedOver, check.id, "失敗");
+  assert.equal(
+    applied.stallStreak,
+    1,
+    "換過場景之後計數要從 1 重新算起，不可以延續前一個場景的空轉次數"
+  );
+  assert.equal(applied.stallRelief, false, "新場景的第一個空轉回合不該立刻觸發壓力閥");
+});
+
+test("同一個場景的空轉計數會延續，不會每回合重來", () => {
+  // 計數累積之後就會觸發壓力閥並歸零，所以「累積成功了」的可觀測證據是**壓力閥觸發**，
+  // 不是計數本身的數字（那時它已經被重設成 0 了）。
+  // 對照組是上一個測試：同樣的 streak=1，只是掛在別的場景，就不該觸發。
+  const reference = getScenarioReference("scenario.nostromo-01-v2");
+  const base = createReferenceState(reference);
+  const { scene, approaches } = listSelectableApproaches(reference, base);
+  const check = approaches.find((entry) => entry.requiresCheck);
+  assert.ok(check);
+
+  const carriedOver = { ...base, stallStreak: STALL_STREAK_LIMIT - 1, stallStreakSceneId: scene.id };
+  const applied = playApproach(reference, carriedOver, check.id, "失敗");
+  assert.equal(applied.productive, false, "這一回合本身是空轉");
+  assert.equal(
+    applied.stallRelief,
+    true,
+    "同一個場景的空轉要累積：差一次就到上限時，再空轉一次就該觸發壓力閥"
+  );
+  assert.equal(applied.stallStreak, 0, "觸發之後計數歸零，玩家在新場景重新開始");
 });

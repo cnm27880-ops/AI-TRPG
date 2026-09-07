@@ -270,6 +270,15 @@ export function createReferenceState(reference, { initialInventory = [] } = {}) 
     lastOutcomeTier: null,
     lastResultText: null,
     sceneTurnCount: 0,
+    // 連續「什麼都沒推動」的回合數。跟 sceneTurnCount 是兩件事：
+    // 後者算待了多久（正常推進一個場景本來就要 2~4 回合），這個算連續空轉幾回合。
+    // 玩家的挫折感跟的是這一個（見 STALL_STREAK_LIMIT）。
+    stallStreak: 0,
+    // 上面那個計數屬於哪一個場景。**這一格是必要的，不是冗餘**：
+    // 場景不是只有 applyReferenceResult() 會換，travel 與戰鬥收尾也會換，
+    // 而那些路徑不會經過這裡的歸零邏輯。用「計數綁在哪個場景」來判定，
+    // 不管場景是被誰換掉的，換了就自動失效——不用去追每一條換場路徑。
+    stallStreakSceneId: null,
     actionHistory: [],
     endingId: null,
     // 重大劇情節點的狀態（見 majorStoryNodes.js）。跟 flags 分開存：flags 是世界事實，
@@ -322,6 +331,12 @@ export function normalizeReferenceState(reference, rawState) {
     sceneTurnCount: Number.isInteger(rawState.sceneTurnCount) && rawState.sceneTurnCount >= 0
       ? rawState.sceneTurnCount
       : 0,
+    // 舊存檔沒有這一格；補 0 而不是重算，因為它只描述「最近連續幾回合空轉」，
+    // 從 0 起算最多就是晚一兩回合才救援，不會算錯。
+    stallStreak: Number.isInteger(rawState.stallStreak) && rawState.stallStreak >= 0
+      ? rawState.stallStreak
+      : 0,
+    stallStreakSceneId: typeof rawState.stallStreakSceneId === "string" ? rawState.stallStreakSceneId : null,
     actionHistory: Array.isArray(rawState.actionHistory) ? rawState.actionHistory.slice(-24) : [],
     majorStoryState: normalizeMajorStoryState(reference, rawState.majorStoryState),
   };
@@ -1172,11 +1187,45 @@ function authoredAdvanceDecision(scene, state, result) {
 /**
  * 一個場景在沒有任何離場條件成立的情況下，最多能停留幾回合。
  *
- * 6 是刻意的：正常推進一個場景大約 2~4 回合，所以這個數字不會打斷正常節奏，
- * 只會在玩家真的卡住時介入。副本可以用 scene.maxSceneTurns 自行調整，
- * 設成 0 或 null 代表這個場景永不強制離場（結局場景就靠這個保護）。
+ * 6 是刻意的：正常推進一個場景大約 2~4 回合，所以這個數字不會打斷正常節奏。
+ * 這是**外圈**的保險絲，擋的是「每回合都有一點小進展、但整體在原地繞圈」。
+ * 真正對應玩家挫折感的是 STALL_STREAK_LIMIT，那一條幾乎總是先觸發。
+ * 副本可以用 scene.maxSceneTurns 自行調整，設成 0 或 null 代表這個場景
+ * 永不強制離場（結局場景另有 isFinaleScene 保護）。
  */
 export const SCENE_STALL_LIMIT = 6;
+
+/**
+ * 連續幾個「什麼都沒推動」的回合就強制救援。
+ *
+ * 2 是使用者測玩的實際體感：「回覆兩次還卡在同一個地方，就會開始覺得玩不下去」。
+ * 所以第 2 個空轉回合結算完就介入，玩家的下一畫面必定不同——他最多讀到兩次原地踏步。
+ *
+ * 為什麼算「空轉」而不是直接把 SCENE_STALL_LIMIT 調到 2：
+ * 待在同一個場景不等於卡住。找到線索、拿到道具、NPC 態度變了、換了房間，
+ * 這些都是玩家看得到的推進，場景本來就該讓他繼續待著把事情做完。
+ * 只有「這一手完全沒有換到任何東西」才是他抱怨的那種卡。
+ * 見 isProductiveTurn()：成功、新線索、新道具、換房間、作者條件離場，任一成立就重新計數。
+ */
+export const STALL_STREAK_LIMIT = 2;
+
+/**
+ * 這一回合有沒有真的推動什麼？
+ *
+ * 刻意**不把 flags 當成進展**：每個 approach 幾乎都會加旗標（那正是它把自己
+ * 從選單移除的機制），拿它當訊號的話永遠都算「有進展」，這個計數器就等於沒作用。
+ * 同理 timeCost 與 threatDelta 也不算——時間流逝跟威脅上升是代價，不是進展。
+ */
+function isProductiveTurn({ outcomeTier, resultKey, before, after, authoredAdvance }) {
+  if (authoredAdvance) return true;
+  const tier = String(resultKey ?? outcomeTier ?? "");
+  if (tier === "自動" || SUCCESS_TIERS.has(tier)) return true;
+  if ((after.clues?.length ?? 0) > (before.clues?.length ?? 0)) return true;
+  if ((after.inventory?.length ?? 0) > (before.inventory?.length ?? 0)) return true;
+  if ((after.recentDiscoveries?.length ?? 0) > (before.recentDiscoveries?.length ?? 0)) return true;
+  if (after.currentLocation !== before.currentLocation) return true;
+  return false;
+}
 
 /**
  * 【壓力閥】場景停滯救援：沒有任何作者條件成立，但玩家已經在同一個場景耗了太多回合。
@@ -1197,11 +1246,19 @@ export const SCENE_STALL_LIMIT = 6;
  * 觸發時會由 applyReferenceResult() 回報 stallRelief，敘事層必須把它演成
  * 「情勢把你推走了」，不能無聲換場（見 buildReferencePromptBlock 的 Stall_Relief 區塊）。
  */
-function sceneStallReliefDue(scene, state, { sceneTurnCount = 0, reference = null, effects = {} } = {}) {
+function sceneStallReliefDue(scene, state, {
+  sceneTurnCount = 0,
+  stallStreak = 0,
+  reference = null,
+  effects = {},
+} = {}) {
   if (!reference) return false;
   const limit = scene?.maxSceneTurns ?? SCENE_STALL_LIMIT;
+  // maxSceneTurns 設 0／null 是副本明說「這個場景不要自動離場」，兩條門檻都一起關掉。
   if (!Number.isFinite(limit) || limit <= 0) return false;
-  if (sceneTurnCount < limit) return false;
+  const streakLimit = scene?.maxStallStreak ?? STALL_STREAK_LIMIT;
+  const streakDue = Number.isFinite(streakLimit) && streakLimit > 0 && stallStreak >= streakLimit;
+  if (!streakDue && sceneTurnCount < limit) return false;
   if (isFinaleScene(reference, scene)) return false;
   return Boolean(nextSceneFor(reference, scene, state, effects));
 }
@@ -1295,9 +1352,23 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
   //   作者條件成立 = 玩家自己推進的，照常演；
   //   壓力閥       = 玩家卡住、引擎把世界往前推，必須演成外力介入（見 <Stall_Relief>）。
   const authoredAdvance = authoredAdvanceDecision(resolution.scene, nextState, selected.result);
+  // 空轉計數必須在這裡算：nextState 已經套完所有 effects，可以跟 state 逐項比對
+  // 「玩家這一手到底換到了什麼」。放到別處算就得重建一次 effects，遲早跟這裡分岔。
+  const productive = isProductiveTurn({
+    outcomeTier,
+    resultKey: selected.key,
+    before: state,
+    after: nextState,
+    authoredAdvance,
+  });
+  // 計數只在「還在同一個場景」時累積。玩家中途 travel 去別的地方再回來，
+  // 或戰鬥把他丟到別的場景，之前那幾回合的空轉都不該算在這個場景頭上。
+  const priorStreak = state.stallStreakSceneId === resolution.scene.id ? (state.stallStreak ?? 0) : 0;
+  const stallStreak = productive ? 0 : priorStreak + 1;
   const stallRelief = !authoredAdvance
     && sceneStallReliefDue(resolution.scene, nextState, {
       sceneTurnCount,
+      stallStreak,
       reference,
       effects: selected.result.effects ?? {},
     });
@@ -1328,6 +1399,9 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     completedSceneIds: [...completedSceneIds],
     unlockedEventIds: unique(nextState.unlockedEventIds),
     sceneTurnCount: sceneAdvanced ? 0 : sceneTurnCount,
+    // 換場等於局面已經不同了，空轉計數跟著歸零；玩家在新場景重新開始算。
+    stallStreak: sceneAdvanced ? 0 : stallStreak,
+    stallStreakSceneId: sceneAdvanced ? null : resolution.scene.id,
     lastApproachId: resolution.approach.id,
     lastOutcomeTier: outcomeTier,
     lastResultText: resultText || null,
@@ -1387,6 +1461,10 @@ export function applyReferenceResult({ reference, state, resolution, outcomeTier
     // 壓力閥推的離場。turn.js 把它轉成提示區塊，讓敘事把換場演出來而不是無聲跳走。
     stallRelief,
     stallReliefFrom: stallRelief ? resolution.scene.id : null,
+    // 這一回合有沒有推動什麼，以及連續空轉幾回合了。turn.js 與提示層都讀得到，
+    // 不用再自己從 effects 反推一次。
+    productive,
+    stallStreak: nextState.stallStreak,
     sceneTurnCount: nextState.sceneTurnCount,
     transition: selected.result.effects?.sceneTransition ?? (sceneAdvanced ? "advance" : "stay"),
     nextSceneId: nextState.currentSceneId,
