@@ -719,11 +719,43 @@ export function bindAiReferenceOptions({ reference, state, aiOptions, character 
   return options;
 }
 
-/** 由 reference event 產生目前能做的簡要選項。順序完全依作者資料，不依骰池排序。 */
+/**
+ * 由 reference event 產生目前能做的簡要選項（AI 沒給合法選項時的保底）。
+ *
+ * 排序：**沒試過的排前面，再來是失敗次數少的，同分維持作者順序**。不依骰池排序。
+ *
+ * [2026-09-07] 以前是純作者順序 `entries.slice(0, limit)`，配上「失敗不再讓 approach
+ * 消失」之後會產生一個具體的壞結果：失敗過的招留在清單上，把**新解鎖的**招擠出
+ * 只有四格的選項窗。實測命中——evt_engine_coolant_prep 準備完成後解鎖的
+ * app_engine_start_overload 排在作者清單第 5 位，於是玩家永遠看不到那個推進主線的選項
+ * （test/referenceV2Smoke.test.js 的引擎室路線因此變紅）。
+ *
+ * 把「沒試過的」提前解決這件事，而且順帶服務另一個目標：玩家已經試過的招讓出位置，
+ * 選單才會隨著他做過的事改變，而不是每回合都長一樣。
+ */
 export function buildReferenceOptions(reference, state, { limit = 4 } = {}) {
-  const { scene, phase, entries } = currentApproaches(reference, state);
+  const { scene, approaches } = listSelectableApproaches(reference, state, { limit: Math.max(8, limit) });
   if (!scene) return [];
-  return entries.slice(0, limit).map(({ approach, phaseId }) => publicReferenceOption(approach, scene.id, phaseId ?? phase?.id ?? null));
+  return approaches
+    .filter((entry) => !entry.exhausted)
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) =>
+      (a.entry.attempts === 0 ? 0 : 1) - (b.entry.attempts === 0 ? 0 : 1)
+      || a.entry.failures - b.entry.failures
+      || a.index - b.index
+    )
+    .slice(0, limit)
+    .map(({ entry }) => publicReferenceOption(
+      findApproachById(reference, state, scene, entry.id) ?? entry,
+      scene.id,
+      entry.phaseId
+    ));
+}
+
+/** 從目前場景取回 approach 的原始資料（publicReferenceOption 需要完整欄位）。 */
+function findApproachById(reference, state, scene, approachId) {
+  const { entries } = currentApproaches(reference, state);
+  return entries.find(({ approach }) => approach.id === approachId)?.approach ?? null;
 }
 
 function referenceTerms(text) {
