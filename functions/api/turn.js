@@ -106,6 +106,7 @@ import {
   bindAiReferenceOptions,
   buildReferencePromptBlock,
   buildSceneBriefBlock,
+  canonicalEchoRatio,
   referenceStateForResponse,
   narrativeModeForScene,
   validateThreatAssessment,
@@ -1925,6 +1926,31 @@ async function executeTurn(context, streamHooks = null) {
         },
         { timestamp: new Date().toISOString(), scenarioId: scenarioPack?.id ?? null, turn: (session.turns ?? 0) + 1 }
       );
+    }
+    // [2026-09-07] canonical 原文回響率。
+    //
+    // 命中 approach 的回合，副本原文是以「素材」身分進 prompt、由模型重寫的
+    // （見 referenceAdapter.buildReferencePromptBlock）。那個設計對不對，
+    // **從程式碼完全看不出來**：模型照抄或重寫，遊戲都照跑、測試都照過，
+    // 差別只有玩家會不會一直讀到似曾相識的段落。所以量出來寫成 log，
+    // 跟 [PROMPT_CACHE] 同一種用途——安靜的退化要先能被看見才修得掉。
+    //
+    // 只在模型真的有寫的回合量；canonicalDirectSend 與 llmFailedToCanonical
+    // 本來就是直接印原文，比率必然是 1，記了只會稀釋真正有意義的樣本。
+    if (directNarrative && degraded.llmCalled) {
+      const echo = canonicalEchoRatio(narration, directNarrative.text);
+      if (echo.total > 0) {
+        console.log("[CANONICAL_ECHO]", JSON.stringify({
+          sessionId: session?.id ?? null,
+          sceneId: directNarrative.sceneId ?? null,
+          approachId: directNarrative.approachId ?? null,
+          outcomeTier: directNarrative.outcomeTier ?? null,
+          echoedSentences: echo.echoed,
+          canonicalSentences: echo.total,
+          ratio: Number(echo.ratio.toFixed(3)),
+          canonicalChars: directNarrative.text.length,
+        }));
+      }
     }
     const chronicleTimestamp = new Date().toISOString();
     session.history = pushHistory(session.history, {

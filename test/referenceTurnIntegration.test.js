@@ -250,7 +250,23 @@ test("V2 reference action falls back to canonical text when every LLM attempt fa
   assert.equal(saved.scenario.referenceState.lastApproachId, "app_cryo_recon");
   assert.equal(saved.scenario.referenceState.lastOutcomeTier !== null, true);
   assert.equal(saved.scenario.referenceState.currentSceneId, "evt_cryo_clearance");
-  assert.ok(saved.scenario.referenceState.flags.includes("flag_cryo_recon_done"));
+  // [2026-09-07] 這裡以前斷言 flags 一定含 flag_cryo_recon_done。那個斷言之所以成立，
+  // 是因為當時**六個結果分級每一級**都會加這個記帳旗標——連慘烈失敗都算「偵察完成」，
+  // 於是玩家失敗一次就再也不能重試（見 test/approachRetry.test.js 的檔頭）。
+  // 資料修好之後失敗不再加它，這個斷言就變成「這一輪骰得好不好」的擲骰結果。
+  //
+  // 這個測試真正要守的是「規則結果有被保存下來」，那件事跟成敗無關：
+  // 不管這一手成功或失敗，這次嘗試都必須進 actionHistory。
+  const lastAction = saved.scenario.referenceState.actionHistory.at(-1);
+  assert.equal(lastAction.approachId, "app_cryo_recon");
+  assert.equal(lastAction.sceneId, "evt_cryo_clearance");
+  // 完成旗標只在真的成功時成立，失敗時不成立——這正是「失敗可以重試」的意思。
+  const succeeded = !/失敗/.test(String(lastAction.resultKey ?? lastAction.outcomeTier ?? ""));
+  assert.equal(
+    saved.scenario.referenceState.flags.includes("flag_cryo_recon_done"),
+    succeeded,
+    "flag_cryo_recon_done 應該只在成功時成立"
+  );
   assert.equal(saved.log.events.some((entry) => entry.type === "reference_action"), true);
   assert.equal(saved.history.at(-1).narration, actionBody.narration);
 

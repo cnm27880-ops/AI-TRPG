@@ -13,6 +13,8 @@
     "eval:narrative": "node scripts/narrative-behaviour-eval.mjs",
     "lint:workflows": "node scripts/lint-workflows.mjs",
     "lint:prompt-cache": "node scripts/lint-prompt-cache.mjs",
+    "lint:reference-sync": "node scripts/regen-reference-modules.mjs --check",
+    "audit:dead-flags": "node scripts/audit-dead-flags.mjs",
     "deploy": "wrangler pages deploy",
     "build:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --minify",
     "watch:css": "tailwindcss -c tailwind.config.js -i src/tailwind.css -o public/tailwind.css --watch"

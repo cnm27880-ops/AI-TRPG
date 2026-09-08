@@ -1045,7 +1045,6 @@
                   "clue_alien_trace"
                 ],
                 "worldFlagsAdd": [
-                  "flag_cryo_recon_done",
                   "flag_cryo_cleared"
                 ],
                 "timeCost": 1,
@@ -1056,7 +1055,6 @@
               "text": "光束在黏液與血痕之間來回晃動，你沒有確認來源，反而踩裂了一片乾硬的皮膜。聲音沿著通風管傳遠；休眠室不再是安全的起點。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cryo_recon_done",
                   "flag_cryo_cleared",
                   "flag_noise_made"
                 ],
@@ -1071,7 +1069,6 @@
                   "bleeding_major"
                 ],
                 "worldFlagsAdd": [
-                  "flag_cryo_recon_done",
                   "flag_cryo_cleared",
                   "flag_flashlight_lost"
                 ],
@@ -1125,7 +1122,6 @@
               "text": "門板紋絲不動，你的肩膀撞在滑軌上。撞擊聲沿著金屬艙壁傳開，門外的拖痕旁多了一滴尚未乾涸的黏液。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cryo_seal_done",
                   "flag_noise_made"
                 ],
                 "timeCost": 1,
@@ -1627,7 +1623,6 @@
               "text": "你在翻找冷藏抽屜時沒有找到完整醫療包，只能把櫃門重新壓回去；破碎器皿的聲音提醒你這裡不宜久留。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_scavenge_done",
                   "flag_medbay_checked",
                   "flag_noise_made"
                 ],
@@ -1639,7 +1634,6 @@
               "text": "壁櫃內的藥劑大多已因失溫變質或被強酸蒸氣污染，毫無收穫。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_scavenge_done",
                   "flag_medbay_checked"
                 ],
                 "timeCost": 1,
@@ -1653,7 +1647,6 @@
                   "frostbite_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_medbay_scavenge_done",
                   "flag_medbay_checked",
                   "flag_medbay_vault_leak"
                 ],
@@ -1727,7 +1720,6 @@
               "text": "你確認殘留物不是普通創傷，卻無法在不接觸污染物的情況下判斷幼體特徵；你把樣本留在原處。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_autopsy_done",
                   "flag_medbay_checked"
                 ],
                 "timeCost": 1,
@@ -1738,7 +1730,6 @@
               "text": "手術台上的組織已與冷凝水和消毒液混在一起，沒有形成可靠的判讀。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_autopsy_done",
                   "flag_medbay_checked"
                 ],
                 "timeCost": 1,
@@ -1752,7 +1743,6 @@
                   "acid_burn_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_medbay_autopsy_done",
                   "flag_medbay_checked",
                   "flag_noise_made"
                 ],
@@ -1826,7 +1816,6 @@
               "text": "保險櫃的外殼被撬出凹痕，鎖死的低溫模組仍然沒有鬆開。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_force_done",
                   "flag_medbay_checked"
                 ],
                 "timeCost": 1,
@@ -1837,7 +1826,6 @@
               "text": "工具在鎖扣上打滑，保險櫃沒有開啟，卻把金屬撞擊聲傳進了走廊。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_medbay_force_done",
                   "flag_medbay_checked",
                   "flag_noise_made"
                 ],
@@ -1852,7 +1840,6 @@
                   "frostbite_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_medbay_force_done",
                   "flag_medbay_checked",
                   "flag_medbay_vault_leak"
                 ],
@@ -1980,7 +1967,6 @@
               "text": "你踩過一段濕滑橫樑，沒有摔落，但腳步聲沿著貨櫃間的水面傳開。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_stealth_done",
                   "flag_cargo_stalk_done",
                   "flag_noise_made"
                 ],
@@ -1992,7 +1978,6 @@
               "text": "你避開了最深的積水，卻沒有找到安靜的穿行路線；貨艙另一端傳來金屬摩擦。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_stealth_done",
                   "flag_cargo_stalk_done",
                   "flag_noise_made"
                 ],
@@ -2004,7 +1989,6 @@
               "text": "你腳下的鋼樑突然斷裂，你整個人重重摔入積水中，激起巨大水響。正上方十米高的貨櫃頂端，一雙森冷的黑色反關節骨足緩緩踏出陰影。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_stealth_done",
                   "flag_cargo_stalk_done",
                   "flag_alien_alert"
                 ],
@@ -2072,7 +2056,6 @@
               "text": "你找到了手動纜繩，卻無法在不讓貨櫃滑動的情況下完成解鎖。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_crane_done",
                   "flag_cargo_stalk_done"
                 ],
                 "timeCost": 1,
@@ -2083,7 +2066,6 @@
               "text": "起重機控制盒沒有回應，遠處積水裡卻傳來一次不屬於你們的腳步聲。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_crane_done",
                   "flag_cargo_stalk_done",
                   "flag_noise_made"
                 ],
@@ -2095,7 +2077,6 @@
               "text": "你拉錯了手動纜繩，懸掛貨櫃突然偏移，鋼鏈砸進地面並把貨艙的動靜推向最高。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_crane_done",
                   "flag_cargo_stalk_done",
                   "flag_alien_alert"
                 ],
@@ -2173,7 +2154,6 @@
               "text": "血色痕跡在冷凝水裡失去方向，你只確認有人曾在這裡受傷。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_corpse_done",
                   "flag_cargo_stalk_done"
                 ],
                 "timeCost": 1,
@@ -2184,7 +2164,6 @@
               "text": "你搜查了錯誤的貨櫃縫隙，除了油污與積水沒有找到遺物。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_corpse_done",
                   "flag_cargo_stalk_done",
                   "flag_noise_made"
                 ],
@@ -2196,7 +2175,6 @@
               "text": "你翻動水窪底部的殘片時，金屬碰撞聲把貨櫃迷宮的回音全部喚醒。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_corpse_done",
                   "flag_cargo_stalk_done",
                   "flag_alien_alert"
                 ],
@@ -2307,7 +2285,6 @@
               "text": "光圈晃了一下，你只捕捉到一團濕潤的輪廓就本能地退開。你知道那裡有東西不對，但說不出它是什麼——那種說不出來本身就讓人更不想靠近。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_egg_done",
                   "flag_cargo_stalk_done"
                 ],
                 "timeCost": 1,
@@ -2321,7 +2298,6 @@
                   "impact_hand_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_cargo_egg_done",
                   "flag_cargo_stalk_done",
                   "flag_alien_nest_found",
                   "flag_parasite_exposure",
@@ -2338,7 +2314,6 @@
                   "suffocation_major"
                 ],
                 "worldFlagsAdd": [
-                  "flag_cargo_egg_done",
                   "flag_cargo_stalk_done",
                   "flag_alien_nest_found",
                   "flag_parasite_exposure",
@@ -2465,7 +2440,6 @@
               "text": "鎖芯沒有轉動，金屬絲已經彎曲；你仍可改用力量或請陸遠開槍。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_pick_attempted",
                   "flag_cargo_tool_pick_failed"
                 ],
                 "timeCost": 1,
@@ -2476,7 +2450,6 @@
               "text": "鎖芯內部生鏽卡死，鐵絲折斷在裡面，常規開鎖途徑失效。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_pick_attempted",
                   "flag_cargo_tool_pick_failed"
                 ],
                 "timeCost": 1,
@@ -2487,7 +2460,6 @@
               "text": "金屬絲在鎖芯內斷裂，工具櫃仍然鎖死，卻沒有造成額外傷害。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_pick_attempted",
                   "flag_cargo_tool_pick_failed"
                 ],
                 "timeCost": 1,
@@ -2570,7 +2542,6 @@
               "text": "扳手撞上鎖扣卻沒有斷裂；你聽見貨艙更深處的通風管傳來回音。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_smash_attempted",
                   "flag_cargo_tool_smash_failed",
                   "flag_noise_made"
                 ],
@@ -2582,7 +2553,6 @@
               "text": "掛鎖承受住了第一次重擊，扳手在你手中彈開；工具櫃仍然鎖死。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_smash_attempted",
                   "flag_cargo_tool_smash_failed",
                   "flag_noise_made"
                 ],
@@ -2597,7 +2567,6 @@
                   "burn_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_smash_attempted",
                   "flag_cargo_tool_done",
                   "flag_tool_cabinet_breach",
                   "flag_tool_lost",
@@ -2684,7 +2653,6 @@
               "text": "第一發沒有擊中鎖舌，陸遠收槍示意改用其他方法；工具櫃仍然鎖死。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_shot_attempted",
                   "flag_cargo_tool_shot_failed"
                 ],
                 "timeCost": 1,
@@ -2695,7 +2663,6 @@
               "text": "陸遠拒絕在氣瓶旁連續開槍，這條協助路線中止，但工具櫃本身沒有被打開。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_shot_attempted",
                   "flag_cargo_tool_shot_failed"
                 ],
                 "timeCost": 1,
@@ -2706,7 +2673,6 @@
               "text": "子彈擦過鎖扣打進旁邊的金屬架，貨艙回音驟然放大；陸遠把你拉到貨櫃後方，焊槍仍未取得。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_cargo_tool_shot_attempted",
                   "flag_cargo_tool_shot_failed",
                   "flag_noise_made"
                 ],
@@ -2888,7 +2854,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_evidence_attempted",
                   "flag_ripley_session_opened",
                   "flag_ripley_refused"
                 ],
@@ -2903,7 +2868,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_evidence_attempted",
                   "flag_ripley_session_opened",
                   "flag_ripley_refused"
                 ],
@@ -2918,7 +2882,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_evidence_attempted",
                   "flag_ripley_session_opened",
                   "flag_ripley_route_blocked"
                 ],
@@ -3015,7 +2978,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_lambert_attempted",
                   "flag_ripley_session_opened"
                 ],
                 "timeCost": 1,
@@ -3029,7 +2991,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_lambert_attempted",
                   "flag_ripley_session_opened"
                 ],
                 "timeCost": 1,
@@ -3043,7 +3004,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_lambert_attempted",
                   "flag_ripley_session_opened",
                   "flag_ripley_route_blocked"
                 ],
@@ -3132,7 +3092,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_force_attempted",
                   "flag_ripley_session_opened"
                 ],
                 "timeCost": 1,
@@ -3146,7 +3105,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_force_attempted",
                   "flag_ripley_session_opened"
                 ],
                 "timeCost": 1,
@@ -3160,7 +3118,6 @@
                   "npc_ripley": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_ripley_force_attempted",
                   "flag_ripley_session_opened",
                   "flag_ripley_route_blocked"
                 ],
@@ -3684,7 +3641,6 @@
               "text": "動態金鑰在最後一段失效，門鎖沒有打開；你仍保留了部分錯誤碼，必須改用其他方法。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_mother_hack_attempted",
                   "flag_mother_access_logged"
                 ],
                 "timeCost": 1,
@@ -3695,7 +3651,6 @@
               "text": "連續輸入錯誤三次，鍵盤鎖定五分鐘。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_mother_hack_attempted",
                   "flag_mother_core_locked"
                 ],
                 "timeCost": 1,
@@ -3706,7 +3661,6 @@
               "text": "門禁拒絕了你的最後一組輸入，氣密走廊的警示燈轉紅；你及時拔離終端，但主機已記下未授權存取。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_mother_hack_attempted",
                   "flag_mother_alarm"
                 ],
                 "timeCost": 1,
@@ -3815,7 +3769,6 @@
               "text": "門鎖外殼被切出一道裂口，卻沒有真正脫落；焊槍的燃料與你的時間都在消耗。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_mother_torch_attempted",
                   "flag_mother_access_logged"
                 ],
                 "timeCost": 1,
@@ -3826,7 +3779,6 @@
               "text": "切割線偏離鎖舌，氣密門仍然閉合；高溫留下的焦痕讓這條通道更容易被追蹤。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_mother_torch_attempted",
                   "flag_mother_access_logged"
                 ],
                 "timeCost": 1,
@@ -3843,7 +3795,6 @@
                   "burn_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_mother_torch_attempted",
                   "flag_mother_alarm"
                 ],
                 "timeCost": 1,
@@ -4547,7 +4498,6 @@
               "text": "你只鬆開一根閥門的外側螺栓，剩下的卡死結構仍需要其他準備或更高風險的施力。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_engine_valves_attempted",
                   "flag_engine_prep_done"
                 ],
                 "timeCost": 1,
@@ -4558,7 +4508,6 @@
               "text": "扳手在油垢上打滑，閥門沒有鬆開；高壓蒸氣的震動卻使工程區的地面開始顫動。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_engine_valves_attempted",
                   "flag_engine_prep_done",
                   "flag_engine_noise"
                 ],
@@ -4573,7 +4522,6 @@
                   "burn_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_engine_valves_attempted",
                   "flag_engine_prep_done",
                   "flag_engine_steam_leak"
                 ],
@@ -4660,7 +4608,6 @@
                   "npc_parker": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_engine_parker_attempted",
                   "flag_engine_prep_done"
                 ],
                 "timeCost": 1,
@@ -4674,7 +4621,6 @@
                   "npc_parker": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_engine_parker_attempted",
                   "flag_engine_prep_done"
                 ],
                 "timeCost": 1,
@@ -4688,7 +4634,6 @@
                   "npc_parker": "suspicious"
                 },
                 "worldFlagsAdd": [
-                  "flag_engine_parker_attempted",
                   "flag_engine_prep_done",
                   "flag_engine_steam_leak"
                 ],
@@ -4755,7 +4700,6 @@
               "text": "你找到了排氣閥，卻沒有讓蒸氣形成連續屏障；控制區上方仍然留有盲點。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_engine_steam_attempted",
                   "flag_engine_prep_done"
                 ],
                 "timeCost": 1,
@@ -4766,7 +4710,6 @@
               "text": "排氣閥在手中卡死，蒸氣沒有被導向預定位置；工程區的熱浪變得更難預測。",
               "effects": {
                 "worldFlagsAdd": [
-                  "flag_engine_steam_attempted",
                   "flag_engine_prep_done",
                   "flag_engine_noise"
                 ],
@@ -4781,7 +4724,6 @@
                   "burn_minor"
                 ],
                 "worldFlagsAdd": [
-                  "flag_engine_steam_attempted",
                   "flag_engine_prep_done",
                   "flag_engine_steam_leak"
                 ],
@@ -7724,5 +7666,136 @@
         }
       }
     }
-  ]
+  ],
+  "flagMeanings": {
+    "flag_937_audit_active": "對 937 號指令的查詢已被系統記錄，公司稽核程序啟動中",
+    "flag_937_evidence_saved": "937 號指令的證據已被保存下來",
+    "flag_937_partial": "只讀到 937 號指令的片段，內容不完整",
+    "flag_937_path_known": "已知道通往 937 號指令資料的路徑",
+    "flag_airlock_damaged": "氣閘已受損，密封性不再可靠",
+    "flag_airlock_entered": "玩家已進入氣閘",
+    "flag_alien_alert": "異形已經警覺，知道附近有人",
+    "flag_alien_followed": "異形已跟上玩家的行進路線",
+    "flag_alien_nest_found": "已找到異形的巢穴",
+    "flag_alien_positioned": "異形已被引到預定的位置",
+    "flag_ash_ambush_unlocked": "Ash 的伏擊條件已成立",
+    "flag_ash_damaged": "Ash 已受損，但仍能行動",
+    "flag_ash_delayed": "Ash 被拖住，短時間內追不上來",
+    "flag_ash_destroyed": "Ash 已被徹底摧毀",
+    "flag_ash_disarming": "Ash 正在解除玩家的武裝或防備",
+    "flag_ash_hostile": "Ash 已公開敵對",
+    "flag_ash_hostile_pending": "Ash 已起戒心，隨時可能翻臉",
+    "flag_ash_suspicious": "Ash 的異常已經引起玩家注意",
+    "flag_ash_synthetic_known": "已確認 Ash 是合成人",
+    "flag_ash_talked": "已經和 Ash 談過檢疫協議",
+    "flag_authority_used": "已動用權限指令下達命令",
+    "flag_blowtorch_obtained": "已取得切割器",
+    "flag_brett_confirmed": "已確認遺體是 Brett",
+    "flag_cabin_dark": "艙內照明已被切斷，一片漆黑",
+    "flag_cargo_corpse_done": "貨艙遺體的排查已經做過",
+    "flag_cargo_crane_done": "貨艙吊車陷阱的佈置已經做過",
+    "flag_cargo_egg_done": "貨艙卵艙的調查已經做過",
+    "flag_cargo_stalk_done": "貨艙潛行這一段已經結束",
+    "flag_cargo_stealth_done": "貨艙的潛行嘗試已經做過",
+    "flag_cargo_tool_abandoned": "玩家放棄取得工具櫃裡的工具",
+    "flag_cargo_tool_done": "工具櫃的問題已經有了結果，不論成敗",
+    "flag_cargo_tool_pick_attempted": "已經嘗試撬開工具櫃",
+    "flag_cargo_tool_pick_failed": "撬鎖沒有成功",
+    "flag_cargo_tool_route_opened": "通往工具櫃的路線已經打開",
+    "flag_cargo_tool_shot_attempted": "已經嘗試用槍解決工具櫃",
+    "flag_cargo_tool_shot_failed": "在貨艙開槍未能解決問題，只留下聲響",
+    "flag_cargo_tool_smash_attempted": "已經嘗試強行砸開工具櫃",
+    "flag_cargo_tool_smash_failed": "強行破壞工具櫃失敗，櫃體變形卡死",
+    "flag_cargo_trap_ready": "貨艙的吊車陷阱已經就緒",
+    "flag_coolant_spent": "冷卻劑已耗盡",
+    "flag_core_locked": "核心區權限已被鎖定",
+    "flag_cryo_cleared": "休眠室已排查完畢",
+    "flag_cryo_left": "玩家已離開休眠室",
+    "flag_cryo_recon_done": "休眠室的偵察已經做過",
+    "flag_cryo_seal_done": "休眠室的封門處理已經做過",
+    "flag_cryo_sealed": "休眠室的門已完全封死",
+    "flag_cryo_sealed_partial": "休眠室的門只封住一半，仍留有縫隙",
+    "flag_deck_cargo_route": "前往貨艙的路線已經確認",
+    "flag_deck_checked": "A 甲板已用動作感測器掃過",
+    "flag_deck_science_route": "前往科學實驗區的路線已經確認",
+    "flag_engine_damaged": "引擎已受損",
+    "flag_engine_guard_done": "引擎室入口的警戒已經佈置過",
+    "flag_engine_locked": "引擎控制權限已被鎖定",
+    "flag_engine_noise": "引擎區發出異常巨響，聲音已傳開",
+    "flag_engine_parker_attempted": "已經找過 Parker 協助引擎準備",
+    "flag_engine_prep_done": "引擎超載的前置準備已完成",
+    "flag_engine_route_damaged": "引擎區的通道已經受損",
+    "flag_engine_steam_attempted": "已經嘗試架設蒸汽屏障",
+    "flag_engine_steam_leak": "引擎區蒸汽外洩，能見度與通行受阻",
+    "flag_engine_valves_attempted": "已經嘗試操作引擎閥門",
+    "flag_engine_valves_ready": "引擎閥門已調整到位",
+    "flag_engine_vision_blurred": "蒸汽讓引擎區的視線變差",
+    "flag_escape_toolkit_taken": "已在逃脫途中取回工具包",
+    "flag_escaped_to_narcissus": "玩家已逃到 Narcissus 接駁艇",
+    "flag_firewall_created": "已用火焰築起一道阻隔",
+    "flag_flashlight_lost": "手電筒已遺失，玩家目前沒有隨身光源",
+    "flag_harpoon_destroyed": "魚叉已經損毀",
+    "flag_harpoon_ready": "魚叉已到手且可用",
+    "flag_helmet_damaged": "頭盔已經受損",
+    "flag_hypersleep_entered": "玩家已進入冷凍休眠",
+    "flag_infected": "玩家已確認感染",
+    "flag_infection_cleared": "檢查確認玩家沒有受感染",
+    "flag_infection_suspected": "檢查結果顯示玩家可能已感染",
+    "flag_infection_unresolved": "感染狀態仍未確認",
+    "flag_lambert_met": "已與 Lambert 建立聯繫",
+    "flag_lower_deck_collapsed": "下層甲板已坍塌，該路線不再可通行",
+    "flag_luyuan_dead": "陸遠已死亡",
+    "flag_luyuan_met": "已與陸遠建立聯繫",
+    "flag_luyuan_survived": "陸遠存活到最後",
+    "flag_medbay_autopsy_done": "醫療區的解剖檢查已經做過",
+    "flag_medbay_checked": "醫療區已經搜索過",
+    "flag_medbay_force_done": "醫療區強行開門的嘗試已經做過",
+    "flag_medbay_scavenge_done": "醫療區的物資搜刮已經做過",
+    "flag_medbay_vault_leak": "醫療區保險櫃破損外洩，該區域空氣受污染",
+    "flag_mother_access_logged": "對主機的存取已經被記錄下來",
+    "flag_mother_alarm": "主機警報已觸發，全船都聽得到",
+    "flag_mother_card_used": "已用門禁卡開啟主機艙",
+    "flag_mother_contacted": "已與主機建立通訊",
+    "flag_mother_core_locked": "主機核心艙門已鎖死",
+    "flag_mother_cover_set": "主機艙外的走廊已經佈防",
+    "flag_mother_door_open": "主機核心艙門已開啟",
+    "flag_mother_hack_attempted": "已經嘗試破解主機艙門",
+    "flag_mother_smoke": "切割產生的濃煙瀰漫在主機艙外",
+    "flag_mother_torch_attempted": "已經嘗試用切割器開啟主機艙門",
+    "flag_narcissus_damaged": "Narcissus 接駁艇已經受損",
+    "flag_narcissus_route_unlocked": "通往 Narcissus 的路線已經打開",
+    "flag_narcissus_secured": "Narcissus 接駁艇已確保安全",
+    "flag_noise_made": "玩家弄出了聲響，位置可能已經暴露",
+    "flag_npc_assisted": "有 NPC 在關鍵時刻出手協助",
+    "flag_order_937_revealed": "937 號指令的內容已被揭露",
+    "flag_overload_active": "引擎超載程序已經啟動",
+    "flag_parasite_exposure": "玩家曾近距離暴露於寄生體，感染風險未排除",
+    "flag_parker_assisted": "Parker 提供了協助",
+    "flag_player_dead_combat": "玩家已於戰鬥中死亡",
+    "flag_player_dead_vacuum": "玩家已暴露於真空而死亡",
+    "flag_player_displaced": "玩家被衝擊推離原本位置",
+    "flag_ripley_assisted": "Ripley 提供了協助",
+    "flag_ripley_evidence_attempted": "已經向 Ripley 出示過證據",
+    "flag_ripley_force_attempted": "已經對 Ripley 施壓過",
+    "flag_ripley_hold_done": "已經在 Ripley 這條線上守過位",
+    "flag_ripley_lambert_attempted": "已經嘗試安撫 Lambert",
+    "flag_ripley_met": "已與 Ripley 建立聯繫",
+    "flag_ripley_refused": "Ripley 拒絕了玩家這一次的提議",
+    "flag_ripley_route_blocked": "與 Ripley 合作的路線已經談崩",
+    "flag_ripley_session_opened": "與 Ripley 的正式交涉已經展開",
+    "flag_sample_destroyed": "樣本已毀損",
+    "flag_sample_preserved": "樣本已妥善保存",
+    "flag_sample_spilled": "樣本已灑出並污染現場",
+    "flag_sample_unstable": "樣本狀態不穩定",
+    "flag_science_locked": "科學實驗區已被鎖上，無法由正常途徑進入",
+    "flag_steam_shield_ready": "蒸汽屏障已經就緒",
+    "flag_suit_ready": "太空裝已穿戴完成",
+    "flag_supplies_lost": "補給在逃脫途中遺失",
+    "flag_survivor_log_saved": "倖存者留言已錄下並保存",
+    "flag_tether_ready": "繫繩已固定就緒",
+    "flag_tool_cabinet_breach": "工具櫃外殼被破壞，內容物散落且暴露",
+    "flag_tool_lost": "原本取得的工具已遺失或損毀",
+    "flag_weapon_lost": "玩家的武器已遺失",
+    "flag_xenomorph_killed": "異形已被消滅"
+  }
 }
