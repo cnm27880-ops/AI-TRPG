@@ -790,6 +790,7 @@ async function submitChargen() {
     adoptCharacter(res.session.character);
     recentStoryEntries = [];
     pendingStoryEntry = null;
+    currentDecisionEntry = null;
     activeNarrationStream = null;
     renderRecentStoryWindow({ forceBottom: true });
     await playChargenReleaseTransition();
@@ -1278,6 +1279,10 @@ async function readTurnResponse(httpRes) {
   let buffer = "";
   let complete = null;
   let narrationStreamed = false;
+  // [2026-09-08] 骰子動畫改成一收到 rules_resolved（帶著 checkResult）就播，
+  // 不等敘事串流跑完——見下面 case "rules_resolved" 的說明。這裡记一下「已經播過了」，
+  // runTurn() 收到最終 complete payload 時才不會把同一個結果的動畫再播一次。
+  let checkResultRendered = false;
   const consumeLine = (line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
@@ -1293,6 +1298,14 @@ async function readTurnResponse(httpRes) {
         break;
       case "rules_resolved":
         updateNarratorPendingHint("現場規則已確認，說書人正在接手……");
+        // 骰子在伺服器端算完的當下就已經定案了，不必等敘事文字寫完才讓玩家看到——
+        // 玩家實測回報「按下選項後要等很久才擲骰」正是敘事生成時間蓋過了這個結果。
+        // 這裡不 await：擲骰動畫是純展示，不該卡住後續 narration_delta 的讀取。
+        if (event.checkResult) {
+          checkResultRendered = true;
+          renderCheckResult(event.checkResult).catch((err) =>
+            console.error("[DICE_ANIMATION] 提前播放擲骰動畫失敗", err));
+        }
         break;
       case "narrator_writing":
         updateNarratorPendingHint("說書人正在組織這一回合的敘事……");
@@ -1329,7 +1342,7 @@ async function readTurnResponse(httpRes) {
   buffer += decoder.decode();
   if (buffer.trim()) consumeLine(buffer);
   if (!complete?.payload) throw new Error("串流在回合完成前中斷，請稍後重試");
-  return { ...complete, narrationStreamed };
+  return { ...complete, narrationStreamed, checkResultRendered };
 }
 
 async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retryPending = false, turnRequestId } = {}) {
@@ -1378,11 +1391,13 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
     let res;
     let responseStatus = httpRes.status;
     let narrationStreamed = false;
+    let checkResultRendered = false;
     try {
       const streamed = await readTurnResponse(httpRes);
       res = streamed.payload;
       responseStatus = streamed.status;
       narrationStreamed = Boolean(streamed.narrationStreamed);
+      checkResultRendered = Boolean(streamed.checkResultRendered);
     } catch (err) {
       cancelNarrationStream();
       throw err;
@@ -1400,7 +1415,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
 
     if (res.ok === false) {
       renderTurnWarnings(res.warnings);
-      if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
+      if (res.checkResult && !res.reusedCheck && !checkResultRendered) await renderCheckResult(res.checkResult);
       // 傷勢閘門(409)不是「壞掉」，是規則上的結果——不要給重試按鈕，重試永遠會是同一個答案。
       if (responseStatus === 409 && res.downState) {
         appendFeedEvent("harm", "身體拒絕行動", escapeHtml(res.error));
@@ -1423,7 +1438,7 @@ async function runTurn({ chosenOption, playerAction, opening, pressedIndex, retr
       return;
     }
 
-    if (res.checkResult && !res.reusedCheck) await renderCheckResult(res.checkResult);
+    if (res.checkResult && !res.reusedCheck && !checkResultRendered) await renderCheckResult(res.checkResult);
 
     renderTurnWarnings(res.warnings);
 
@@ -2540,44 +2555,41 @@ function setDecisionContext(text) {
 }
 
 /**
- * 本回合的行動選項。唯一的選項出口——畫在輸入框正上方的 #decision-dock 裡。
+ * 本回合的行動選項。
  *
- * [2026-09-03 第二次修正] 這個函式先前把同一批選項畫在**兩個**地方：故事流裡的
- * #inline-decision-panel 大卡片，外加輸入框上方的 #tactical-chips 小晶片。玩家等於
- * 把同一件事讀兩次，而且小晶片那一份還砍掉了 hint 以外的所有資訊。現在只留一個。
+ * [2026-09-08 改版] 玩家實測回報三個問題：(1) 選項卡以前釘死在輸入框正上方的
+ * #decision-dock，是主欄底部一塊固定高度的面板，不管故事捲到哪裡都攤在畫面上
+ * 佔位；(2) 面板本身塞了太多種提示（技能晶片、難度晶片、骰池晶片、未受訓警告、
+ * 來源標籤——五種不同外觀的小方塊），版面凌亂；(3) 這塊固定面板把可讀故事的
+ * 高度越吃越窄。
  *
- * 卡片重新公開檢定資訊（屬性＋技能・難度・骰池・未受訓風險）。這是刻意的回頭路，
- * 理由是柏德之門系列的作法：選項上先標示 [技能] 與 DC，玩家看得到才做得成決定，
- * 點下去立刻擲骰、看 d20 動畫、再看結果。上一版把這排數字全部藏起來，玩家的體感
- * 變成「按了才知道又失敗」——那不是張力，是資訊不足。
+ * 現在選項改成故事流裡的最後一則訊息（kind:"decision"），跟其他事件
+ * （行動／敘事／判定）一樣是可捲動內容的一部分：捲到上面重讀敘事時，選項會
+ * 跟著捲走，不再是一塊永遠佔著螢幕的面板。它是一個「單例」條目——每次重繪
+ * 都更新同一則、不會在故事流裡越疊越多——見 renderRecentStoryWindow() 如何併入
+ * currentDecisionEntry。
  *
- * 代價是知道的：玩家會傾向挑骰池最大的那一個。對策不在藏資訊，而在
- * content/scenario/repetition.js 的套路遞減（同一招連用會愈來愈難），
- * 以及把 hint（做這件事想得到什麼）排在比數字更醒目的位置。
+ * 卡片保留檢定資訊（屬性＋技能・難度＋DC・骰池・未受訓風險），但合併成一行
+ * 精簡的規則摘要，不再是四五個各自畫框的小晶片：資訊沒有減少，只是不再需要
+ * 五種不同的視覺樣式才能讀完一張卡。
  */
 function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
-  const grid = document.getElementById("option-grid");
-  const decisionKicker = document.getElementById("decision-kicker");
-  const decisionTitle = document.getElementById("decision-title");
   const safeOptions = Array.isArray(options) ? options : [];
   currentReferenceMode = Boolean(referenceMode);
-
   currentOptions = safeOptions;
-  if (decisionKicker) decisionKicker.textContent = "下一步";
-  if (decisionTitle) decisionTitle.textContent = "你現在要怎麼做？";
-  if (grid) grid.hidden = false;
+
   if (!safeOptions.length) {
-    setDecisionContext("沒有預設方案 · 請描述自己的行動");
-    if (grid) grid.innerHTML = `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`;
+    upsertDecisionEntry(
+      "沒有預設方案 · 請描述自己的行動",
+      `<div class="decision-grid-empty">本回合沒有預設方案。你可以在下方描述自己的行動，說書人會根據當前局勢推導判定。</div>`
+    );
     return;
   }
 
   const checkCount = safeOptions.filter((opt) => opt.requiresCheck !== false).length;
-  setDecisionContext(
-    `${safeOptions.length} 個方案 · ${checkCount ? `${checkCount} 個需要擲骰` : "都不需要擲骰"} · 也可以在下方自由行動`
-  );
+  const contextText = `${safeOptions.length} 個方案 · ${checkCount ? `${checkCount} 個需要擲骰` : "都不需要擲骰"} · 也可以在下方自由行動`;
 
-  grid.innerHTML = safeOptions.map((opt, i) => {
+  const cardsHtml = safeOptions.map((opt, i) => {
     // 純敘事選項（requiresCheck === false）沒有屬性、技能與 DC，那一行整排不畫——
     // 畫出來會是「null+null DCnull」。
     const isFreeAction = opt.requiresCheck === false;
@@ -2588,37 +2600,33 @@ function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
     const skillVal = opt.skill ? (currentCharacter?.skills?.[opt.skill] ?? 0) : null;
     const dp = attrVal + (skillVal ?? 0);
 
-    let warningHtml = "";
+    let warningText = "";
     if (!isFreeAction && opt.skill && skillVal === 0) {
       const category = SKILL_CATEGORY[opt.skill];
-      warningHtml = category === "心智"
-        ? `<span class="decision-card-risk decision-card-risk-danger">未受訓 · 自動失敗</span>`
-        : `<span class="decision-card-risk">未受訓 ${category === "社交" ? "-2" : "-1"} 成功</span>`;
+      warningText = category === "心智" ? " · 未受訓自動失敗" : ` · 未受訓${category === "社交" ? "-2" : "-1"}成功`;
     }
 
-    // 來源標籤。玩家有權知道自己按的是哪一種東西：
+    // 來源標記。玩家有權知道自己按的是哪一種東西：
     //   ai_free  = 說書人臨場想出來的行動，不在既定路線上（伺服器現場推論檢定）
     //   fallback = 引擎的通用保底選項，跟這一輪的劇情無關
-    // 其餘（AI 依當前局勢寫、綁到副本分支的選項）是常態，不標籤——每一張都標等於沒標。
-    const sourceTag = opt.source === "ai_free"
-      ? `<span class="decision-card-tag decision-card-tag-improvised" title="說書人臨場想出的行動，不在既定路線上；結果由當下情勢推導">臨場</span>`
+    // 其餘（AI 依當前局勢寫、綁到副本分支的選項）是常態，不標——每一張都標等於沒標。
+    // 改成單一小圖示＋title 提示，取代整顆會佔版面的文字標籤。
+    const sourceMark = opt.source === "ai_free"
+      ? `<i class="fas fa-bolt decision-card-source-mark decision-card-source-improvised" title="說書人臨場想出的行動，不在既定路線上；結果由當下情勢推導" aria-hidden="true"></i>`
       : opt.source === "fallback"
-        ? `<span class="decision-card-tag decision-card-tag-fallback" title="這個選項是引擎的通用保底選項，不是針對本回合劇情產生的">保底</span>`
+        ? `<i class="fas fa-life-ring decision-card-source-mark decision-card-source-fallback" title="這個選項是引擎的通用保底選項，不是針對本回合劇情產生的" aria-hidden="true"></i>`
         : "";
 
     const rawDc = opt.effectiveDc ?? opt.dc;
     const shownDc = Number.isFinite(Number(rawDc)) ? `DC${rawDc}` : "";
-    const checkName = `${escapeHtml(opt.attribute ?? "")}${opt.skill ? " + " + escapeHtml(opt.skill) : ""}`;
+    const checkName = `${escapeHtml(opt.attribute ?? "")}${opt.skill ? "+" + escapeHtml(opt.skill) : ""}`;
 
-    // 排版順序＝閱讀順序：行動 → 想達成什麼 → 規則細節。
-    // 最醒目的必須是「做這件事想得到什麼」，不是骰池數字。
+    // 規則摘要合併成一行：屬性+技能・難度(DC)・骰池・未受訓警告，
+    // 不再拆成四個各自畫框的晶片——資訊一樣齊全，眼睛不用來回掃視。
     const metaHtml = isFreeAction
-      ? `<span class="decision-card-meta"><span class="decision-card-chip decision-card-chip-safe"><i class="fas fa-comment-dots" aria-hidden="true"></i>不需擲骰</span></span>`
-      : `<span class="decision-card-meta">
-           <span class="decision-card-chip"><i class="fas fa-dice-d20" aria-hidden="true"></i>${checkName}</span>
-           ${opt.difficulty ? `<span class="decision-card-chip">${escapeHtml(opt.difficulty)}${shownDc ? ` · ${shownDc}` : ""}</span>` : ""}
-           <span class="decision-card-chip decision-card-chip-pool" title="你會擲 ${dp} 顆骰">骰池 ${dp}</span>
-           ${warningHtml}
+      ? `<span class="decision-card-meta">不需擲骰</span>`
+      : `<span class="decision-card-meta" title="你會擲 ${dp} 顆骰">
+           ${checkName}${opt.difficulty ? ` · ${escapeHtml(opt.difficulty)}${shownDc ? `(${shownDc})` : ""}` : ""} · 骰池 ${dp}${warningText}
          </span>`;
 
     const cardTone = opt.source === "fallback"
@@ -2626,18 +2634,35 @@ function renderOptions(options, { referenceMode = currentReferenceMode } = {}) {
       : isFreeAction ? "decision-card-free" : "";
 
     return `
-    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${cardTone}" style="animation-delay:${i * .06}s">
+    <button onclick="selectOption(${i})" ${i < 9 ? `title="按數字鍵 ${i + 1} 也可以選這一項" aria-keyshortcuts="${i + 1}"` : ""} class="decision-card decision-card-enter ${cardTone}" style="animation-delay:${i * .05}s">
       <span class="decision-card-key">${i + 1}</span>
       <span class="decision-card-main">
         <span class="decision-card-head">
           <span class="decision-card-label">${escapeHtml(opt.label)}</span>
-          <span class="decision-card-tags">${sourceTag}</span>
+          ${sourceMark}
         </span>
         ${opt.hint ? `<span class="decision-card-hint">${escapeHtml(opt.hint)}</span>` : ""}
         ${metaHtml}
       </span>
     </button>`;
   }).join("");
+
+  upsertDecisionEntry(contextText, cardsHtml);
+}
+
+/**
+ * 把本回合選項寫進故事流裡的單例條目（id 固定，見 renderRecentStoryWindow()）。
+ * gridHtml 已經是完整、安全的 HTML（呼叫端自己 escape 過）。
+ */
+function upsertDecisionEntry(contextText, gridHtml) {
+  currentDecisionEntry = {
+    id: "recent-story-decision",
+    kind: "decision",
+    label: "你現在要怎麼做？",
+    content: `<div id="option-grid" class="decision-grid" aria-live="polite">${gridHtml}</div>`,
+    opts: { note: `<span id="decision-context">${escapeHtml(contextText)}</span>`, animate: false },
+  };
+  renderRecentStoryWindow({ forceBottom: true });
 }
 
 function selectOption(index) {
@@ -2757,6 +2782,7 @@ const FEED_EVENT_KICKERS = {
   harm: "身體狀態",
   respite: "喘息",
   fault: "訊號中斷",
+  decision: "下一步",
 };
 
 /**
@@ -2822,6 +2848,10 @@ function buildFeedEvent(kind, label, content, opts = {}) {
 const RECENT_STORY_LIMIT = 5;
 let recentStoryEntries = [];
 let pendingStoryEntry = null;
+// 本回合的選項卡：跟 pendingStoryEntry 一樣是單例、不進 recentStoryEntries 也不受
+// RECENT_STORY_LIMIT 限制——只要有選項，它永遠是故事流最後一則、永遠只有一份。
+// 見 upsertDecisionEntry() 與 renderRecentStoryWindow() 如何把它併進畫面。
+let currentDecisionEntry = null;
 let activeNarrationStream = null;
 let storyEntrySequence = 0;
 let recentStoryChronicleTotal = 0;
@@ -2913,6 +2943,9 @@ function renderRecentStoryWindow({ forceBottom = false } = {}) {
   const wasNearBottom = current.scrollHeight - current.clientHeight - current.scrollTop <= 28;
   const entries = [...recentStoryEntries.slice(-RECENT_STORY_LIMIT)];
   if (pendingStoryEntry) entries.push(pendingStoryEntry);
+  // 選項卡固定排在最後：它是「接下來要做什麼」，邏輯上永遠跟在最新一則敘事／
+  // 等待指示之後。跟著故事流一起捲動，不再是螢幕下緣一塊永遠佔位的固定面板。
+  if (currentDecisionEntry) entries.push(currentDecisionEntry);
 
   const desired = [];
   if (recentStoryChronicleTotal > RECENT_STORY_LIMIT) {
