@@ -929,21 +929,28 @@
         @keyframes missionMarkPulse { 0%, 100% { box-shadow: 0 0 0 rgba(16,185,129,0); } 50% { box-shadow: 0 0 18px rgba(16,185,129,.28); } }
 
         /* ================= Decision Card v2 =================
-           卡片的主視覺順序固定為：行動意圖 → 預期結果 → 規則／風險。 */
-        .decision-panel-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; padding: 0 .15rem .2rem; }
-        .decision-kicker { color: var(--accent); font-size: .56rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; letter-spacing: .18em; }
-        .decision-title { margin-top: .22rem; color: var(--ink-100); font-size: .88rem; font-weight: 700; }
-        .decision-context { color: var(--ink-500); font: 600 .62rem/1.35 'JetBrains Mono', monospace; text-align: right; }
-        /* 決策塢：輸入框正上方唯一的選項區（見 index.html 裡 #decision-dock 的說明）。 */
-        #decision-dock { width: 100%; margin: 0 0 .7rem; }
-        #decision-dock > * + * { margin-top: .45rem; }
+           卡片的主視覺順序固定為：行動意圖 → 預期結果 → 規則／風險。
+
+           [2026-09-08 改版] 選項現在是故事流裡的一則事件（.feed-event-decision），
+           不再是輸入框上方的固定面板（#decision-dock 已從 index.html 移除，
+           見 public/app.js 的 upsertDecisionEntry()）。這裡把卡片本身也一併改得
+           更緊湊：卡片高度、留白都往下調，規則細節從四五個各自畫框的 chip
+           合併成一行文字，減少版面上的視覺種類。 */
+        .feed-event-decision .feed-event-content,
+        .feed-event-decision .feed-event-note {
+            /* 敘事事件用的是襯線字體，選項卡是介面元件、不是故事正文，
+               這裡重設回跟輸入框、按鈕一致的無襯線字體，不繼承 .feed-event-content
+               預設的 'Noto Serif TC'。 */
+            font-family: 'Inter', sans-serif;
+        }
+        .feed-event-decision .feed-event-note { color: var(--ink-500); font: 600 .62rem/1.35 'JetBrains Mono', monospace; }
         [data-action-count] { min-height: 1rem; }
         /* 自動換欄：窄畫面一欄、寬畫面兩欄，不再靠 Tailwind 的斷點硬切。
            16rem 是「一行放得下 18 字 label」的下限，比它窄就寧可換成一欄。 */
-        .decision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .5rem; transition: opacity .2s ease; }
+        .decision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .4rem; transition: opacity .2s ease; }
         .decision-card {
-            position: relative; display: flex; align-items: stretch; gap: .7rem; min-height: 5.6rem; padding: .7rem .8rem;
-            overflow: hidden; border: 1px solid rgba(255,255,255,.14); border-radius: 7px; background: rgba(24,24,27,.86);
+            position: relative; display: flex; align-items: stretch; gap: .6rem; min-height: 3.6rem; padding: .5rem .6rem;
+            overflow: hidden; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; background: rgba(24,24,27,.86);
             color: var(--ink-100); text-align: left; cursor: pointer;
             transition: transform .22s cubic-bezier(.2,.8,.2,1), border-color .22s ease, background .22s ease, box-shadow .22s ease, opacity .22s ease;
         }
@@ -951,36 +958,30 @@
         .decision-card:hover { transform: translateY(-2px); border-color: rgba(16,185,129,.55); background: rgba(30,30,35,.92); box-shadow: 0 10px 24px -14px rgba(16,185,129,.65); }
         .decision-card:hover::after, .decision-card:focus-visible::after { opacity: 1; }
         .decision-card:active { transform: translateY(0); }
-        .decision-card-key { display: flex; align-items: center; justify-content: center; width: 1.55rem; height: 1.55rem; flex: 0 0 auto; border: 1px solid rgba(16,185,129,.45); border-radius: 5px; color: #6ee7b7; background: rgba(16,185,129,.12); font: 700 .68rem 'JetBrains Mono', monospace; }
-        .decision-card-main { position: relative; z-index: 1; display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .28rem; }
-        .decision-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+        .decision-card-key { display: flex; align-items: center; justify-content: center; width: 1.3rem; height: 1.3rem; flex: 0 0 auto; border: 1px solid rgba(16,185,129,.45); border-radius: 5px; color: #6ee7b7; background: rgba(16,185,129,.12); font: 700 .62rem 'JetBrains Mono', monospace; }
+        .decision-card-main { position: relative; z-index: 1; display: flex; min-width: 0; flex: 1; flex-direction: column; gap: .2rem; justify-content: center; }
+        .decision-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .4rem; }
         /* [2026-09-03] 字級與對比一起往上調。玩家實測回報「很難看清選項文字」——
            label 原本 .77rem（約 12px）、hint .7rem（約 11px），在淺色主題下又是低對比灰，
            在筆電螢幕上等於要瞇著眼睛讀。決策資訊沒有理由比正文小。 */
-        .decision-card-label { color: var(--ink-100); font-size: .95rem; font-weight: 700; line-height: 1.4; letter-spacing: .01em; }
-        .decision-card-tags { display: flex; align-items: center; justify-content: flex-end; gap: .28rem; flex-wrap: wrap; }
-        .decision-card-tag { display: inline-flex; align-items: center; padding: .16rem .36rem; border: 1px solid rgba(255,255,255,.12); border-radius: 4px; color: var(--ink-400); font: 700 .54rem 'JetBrains Mono', monospace; white-space: nowrap; }
-        .decision-card-tag-free { border-color: rgba(14,165,233,.45); color: #7dd3fc; background: rgba(14,165,233,.08); }
-        .decision-card-tag-fallback { border-color: rgba(234,179,8,.45); color: #fde047; background: rgba(234,179,8,.08); }
-        .decision-card-tag-retread { border-color: rgba(249,115,22,.45); color: #fdba74; background: rgba(249,115,22,.08); }
-        .decision-card-tag-improvised { border-color: rgba(167,139,250,.45); color: #c4b5fd; background: rgba(167,139,250,.1); }
-        .decision-card-hint { color: var(--ink-300, #d4d4d8); font-size: .8rem; line-height: 1.5; }
+        .decision-card-label { color: var(--ink-100); font-size: .88rem; font-weight: 700; line-height: 1.35; letter-spacing: .01em; }
+        /* 來源標記：以前是一顆會佔版面的文字標籤（「臨場」／「保底」），
+           現在只留一個小圖示＋title 提示，滑鼠停留才看得到完整說明。 */
+        .decision-card-source-mark { flex: 0 0 auto; margin-top: .18rem; font-size: .68rem; opacity: .75; }
+        .decision-card-source-improvised { color: #c4b5fd; }
+        .decision-card-source-fallback { color: #fde047; }
+        .decision-card-hint { color: var(--ink-300, #d4d4d8); font-size: .74rem; line-height: 1.4; }
         .decision-card-hint::before { content: '→ '; color: var(--accent); font-family: 'JetBrains Mono', monospace; }
-        /* 規則細節做成一排獨立的 chip，而不是一長串以「·」串起來的灰字：
-           「感知 + 偵察」「普通 · DC2」「骰池 5」各自是一個可以單獨掃到的單位。 */
-        .decision-card-meta { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; margin-top: auto; padding-top: .4rem; font: .62rem/1.3 'JetBrains Mono', monospace; }
-        .decision-card-chip { display: inline-flex; align-items: center; gap: .28rem; padding: .18rem .42rem; border: 1px solid rgba(255,255,255,.14); border-radius: 4px; background: rgba(255,255,255,.04); color: var(--ink-300, #d4d4d8); white-space: nowrap; }
-        .decision-card-chip i { font-size: .58rem; opacity: .75; }
-        .decision-card-chip-pool { border-color: rgba(16,185,129,.4); background: rgba(16,185,129,.1); color: #6ee7b7; font-weight: 700; }
-        .decision-card-chip-safe { border-color: rgba(14,165,233,.4); background: rgba(14,165,233,.1); color: #7dd3fc; }
-        .decision-card-risk { display: inline-flex; align-items: center; padding: .18rem .42rem; border: 1px solid rgba(251,191,36,.45); border-radius: 4px; background: rgba(251,191,36,.1); color: #fbbf24; white-space: nowrap; }
-        .decision-card-risk-danger { border-color: rgba(248,113,113,.5); background: rgba(248,113,113,.12); color: #fca5a5; font-weight: 700; }
+        /* [2026-09-08] 規則細節原本是四個各自畫框的 chip（技能／難度DC／骰池／未受訓警告），
+           玩家實測回報「下面的提示種類太多」——合併成一行純文字，資訊沒有減少，
+           但只剩一種視覺樣式要辨認。 */
+        .decision-card-meta { display: block; margin-top: auto; padding-top: .2rem; color: var(--ink-400); font: .6rem/1.3 'JetBrains Mono', monospace; }
         .decision-card-free { border-color: rgba(14,165,233,.28); }
         .decision-card-fallback { border-color: rgba(234,179,8,.3); }
         .decision-card-pending { border-color: rgba(16,185,129,.75) !important; background: rgba(16,185,129,.13) !important; box-shadow: 0 0 0 1px rgba(16,185,129,.18), 0 0 24px -10px rgba(16,185,129,.9); }
-        .decision-grid-empty { grid-column: 1 / -1; padding: .75rem; border: 1px dashed rgba(255,255,255,.15); border-radius: 6px; color: var(--ink-400); text-align: center; font: .65rem/1.45 'JetBrains Mono', monospace; }
-        .decision-card-enter { animation: decisionCardEnter .38s cubic-bezier(.2,.8,.2,1) both; }
-        @keyframes decisionCardEnter { from { opacity: 0; transform: translateY(8px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        .decision-grid-empty { grid-column: 1 / -1; padding: .65rem; border: 1px dashed rgba(255,255,255,.15); border-radius: 6px; color: var(--ink-400); text-align: center; font: .65rem/1.45 'JetBrains Mono', monospace; }
+        .decision-card-enter { animation: decisionCardEnter .3s cubic-bezier(.2,.8,.2,1) both; }
+        @keyframes decisionCardEnter { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
         /* ================= 主神商店 v2：分類頁籤與貨架卡片 =================
            [2026-08-30 重製] 舊版只有一長串同色的橫條，六種分類全部混在「模板能力」
@@ -1357,11 +1358,9 @@
             .mission-progress-track { width: 100%; }
             .mission-threat-metric { min-width: 4.2rem; }
             .mission-time-badge { align-self: flex-end; }
-            .decision-panel-heading { align-items: flex-start; flex-direction: column; gap: .25rem; }
-            .decision-context { text-align: left; }
-            .decision-card { min-height: 5.4rem; padding: .68rem .7rem; }
-            .decision-card-label { font-size: .9rem; }
-            .decision-card-hint { font-size: .76rem; }
+            .decision-card { min-height: 3.8rem; padding: .5rem .6rem; }
+            .decision-card-label { font-size: .85rem; }
+            .decision-card-hint { font-size: .72rem; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -2078,28 +2077,30 @@
                 line-height: 2;
             }
 
-            /* 一個選項不需要 110px 高；把省下的空間還給故事流。 */
+            /* 一個選項不需要 110px 高；把省下的空間還給故事流。
+               [2026-09-08] 選項已經搬進故事流本身（不再是這個面板的一部分），
+               這裡的 .decision-card 尺寸改成跟基礎樣式一致的緊湊版，不再另外放大。 */
             #story-action-panel {
                 padding: .75rem clamp(1rem, 2vw, 2rem) .8rem;
             }
             .decision-card {
-                min-height: 5.35rem;
-                padding: .6rem .75rem;
+                min-height: 3.6rem;
+                padding: .5rem .6rem;
             }
             .decision-card-main {
                 gap: .2rem;
             }
             .decision-card-label {
-                font-size: .75rem;
+                font-size: .82rem;
                 line-height: 1.3;
             }
             .decision-card-hint {
-                font-size: .67rem;
+                font-size: .7rem;
                 line-height: 1.35;
             }
             .decision-card-meta {
                 padding-top: .2rem;
-                font-size: .55rem;
+                font-size: .57rem;
             }
         }
 
@@ -2116,37 +2117,28 @@
             }
         }
         /* ================= 第二輪：決策卡資訊層級與故事流工具 =================
-           這一層只處理「先看什麼、後看什麼」：不改變選項資料與故事事件內容。 */
+           這一層只處理「先看什麼、後看什麼」：不改變選項資料與故事事件內容。
+           [2026-09-08] 選項卡改用跟按鈕、輸入框一致的無襯線字體——它是介面元件，
+           不是故事正文；字級與間距也配合「版面改得緊湊一點」的回饋往下收。 */
         .decision-card-label {
             color: var(--ink-100);
-            font-family: 'Noto Serif TC', serif;
-            font-size: .9rem;
-            font-weight: 600;
-            letter-spacing: .025em;
-            line-height: 1.45;
+            font-family: 'Inter', sans-serif;
+            font-size: .88rem;
+            font-weight: 700;
+            letter-spacing: .01em;
+            line-height: 1.35;
         }
         .decision-card-hint {
             color: var(--ink-300);
-            font-family: 'Noto Serif TC', serif;
+            font-family: 'Inter', sans-serif;
             font-size: .74rem;
-            line-height: 1.55;
+            line-height: 1.4;
         }
         .decision-card-meta {
-            align-items: center;
-            gap: .45rem;
-            min-height: 1rem;
+            min-height: 0;
             color: var(--ink-500);
             font-size: .57rem;
         }
-        .decision-card-rule-primary {
-            color: var(--ink-300);
-            font-weight: 700;
-            white-space: nowrap;
-        }
-        .decision-card-rule-primary i { color: var(--accent); margin-right: .15rem; }
-        .decision-card-rule-secondary { color: var(--ink-500); }
-        .decision-card-risk-wrap { margin-left: auto; }
-        .decision-card-risk { font-size: .56rem; }
 
         /* 玩家選擇是每一回合的邊界：不新增額外內容，只用上緣分隔線把回合讀出來。 */
         #story-feed > .feed-event-action {
@@ -2302,14 +2294,11 @@
            拿掉之後回合數乖乖回到迫近度旁邊的第二欄，跟其他 mission-metric 一樣高。 */
         .hud-sidebar-objective .mission-time-badge { padding: .3rem .4rem; text-align: center; }
 
-        /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。 */
+        /* 選項區只保留必要的決策資訊；四欄從中型桌面開始，避免 2×2 吃掉故事高度。
+           [2026-09-08] 選項已經搬進故事流（見 upsertDecisionEntry()），
+           #decision-dock／#option-grid 的專屬 gap 規則跟著拿掉，尺寸統一交給
+           上面的 .decision-card 基礎樣式（緊湊版），不再另外放大回 5.1rem。 */
         #story-action-panel { padding: .52rem clamp(.75rem, 2vw, 2rem) .62rem; }
-        #decision-dock .decision-panel-heading { gap: .5rem; }
-        #option-grid { gap: .45rem; }
-        .decision-card { min-height: 5.1rem; padding: .58rem .68rem; }
-        .decision-card-label { font-size: .88rem; line-height: 1.35; }
-        .decision-card-hint { font-size: .74rem; line-height: 1.4; }
-        .decision-card-meta { min-height: .75rem; padding-top: .3rem; font-size: .58rem; }
         #story-action-panel > .flex:last-child { gap: .45rem; }
         #story-action-panel input { padding-block: .46rem; }
         #story-action-panel [data-send-custom] { padding-block: .46rem; padding-inline: 1rem; }
@@ -2519,8 +2508,6 @@
            而是規則的實作——把它們拿掉，戰鬥中就會重新出現一個可以打字的框。 */
         body.is-game-screen.is-combat-v2-view #story-action-panel { display: none !important; }
         body.is-game-screen.is-combat-v2-view #story-current { display: none !important; }
-        #decision-dock .decision-panel-heading { min-height: 1.7rem; }
-        #decision-dock #option-grid { min-height: 0; }
 
         html[data-theme="light"] #char-hud .name-plate { background: linear-gradient(145deg, rgba(140,118,81,.1), rgba(255,255,255,.96) 68%); border-color: rgba(60,55,47,.18); }
 
@@ -3864,10 +3851,12 @@
             <section id="story-current" class="story-current-panel flex-1 min-h-0 flex flex-col" aria-label="故事現場">
                 <div id="recent-story-list" class="story-current-content flex-1 min-h-0 overflow-y-auto" aria-live="polite" aria-label="最近五則故事訊息">
                     <div class="story-current-empty">等待第一段故事回應……</div>
-                    <!-- [2026-09-03] 選項只在**一個**地方出現：輸入框正上方的 #decision-dock。
-                         在這之前同一批選項會同時畫在兩個地方——故事流裡的大卡片，
-                         外加輸入框上方那排小晶片（#tactical-chips）——玩家等於把同一件事
-                         讀兩次，而且兩邊還會不一致。故事流現在只負責故事。 -->
+                    <!-- [2026-09-08] 選項只在**一個**地方出現：這個故事流的最後一則
+                         （kind:"decision"，見 public/app.js 的 upsertDecisionEntry()）。
+                         舊版另外把選項釘在輸入框正上方的 #decision-dock，是一塊永遠佔位、
+                         不隨故事捲動的固定面板；玩家實測回報它擠壓可讀高度，且選項在
+                         畫面上的位置跟故事內容脫節。現在選項是故事流本身的一部分，
+                         會跟著敘事一起捲動、捲走。 -->
                 </div>
             </section>
 
@@ -3959,18 +3948,10 @@
             </div>
 
             <div id="story-action-panel" class="terminal-strip hairline-t bg-zinc-950/95 p-3 sm:p-4 shrink-0 backdrop-blur tactical-decision-area">
-                <!-- 決策區：本回合可以直接點的行動。緊貼輸入框上方，是玩家視線的落點，
-                     也是「按按鈕」與「自己打字」兩條路唯一該並排出現的地方。 -->
-                <div id="decision-dock">
-                    <div class="decision-panel-heading">
-                        <div>
-                            <div id="decision-kicker" class="decision-kicker">下一步</div>
-                            <div id="decision-title" class="decision-title">你現在要怎麼做？</div>
-                        </div>
-                        <div id="decision-context" class="decision-context" aria-live="polite">等待說書人整理下一步……</div>
-                    </div>
-                    <div id="option-grid" class="decision-grid" aria-live="polite" hidden></div>
-                </div>
+                <!-- [2026-09-08 改版] 選項卡（決策塢）不再釘在這裡。玩家實測回報它固定佔位、
+                     擠壓故事可讀高度；現在選項改畫在 #recent-story-list 故事流的最後一則
+                     （kind:"decision"，見 public/app.js 的 upsertDecisionEntry()），跟著故事
+                     一起捲動。這個面板現在只剩下自訂行動的輸入列。 -->
                 <!-- [修正] 字數計數原本擠在輸入框正下方，於是輸入框那一欄比按鈕那一欄多長出
                      一行，items-end 對齊之下輸入框反而比「執行」鍵矮一截、底部對不齊。
                      把計數搬到按鈕正上方的空白處，讓輸入框自己單獨決定那一欄的高度，

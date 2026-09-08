@@ -1171,7 +1171,20 @@ async function executeTurn(context, streamHooks = null) {
 
   // 只送出不含規則內容的 lifecycle 事件；真正的 narration 仍要等完整 JSON、
   // canonical adapter 與安全重寫完成後才會進入 stream。
-  await streamHooks?.emit({ type: "rules_resolved" });
+  //
+  // [2026-09-08 新增] checkResult 在這個時間點就已經算好了——擲骰、成功數、DC比較
+  // 全部發生在呼叫敘事模型之前（見上面的 performCheck()）。玩家實測回報「按下選項
+  // 後要等很久才擲骰」：因為舊版把 checkResult 留到整段敘事都寫完才一次送出，
+  // 於是擲骰動畫被卡在敘事模型的生成時間後面，體感是「按了半天才看到骰子」。
+  // 這裡把已經算好的結果提前廣播出去，前端收到就能立刻播骰子動畫，敘事文字
+  // 之後再用串流慢慢補上——不影響任何判定，只是把「玩家看到結果」的時間點提前。
+  // reusedCheck 的回合（pendingReplay）不重送：那個結果在原始請求時就已經播過一次
+  // 動畫，重播會讓玩家以為又擲了一次骰。
+  await streamHooks?.emit({
+    type: "rules_resolved",
+    checkResult: pendingReplay ? null : checkResult ?? null,
+    outcome: pendingReplay ? null : outcome ?? null,
+  });
 
   let text;
   let model = null;

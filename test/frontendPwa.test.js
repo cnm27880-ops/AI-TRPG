@@ -102,37 +102,39 @@ test("玩家行動、命運判定與說書人 pending 使用不同視覺層級",
   assert.match(index, /typingBlink/);
 });
 
-// [2026-09-03 第二次修正] 選項只在**一個**地方出現，而且重新公開檢定資訊。
+// [2026-09-08 改版] 選項只在**一個**地方出現，而且重新公開檢定資訊。
 //
-// 上一版把同一批選項畫在兩個地方（故事流裡的 #inline-decision-panel 大卡片 +
-// 輸入框上方的 #tactical-chips 小晶片），玩家等於把同一件事讀兩次；而且卡片刻意
-// 藏起了屬性／技能／DC／骰池，玩家的體感變成「按了才知道又失敗」。
-// 現在改成柏德之門式的資訊公開：唯一的選項區在輸入框正上方（#decision-dock），
-// 卡片上直接標示會擲什麼、多難、骰池幾顆，點下去立刻擲骰。
-test("V2 正常遊玩兩軌並存：唯一的選項區在輸入框上方，且公開檢定資訊", () => {
+// 玩家實測回報三個問題：(1) 選項以前釘在輸入框正上方的固定面板 #decision-dock，
+// 不管故事捲到哪裡都攤在畫面上佔位；(2) 面板按下去要等很久才有反應；
+// (3) 面板塞了太多種提示樣式（技能／難度／骰池／未受訓各自一個晶片）。
+// 現在選項改成故事流裡的最後一則訊息（kind:"decision"，見 upsertDecisionEntry()），
+// 跟其他事件一樣可以捲動；卡片仍公開檢定資訊（屬性＋技能・難度＋DC・骰池・
+// 未受訓風險），但合併成一行摘要，不再是四五個各自畫框的小晶片。
+test("V2 正常遊玩兩軌並存：唯一的選項區跟著故事流捲動，且公開檢定資訊", () => {
   assert.doesNotMatch(index, /id="dm-action-guidance"/);
   assert.doesNotMatch(index, /id="dm-action-hint"/);
   assert.doesNotMatch(index, /id="dm-action-hints"/);
-  assert.match(index, /id="option-grid"/);
-  assert.match(index, /你現在要怎麼做？/);
+  assert.match(app, /id="option-grid"/);
+  assert.match(app, /你現在要怎麼做？/);
   assert.match(index, /data-action-input[^>]*maxlength="1000"/);
   assert.match(index, /data-action-count/);
   assert.doesNotMatch(app, /function renderDmPrompt\(/);
-  // 第二個選項出口整個拿掉：舊的晶片列不能再從任何一邊復活。
+  // 舊的選項出口一律不能復活。
   assert.doesNotMatch(index, /id="tactical-chips"/);
   assert.doesNotMatch(index, /id="inline-decision-panel"/);
   assert.doesNotMatch(app, /renderTacticalChips/);
-  // 選項區必須在輸入框所在的操作面板裡，不在故事流裡。
-  const dockIndex = index.indexOf('id="decision-dock"');
-  const actionPanelIndex = index.indexOf('id="story-action-panel"');
-  const storyListIndex = index.indexOf('id="recent-story-list"');
-  assert.ok(dockIndex > actionPanelIndex && actionPanelIndex > storyListIndex, "選項區要在輸入框所在的操作面板內");
-  // 檢定資訊回到卡片上（柏德之門式的資訊公開）。
+  // 固定面板已經拿掉：index.html 不該再有靜態的 #decision-dock／#option-grid。
+  assert.doesNotMatch(index, /id="decision-dock"/);
+  assert.doesNotMatch(index, /id="option-grid"/);
+  // 選項改成故事流（#recent-story-list）裡的一則條目，不是輸入框所在的
+  // 操作面板（#story-action-panel）的一部分——後者現在只剩輸入列。
+  assert.match(app, /function upsertDecisionEntry\(/);
+  assert.match(app, /kind: "decision"/);
+  assert.match(app, /if \(currentDecisionEntry\) entries\.push\(currentDecisionEntry\)/);
+  // 檢定資訊仍在卡片上（柏德之門式的資訊公開），合併成一行摘要而非多個晶片。
   assert.match(app, /decision-card-meta/);
-  assert.match(app, /decision-card-chip-pool/);
   assert.match(app, /骰池 \$\{dp\}/);
   assert.match(app, /自動失敗/);
-  assert.match(app, /decisionTitle\.textContent = "你現在要怎麼做？"/);
   assert.doesNotMatch(app, /question\.textContent =/);
   assert.match(app, /referenceMode: Boolean\(res\.scenario\?\.reference\?\.enabled\)/);
   assert.match(app, /Array\.from\(input\?\.value \?\? \"\"\)\.length/);
