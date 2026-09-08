@@ -39,11 +39,27 @@ jobs:
       - name: Lint prompt cache layering contract
         run: npm run lint:prompt-cache
 
+      # 副本的 authoring JSON 與 Cloudflare runtime .js 必須逐字一致。
+      # test/scenarioRegistry.test.js 已經用 deepEqual 釘住這件事，所以這一步不是
+      # 唯一的防線；接它是為了**錯誤訊息**：測試失敗只會說兩個大物件不相等，
+      # 這支檢查會直接說「哪一個檔案不同步、跑哪一行指令修好」。
+      - name: Lint scenario reference module sync
+        run: npm run lint:reference-sync
+
       - name: Run complete regression suite with coverage gate
         run: npm run test:coverage
 
       - name: Run extreme turn and provider matrix
         run: npm run test:extreme
+
+      # 純報告，**永遠不擋建置**（腳本本身一律 exit 0）。
+      #
+      # 死旗標是「寫進存檔之後沒有任何地方讀」的世界狀態：不會壞掉任何東西，
+      # 只會讓那次失敗或成功變得沒有後果。它是待辦事項不是錯誤，所以不設門檻——
+      # 設了門檻只會逼人為了讓 CI 變綠而亂接旗標，那比留著更糟。
+      # 接它進 CI 的目的只有一個：讓這個數字每次 PR 都看得到，不用有人想到才去跑。
+      - name: Report dead scenario flags (informational)
+        run: npm run audit:dead-flags
 
   # 只在手動觸發時才會真的打真實API：這支job刻意不掛在push/pull_request上，
   # 因為每次push都打真實供應商會很快耗盡免費額度、也會讓CI對外部服務的可用性

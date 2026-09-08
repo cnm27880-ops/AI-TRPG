@@ -83,7 +83,14 @@ function auditReference(scenarioId, reference) {
   }
   // 失敗專屬的排前面：那些正是「失敗沒有後果」的直接證據。
   rows.sort((a, b) => (b.failureOnly - a.failureOnly) || a.flag.localeCompare(b.flag));
-  return { scenarioId, totalWritten: writes.size, dead: rows };
+
+  // 順便報「有幾個旗標沒有人話說明」。沒說明的旗標仍會進 <World_State>，
+  // 只是以原始 id 的形式送給模型——讀得懂，但不如一句描述精準。
+  // 這一項刻意也只是報告：新增旗標時忘了寫說明不該讓建置變紅，
+  // 但應該看得到，否則覆蓋率會隨著副本長大而慢慢流失。
+  const undescribed = [...writes.keys()].filter((flag) => !(reference.flagMeanings ?? {})[flag]).sort();
+
+  return { scenarioId, totalWritten: writes.size, dead: rows, undescribed };
 }
 
 const reports = [];
@@ -100,6 +107,10 @@ if (asJson) {
     const failureOnly = report.dead.filter((row) => row.failureOnly);
     console.log(`\n=== ${report.scenarioId}`);
     console.log(`   寫入過的旗標：${report.totalWritten}；沒有任何地方讀：${report.dead.length}（其中只由失敗寫入：${failureOnly.length}）`);
+    console.log(
+      `   有人話說明的：${report.totalWritten - report.undescribed.length}/${report.totalWritten}` +
+        (report.undescribed.length ? `；未描述：${report.undescribed.join("、")}` : "（全部都有）")
+    );
     if (!report.dead.length) {
       console.log("   （沒有死旗標）");
       continue;
