@@ -214,7 +214,8 @@ test("面板：estimatedCacheSaving 跟 cacheSaving 分開算，互不影響，�
     ADMIN_PRICE_OUTPUT_PER_MTOK: "100",
   });
   const store = resolveSessionStore(env);
-  const now = new Date("2026-08-31T10:00:00Z");
+  // 端點用「今天」往回查，寫死日期會隨時間掉出查詢範圍，所以用執行當下的時間。
+  const now = new Date();
 
   // 一筆真實回報（DeepSeek 官方回 prompt_cache_hit_tokens），一筆只有字元比例推算值（第三方中轉沒回報）。
   await recordTurnUsage(store, {

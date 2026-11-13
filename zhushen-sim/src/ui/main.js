@@ -22,11 +22,11 @@ const $ = (id) => document.getElementById(id);
 
 // 房間在俯視圖上的位置（百分比）與待在裡面時頭頂的 emoji
 const ROOMS = {
-  dorm: { label: "宿舍", x: 3, y: 5, w: 44, h: 42, emoji: "💤" },
-  canteen: { label: "餐廳", x: 53, y: 5, w: 44, h: 42, emoji: "🍜" },
-  training: { label: "訓練場", x: 3, y: 53, w: 30, h: 42, emoji: "💪" },
-  shop: { label: "商店", x: 36, y: 53, w: 28, h: 42, emoji: "🛒" },
-  portal: { label: "傳送門", x: 67, y: 53, w: 30, h: 42, emoji: "🌀" },
+  dorm: { label: "宿舍", x: 3, y: 5, w: 44, h: 42, emoji: "💤", decor: [["🛏️", 22, 24], ["🛏️", 42, 24], ["🛏️", 62, 24], ["🛏️", 82, 24], ["🪴", 92, 88]] },
+  canteen: { label: "餐廳", x: 53, y: 5, w: 44, h: 42, emoji: "🍜", decor: [["🍳", 40, 22], ["🍲", 58, 22], ["🥤", 76, 22], ["🪑", 90, 24], ["🍽️", 8, 88]] },
+  training: { label: "訓練場", x: 3, y: 53, w: 30, h: 42, emoji: "💪", decor: [["🏋️", 52, 24], ["🥊", 80, 24], ["🎯", 90, 86]] },
+  shop: { label: "商店", x: 36, y: 53, w: 28, h: 42, emoji: "🛒", decor: [["🧪", 50, 24], ["⚔️", 72, 24], ["🛡️", 90, 24], ["💰", 10, 86]] },
+  portal: { label: "傳送門", x: 67, y: 53, w: 30, h: 42, emoji: "🌀", decor: [], portal: true },
 };
 
 let state = loadGame() ?? createNewGame();
@@ -116,7 +116,9 @@ function renderTopbar() {
 }
 
 function miniHtml(s, emoji) {
-  return `<span class="mini-emoji">${emoji}</span><div class="mini-head"></div><div class="mini-body"></div><span class="mini-name">${s.name}</span>`;
+  return `<span class="mini-emoji">${emoji}</span>
+    <div class="mini-figure"><div class="mini-head"></div><div class="mini-body"></div></div>
+    <div class="mini-shadow"></div><span class="mini-name">${s.name}</span>`;
 }
 
 function randomSpot(roomId) {
@@ -141,8 +143,13 @@ function renderStage() {
 function renderSpace() {
   const map = $("space-map");
   if (!map.dataset.built) {
-    map.innerHTML = Object.values(ROOMS)
-      .map((r) => `<div class="room" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%"><span class="room-label">${r.label}</span></div>`)
+    map.innerHTML = Object.entries(ROOMS)
+      .map(([id, r]) => {
+        const decor = r.decor.map(([icon, x, y]) => `<span class="decor" style="left:${x}%;top:${y}%">${icon}</span>`).join("");
+        const portal = r.portal ? `<div class="portal-glow"></div><div class="portal-ring"></div>` : "";
+        return `<div class="room room-${id}" style="left:${r.x}%;top:${r.y}%;width:${r.w}%;height:${r.h}%">
+          ${portal}${decor}<span class="room-label">${r.label}</span></div>`;
+      })
       .join("");
     map.dataset.built = "1";
   }
@@ -163,6 +170,9 @@ function renderSpace() {
       el.className = "mini";
       el.dataset.action = "open-detail";
       el.dataset.id = s.id;
+      el.innerHTML = miniHtml(s, "");
+      // 每個小人的呼吸動畫錯開一點，才不會全部同步上下晃
+      el.querySelector(".mini-figure").style.animationDelay = `${-Math.random() * 2.4}s`;
       map.appendChild(el);
       mini = { el, room: null };
       minis.set(s.id, mini);
@@ -175,7 +185,7 @@ function renderSpace() {
       mini.el.style.top = `${spot.y}%`;
     }
     const emoji = s.injury > 0 ? "🩹" : s.locked ? "🔒" : ROOMS[mini.room].emoji;
-    mini.el.innerHTML = miniHtml(s, emoji);
+    mini.el.querySelector(".mini-emoji").textContent = emoji;
     mini.el.classList.toggle("injured", s.injury > 0);
   }
 }
@@ -189,13 +199,14 @@ function renderDungeon() {
 
   if (view.dataset.runKey !== String(state.dungeonStats[run.dungeonId].attempts) + run.dungeonId) {
     view.dataset.runKey = String(state.dungeonStats[run.dungeonId].attempts) + run.dungeonId;
+    view.className = `theme-${dungeon.id}`;
     view.innerHTML = `
       <h3>${dungeon.icon} ${dungeon.name} <small>（${dungeon.genre}・${dungeon.difficulty}）</small></h3>
       <div class="dungeon-intro">${dungeon.intro}</div>
       <div class="route">
-        <div class="route-line"></div>
+        <div class="route-line"></div><div class="route-progress"></div>
         ${dungeon.rooms
-          .map((room, i) => `<div class="route-node" data-node="${i}" style="left:${nodeX(i)}%"><span class="route-node-label">${room.name}</span></div>`)
+          .map((room, i) => `<div class="route-node" data-node="${i}" style="left:${nodeX(i)}%"><span class="route-node-mark">${i + 1}</span><span class="route-node-label">${room.name}</span></div>`)
           .join("")}
         <div class="route-party" style="left:0%"></div>
       </div>
@@ -206,8 +217,10 @@ function renderDungeon() {
     const result = run.results[i];
     node.classList.toggle("pass", result === true);
     node.classList.toggle("fail", result === false);
-    node.firstChild.nodeValue = "";
+    node.classList.toggle("current", i === run.roomIndex);
+    node.querySelector(".route-node-mark").textContent = result === true ? "✓" : result === false ? "✕" : i + 1;
   });
+  view.querySelector(".route-progress").style.width = `${run.roomIndex === 0 ? 0 : nodeX(run.roomIndex - 1)}%`;
   const partyEl = view.querySelector(".route-party");
   partyEl.style.left = `${run.roomIndex === 0 ? 0 : nodeX(run.roomIndex - 1)}%`;
   partyEl.innerHTML = party
@@ -243,13 +256,11 @@ function renderRoster() {
   $("roster").innerHTML = state.samsarites
     .map(
       (s) => `
-      <div class="card ${s.location === "dungeon" ? "away" : ""}" data-action="open-detail" data-id="${s.id}">
-        <div class="card-top">${rankBadge(s.rank)}<span>${s.name}</span><span>${s.locked ? "🔒" : ""}</span></div>
-        <div class="card-meta">
-          戰力 ${s.stats.power}・理智 ${s.stats.sanity}<br />
-          ${s.location === "dungeon" ? "副本中" : injuryLabel(s)}<br />
-          維持費 ${upkeepOf(s)} / 天
-        </div>
+      <div class="card rank-border-${s.rank} ${s.location === "dungeon" ? "away" : ""}" data-action="open-detail" data-id="${s.id}">
+        <div class="card-top">${rankBadge(s.rank)}<span class="grow">${s.name}</span><span>${s.locked ? "🔒" : ""}</span></div>
+        <div class="card-meta"><span>⚔️ ${s.stats.power}</span><span>🧠 ${s.stats.sanity}</span><span>💸 ${upkeepOf(s)}/天</span></div>
+        <div class="bar ${s.stats.sanity < 40 ? "low" : ""}" title="理智"><i style="width:${s.stats.sanity}%"></i></div>
+        <div class="card-status">${s.location === "dungeon" ? "🚪 副本中" : injuryLabel(s)}</div>
       </div>`
     )
     .join("");
@@ -288,7 +299,7 @@ function dispatch() {
   const dungeonOptions = DUNGEONS.map((d) => {
     const st = state.dungeonStats[d.id] ?? { attempts: 0, clears: 0 };
     return `<div class="option ${d.id === dungeon.id ? "selected" : ""}" data-action="pick-dungeon" data-id="${d.id}">
-      <span>${d.icon}</span>
+      <span class="option-icon">${d.icon}</span>
       <span class="grow"><b>${d.name}</b> <small>${d.genre}・${d.difficulty}</small><br /><small>${d.intro}</small></span>
       <small>推薦戰力 ${d.recommendedPower}<br />獎勵 ${d.reward} 分<br />通關 ${st.clears}/${st.attempts}</small>
     </div>`;
@@ -341,7 +352,8 @@ function gacha() {
   }).join("");
   const last = modal.lastId ? getSamsarite(state, modal.lastId) : null;
   const result = last
-    ? `<div class="summary">🎴 抽到了 ${rankBadge(last.rank)} <b>${last.name}</b>（戰力 ${last.stats.power}，維持費 ${upkeepOf(last)} / 天）</div>`
+    ? `<div class="summary gacha-result" style="--rank-color:var(--rank-${last.rank})">${rankBadge(last.rank)}
+        <b>${last.name}</b>戰力 ${last.stats.power}・維持費 ${upkeepOf(last)} / 天</div>`
     : "";
   const debtNote = state.points < 0 ? `<span class="bad">（負債中）</span>` : "";
   return `<h3>🎴 抽卡</h3>
@@ -414,7 +426,7 @@ function runResult() {
     : "無";
   return `<h3>${r.success ? "🏆 通關" : "💀 失敗"}：${r.dungeonName}</h3>
     <div class="summary">
-      房間：${rooms}（通過 ${r.passedCount}/${CONFIG.dungeon.rooms}）<br />
+      <span class="result-rooms">${rooms}</span><br />房間通過 ${r.passedCount}/${CONFIG.dungeon.rooms}<br />
       獎勵：<b class="${r.success ? "good" : "bad"}">+${r.reward} 分</b><br />
       生還：${survivors}<br />
       死亡：<span class="${r.deaths.length ? "bad" : ""}">${r.deaths.length ? r.deaths.join("、") : "無"}</span>
